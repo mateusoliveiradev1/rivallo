@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 4 — Desktop Shell, Local Persistence Boundary, Containers and CI Skeleton
 status: Ready to plan
-stopped_at: Completed 04-02-PLAN.md
-last_updated: "2026-07-14T15:36:21.585Z"
+stopped_at: Completed 04-03-PLAN.md
+last_updated: "2026-07-14T15:59:02.250Z"
 progress:
   total_phases: 13
   completed_phases: 2
   total_plans: 19
-  completed_plans: 15
+  completed_plans: 16
   percent: 15
 ---
 
@@ -34,8 +34,8 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 
 ## Session
 
-**Last session:** 2026-07-14T15:36:21.582Z
-**Stopped at:** Completed 04-02-PLAN.md
+**Last session:** 2026-07-14T15:59:02.246Z
+**Stopped at:** Completed 04-03-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -51,6 +51,7 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 | Phase 03 P09 | 28min | 3 tasks | 15 files |
 | Phase 04 P01 | 2min | 2 tasks | 2 files |
 | Phase 04 P02 | 8min | 2 tasks | 7 files |
+| Phase 04 P03 | 18min | 2 tasks | 71 files |
 
 ## Decisions
 
@@ -67,3 +68,6 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 - [Phase 04]: Mateus approved exactly @tauri-apps/cli@2.11.4, @tauri-apps/api@2.11.1, vite@8.1.4, and @vitejs/plugin-react@6.0.3 on 2026-07-14; no other package or version is covered. — Registry provenance, exact-version integrity, trusted-publisher evidence, and absence of consumer install hooks were accepted before any dependency transaction.
 - [Phase 04]: The approved Axum/Tokio runtime remains exclusively in the outer platform crate; domain, application, and contracts stay runtime-framework independent.
 - [Phase 04]: The sidecar accepts only the fixed private stdin shutdown message and shares its cancellation token with Axum graceful shutdown; no HTTP management route or runtime address argument exists.
+- [Phase 04]: Use Tauri --no-bundle for build-only verification instead of --bundles none.
+- [Phase 04]: Derive the sidecar target triple from rustc -vV for host-correct packaging.
+- [Phase 04]: Track Tauri icon sources while ignoring copied sidecars, generated schemas, and build output.
