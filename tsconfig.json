@@ -12,6 +12,7 @@
   "include": [
     "scripts/**/*.mjs",
     "tooling-tests/**/*.mjs",
+    "apps/**/*.ts",
     "packages/**/src/**/*.ts",
     "*.config.mjs"
   ]
