@@ -6,6 +6,8 @@
   "scripts": {
     "format:check": "prettier --check package.json turbo.json pnpm-workspace.yaml scripts/*.mjs tooling-tests/*.mjs eslint.config.mjs vitest.config.mjs tsconfig.json .prettierrc.json",
     "lint": "eslint scripts tooling-tests eslint.config.mjs vitest.config.mjs --max-warnings 0",
+    "quality": "pnpm smoke",
+    "smoke": "node scripts/run-quality.mjs",
     "test": "vitest run tooling-tests/workspace-config.test.mjs",
     "typecheck": "tsc --noEmit"
   },
