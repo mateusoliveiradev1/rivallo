@@ -55,12 +55,29 @@ Delivery is sequential. A gate may advance only after the named approval and its
 **Plans:** 7 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 03-01-PLAN.md — Establish D-01 crate topology with application → domain only.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 03-02-PLAN.md — Enforce resolved Cargo metadata dependency policy.
 - [ ] 03-03-PLAN.md — Record human approval for the pinned TypeScript generator.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 03-04-PLAN.md — Implement canonical Rust contracts and the schema-only platform exporter.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 03-05-PLAN.md — Materialize committed OpenAPI and prove deterministic non-mutating verification.
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 03-06-PLAN.md — Generate and verify the TypeScript contract client.
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
 - [ ] 03-07-PLAN.md — Integrate quality checks, proof, scope fences, and documentation.
 
 **Success criteria:**
