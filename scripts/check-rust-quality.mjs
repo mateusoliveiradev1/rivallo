@@ -53,9 +53,13 @@ if (command === 'clippy') {
 
 if (command === 'test') {
   run(cargo, ['nextest', '--version']);
-  console.log(
-    `cargo-nextest is available; zero-member virtual workspace metadata is valid (${members.length} members).`,
-  );
+  if (members.length === 0) {
+    console.log(
+      'cargo-nextest is available; no Rust source members exist in this virtual workspace.',
+    );
+  } else {
+    run(cargo, ['nextest', 'run', '--workspace', '--all-targets']);
+  }
 }
 
 if (command === 'check') {

@@ -12,6 +12,9 @@ const requiredFiles = [
   'Cargo.toml',
   'rust-toolchain.toml',
   'scripts/check-rust-quality.mjs',
+  'scripts/verify-cargo-architecture.mjs',
+  'scripts/verify-openapi-drift.mjs',
+  'scripts/verify-contract-client-drift.mjs',
   'scripts/verify-cargo-workspace.mjs',
   'tooling-tests/workspace-config.test.mjs',
   'tsconfig.json',
@@ -39,6 +42,11 @@ for (const command of [
   'rust:fmt',
   'rust:clippy',
   'rust:test',
+  'rust:architecture',
+  'contracts:openapi:generate',
+  'contracts:openapi:check',
+  'contracts:client:generate',
+  'contracts:client:check',
   'check',
 ]) {
   if (typeof packageJson.scripts?.[command] !== 'string') {
@@ -98,11 +106,14 @@ if (aggregateMode) {
     'rust:fmt',
     'rust:clippy',
     'rust:test',
+    'rust:architecture',
+    'contracts:openapi:check',
+    'contracts:client:check',
     'smoke',
   ]) {
     runPnpm(script);
   }
-  console.log('All Phase 2 quality checks passed.');
+  console.log('All Phase 3 quality checks passed.');
   process.exit(0);
 }
 

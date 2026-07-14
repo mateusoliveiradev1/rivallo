@@ -26,3 +26,30 @@ describe('Phase 2 workspace configuration', () => {
     expect(cargoManifest).toContain('[workspace]');
   });
 });
+
+describe('Phase 3 quality command surface', () => {
+  it('separates writers from the non-mutating aggregate', async () => {
+    const [packageManifest, aggregate] = await Promise.all([
+      readRootFile('package.json'),
+      readRootFile('scripts/run-quality.mjs'),
+    ]);
+    const scripts = JSON.parse(packageManifest).scripts;
+
+    for (const command of [
+      'rust:architecture',
+      'contracts:openapi:generate',
+      'contracts:openapi:check',
+      'contracts:client:generate',
+      'contracts:client:check',
+    ]) {
+      expect(scripts[command]).toMatch(/^node scripts\//);
+    }
+
+    const aggregateBlock = aggregate.slice(aggregate.indexOf('if (aggregateMode)'));
+    expect(aggregateBlock).toContain("'rust:architecture'");
+    expect(aggregateBlock).toContain("'contracts:openapi:check'");
+    expect(aggregateBlock).toContain("'contracts:client:check'");
+    expect(aggregateBlock).not.toContain("'contracts:openapi:generate'");
+    expect(aggregateBlock).not.toContain("'contracts:client:generate'");
+  });
+});

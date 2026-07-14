@@ -1,12 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import {
-  cpSync,
-  mkdtempSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,7 +27,9 @@ const inventory = (directory) =>
 describe('generated contracts client', () => {
   it('derives generated types, version schema, and Fetch client only from committed OpenAPI', () => {
     const configuration = readFileSync(resolve(packageDirectory, 'openapi-ts.config.ts'), 'utf8');
-    const document = JSON.parse(readFileSync(resolve(repositoryRoot, 'contracts', 'openapi.json'), 'utf8'));
+    const document = JSON.parse(
+      readFileSync(resolve(repositoryRoot, 'contracts', 'openapi.json'), 'utf8'),
+    );
     const generatedTypes = readFileSync(join(generatedDirectory, 'types.gen.ts'), 'utf8');
     const generatedClient = readFileSync(join(generatedDirectory, 'client.gen.ts'), 'utf8');
 
@@ -49,7 +44,9 @@ describe('generated contracts client', () => {
   it('writes byte-identical complete generated trees', () => {
     expect(runNode('scripts/generate-contract-client.mjs').status).toBe(0);
     const firstFiles = inventory(generatedDirectory);
-    const firstBytes = new Map(firstFiles.map((file) => [file, readFileSync(join(generatedDirectory, file))]));
+    const firstBytes = new Map(
+      firstFiles.map((file) => [file, readFileSync(join(generatedDirectory, file))]),
+    );
 
     expect(runNode('scripts/generate-contract-client.mjs').status).toBe(0);
     expect(inventory(generatedDirectory)).toEqual(firstFiles);
@@ -62,7 +59,10 @@ describe('generated contracts client', () => {
 
   it('checks in a temporary tree without mutating committed output', () => {
     const before = new Map(
-      inventory(generatedDirectory).map((file) => [file, readFileSync(join(generatedDirectory, file))]),
+      inventory(generatedDirectory).map((file) => [
+        file,
+        readFileSync(join(generatedDirectory, file)),
+      ]),
     );
 
     expect(runNode('scripts/verify-contract-client-drift.mjs').status).toBe(0);
@@ -103,7 +103,10 @@ describe('generated contracts client', () => {
     const configuration = readFileSync(resolve(packageDirectory, 'openapi-ts.config.ts'), 'utf8');
 
     expect(sourceFiles).toEqual(
-      [...generatedFiles.map((file) => `generated/${file.replaceAll('\\', '/')}`), 'index.ts'].sort(),
+      [
+        ...generatedFiles.map((file) => `generated/${file.replaceAll('\\', '/')}`),
+        'index.ts',
+      ].sort(),
     );
     expect(packageEntrypoint).toBe("export * from './generated/index.js';\n");
     expect(configuration).not.toMatch(/auth|retry|axios|application/i);

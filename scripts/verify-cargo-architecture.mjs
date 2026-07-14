@@ -41,30 +41,37 @@ const DOMAIN_DENYLIST = new Set([
   'yew',
 ]);
 
+/** @param {{ packages?: Array<{ id: string, name: string }> }} metadata */
 const packageNameById = (metadata) =>
   new Map((metadata.packages ?? []).map((pkg) => [pkg.id, pkg.name]));
 
+/** @param {{ resolve?: { nodes?: Array<{ id: string, dependencies?: string[] }> } }} metadata */
 const graphById = (metadata) =>
   new Map((metadata.resolve?.nodes ?? []).map((node) => [node.id, node.dependencies ?? []]));
 
+/** @param {{ workspace_members?: string[] } & Parameters<typeof packageNameById>[0]} metadata @param {Map<string, string[]>} names */
 const memberIdByName = (metadata, names) => {
   const namesById = packageNameById(metadata);
-  return new Map(
-    (metadata.workspace_members ?? [])
-      .map((id) => [namesById.get(id), id])
-      .filter(([name]) => names.has(name)),
-  );
+  /** @type {[string, string][]} */
+  const members = [];
+  for (const id of metadata.workspace_members ?? []) {
+    const name = namesById.get(id);
+    if (name && names.has(name)) members.push([name, id]);
+  }
+  return new Map(members);
 };
 
+/** @param {string} startId @param {Map<string, string[]>} graph @param {Map<string, string>} namesById */
 const dependencyPath = (startId, graph, namesById) => {
   const paths = new Map([[startId, [startId]]]);
   const queue = [startId];
 
   while (queue.length > 0) {
     const id = queue.shift();
+    if (!id) continue;
     for (const dependency of graph.get(id) ?? []) {
       if (!paths.has(dependency)) {
-        paths.set(dependency, [...paths.get(id), dependency]);
+        paths.set(dependency, [...(paths.get(id) ?? []), dependency]);
         queue.push(dependency);
       }
     }
@@ -76,6 +83,7 @@ const dependencyPath = (startId, graph, namesById) => {
 };
 
 /** @param {unknown} metadata */
+/** @param {{ packages?: Array<{ id: string, name: string }>, resolve?: { nodes?: Array<{ id: string, dependencies?: string[] }> }, workspace_members?: string[] }} metadata */
 export const auditCargoArchitecture = (metadata) => {
   const failures = [];
   const namesById = packageNameById(metadata);
@@ -122,6 +130,7 @@ export const auditCargoArchitecture = (metadata) => {
   return failures;
 };
 
+/** @param {string[]} failures */
 export const formatArchitectureFailures = (failures) => failures.join('\n');
 
 const cargo = process.platform === 'win32' ? 'cargo.exe' : 'cargo';

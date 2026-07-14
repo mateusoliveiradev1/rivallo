@@ -6,8 +6,10 @@ import {
   formatArchitectureFailures,
 } from '../scripts/verify-cargo-architecture.mjs';
 
+/** @param {string} name */
 const packageId = (name) => `registry+https://example.test/${name}#1.0.0`;
 
+/** @param {Record<string, string[]>} edges */
 const metadataFor = (edges) => {
   const names = new Set(Object.keys(edges));
   for (const dependencies of Object.values(edges)) {
@@ -16,17 +18,17 @@ const metadataFor = (edges) => {
 
   const ids = new Map([...names].map((name) => [name, packageId(name)]));
   return {
-    packages: [...names].map((name) => ({ id: ids.get(name), name })),
+    packages: [...names].map((name) => ({ id: ids.get(name) ?? '', name })),
     workspace_members: [
       'rivallo-domain',
       'rivallo-application',
       'rivallo-contracts',
       'rivallo-platform',
-    ].map((name) => ids.get(name)),
+    ].map((name) => ids.get(name) ?? ''),
     resolve: {
       nodes: [...names].map((name) => ({
-        id: ids.get(name),
-        dependencies: (edges[name] ?? []).map((dependency) => ids.get(dependency)),
+        id: ids.get(name) ?? '',
+        dependencies: (edges[name] ?? []).map((dependency) => ids.get(dependency) ?? ''),
       })),
     },
   };

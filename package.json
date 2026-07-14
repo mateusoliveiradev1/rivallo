@@ -15,6 +15,7 @@
     "rust:clippy": "node scripts/check-rust-quality.mjs clippy",
     "rust:fmt": "node scripts/check-rust-quality.mjs fmt",
     "rust:test": "node scripts/check-rust-quality.mjs test",
+    "rust:architecture": "node scripts/verify-cargo-architecture.mjs",
     "smoke": "node scripts/run-quality.mjs",
     "test": "vitest run",
     "toolchains": "node scripts/check-toolchains.mjs",
