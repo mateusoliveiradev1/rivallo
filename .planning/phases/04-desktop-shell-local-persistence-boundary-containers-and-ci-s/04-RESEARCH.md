@@ -314,16 +314,10 @@ Each job should call real existing atomic commands wherever possible, preserve `
 | A2 | `/ready` should carry a service/contract/build compatibility marker. | Summary / Patterns | The exact schema may need alignment with the Phase 3 contract version. |
 | A3 | `postgres:<reviewed-major>` is the correct local image major. | Code Examples | Planner must choose and audit a supported image tag before implementation. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **How should desktop-to-sidecar graceful shutdown be signalled?**
-   - What we know: Axum supports graceful shutdown and Tauri can manage an owned child.
-   - What's unclear: the smallest cross-platform control channel compatible with the packaged sidecar.
-   - Recommendation: select a private shutdown mechanism during planning, test the bounded fallback stop only for the owned child, and never expose it as a public API.
-2. **What is the exact `/ready` contract?**
-   - What we know: it must distinguish compatible, reusable service instances from conflicts.
-   - What's unclear: whether the Phase 3 contract version alone is sufficient or a separate runtime protocol version is needed.
-   - Recommendation: use a neutral runtime compatibility value without adding product endpoints; keep it owned by platform/contracts, not React.
+1. **Desktop-to-sidecar graceful shutdown:** Use the Tauri shell plugin's managed owned-child stdin channel for a private `shutdown` control message. The Axum sidecar translates it into its cancellation token and completes `with_graceful_shutdown`; the host then applies a short bounded termination only to its stored child handle if necessary. Reused responders receive no shutdown request. **Recommended choice and provenance:** official Tauri sidecar/managed-child guidance and Axum `Serve::with_graceful_shutdown` documentation already cited in this research, applied to D-01 and D-02 in `04-CONTEXT.md`.
+2. **Exact `/ready` contract:** Return HTTP 200 JSON with exactly `service: "rivallo-local-api"`, `contractVersion: rivallo_contracts::CONTRACT_VERSION`, and `runtimeProtocol: 1`. Reuse requires exact equality of all fields; non-200, malformed, or mismatched responses are recoverable diagnostics. `runtimeProtocol` is separate from the API contract version so host/sidecar compatibility can evolve without redefining the generated product contract. **Recommended choice and provenance:** D-02/D-03, the Phase 3 contracts-owned version constant, and the Tauri/Axum sources cited in the Summary and Pattern 2 above.
 
 ## Environment Availability
 
