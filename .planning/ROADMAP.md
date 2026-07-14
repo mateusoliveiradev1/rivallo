@@ -52,7 +52,7 @@ Delivery is sequential. A gate may advance only after the named approval and its
 
 **Dependencies:** Phase 2.
 
-**Plans:** 5/7 plans executed
+**Plans:** 6/7 plans executed
 
 Plans:
 **Wave 1**
@@ -74,7 +74,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 03-06-PLAN.md — Generate and verify the TypeScript contract client.
+- [x] 03-06-PLAN.md — Generate and verify the TypeScript contract client.
 
 **Wave 6** *(blocked on Wave 5 completion)*
 

@@ -4,14 +4,14 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 3 — Rust Modular Monolith and API Contract Pipeline
 status: In progress
-stopped_at: Completed 03-05-PLAN.md
-last_updated: "2026-07-14T10:59:57.656Z"
+stopped_at: Completed 03-06-PLAN.md
+last_updated: "2026-07-14T11:09:48.211Z"
 progress:
   total_phases: 13
   completed_phases: 1
   total_plans: 11
-  completed_plans: 9
-  percent: 82
+  completed_plans: 10
+  percent: 91
 ---
 
 # State
@@ -34,8 +34,8 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 
 ## Session
 
-**Last session:** 2026-07-14T10:59:57.652Z
-**Stopped at:** Completed 03-05-PLAN.md
+**Last session:** 2026-07-14T11:09:48.207Z
+**Stopped at:** Completed 03-06-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -46,6 +46,7 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 | Phase 03 P02 | 10min | 1 tasks | 3 files |
 | Phase 03 P04 | 12min | 2 tasks | 6 files |
 | Phase 03 P05 | 10min | 2 tasks | 5 files |
+| Phase 03 P06 | 20min | 2 tasks | 25 files |
 
 ## Decisions
 
@@ -54,3 +55,4 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 - [Phase 03]: Contracts owns ContractManifest, CONTRACT_VERSION, and the ToSchema derivation. — Canonical schemas and semantic version stay outside application and platform composition.
 - [Phase 03]: Platform composes only schema metadata and exposes the explicit export-openapi output-path binary. — The exporter remains schema-only without a listener, endpoint, fixture, or runtime registration.
 - [Phase 03]: OpenAPI drift verification exports to a unique temporary path and byte-compares it without mutating the tracked contract. — Drift failures retain evidence and print the explicit writer repair command.
+- [Phase 03]: Generated TypeScript contract models are isolated in packages/contracts-client and derive only from committed contracts/openapi.json. — The package remains application-independent and generated-only.
