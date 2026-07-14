@@ -1,4 +1,6 @@
-//! Outer composition for contract-pipeline inputs; this crate hosts no runtime transport.
+//! Outer composition for contract-pipeline inputs and the local loopback runtime.
+
+pub mod runtime;
 
 use rivallo_contracts::{CONTRACT_VERSION, ContractManifest, ContractMetadata};
 use utoipa::OpenApi;
