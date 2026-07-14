@@ -3,6 +3,12 @@ name = "rivallo-platform"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "export-openapi"
+path = "src/bin/export_openapi.rs"
+
 [dependencies]
 rivallo-application = { path = "../application" }
 rivallo-contracts = { path = "../contracts" }
+serde_json = "1.0"
+utoipa = { version = "5.5.0", features = ["macros"] }

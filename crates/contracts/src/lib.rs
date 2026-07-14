@@ -43,7 +43,7 @@ impl ContractManifest {
 
 #[cfg(test)]
 mod tests {
-    use super::{ContractManifest, CONTRACT_VERSION};
+    use super::{CONTRACT_VERSION, ContractManifest};
 
     #[test]
     fn manifest_carries_the_canonical_contract_version() {

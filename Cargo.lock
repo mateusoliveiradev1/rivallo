@@ -80,6 +80,8 @@ version = "0.1.0"
 dependencies = [
  "rivallo-application",
  "rivallo-contracts",
+ "serde_json",
+ "utoipa",
 ]
 
 [[package]]
