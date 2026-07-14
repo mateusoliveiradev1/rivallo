@@ -13,6 +13,7 @@ Make consequential football-management decisions feel deep and dependable, inclu
 ### Validated
 
 - Phase 2 — workspace pnpm/Turborepo/Cargo, validação de toolchains e scripts de qualidade reproduzíveis, sem componentes de produto.
+- Phase 3 — monólito modular Rust com fronteiras auditadas, contratos Rust → OpenAPI → TypeScript determinísticos e checks de drift não mutáveis, sem runtime de produto.
 
 ### Active
 
@@ -42,4 +43,4 @@ Make consequential football-management decisions feel deep and dependable, inclu
 | Dev identity in V0.1 | Defer provider selection while preserving AuthPort | — Pending |
 
 ---
-*Last updated: 2026-07-14 after Phase 2 completion*
+*Last updated: 2026-07-14 after Phase 3 completion*
