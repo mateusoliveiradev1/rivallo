@@ -1,4 +1,8 @@
 [workspace]
-# Phase 2 deliberately has no Rust crates. Phase 3 adds real members.
-members = []
+members = [
+  "crates/domain",
+  "crates/application",
+  "crates/contracts",
+  "crates/platform",
+]
 resolver = "2"
