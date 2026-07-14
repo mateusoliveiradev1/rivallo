@@ -24,7 +24,7 @@ Delivery is sequential. A gate may advance only after the named approval and its
 
 ## Phase 2: Workspace, Toolchains and Quality Scripts
 
-**Status:** Current — ready for specification  
+**Status:** Planned — ready to execute  
 **Gate:** 1  
 **Directory:** `.planning/phases/02-workspace-toolchains-quality-scripts/`
 
