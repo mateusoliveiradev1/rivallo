@@ -24,8 +24,8 @@ const workspace = metadata();
 const members = workspace.workspace_members ?? [];
 const command = process.argv[2];
 
-if (!['fmt', 'clippy', 'test'].includes(command)) {
-  console.error('Usage: node scripts/check-rust-quality.mjs <fmt|clippy|test>');
+if (!['fmt', 'clippy', 'test', 'check'].includes(command)) {
+  console.error('Usage: node scripts/check-rust-quality.mjs <fmt|clippy|test|check>');
   process.exit(1);
 }
 
@@ -56,4 +56,8 @@ if (command === 'test') {
   console.log(
     `cargo-nextest is available; zero-member virtual workspace metadata is valid (${members.length} members).`,
   );
+}
+
+if (command === 'check') {
+  run(cargo, ['check', '--workspace']);
 }
