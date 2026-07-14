@@ -121,7 +121,9 @@ describe('generated contracts client', () => {
         'index.ts',
       ].sort(),
     );
-    expect(packageEntrypoint).toBe("export * from './generated/index.js';\n");
+    expect(packageEntrypoint).toContain("export { client } from './generated/client.gen.js';");
+    expect(packageEntrypoint).toContain("from './generated/client/index.js';");
+    expect(packageEntrypoint).not.toMatch(/generated\/core|auth|retry|backoff|sse/i);
     expect(configuration).not.toMatch(/auth|retry|axios|application/i);
   });
 });
