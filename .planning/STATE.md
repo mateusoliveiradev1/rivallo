@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 3 — Rust Modular Monolith and API Contract Pipeline
 status: Complete
-stopped_at: Completed 03-08-PLAN.md
-last_updated: "2026-07-14T12:22:49.784Z"
+stopped_at: Completed 03-09-PLAN.md
+last_updated: "2026-07-14T13:32:50.665Z"
 progress:
   total_phases: 13
   completed_phases: 2
-  total_plans: 12
-  completed_plans: 12
+  total_plans: 13
+  completed_plans: 13
   percent: 15
 ---
 
@@ -34,8 +34,8 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 
 ## Session
 
-**Last session:** 2026-07-14T12:22:49.780Z
-**Stopped at:** Completed 03-08-PLAN.md
+**Last session:** 2026-07-14T13:32:50.662Z
+**Stopped at:** Completed 03-09-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -48,6 +48,7 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 | Phase 03 P05 | 10min | 2 tasks | 5 files |
 | Phase 03 P06 | 20min | 2 tasks | 25 files |
 | Phase 03 P08 | 10min | 2 tasks | 4 files |
+| Phase 03 P09 | 28min | 3 tasks | 15 files |
 
 ## Decisions
 
@@ -59,3 +60,5 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 - [Phase 03]: Generated TypeScript contract models are isolated in packages/contracts-client and derive only from committed contracts/openapi.json. — The package remains application-independent and generated-only.
 - [Phase 03]: Retain the approved bundled generator and expose only selected generated Fetch symbols at the package root. — No runtime dependency, generator version, or generated output change is permitted.
 - [Phase 03]: Treat the bundled generator core as an exact private inventory allowance enforced by public-boundary and drift tests. — The D-10 exception permits dormant generator-owned support only when it is not public or configured.
+- [Phase 03]: Replace the superseded Hey API exception with exact approved orval@8.21.0 direct Fetch output. — Removes public auth/SSE/retry/backoff reachability while preserving generated-only ownership.
+- [Phase 03]: Use one unregistered neutral contract-introspection operation only because Orval Fetch is operation-scoped. — The fixture returns ContractManifest with no parameters, security, runtime registration, or product behavior.
