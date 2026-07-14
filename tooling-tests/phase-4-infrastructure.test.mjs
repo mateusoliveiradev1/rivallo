@@ -44,3 +44,49 @@ describe('Phase 4 local PostgreSQL infrastructure', () => {
     expect(trackedFiles.split(/\r?\n/)).not.toContain('.env');
   });
 });
+
+describe('Phase 4 scoped CI', () => {
+  it('exposes exactly three non-publishing Linux jobs over real root commands', async () => {
+    const [workflow, packageManifest, qualityRunner, vitestConfig] = await Promise.all([
+      rootFile('.github/workflows/ci.yml'),
+      rootFile('package.json'),
+      rootFile('scripts/run-quality.mjs'),
+      rootFile('vitest.config.mjs'),
+    ]);
+    const packageJson = JSON.parse(packageManifest);
+    const jobs = workflow.split(/^jobs:\s*$/m)[1];
+
+    expect(workflow).toMatch(/^on:\s*\r?\n {2}pull_request:\s*$/m);
+    expect(workflow).toMatch(/push:\s*\r?\n {4}branches: \[main\]/);
+    expect(jobs.match(/^ {2}[a-z][\w-]+:\s*$/gm)).toEqual([
+      '  javascript-typescript:',
+      '  rust-contracts:',
+      '  desktop-linux:',
+    ]);
+    expect(workflow.match(/runs-on: ubuntu-latest/g)).toHaveLength(3);
+    expect(workflow.match(/pnpm install --frozen-lockfile/g)).toHaveLength(3);
+    expect(workflow.match(/uses: actions\/checkout@v4/g)).toHaveLength(3);
+    expect(workflow.match(/uses: pnpm\/action-setup@v4/g)).toHaveLength(3);
+    expect(workflow.match(/uses: actions\/setup-node@v4/g)).toHaveLength(3);
+    expect(workflow.match(/cache: pnpm/g)).toHaveLength(3);
+    expect(workflow.match(/cache-dependency-path: pnpm-lock.yaml/g)).toHaveLength(3);
+
+    expect(workflow).toContain('pnpm format:check');
+    expect(workflow).toContain('pnpm lint');
+    expect(workflow).toContain('pnpm typecheck');
+    expect(workflow).toContain('pnpm rust:fmt');
+    expect(workflow).toContain('pnpm rust:clippy');
+    expect(workflow).toContain('pnpm rust:test');
+    expect(workflow).toContain('pnpm rust:architecture');
+    expect(workflow).toContain('pnpm contracts:openapi:check');
+    expect(workflow).toContain('pnpm contracts:client:check');
+    expect(workflow).toContain('pnpm desktop:build');
+    expect(packageJson.scripts['desktop:build']).toBe('node scripts/build-desktop.mjs');
+    expect(qualityRunner).toContain("'desktop:build'");
+    expect(vitestConfig).toContain('fileParallelism: false');
+
+    expect(workflow).not.toMatch(
+      /upload-artifact|download-artifact|actions\/cache|publish|release|deploy|docker|matrix:|windows-|macos-|contracts:(?:openapi|client):generate|--bundles?/i,
+    );
+  });
+});
