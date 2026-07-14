@@ -32,7 +32,7 @@ created: 2026-07-13
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---|---:|---:|---|---|---|---|---|---|---|
-| 03-01-01 | 01 | 1 | FOUND-03 | T-03-01 | Four crates compile with inward responsibilities and no transport entrypoint. | Rust unit/metadata smoke | `pnpm toolchains && cargo metadata --format-version=1 --no-deps` | ❌ created by task | ⬜ pending |
+| 03-01-01 | 01 | 1 | FOUND-03 | T-03-01 | Four crates compile with inward responsibilities and no transport entrypoint. | Rust unit/metadata smoke | `pnpm toolchains && node scripts/check-rust-quality.mjs check && cargo metadata --format-version=1 --no-deps` | ❌ created by task | ⬜ pending |
 | 03-01-02 | 01 | 1 | FOUND-03 | T-03-02 | Real metadata traversal rejects inverted edges and transitive forbidden domain dependencies. | Node unit + integration | `pnpm test -- tooling-tests/verify-cargo-architecture.test.mjs && node scripts/verify-cargo-architecture.mjs` | ❌ created by task | ⬜ pending |
 | 03-02-01 | 02 | 2 | FOUND-03 | T-03-03 | Real metadata enforces domain none, application-to-domain only, contracts none, platform-to-application/contracts only, including an application-to-contracts rejection. | Node unit + integration | `pnpm test -- tooling-tests/verify-cargo-architecture.test.mjs && node scripts/verify-cargo-architecture.mjs` | ❌ created by task | ⬜ pending |
 | 03-03-01 | 03 | 2 | DATA-02 | T-03-04 | The SUS generator is neither installed nor used before explicit human approval. | Human checkpoint | `MISSING — record exact package approval in 03-03-SUMMARY.md` | ❌ summary created by task | ⬜ pending |
