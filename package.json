@@ -9,6 +9,7 @@
     "quality": "pnpm smoke",
     "check": "node scripts/run-quality.mjs check",
     "contracts:openapi:generate": "node scripts/generate-openapi.mjs",
+    "contracts:openapi:check": "node scripts/verify-openapi-drift.mjs",
     "rust:clippy": "node scripts/check-rust-quality.mjs clippy",
     "rust:fmt": "node scripts/check-rust-quality.mjs fmt",
     "rust:test": "node scripts/check-rust-quality.mjs test",
