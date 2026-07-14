@@ -1,0 +1,11 @@
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+
+# Impeccable local state and generated evidence
+.impeccable/config.local.json
+.impeccable/cache/
+.impeccable/screenshots/
+.impeccable/sessions/
+.impeccable/reports/
