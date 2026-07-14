@@ -1,5 +1,9 @@
 //! Use-case boundaries that operate only on domain-owned information.
 
+mod persistence;
+
+pub use persistence::{LocalPersistenceError, LocalPersistencePort};
+
 use rivallo_domain::{ModuleId, PreparedContractInput};
 
 /// Prepares neutral information for the outer contract-composition boundary.
