@@ -1,6 +1,13 @@
 //! Outer composition for contract-pipeline inputs and the local loopback runtime.
 
-pub mod runtime;
+mod runtime;
+
+pub use runtime::{
+    CancellationToken, LOCAL_API_ADDRESS, LOCAL_API_PORT, LOCAL_API_SERVICE_ID,
+    READINESS_POLL_INTERVAL, READINESS_TIMEOUT, RUNTIME_PROTOCOL, ReadinessDiagnostic,
+    ReadinessPayload, SHUTDOWN_CONTROL_MESSAGE, read_shutdown_control, run_local_api,
+    validate_readiness_response,
+};
 
 use rivallo_contracts::{CONTRACT_VERSION, ContractManifest, ContractMetadata};
 use utoipa::OpenApi;

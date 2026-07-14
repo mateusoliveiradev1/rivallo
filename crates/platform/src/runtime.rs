@@ -1,3 +1,165 @@
+use std::io;
+use std::time::Duration;
+
+use axum::{Json, Router, http::StatusCode, routing::get};
+use rivallo_contracts::CONTRACT_VERSION;
+use serde_json::{Value, json};
+use tokio::io::{AsyncBufRead, AsyncBufReadExt};
+use tokio::net::TcpListener;
+use tokio::sync::watch;
+
+pub const LOCAL_API_PORT: u16 = 47_831;
+pub const LOCAL_API_ADDRESS: &str = "127.0.0.1:47831";
+pub const READINESS_TIMEOUT: Duration = Duration::from_secs(5);
+pub const READINESS_POLL_INTERVAL: Duration = Duration::from_millis(100);
+pub const LOCAL_API_SERVICE_ID: &str = "rivallo-local-api";
+pub const RUNTIME_PROTOCOL: u32 = 1;
+pub const SHUTDOWN_CONTROL_MESSAGE: &str = "shutdown";
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReadinessPayload {
+    pub service: &'static str,
+    pub contract_version: &'static str,
+    pub runtime_protocol: u32,
+}
+
+impl ReadinessPayload {
+    pub const fn current() -> Self {
+        Self {
+            service: LOCAL_API_SERVICE_ID,
+            contract_version: CONTRACT_VERSION,
+            runtime_protocol: RUNTIME_PROTOCOL,
+        }
+    }
+
+    fn as_json(&self) -> Value {
+        json!({
+            "service": self.service,
+            "contractVersion": self.contract_version,
+            "runtimeProtocol": self.runtime_protocol,
+        })
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ReadinessDiagnostic {
+    UnhealthyStatus(u16),
+    MalformedPayload,
+    Incompatible,
+}
+
+pub fn validate_readiness_response(
+    status: u16,
+    body: &[u8],
+) -> Result<ReadinessPayload, ReadinessDiagnostic> {
+    if status != StatusCode::OK.as_u16() {
+        return Err(ReadinessDiagnostic::UnhealthyStatus(status));
+    }
+
+    let Value::Object(payload) = serde_json::from_slice(body)
+        .map_err(|_| ReadinessDiagnostic::MalformedPayload)?
+    else {
+        return Err(ReadinessDiagnostic::MalformedPayload);
+    };
+
+    let service = payload
+        .get("service")
+        .and_then(Value::as_str)
+        .ok_or(ReadinessDiagnostic::MalformedPayload)?;
+    let contract_version = payload
+        .get("contractVersion")
+        .and_then(Value::as_str)
+        .ok_or(ReadinessDiagnostic::MalformedPayload)?;
+    let runtime_protocol = payload
+        .get("runtimeProtocol")
+        .and_then(Value::as_u64)
+        .and_then(|value| u32::try_from(value).ok())
+        .ok_or(ReadinessDiagnostic::MalformedPayload)?;
+
+    let expected = ReadinessPayload::current();
+    if payload.len() != 3
+        || service != expected.service
+        || contract_version != expected.contract_version
+        || runtime_protocol != expected.runtime_protocol
+    {
+        return Err(ReadinessDiagnostic::Incompatible);
+    }
+
+    Ok(expected)
+}
+
+#[derive(Clone, Debug)]
+pub struct CancellationToken {
+    sender: watch::Sender<bool>,
+}
+
+impl CancellationToken {
+    pub fn new() -> Self {
+        let (sender, _) = watch::channel(false);
+        Self { sender }
+    }
+
+    pub fn cancel(&self) {
+        self.sender.send_replace(true);
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        *self.sender.borrow()
+    }
+
+    async fn cancelled(&self) {
+        let mut receiver = self.sender.subscribe();
+        while !*receiver.borrow_and_update() {
+            if receiver.changed().await.is_err() {
+                break;
+            }
+        }
+    }
+}
+
+impl Default for CancellationToken {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub async fn run_local_api(cancellation: CancellationToken) -> io::Result<()> {
+    let listener = TcpListener::bind(LOCAL_API_ADDRESS).await?;
+    serve_listener(listener, cancellation).await
+}
+
+pub async fn read_shutdown_control<R>(
+    reader: R,
+    cancellation: CancellationToken,
+) -> io::Result<()>
+where
+    R: AsyncBufRead + Unpin,
+{
+    let mut lines = reader.lines();
+    while let Some(line) = lines.next_line().await? {
+        if line == SHUTDOWN_CONTROL_MESSAGE {
+            cancellation.cancel();
+            break;
+        }
+    }
+    Ok(())
+}
+
+fn router() -> Router {
+    Router::new()
+        .route("/health", get(|| async { StatusCode::NO_CONTENT }))
+        .route(
+            "/ready",
+            get(|| async { Json(ReadinessPayload::current().as_json()) }),
+        )
+}
+
+async fn serve_listener(listener: TcpListener, cancellation: CancellationToken) -> io::Result<()> {
+    axum::serve(listener, router())
+        .with_graceful_shutdown(async move { cancellation.cancelled().await })
+        .await
+}
+
 #[cfg(test)]
 mod tests {
     use std::net::{IpAddr, SocketAddr};
