@@ -12,7 +12,13 @@ const generator = resolve(
   'bin',
   'run.js',
 );
-const result = spawnSync(process.execPath, [generator, '--file', 'openapi-ts.config.ts'], {
+const args = [generator, '--file', 'openapi-ts.config.ts'];
+
+if (process.env.CONTRACT_CLIENT_OUTPUT) {
+  args.push('--output', process.env.CONTRACT_CLIENT_OUTPUT);
+}
+
+const result = spawnSync(process.execPath, args, {
   cwd: packageDirectory,
   encoding: 'utf8',
 });
