@@ -8,7 +8,8 @@
     "lint": "eslint scripts tooling-tests eslint.config.mjs vitest.config.mjs --max-warnings 0",
     "quality": "pnpm smoke",
     "smoke": "node scripts/run-quality.mjs",
-    "test": "vitest run tooling-tests/workspace-config.test.mjs",
+    "test": "vitest run",
+    "toolchains": "node scripts/check-toolchains.mjs",
     "typecheck": "tsc --noEmit"
   },
   "engines": {
