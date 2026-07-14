@@ -22,3 +22,13 @@ impl ContractMetadata {
         self.semantic_version
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{ContractManifest, CONTRACT_VERSION};
+
+    #[test]
+    fn manifest_carries_the_canonical_contract_version() {
+        assert_eq!(ContractManifest::current().version, CONTRACT_VERSION);
+    }
+}
