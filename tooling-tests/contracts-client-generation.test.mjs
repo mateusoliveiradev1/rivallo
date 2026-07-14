@@ -10,16 +10,6 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const packageDirectory = resolve(repositoryRoot, 'packages', 'contracts-client');
 const generatedDirectory = resolve(packageDirectory, 'src', 'generated');
 const packageRequire = createRequire(join(packageDirectory, 'package.json'));
-const dormantCoreFiles = [
-  'core/auth.gen.ts',
-  'core/bodySerializer.gen.ts',
-  'core/params.gen.ts',
-  'core/pathSerializer.gen.ts',
-  'core/queryKeySerializer.gen.ts',
-  'core/serverSentEvents.gen.ts',
-  'core/types.gen.ts',
-  'core/utils.gen.ts',
-];
 
 /** @param {string} script @param {NodeJS.ProcessEnv} [environment] */
 const runNode = (script, environment = {}) =>
@@ -37,37 +27,31 @@ const inventory = (directory) =>
     .sort();
 
 describe('generated contracts client', () => {
-  it('exposes the generated Fetch client and configuration surface only from the public package', async () => {
+  it('exposes generated metadata, types, and the direct Fetch operation from the package root', async () => {
     const publicEntrypoint = packageRequire.resolve('@rivallo/contracts-client');
     const contractClient = await import(publicEntrypoint);
 
-    expect(contractClient.client).toBeDefined();
-    expect(contractClient.createClient).toBeTypeOf('function');
-    expect(contractClient.createConfig).toBeTypeOf('function');
-    expect(contractClient).not.toHaveProperty('Auth');
-    expect(contractClient).not.toHaveProperty('serverSentEvents');
-    expect(contractClient.client.getConfig()).not.toMatchObject({
-      auth: expect.anything(),
-      retry: expect.anything(),
-      backoff: expect.anything(),
-      security: expect.anything(),
-    });
+    expect(contractClient.contractManifestForGeneration).toBeTypeOf('function');
+    expect(contractClient.getContractManifestForGenerationUrl()).toBe('/_contract/manifest');
+    expect(contractClient).not.toHaveProperty('client');
+    expect(contractClient).not.toHaveProperty('createClient');
   });
 
-  it('derives generated types, version schema, and Fetch client only from committed OpenAPI', () => {
-    const configuration = readFileSync(resolve(packageDirectory, 'openapi-ts.config.ts'), 'utf8');
+  it('derives the direct Fetch operation and types solely from committed local OpenAPI', () => {
+    const configuration = readFileSync(resolve(packageDirectory, 'orval.config.ts'), 'utf8');
     const document = JSON.parse(
       readFileSync(resolve(repositoryRoot, 'contracts', 'openapi.json'), 'utf8'),
     );
-    const generatedTypes = readFileSync(join(generatedDirectory, 'types.gen.ts'), 'utf8');
-    const generatedClient = readFileSync(join(generatedDirectory, 'client.gen.ts'), 'utf8');
+    const generated = readFileSync(join(generatedDirectory, 'contracts.ts'), 'utf8');
 
-    expect(configuration).toContain("input: '../../contracts/openapi.json'");
-    expect(configuration).toContain("'@hey-api/client-fetch'");
-    expect(configuration).not.toMatch(/https?:\/\//);
-    expect(document.info.version).toBe('0.1.0');
-    expect(generatedTypes).toContain('export type ContractManifest');
-    expect(generatedClient).toContain('createClient');
+    expect(configuration).toContain("import { defineConfig } from 'orval'");
+    expect(configuration).toContain("target: '../../contracts/openapi.json'");
+    expect(configuration).toContain("client: 'fetch'");
+    expect(configuration).not.toMatch(/https?:\/\/|mutator|mock|baseUrl|security/i);
+    expect(document.paths['/_contract/manifest'].get.parameters).toBeUndefined();
+    expect(generated).toContain('export interface ContractManifest');
+    expect(generated).toContain('contractManifestForGeneration');
+    expect(generated).toContain('options?: RequestInit');
   });
 
   it('writes byte-identical complete generated trees', () => {
@@ -86,7 +70,7 @@ describe('generated contracts client', () => {
     }
   });
 
-  it('checks in a temporary tree without mutating committed output', () => {
+  it('checks a complete temporary tree without mutating committed output', () => {
     const before = new Map(
       inventory(generatedDirectory).map((file) => [
         file,
@@ -101,13 +85,13 @@ describe('generated contracts client', () => {
     }
   });
 
-  it('reports controlled drift without repairing the supplied generated tree', () => {
+  it('reports supplied-tree drift without repairing it', () => {
     const temporaryDirectory = mkdtempSync(resolve(tmpdir(), 'rivallo-contract-client-test-'));
     const changedOutput = resolve(temporaryDirectory, 'generated');
 
     try {
       cpSync(generatedDirectory, changedOutput, { recursive: true });
-      const changedFile = join(changedOutput, 'types.gen.ts');
+      const changedFile = join(changedOutput, 'contracts.ts');
       const changedBytes = Buffer.concat([readFileSync(changedFile), Buffer.from('\n')]);
       writeFileSync(changedFile, changedBytes);
 
@@ -123,47 +107,16 @@ describe('generated contracts client', () => {
     }
   });
 
-  it('contains no handwritten schema definitions or configured auth and retry behavior', () => {
-    const sourceFiles = inventory(resolve(packageDirectory, 'src')).map((file) =>
-      file.replaceAll('\\', '/'),
-    );
-    const generatedFiles = inventory(generatedDirectory);
+  it('has no transitive public auth, security, SSE, retry, or backoff surface', () => {
+    const generatedPublicSource = inventory(generatedDirectory)
+      .map((file) => readFileSync(join(generatedDirectory, file), 'utf8'))
+      .join('\n');
     const packageEntrypoint = readFileSync(resolve(packageDirectory, 'src', 'index.ts'), 'utf8');
-    const configuration = readFileSync(resolve(packageDirectory, 'openapi-ts.config.ts'), 'utf8');
 
-    expect(sourceFiles).toEqual(
-      [
-        ...generatedFiles.map((file) => `generated/${file.replaceAll('\\', '/')}`),
-        'index.ts',
-      ].sort(),
+    expect(inventory(generatedDirectory)).toEqual(['contracts.ts']);
+    expect(packageEntrypoint).toBe("export * from './generated/contracts.js';\n");
+    expect(`${packageEntrypoint}\n${generatedPublicSource}`).not.toMatch(
+      /\b(auth|security|sse|retry|backoff)\b/i,
     );
-    expect(packageEntrypoint).toContain("export { client } from './generated/client.gen.js';");
-    expect(packageEntrypoint).toContain("from './generated/client/index.js';");
-    expect(packageEntrypoint).not.toMatch(/generated\/core|auth|retry|backoff|sse/i);
-    expect(configuration).not.toMatch(/auth|retry|axios|application/i);
-  });
-
-  it('keeps the approved dormant generator core private and inert', () => {
-    const document = JSON.parse(
-      readFileSync(resolve(repositoryRoot, 'contracts', 'openapi.json'), 'utf8'),
-    );
-    const packageEntrypoint = readFileSync(resolve(packageDirectory, 'src', 'index.ts'), 'utf8');
-    const generatedPublicBarrel = readFileSync(join(generatedDirectory, 'index.ts'), 'utf8');
-    const generatedTypes = readFileSync(join(generatedDirectory, 'types.gen.ts'), 'utf8');
-    const generatedMetadata = readFileSync(join(generatedDirectory, 'sdk.gen.ts'), 'utf8');
-
-    expect(
-      inventory(generatedDirectory)
-        .map((file) => file.replaceAll('\\', '/'))
-        .filter((file) => file.startsWith('core/')),
-    ).toEqual(dormantCoreFiles);
-    expect(packageEntrypoint).not.toMatch(/generated\/core|auth|retry|backoff|sse/i);
-    for (const publicSource of [generatedPublicBarrel, generatedTypes, generatedMetadata]) {
-      expect(publicSource).not.toMatch(
-        /core\/(auth|serverSentEvents)|sse(?:Default|Max)|security/i,
-      );
-    }
-    expect(document.components?.securitySchemes).toBeUndefined();
-    expect(document.security).toBeUndefined();
   });
 });

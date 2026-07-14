@@ -20,7 +20,10 @@ struct ContractDocument;
     responses((status = 200, description = "Contract manifest metadata", body = ContractManifest)),
     tag = "contract-introspection"
 )]
-#[allow(dead_code, reason = "Utoipa consumes this test-only OpenAPI declaration")]
+#[allow(
+    dead_code,
+    reason = "Utoipa consumes this test-only OpenAPI declaration"
+)]
 fn contract_manifest_for_generation() {}
 
 /// Composes the contract-only OpenAPI document owned by the Rust contract pipeline.

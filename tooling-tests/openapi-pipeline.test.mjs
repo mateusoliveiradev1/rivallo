@@ -48,7 +48,7 @@ describe('OpenAPI export pipeline', () => {
     }
   });
 
-  it('preserves canonical versioned schemas without runtime registration', () => {
+  it('preserves canonical schemas with only the unregistered generation fixture', () => {
     const document = JSON.parse(readFileSync(openapiDocument, 'utf8'));
     const contractsSource = readFileSync(
       resolve(repositoryRoot, 'crates', 'contracts', 'src', 'lib.rs'),
@@ -62,7 +62,12 @@ describe('OpenAPI export pipeline', () => {
 
     expect(document.info.version).toBe(version);
     expect(document.components.schemas.ContractManifest).toBeDefined();
-    expect(document.paths).toEqual({});
-    expect(platformSource).not.toMatch(/axum|listen\(|route\(|server/i);
+    expect(document.paths['/_contract/manifest'].get.parameters).toBeUndefined();
+    expect(document.paths['/_contract/manifest'].get.security).toBeUndefined();
+    expect(
+      document.paths['/_contract/manifest'].get.responses['200'].content['application/json'].schema
+        .$ref,
+    ).toBe('#/components/schemas/ContractManifest');
+    expect(platformSource).not.toMatch(/axum|listen\(|route\(|server|register\(/i);
   });
 });

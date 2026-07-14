@@ -2,7 +2,7 @@
 
 ## Phase 3 foundation
 
-Phase 3 provides four Rust crates: `rivallo-domain` holds framework-independent primitives, `rivallo-application` prepares neutral use cases, `rivallo-contracts` owns versioned transport schemas, and `rivallo-platform` composes and exports those schemas. The committed `contracts/openapi.json` and `packages/contracts-client/src/generated/` are generated artifacts, not hand-maintained models.
+Phase 3 provides four Rust crates: `rivallo-domain` holds framework-independent primitives, `rivallo-application` prepares neutral use cases, `rivallo-contracts` owns versioned transport schemas, and `rivallo-platform` composes and exports those schemas. The committed `contracts/openapi.json` and `packages/contracts-client/src/generated/` are generated artifacts, not hand-maintained models. Exact `orval@8.21.0` converts the local committed OpenAPI document into generated types, metadata, and a direct Fetch operation.
 
 Executable API routes, desktop/Tauri integration, persistence, infrastructure, identity, and product behavior remain later-phase work. There is no runtime server, health check, Docker/CI workflow, database, or product service to run here.
 
@@ -23,6 +23,8 @@ pnpm contracts:client:generate
 
 Run the OpenAPI writer before the client writer after a Rust-contract change. Commit their tracked outputs only when the intended generated diff has been reviewed.
 
+The OpenAPI document includes one neutral `/_contract/manifest` operation solely because Orval Fetch generation is operation-scoped. It is test-only contract introspection metadata: there is no runtime handler, route registration, state, authentication, persistence, streaming, or product behavior behind it. The generated operation accepts ordinary `RequestInit` options only; do not add a transport wrapper, mutator, runtime package, auth headers, retry, backoff, or SSE behavior.
+
 ## Verify without writes
 
 From a clean checkout, run individual checks or the aggregate:
@@ -38,4 +40,4 @@ pnpm contracts:client:check
 pnpm check
 ```
 
-`pnpm check` is fail-fast and toolchain-first. It runs only verification paths after validation; it never invokes either generation writer or repairs tracked artifacts. If an OpenAPI drift check fails, run `pnpm contracts:openapi:generate`; if a client drift check fails, run `pnpm contracts:client:generate`, then review the diff and rerun the matching check. Repeated checks may create ignored local output such as `node_modules/`, `target/`, and temporary directories, but must not change tracked OpenAPI or client files.
+`pnpm check` is fail-fast and toolchain-first. It runs only verification paths after validation; it never invokes either generation writer or repairs tracked artifacts. If an OpenAPI drift check fails, run `pnpm contracts:openapi:generate`; if a client drift check fails, run `pnpm contracts:client:generate`, then review the diff and rerun the matching check. The client check regenerates the complete Orval output into a fresh temporary tree, compares inventory and bytes, and never repairs the tracked tree. Repeated checks may create ignored local output such as `node_modules/`, `target/`, and temporary directories, but must not change tracked OpenAPI or client files.
