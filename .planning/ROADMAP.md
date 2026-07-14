@@ -52,12 +52,12 @@ Delivery is sequential. A gate may advance only after the named approval and its
 
 **Dependencies:** Phase 2.
 
-**Plans:** 7 plans
+**Plans:** 1/7 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 03-01-PLAN.md — Establish D-01 crate topology with application → domain only.
+- [x] 03-01-PLAN.md — Establish D-01 crate topology with application → domain only.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
