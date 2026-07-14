@@ -10,6 +10,7 @@ const committedOutput = process.env.CONTRACT_CLIENT_DIRECTORY
   : resolve(repositoryRoot, 'packages', 'contracts-client', 'src', 'generated');
 const temporaryDirectory = mkdtempSync(join(tmpdir(), 'rivallo-contract-client-'));
 const temporaryOutput = join(temporaryDirectory, 'generated');
+const temporaryTarget = join(temporaryOutput, 'contracts.ts');
 
 /** @param {string} directory */
 const inventory = (directory) =>
@@ -22,7 +23,7 @@ try {
   const result = spawnSync(process.execPath, ['scripts/generate-contract-client.mjs'], {
     cwd: repositoryRoot,
     encoding: 'utf8',
-    env: { ...process.env, CONTRACT_CLIENT_OUTPUT: temporaryOutput },
+    env: { ...process.env, CONTRACT_CLIENT_OUTPUT: temporaryTarget },
   });
 
   if (result.error || result.status !== 0) {

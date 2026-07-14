@@ -8,7 +8,30 @@
     },
     "version": "0.1.0"
   },
-  "paths": {},
+  "paths": {
+    "/_contract/manifest": {
+      "get": {
+        "tags": [
+          "contract-introspection"
+        ],
+        "summary": "Declares the neutral, test-only contract introspection operation for code generation.",
+        "description": "This is OpenAPI metadata only: it is deliberately not a runtime handler or registration.",
+        "operationId": "contract_manifest_for_generation",
+        "responses": {
+          "200": {
+            "description": "Contract manifest metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractManifest"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
   "components": {
     "schemas": {
       "ContractManifest": {
