@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 4 — Desktop Shell, Local Persistence Boundary, Containers and CI Skeleton
 status: Ready to plan
-stopped_at: Phase 4 context gathered
-last_updated: "2026-07-14T15:03:09.720Z"
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-07-14T15:20:14.504Z"
 progress:
   total_phases: 13
   completed_phases: 2
   total_plans: 19
-  completed_plans: 13
+  completed_plans: 14
   percent: 15
 ---
 
@@ -34,9 +34,9 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 
 ## Session
 
-**Last session:** 2026-07-14T15:03:09.716Z
-**Stopped at:** Phase 4 context gathered
-**Resume file:** .planning/phases/04-desktop-shell-local-persistence-boundary-containers-and-ci-s/04-CONTEXT.md
+**Last session:** 2026-07-14T15:20:13.625Z
+**Stopped at:** Completed 04-01-PLAN.md
+**Resume file:** None
 
 ## Performance Metrics
 
@@ -49,6 +49,7 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 | Phase 03 P06 | 20min | 2 tasks | 25 files |
 | Phase 03 P08 | 10min | 2 tasks | 4 files |
 | Phase 03 P09 | 28min | 3 tasks | 15 files |
+| Phase 04 P01 | 2min | 2 tasks | 2 files |
 
 ## Decisions
 
@@ -62,3 +63,4 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 - [Phase 03]: Treat the bundled generator core as an exact private inventory allowance enforced by public-boundary and drift tests. — The D-10 exception permits dormant generator-owned support only when it is not public or configured.
 - [Phase 03]: Replace the superseded Hey API exception with exact approved orval@8.21.0 direct Fetch output. — Removes public auth/SSE/retry/backoff reachability while preserving generated-only ownership.
 - [Phase 03]: Use one unregistered neutral contract-introspection operation only because Orval Fetch is operation-scoped. — The fixture returns ContractManifest with no parameters, security, runtime registration, or product behavior.
+- [Phase 04]: Mateus approved exactly @tauri-apps/cli@2.11.4, @tauri-apps/api@2.11.1, vite@8.1.4, and @vitejs/plugin-react@6.0.3 on 2026-07-14; no other package or version is covered. — Registry provenance, exact-version integrity, trusted-publisher evidence, and absence of consumer install hooks were accepted before any dependency transaction.
