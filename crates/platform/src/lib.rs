@@ -1,6 +1,9 @@
 //! Outer composition for contract-pipeline inputs and the local loopback runtime.
 
+pub mod persistence;
 mod runtime;
+
+pub use persistence::{LocalDataDirectoryResolver, SqlitePersistenceAdapter};
 
 pub use runtime::{
     CancellationToken, LOCAL_API_ADDRESS, LOCAL_API_PORT, LOCAL_API_SERVICE_ID,

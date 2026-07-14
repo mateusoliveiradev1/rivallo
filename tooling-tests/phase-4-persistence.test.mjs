@@ -13,6 +13,7 @@ const sourceFiles = async (directory) => {
   const nested = await Promise.all(
     entries.map((entry) => {
       const path = `${directory}/${entry.name}`;
+      if (['dist', 'node_modules', 'target'].includes(entry.name)) return Promise.resolve([]);
       return entry.isDirectory()
         ? sourceFiles(path)
         : Promise.resolve(['.rs', '.ts', '.tsx'].includes(extname(entry.name)) ? [path] : []);
@@ -58,8 +59,7 @@ describe('Phase 4 inert local-persistence boundary', () => {
         [
           'crates/domain/src',
           'crates/application/src',
-          'apps/desktop/src',
-          'apps/desktop/src-tauri/src',
+          'apps/desktop',
         ].map(sourceFiles),
       )
     ).flat();
