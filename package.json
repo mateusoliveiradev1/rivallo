@@ -10,6 +10,8 @@
     "check": "node scripts/run-quality.mjs check",
     "contracts:openapi:generate": "node scripts/generate-openapi.mjs",
     "contracts:openapi:check": "node scripts/verify-openapi-drift.mjs",
+    "contracts:client:generate": "node scripts/generate-contract-client.mjs",
+    "contracts:client:check": "node scripts/verify-contract-client-drift.mjs",
     "rust:clippy": "node scripts/check-rust-quality.mjs clippy",
     "rust:fmt": "node scripts/check-rust-quality.mjs fmt",
     "rust:test": "node scripts/check-rust-quality.mjs test",
@@ -23,6 +25,7 @@
     "pnpm": ">=10.0.0"
   },
   "devDependencies": {
+    "@hey-api/openapi-ts": "0.97.3",
     "@eslint/js": "^9.31.0",
     "@types/node": "^24.0.0",
     "eslint": "^9.31.0",

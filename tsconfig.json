@@ -9,5 +9,10 @@
     "target": "ES2024",
     "types": ["node"]
   },
-  "include": ["scripts/**/*.mjs", "tooling-tests/**/*.mjs", "*.config.mjs"]
+  "include": [
+    "scripts/**/*.mjs",
+    "tooling-tests/**/*.mjs",
+    "packages/**/src/**/*.ts",
+    "*.config.mjs"
+  ]
 }
