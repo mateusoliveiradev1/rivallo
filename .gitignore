@@ -9,3 +9,8 @@
 .impeccable/screenshots/
 .impeccable/sessions/
 .impeccable/reports/
+node_modules/
+.turbo/
+target/
+coverage/
+tooling-tests/.tmp/

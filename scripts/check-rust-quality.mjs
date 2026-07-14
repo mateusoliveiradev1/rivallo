@@ -32,7 +32,9 @@ if (!['fmt', 'clippy', 'test'].includes(command)) {
 if (command === 'fmt') {
   run(rustfmt, ['--version']);
   if (members.length === 0) {
-    console.log('Rustfmt component is available; zero-member virtual workspace is structurally valid.');
+    console.log(
+      'Rustfmt component is available; zero-member virtual workspace is structurally valid.',
+    );
   } else {
     run(cargo, ['fmt', '--all', '--', '--check']);
   }
@@ -41,7 +43,9 @@ if (command === 'fmt') {
 if (command === 'clippy') {
   run(cargo, ['clippy', '--version']);
   if (members.length === 0) {
-    console.log('Clippy component is available; no Rust source members exist in this virtual workspace.');
+    console.log(
+      'Clippy component is available; no Rust source members exist in this virtual workspace.',
+    );
   } else {
     run(cargo, ['clippy', '--workspace', '--all-targets', '--', '-D', 'warnings']);
   }
