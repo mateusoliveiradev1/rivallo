@@ -13,4 +13,7 @@ node_modules/
 .turbo/
 target/
 coverage/
+apps/desktop/dist/
+apps/desktop/src-tauri/binaries/local_api-*
+apps/desktop/src-tauri/gen/schemas/
 tooling-tests/.tmp/

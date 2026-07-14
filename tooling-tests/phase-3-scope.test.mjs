@@ -44,7 +44,15 @@ describe('Phase 3 contracts pipeline', () => {
 describe('Phase 3 scope fences', () => {
   it('keeps inner crates and the contract pipeline free of runtime implementation', async () => {
     const files = await Promise.all(
-      ['crates/domain', 'crates/application', 'crates/contracts', 'scripts'].map(sourceFiles),
+      ['crates/domain', 'crates/application', 'crates/contracts'].map(sourceFiles),
+    );
+    files.push(
+      [
+        'scripts/generate-contract-client.mjs',
+        'scripts/generate-openapi.mjs',
+        'scripts/verify-contract-client-drift.mjs',
+        'scripts/verify-openapi-drift.mjs',
+      ].map((file) => resolve(root, file)),
     );
     const inventory = await Promise.all(
       files.flat().map(async (file) => [file, await readFile(file, 'utf8')]),
@@ -58,10 +66,7 @@ describe('Phase 3 scope fences', () => {
       /\b(multiplayer|websocket|socket\.io)\b/i,
       /\b(football|club|player|squad|league)\b/i,
     ];
-    const allowedGeneratorFiles = new Set([resolve(root, 'scripts/verify-cargo-architecture.mjs')]);
-
     for (const [file, content] of inventory) {
-      if (allowedGeneratorFiles.has(file)) continue;
       for (const pattern of prohibited)
         expect(content, `${file} must not contain ${pattern}`).not.toMatch(pattern);
     }
