@@ -82,7 +82,7 @@ Plans:
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
-- [ ] 03-08-PLAN.md — Close generated-client public export and D-10 generated-inventory gaps.
+- [ ] 03-08-PLAN.md — Close generated-client public export and enforce the approved bounded D-10 bundled-core exception.
 
 **Success criteria:**
 

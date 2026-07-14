@@ -47,6 +47,10 @@ Downstream agents MUST read `03-SPEC.md` before planning or implementing. Requir
 - **D-11:** Research/planning selects a mature deterministic TypeScript generator; it must generate the required types and minimum client without manually editing output.
 - **D-12:** Expose explicit root commands for OpenAPI generation, TypeScript client generation, and drift verification. `pnpm check` invokes verification-only, non-mutating commands.
 
+#### Approved exception — D-10 (2026-07-14)
+
+The human-approved exact `@hey-api/openapi-ts@0.97.3` bundled Fetch client may retain its generator-owned dormant auth, SSE, and internal support modules because this generator version cannot omit them. This exception is narrow: those modules must not be publicly exported, configured, invoked, or reachable through generated public types or metadata, and they must not enable authentication, retry, or backoff behavior. It does not authorize adding `@hey-api/client-fetch`, changing the generator version, or adding any external runtime package. D-11's generated-only ownership and D-12's non-mutating verification remain unchanged.
+
 ### Test-only contract-pipeline fixture
 
 - **D-13:** Prefer schema-only generation. Add a fixture only if the selected tool genuinely requires an operation to prove the pipeline.

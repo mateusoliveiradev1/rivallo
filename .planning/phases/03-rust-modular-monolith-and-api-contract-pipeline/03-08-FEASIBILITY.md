@@ -1,7 +1,7 @@
 # Phase 03 Plan 08: Generated Fetch Client Feasibility
 
 **Investigated:** 2026-07-14  
-**Decision:** **Not feasible under the current locked D-10 wording and exact `@hey-api/openapi-ts@0.97.3` pin.**
+**Decision:** **Feasible under the approved D-10 exception dated 2026-07-14, while retaining the exact `@hey-api/openapi-ts@0.97.3` pin.**
 
 ## Scope and evidence
 
@@ -25,9 +25,13 @@ Read-only resolution test from the repository: `node --input-type=module -e "imp
 
 The authoritative npm metadata for `@hey-api/client-fetch` states that it has been deprecated because, starting with `@hey-api/openapi-ts` v0.73.0, the client is bundled directly inside the generator. The registry has no `@hey-api/client-fetch@0.97.3`; its published versions end at `0.13.1`. [VERIFIED: npm registry metadata]
 
-## Recommendation
+## Approved resolution
 
-Do not implement Plan 03-08 as written. The exact approved generator can satisfy either side independently, but not both together:
+The literal file-removal requirement remains infeasible with the approved pin, but the D-10 exception recorded in `03-CONTEXT.md` authorizes the bundled generator-owned dormant core only. The executable boundary is: re-export the generated Fetch client public surface from `@rivallo/contracts-client`; do not export, configure, invoke, or expose through public generated types/metadata the dormant auth, SSE, or internal support modules; and prove that no authentication, retry, or backoff behavior is enabled. The committed tree must still be regenerated whole from the pinned generator and verified in an isolated temporary directory.
+
+## Superseded literal-policy recommendation
+
+Do not implement the former Plan 03-08 literal file-removal approach. The exact approved generator can satisfy either side independently, but not both literally:
 
 | Choice | Public generated Fetch client | No generated auth/SSE/retry modules | Result |
 |---|---:|---:|---|
@@ -47,7 +51,7 @@ The only prospective package exposed by `bundle:false` is `@hey-api/client-fetch
 
 **Required approval checkpoint:** before any package installation or generator/version change, obtain human approval for a replacement package/version and rerun package legitimacy, npm registry, and postinstall checks. Do not add deprecated `@hey-api/client-fetch@0.13.1` as a workaround; it is neither version-aligned nor approved. [VERIFIED: npm registry metadata; `gsd-tools package-legitimacy check`]
 
-If the exception alternative is approved, the package boundary can expose only generator-owned symbols, for example:
+With the exception approved, the package boundary can expose only generator-owned symbols, for example:
 
 ```ts
 export { client } from './generated/client.gen.js';
