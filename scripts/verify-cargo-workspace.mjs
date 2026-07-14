@@ -2,16 +2,14 @@ import { spawnSync } from 'node:child_process';
 
 const minimumRustVersion = '1.88.0';
 const cargoCommand = process.platform === 'win32' ? 'cargo.exe' : 'cargo';
-const result = spawnSync(
-  cargoCommand,
-  ['metadata', '--no-deps', '--format-version', '1'],
-  {
-    encoding: 'utf8',
-    env: { ...process.env, RUSTUP_AUTO_INSTALL: '0' },
-  },
-);
+const result = spawnSync(cargoCommand, ['metadata', '--no-deps', '--format-version', '1'], {
+  encoding: 'utf8',
+  env: { ...process.env, RUSTUP_AUTO_INSTALL: '0' },
+});
 
-if (result.error?.code === 'ENOENT') {
+const errorCode = /** @type {{ code?: string } | undefined} */ (result.error)?.code;
+
+if (errorCode === 'ENOENT') {
   console.error('Cargo workspace verification failed.');
   console.error(`Expected tool: Cargo (Rust ${minimumRustVersion} or newer).`);
   console.error(`Minimum version: ${minimumRustVersion}.`);

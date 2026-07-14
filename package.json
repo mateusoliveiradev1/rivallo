@@ -3,6 +3,11 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "format:check": "prettier --check package.json turbo.json pnpm-workspace.yaml scripts/*.mjs eslint.config.mjs tsconfig.json .prettierrc.json",
+    "lint": "eslint scripts eslint.config.mjs --max-warnings 0",
+    "typecheck": "tsc --noEmit"
+  },
   "engines": {
     "node": ">=22.0.0",
     "pnpm": ">=10.0.0"
