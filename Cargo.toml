@@ -1,0 +1,4 @@
+[workspace]
+# Phase 2 deliberately has no Rust crates. Phase 3 adds real members.
+members = []
+resolver = "2"

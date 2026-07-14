@@ -1,0 +1,5 @@
+[toolchain]
+# This numbered stable channel is the minimum accepted Rust/Cargo release, not an exact pin.
+channel = "1.88.0"
+components = ["rustfmt", "clippy"]
+profile = "minimal"
