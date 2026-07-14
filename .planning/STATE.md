@@ -45,7 +45,7 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 | Phase 03 P01 | 15min | 1 tasks | 10 files |
 | Phase 03 P02 | 10min | 1 tasks | 3 files |
 | Phase 03 P04 | 12min | 2 tasks | 6 files |
-| Phase 03 P05 | 8min | 2 tasks | 5 files |
+| Phase 03 P05 | 10min | 2 tasks | 5 files |
 
 ## Decisions
 

@@ -24,7 +24,7 @@ patterns-established:
   - "Generated contract checks use an isolated temporary destination and print their explicit writer command on drift."
 requirements-completed: [DATA-02]
 metrics:
-  duration: 8min
+  duration: 10min
   completed: 2026-07-14
 status: complete
 ---
@@ -43,7 +43,7 @@ status: complete
 ## Task Commits
 
 1. **Task 1: Materialize the committed OpenAPI artifact through the platform exporter** - `31fcc20` (feat)
-2. **Task 2: Verify isolated OpenAPI drift and schema-first pipeline proof** - `487100a` (feat)
+2. **Task 2: Verify isolated OpenAPI drift and schema-first pipeline proof** - `487100a` (feat), `cc8661d` (fix)
 
 ## Verification
 
@@ -76,8 +76,18 @@ status: complete
 - **Verification:** Two explicit writer runs passed and left the document byte-identical.
 - **Committed in:** `31fcc20`
 
-**Total deviations:** 1 auto-fixed (1 blocking)
-**Impact on plan:** Required for the explicit writer to materialize its planned artifact; no runtime or product scope added.
+### Auto-fixed Issues
+
+**2. [Rule 1 - Bug] Type the new test helper for aggregate checking**
+- **Found during:** Final aggregate quality check
+- **Issue:** The new Node test helper introduced an implicit parameter type error when TypeScript checked JavaScript sources.
+- **Fix:** Added the project-standard JSDoc parameter types.
+- **Files modified:** `tooling-tests/openapi-pipeline.test.mjs`
+- **Verification:** The focused test passes; aggregate typecheck reports only pre-existing errors in the Cargo architecture verifier and its test.
+- **Committed in:** `cc8661d`
+
+**Total deviations:** 2 auto-fixed (1 blocking, 1 bug)
+**Impact on plan:** Both fixes were required for portable artifact materialization and clean ownership of this plan's new test; no runtime or product scope added.
 
 ## Issues Encountered
 
@@ -94,5 +104,5 @@ None - no external service configuration required.
 
 ## Self-Check: PASSED
 
-- All four planned artifact files exist and both task commits (`31fcc20`, `487100a`) are present.
+- All four planned artifact files exist and task commits (`31fcc20`, `487100a`, `cc8661d`) are present.
 - No known stubs or additional security-relevant surface beyond the plan's explicit exporter and temporary filesystem boundary were introduced.
