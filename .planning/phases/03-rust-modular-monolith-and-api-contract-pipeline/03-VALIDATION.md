@@ -34,14 +34,15 @@ created: 2026-07-13
 |---|---:|---:|---|---|---|---|---|---|---|
 | 03-01-01 | 01 | 1 | FOUND-03 | T-03-01 | Four crates compile with inward responsibilities and no transport entrypoint. | Rust unit/metadata smoke | `pnpm toolchains && cargo metadata --format-version=1 --no-deps` | ❌ created by task | ⬜ pending |
 | 03-01-02 | 01 | 1 | FOUND-03 | T-03-02 | Real metadata traversal rejects inverted edges and transitive forbidden domain dependencies. | Node unit + integration | `pnpm test -- tooling-tests/verify-cargo-architecture.test.mjs && node scripts/verify-cargo-architecture.mjs` | ❌ created by task | ⬜ pending |
-| 03-02-01 | 02 | 2 | DATA-02 | T-03-03 | The SUS generator is neither installed nor used before explicit human approval. | Human checkpoint | `MISSING — record exact package approval in 03-02-SUMMARY.md` | ❌ summary created by task | ⬜ pending |
-| 03-03-01 | 03 | 3 | DATA-02 | T-03-04 | Rust-owned schemas and semantic version compose a schema-only OpenAPI document without a runtime operation. | Rust unit | `cargo test --workspace` | ❌ created by task | ⬜ pending |
-| 03-03-02 | 03 | 3 | DATA-02 | T-03-05 | OpenAPI export is deterministic; drift check is isolated, byte-based, actionable, and non-mutating. | Node integration | `pnpm contracts:openapi:generate && pnpm contracts:openapi:check && pnpm test -- tooling-tests/openapi-pipeline.test.mjs` | ❌ created by task | ⬜ pending |
-| 03-04-01 | 04 | 4 | DATA-02 | T-03-06 | Generated-only contracts client derives types, metadata, and a minimal client exclusively from committed OpenAPI. | Generation/typecheck | `pnpm contracts:client:generate && pnpm typecheck` | ❌ created by task | ⬜ pending |
-| 03-04-02 | 04 | 4 | DATA-02 | T-03-07 | Client drift check uses isolated output and rejects hand-authored schema duplicates. | Node integration | `pnpm contracts:client:generate && pnpm contracts:client:check && pnpm test -- tooling-tests/contracts-client-generation.test.mjs` | ❌ created by task | ⬜ pending |
-| 03-05-01 | 05 | 5 | FOUND-03, DATA-02 | T-03-08 | Root verification is toolchain-first, warnings-denied, and invokes no writer. | Workspace configuration | `pnpm rust:fmt && pnpm rust:clippy && pnpm rust:test && pnpm rust:architecture && pnpm check` | ❌ extended by task | ⬜ pending |
-| 03-05-02 | 05 | 5 | FOUND-03, DATA-02 | T-03-09 | Pipeline provenance and scope fences reject runtime/product/persistence/desktop leakage. | Node integration | `pnpm test -- tooling-tests/phase-3-scope.test.mjs && pnpm contracts:openapi:check && pnpm contracts:client:check` | ❌ created by task | ⬜ pending |
-| 03-05-03 | 05 | 5 | FOUND-03, DATA-02 | T-03-10 | Documentation names exact writers/checks and preserves later-phase boundaries. | Documentation + aggregate check | `pnpm format:check && pnpm check` | ❌ updated by task | ⬜ pending |
+| 03-02-01 | 02 | 2 | FOUND-03 | T-03-03 | Real metadata enforces domain none, application-to-domain only, contracts none, platform-to-application/contracts only, including an application-to-contracts rejection. | Node unit + integration | `pnpm test -- tooling-tests/verify-cargo-architecture.test.mjs && node scripts/verify-cargo-architecture.mjs` | ❌ created by task | ⬜ pending |
+| 03-03-01 | 03 | 2 | DATA-02 | T-03-04 | The SUS generator is neither installed nor used before explicit human approval. | Human checkpoint | `MISSING — record exact package approval in 03-03-SUMMARY.md` | ❌ summary created by task | ⬜ pending |
+| 03-04-01 | 04 | 3 | DATA-02 | T-03-05 | Rust-owned schemas and semantic version compose a schema-only OpenAPI document without a runtime operation. | Rust unit | `cargo test --workspace` | ❌ created by task | ⬜ pending |
+| 03-04-02 | 04 | 3 | DATA-02 | T-03-06 | OpenAPI export is deterministic; drift check is isolated, byte-based, actionable, and non-mutating. | Node integration | `pnpm contracts:openapi:generate && pnpm contracts:openapi:check && pnpm test -- tooling-tests/openapi-pipeline.test.mjs` | ❌ created by task | ⬜ pending |
+| 03-05-01 | 05 | 4 | DATA-02 | T-03-07 | Generated-only contracts client derives types, metadata, and a minimal client exclusively from committed OpenAPI. | Generation/typecheck | `pnpm contracts:client:generate && pnpm typecheck` | ❌ created by task | ⬜ pending |
+| 03-05-02 | 05 | 4 | DATA-02 | T-03-08 | Client drift check uses isolated output and rejects hand-authored schema duplicates. | Node integration | `pnpm contracts:client:generate && pnpm contracts:client:check && pnpm test -- tooling-tests/contracts-client-generation.test.mjs` | ❌ created by task | ⬜ pending |
+| 03-06-01 | 06 | 5 | FOUND-03, DATA-02 | T-03-09 | Root verification is toolchain-first, warnings-denied, and invokes no writer. | Workspace configuration | `pnpm rust:fmt && pnpm rust:clippy && pnpm rust:test && pnpm rust:architecture && pnpm check` | ❌ extended by task | ⬜ pending |
+| 03-06-02 | 06 | 5 | FOUND-03, DATA-02 | T-03-10 | Pipeline provenance and scope fences reject runtime/product/persistence/desktop leakage. | Node integration | `pnpm test -- tooling-tests/phase-3-scope.test.mjs && pnpm contracts:openapi:check && pnpm contracts:client:check` | ❌ created by task | ⬜ pending |
+| 03-06-03 | 06 | 5 | FOUND-03, DATA-02 | T-03-11 | Documentation names exact writers/checks and preserves later-phase boundaries. | Documentation + aggregate check | `pnpm format:check && pnpm check` | ❌ updated by task | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -57,7 +58,7 @@ created: 2026-07-13
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |---|---|---|
-| Approve the exact `@hey-api/openapi-ts@0.97.3` pin | DATA-02 | The package-legitimacy gate marked the most recent release SUS for recency, requiring a human security decision before installation. | Review `03-RESEARCH.md`, record approval or rejection in `03-02-SUMMARY.md`, and proceed to Plan 03 only after approval. |
+| Approve the exact `@hey-api/openapi-ts@0.97.3` pin | DATA-02 | The package-legitimacy gate marked the most recent release SUS for recency, requiring a human security decision before installation. | Review `03-RESEARCH.md`, record approval or rejection in `03-03-SUMMARY.md`, and proceed to Plan 05 only after approval. |
 
 ## Validation Sign-Off
 
