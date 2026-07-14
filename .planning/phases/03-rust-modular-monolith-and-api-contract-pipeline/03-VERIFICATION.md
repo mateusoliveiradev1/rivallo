@@ -1,39 +1,39 @@
 ---
 phase: 03-rust-modular-monolith-and-api-contract-pipeline
-verified: 2026-07-14T11:20:21Z
+verified: 2026-07-14T12:28:00Z
 status: gaps_found
-score: 11/13 must-haves verified
+score: 12/13 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
+re_verification:
+  previous_status: gaps_found
+  previous_score: 11/13
+  gaps_closed:
+    - "Consumers can import the generated Fetch client and its generated configuration/type surface from @rivallo/contracts-client."
+  gaps_remaining:
+    - "The approved bundled generator's dormant auth, SSE, and internal support modules remain private and inert: they are not exported, configured, invoked, or reachable through generated public types or metadata."
+  regressions: []
 gaps:
-  - truth: "The dedicated TypeScript package exposes generated types, contract metadata, and a minimum Fetch client derived only from contracts/openapi.json."
+  - truth: "The approved bundled generator's dormant auth, SSE, and internal support modules remain private and inert: they are not exported, configured, invoked, or reachable through generated public types or metadata."
     status: failed
-    reason: "The package public entrypoint re-exports only types; it does not export the generated client or client factory. Consumers of @rivallo/contracts-client therefore cannot use the claimed minimum client through the package API."
+    reason: "The package root publicly exports createClient and Client/RequestOptions-related types. The generated client returned by createClient exposes sse methods, accepts security on requests, calls setAuthParams when security is present, and constructs createSseClient. Its public request types expose Auth plus SSE retry/backoff options. This makes the dormant bundled core publicly reachable and behaviorally usable, contrary to the dated D-10 exception."
     artifacts:
       - path: "packages/contracts-client/src/index.ts"
-        issue: "Exports only ./generated/index.js, whose barrel contains only type exports."
-      - path: "packages/contracts-client/src/generated/client.gen.ts"
-        issue: "Creates the Fetch client, but it is unreachable from the package public entrypoint."
+        issue: "Publicly re-exports createClient and types that expose the generated client capability surface."
+      - path: "packages/contracts-client/src/generated/client/client.gen.ts"
+        issue: "Public createClient path calls setAuthParams and exposes sse operations backed by createSseClient."
+      - path: "packages/contracts-client/src/generated/client/types.gen.ts"
+        issue: "Public request/client types expose security and sseDefaultRetryDelay, sseMaxRetryAttempts, and sseMaxRetryDelay."
     missing:
-      - "Generate or expose the minimal client from the generated public barrel and prove it is importable from @rivallo/contracts-client."
-  - truth: "The minimum generated client does not add authentication or retry behavior."
-    status: failed
-    reason: "The committed generated tree includes authentication and retry-capable code, contrary to D-10 and Plan 03-06's explicit prohibition."
-    artifacts:
-      - path: "packages/contracts-client/src/generated/core/auth.gen.ts"
-        issue: "Generated authentication token handling is shipped."
-      - path: "packages/contracts-client/src/generated/core/serverSentEvents.gen.ts"
-        issue: "Generated retry/backoff behavior is shipped."
-    missing:
-      - "Configure the approved generator to omit auth/retry-capable output, or obtain an explicit approved exception and revise the locked contract."
+      - "Use an approved generator/configuration or a genuinely narrower generated public surface that prevents public auth and SSE/retry/backoff reachability while preserving generated-only ownership and deterministic drift verification."
 ---
 
-# Phase 3: Rust Modular Monolith and API Contract Pipeline — Verification Report
+# Phase 3: Rust Modular Monolith and API Contract Pipeline Verification Report
 
 **Phase Goal:** Establish only the Rust crate boundaries with real responsibilities and the backend-owned API contract pipeline.
-**Verified:** 2026-07-14T11:20:21Z
+**Verified:** 2026-07-14T12:28:00Z
 **Status:** gaps_found
-**Re-verification:** No — initial verification
+**Re-verification:** Yes — after Plan 03-08 gap closure
 
 ## Goal Achievement
 
@@ -41,81 +41,83 @@ gaps:
 
 | # | Truth | Status | Evidence |
 | --- | --- | --- | --- |
-| 1 | Four exercised Rust crates have D-01's strict production direction: domain none, application → domain, contracts none, platform → application/contracts. | VERIFIED | Actual manifests and `pnpm rust:architecture` verify the resolved `cargo metadata` graph; the 25-test aggregate passed. |
-| 2 | Domain and application remain framework/product neutral and application provides real contract preparation without importing contracts. | VERIFIED | `crates/domain/src/lib.rs` owns `ModuleId`/`PreparedContractInput`; `crates/application/src/lib.rs` consumes and returns only those domain types. |
-| 3 | Domain's direct and transitive closure is allowlisted and rejects forbidden platform, frontend, network, persistence, and database packages. | VERIFIED | `scripts/verify-cargo-architecture.mjs` traverses `resolve.nodes`; focused tests include transitive `serde → reqwest` rejection and live metadata passed. |
-| 4 | The exact `@hey-api/openapi-ts@0.97.3` generator was human-approved before use. | VERIFIED | `03-03-SUMMARY.md` records Mateus's 2026-07-14 approval; `package.json` and `pnpm-lock.yaml` use only `0.97.3`. |
-| 5 | Rust contracts own the semantic version/schema and platform produces schema-only OpenAPI with no runtime operation. | VERIFIED | `CONTRACT_VERSION` and `ContractManifest` are in contracts; platform derives components-only Utoipa OpenAPI; committed JSON has `"paths": {}`. |
-| 6 | OpenAPI generation is deterministic and verification is isolated, actionable, and non-mutating. | VERIFIED | `pnpm contracts:openapi:check` passed; its verifier exports to a unique temp directory and prints `pnpm contracts:openapi:generate` on drift. |
-| 7 | Generated TypeScript output is deterministic and client drift verification is isolated and actionable. | VERIFIED | `pnpm contracts:client:check` passed; its verifier generates to a unique temp tree and byte-compares the complete generated inventory. |
-| 8 | The dedicated TypeScript package exposes generated types, contract metadata, and a minimum Fetch client derived only from committed OpenAPI. | FAILED | Public `src/index.ts` re-exports generated `index.ts`, which contains only type exports; the generated `client`/`createClient` are not publicly exported. |
-| 9 | The minimum generated client adds no authentication, retries, product transport conveniences, or application coupling. | FAILED | Generated `core/auth.gen.ts` and `core/serverSentEvents.gen.ts` ship auth and retry/backoff mechanisms. No application coupling was found. |
-| 10 | The end-to-end pipeline has no runtime product registration or later-phase product leakage. | VERIFIED | `pnpm exec vitest run tooling-tests/phase-3-scope.test.mjs` passed; independent source inventory found only policy/test references to forbidden runtime terms. |
-| 11 | `pnpm check` is toolchain-first, writer-free, and validates formatting, linting, types, tests, Rust quality, architecture, and drift checks. | VERIFIED | With `C:\Users\Liiiraa\.cargo\bin` prepended to PATH, `pnpm check` passed: 25 tests, Clippy warnings denied, nextest, architecture audit, and both drift checks. |
-| 12 | Domain/application boundaries compile without React, Tauri, axum, SQLite, or PostgreSQL dependencies. | VERIFIED | Live Cargo metadata and architecture audit passed; domain has no dependencies and application has only `rivallo-domain`. |
-| 13 | No competitive domain rule is placed in TypeScript. | VERIFIED | TypeScript package contains only generated contract code and a re-export; no football/product models were found in production source. |
+| 1 | Four exercised Rust crates have D-01's strict production direction: domain none, application → domain only, contracts none, platform → application/contracts. | VERIFIED | `pnpm rust:architecture` passed against resolved Cargo metadata; manifests and sources match D-01. |
+| 2 | Domain and application remain framework/product neutral and application provides real contract preparation without importing contracts. | VERIFIED | `crates/domain/src/lib.rs` owns `ModuleId`/`PreparedContractInput`; `crates/application/src/lib.rs` consumes only those domain values. |
+| 3 | Domain's direct and transitive closure is allowlisted and rejects forbidden platform, frontend, network, persistence, and database packages. | VERIFIED | Live resolved-metadata architecture audit passed; the audit has controlled forbidden-edge coverage. |
+| 4 | The exact `@hey-api/openapi-ts@0.97.3` generator was human-approved before use. | VERIFIED | `03-03-SUMMARY.md` records Mateus's 2026-07-14 approval; `package.json` retains exactly `0.97.3`. |
+| 5 | Rust contracts own semantic version/schema and platform produces schema-only OpenAPI with no runtime operation. | VERIFIED | Contracts own `CONTRACT_VERSION`/`ContractManifest`; `contracts/openapi.json` has empty `paths`. |
+| 6 | OpenAPI generation is deterministic and verification is isolated, actionable, and non-mutating. | VERIFIED | Passed via `pnpm check`; the drift verifier generates to a temporary path and compares bytes. |
+| 7 | Generated TypeScript output is deterministic and client drift verification is isolated and actionable. | VERIFIED | `pnpm contracts:client:check` passed through the aggregate; complete temporary-tree byte comparison is implemented. |
+| 8 | The dedicated TypeScript package exposes generated types, contract metadata, and a minimum Fetch client derived only from committed OpenAPI. | VERIFIED | `packages/contracts-client/src/index.ts` transparently exports generated `client`, `createClient`, `createConfig`, and generated type surface; public-entrypoint test passes. |
+| 9 | The approved bundled generator's dormant auth, SSE, and internal support modules remain private and inert, with no authentication, retry, or backoff behavior. | FAILED | Public `createClient` returns `sse` methods and supports `security`; generated code calls `setAuthParams` and `createSseClient`, while public request types expose Auth and SSE retry/backoff options. |
+| 10 | The end-to-end pipeline has no runtime product registration or later-phase product leakage. | VERIFIED | Scope test and independent source inventory found only architecture-policy references to forbidden runtime terms; OpenAPI remains schema-only. |
+| 11 | `pnpm check` is toolchain-first, writer-free, and validates formatting, linting, types, tests, Rust quality, architecture, and drift checks. | VERIFIED | `pnpm check` passed with the established Cargo bin on PATH: 28 tests, Rust checks, architecture audit, and both drift checks. |
+| 12 | Domain/application boundaries compile without React, Tauri, axum, SQLite, or PostgreSQL dependencies. | VERIFIED | Resolved Cargo graph passed D-01/domain-closure policy; domain has no dependencies and application only depends on `rivallo-domain`. |
+| 13 | No competitive domain rule is placed in TypeScript. | VERIFIED | The package has generated contract output plus a transparent boundary only; no football/product model is present in handwritten TypeScript. |
 
-**Score:** 11/13 truths verified (0 present, behavior-unverified)
+**Score:** 12/13 truths verified (0 present, behavior-unverified)
 
 ### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 | --- | --- | --- | --- |
-| `crates/{domain,application,contracts,platform}` | Exercised D-01 crate responsibilities | VERIFIED | Substantive Rust sources, compiled by the aggregate, and connected through the resolved Cargo graph. |
-| `scripts/verify-cargo-architecture.mjs` | Real-metadata direction and domain-closure audit | VERIFIED | Uses `cargo metadata --format-version=1`, resolved-node traversal, controlled negative fixtures, and live graph check. |
-| `contracts/openapi.json` | Committed Rust-derived schema-only contract | VERIFIED | Version `0.1.0`, `ContractManifest`, empty paths; temporary-output drift verifier passed. |
-| `packages/contracts-client/src/generated/` | Deterministic generated client/types package | PARTIAL | Complete-tree drift check passes, but public package API does not expose its client and tree contains forbidden auth/retry mechanisms. |
-| `tooling-tests/phase-3-scope.test.mjs` | Pipeline provenance and scope fence | VERIFIED | Runs both non-mutating drift checks and rejects runtime/product terms in crates/scripts. |
+| `crates/{domain,application,contracts,platform}` | Exercised D-01 responsibilities | VERIFIED | Substantive Rust sources compile and are connected by the resolved Cargo graph. |
+| `scripts/verify-cargo-architecture.mjs` | Real-metadata direction and domain-closure audit | VERIFIED | `pnpm rust:architecture` passed. |
+| `contracts/openapi.json` | Committed Rust-derived schema-only contract | VERIFIED | Version `0.1.0`, `ContractManifest`, empty paths; isolated drift check passed. |
+| `packages/contracts-client/src/index.ts` | Public generated type/metadata/Fetch boundary | PARTIAL | Public Fetch export is reachable, but its selected generated surface retains public auth/SSE capability. |
+| `packages/contracts-client/src/generated/client/{client,types}.gen.ts` | Private/inert bundled-core boundary | FAILED | Generated public client code invokes auth/SSE support and exports types that expose security and retry/backoff capabilities. |
+| `tooling-tests/contracts-client-generation.test.mjs` | Public boundary and dormant-core regression proof | PARTIAL | Tests pass, but only inspect direct barrel text and default config; they do not detect transitive public type reachability or callable auth/SSE paths. |
 
 ### Key Link Verification
 
 | From | To | Via | Status | Details |
-| --- | --- | --- | --- |
-| application | domain | `ContractPreparationService` imports domain values only | VERIFIED | Actual source import is `rivallo_domain::{ModuleId, PreparedContractInput}`. |
-| platform | application and contracts | Cargo dependencies and schema composition | VERIFIED | Only permitted phase-crate edges appear in resolved metadata. |
-| contracts schemas/version | platform exporter | `ContractManifest`/`CONTRACT_VERSION` → Utoipa document | VERIFIED | Exporter output has the contracts-owned version and schema. |
+| --- | --- | --- | --- | --- |
+| application | domain | `ContractPreparationService` imports domain values only | VERIFIED | Actual import is `rivallo_domain::{ModuleId, PreparedContractInput}`. |
+| platform | application and contracts | Cargo dependencies and schema composition | VERIFIED | Only permitted Phase 3 edges appear in resolved metadata. |
+| contracts schemas/version | platform exporter | `ContractManifest`/`CONTRACT_VERSION` → Utoipa document | VERIFIED | Exported document has contracts-owned version and schema. |
 | `contracts/openapi.json` | generator configuration | local `input: '../../contracts/openapi.json'` | VERIFIED | No remote URL is configured. |
-| generated Fetch client | public contracts-client package | package export barrel | NOT_WIRED | `client.gen.ts` defines `client` and imports `createClient`, but both are absent from the public barrel. |
+| generated Fetch client | public contracts-client package | transparent ESM root re-exports | VERIFIED | Root exports `client`, `createClient`, `createConfig`, and generated types; focused public-import test passes. |
+| public Fetch client | dormant auth/SSE core | generated client implementation/types | NOT_WIRED TO EXCEPTION | Public `createClient` calls `setAuthParams` for `security` and creates SSE clients; exported `Client`/`RequestOptions` surface those capabilities. |
 
 ### Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
 | --- | --- | --- | --- |
-| Full quality and pipeline verification | `PATH+=C:\Users\Liiiraa\.cargo\bin; pnpm check` | Passed: 25 Vitest tests, Rust fmt/Clippy/nextest, architecture, both drift checks | PASS |
+| Full quality and pipeline verification | `pnpm check` with `C:\Users\Liiiraa\.cargo\bin` on PATH | 28 tests plus formatting, lint, types, Rust quality, architecture, and drift checks passed | PASS |
 | D-01/domain closure | `pnpm rust:architecture` | Resolved Cargo policy passed | PASS |
-| OpenAPI drift/non-mutation | `pnpm contracts:openapi:check` | Passed | PASS |
-| Client drift/non-mutation | `pnpm contracts:client:check` | Passed | PASS |
-| Scope proof | `pnpm exec vitest run tooling-tests/phase-3-scope.test.mjs` | 2 tests passed | PASS |
-| Tracked-tree integrity | `git diff --check`; `git status --short` | Both clean after verification | PASS |
+| Public package Fetch export | `pnpm exec vitest run tooling-tests/contracts-client-generation.test.mjs` | 7 focused tests passed | PASS (partial coverage) |
+| Scope/pipeline proof | `pnpm exec vitest run tooling-tests/phase-3-scope.test.mjs` with Cargo on PATH | 3 focused tests passed | PASS (partial coverage) |
+| D-10 public-reachability audit | Source trace: root export → `createClient` → `setAuthParams`/`createSseClient`; exported `RequestOptions` | Auth and SSE/retry paths are publicly usable | FAIL |
 
 ### Requirements Coverage
 
-| Requirement | Source Plans | Status | Evidence |
-| --- | --- | --- | --- |
-| FOUND-03 | 03-01, 03-02, 03-04, 03-07 | SATISFIED | The framework-independent domain/application core compiles and its resolved dependency closure is mechanically audited. |
-| DATA-02 contract foundation | 03-01, 03-03 through 03-07 | BLOCKED | Rust → OpenAPI provenance and deterministic drift checks work, but the public generated-client boundary and D-10 auth/retry prohibition are not met. Runtime `/api/v1` endpoints are correctly deferred to Phase 7. |
+| Requirement | Source Plans | Description | Status | Evidence |
+| --- | --- | --- | --- | --- |
+| FOUND-03 | 03-01, 03-02, 03-04, 03-07 | Framework-independent domain/application core | SATISFIED | D-01 audit and full quality aggregate pass. |
+| DATA-02 | 03-01, 03-03 through 03-08 | Contract foundation and generated client provenance | BLOCKED | Rust → OpenAPI provenance and public Fetch export work, but D-10's active/public auth-SSE capability violates the approved bounded exception. Runtime `/api/v1` endpoints remain correctly deferred to Phase 7. |
 
 ### Prohibitions and Anti-Patterns
 
 | Check | Status | Evidence |
 | --- | --- | --- |
-| No forbidden domain dependency | VERIFIED | Live resolved-metadata audit and negative-fixture tests pass. |
-| No hand-edited generated OpenAPI/client output | VERIFIED | Generated headers, isolated byte comparisons, and deterministic checks pass. |
-| No runtime endpoint or test-only fixture leak | VERIFIED | Schema-only OpenAPI has empty paths; no axum/Tauri/runtime registration found. |
-| No product, desktop, persistence, infrastructure, auth, or multiplayer implementation | FAILED (client scope) | No product/runtime implementation was found, but generated auth and retry behavior violates the explicit generated-client prohibition. |
-| Debt/stub markers in Phase 3 production artifacts | VERIFIED | No TODO/FIXME/XXX/HACK/PLACEHOLDER markers found outside generated output. |
+| No forbidden domain dependency | VERIFIED | Live resolved-metadata audit passed. |
+| No hand-edited generated OpenAPI/client output | VERIFIED | Complete-tree deterministic regeneration and isolated byte comparisons pass. |
+| No runtime endpoint or test-only fixture leak | VERIFIED | Schema-only OpenAPI has empty paths; no runtime registration is present. |
+| No product, desktop, persistence, infrastructure, auth, or multiplayer implementation | VERIFIED | Independent source inventory found no product/runtime implementation; the remaining failure is a generated public-client capability, not product auth. |
+| D-10 approved exception remains private and inert | FAILED | The generator-owned core is bounded in inventory but not private/inert through the public client API. |
+| Debt/stub markers in handwritten Phase 3 artifacts | VERIFIED | No blocking marker found in handwritten artifacts; generated implementation comments are generator-owned and covered by D-11. |
 
 ### Disconfirmation Findings
 
-1. The focused generated-client test proves `client.gen.ts` contains `createClient`, but it never tests importing a client from `@rivallo/contracts-client`; the public barrel drops it.
-2. The scope test scans only `crates` and `scripts`, so it does not detect prohibited auth/retry mechanisms shipped under `packages/contracts-client/src/generated`.
-3. The implementation therefore passes determinism/provenance checks while missing two locked D-10 delivery constraints.
+1. The Plan 03-08 tests prove root exports and default configuration, but a default config without `auth`/retry fields does not prove that the exported client cannot accept them per request.
+2. The direct-barrel regex excludes `generated/core` strings, yet `Client` and `RequestOptions` transitively import `Auth` and `ServerSentEventsOptions`; the public type/behavior path is therefore missed.
+3. `client.gen.ts` makes the gap executable, not merely type-level: `if (opts.security) await setAuthParams(opts)`, and each public `client.sse.*` method invokes `createSseClient` with retry/backoff support.
 
 ### Gaps Summary
 
-The Rust modular-monolith and schema-only OpenAPI pipeline are substantively implemented, deterministic, non-mutating in check mode, and correctly free of runtime API/persistence/UI/product scope. Phase 3 cannot pass, however, because the claimed generated minimum client is not usable through its dedicated package and the generated package ships authentication/retry mechanisms explicitly forbidden by the phase contract. These are immediate Phase 3 corrections, not later-phase work; no human verification is needed to establish either gap.
+Plan 03-08 closed the original public-export gap: consumers can import the generated Fetch client from `@rivallo/contracts-client`, and the deterministic non-mutating pipeline remains intact. It did not close the D-10 exception gap. The chosen generated public client still exposes and invokes the bundled authentication and SSE/retry machinery. The current tests are insufficient because they inspect only direct exports and default configuration. This is an immediate Phase 3 correction, not a deferred later-phase concern; no human verification is needed to establish it.
 
 ---
 
-_Verified: 2026-07-14T11:20:21Z_  
+_Verified: 2026-07-14T12:28:00Z_  
 _Verifier: generic-agent workaround acting as gsd-verifier_
