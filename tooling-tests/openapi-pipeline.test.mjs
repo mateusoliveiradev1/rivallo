@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const openapiDocument = resolve(repositoryRoot, 'contracts', 'openapi.json');
+/** @param {string} script @param {NodeJS.ProcessEnv} [environment] */
 const runNode = (script, environment = {}) =>
   spawnSync(process.execPath, [script], {
     cwd: repositoryRoot,
