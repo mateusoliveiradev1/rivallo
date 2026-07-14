@@ -28,3 +28,21 @@ pub fn prepare_contract_export<T>(prepared_input: T) -> ContractExportPreparatio
         metadata: ContractMetadata::current(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use rivallo_contracts::CONTRACT_VERSION;
+
+    use super::schema_only_openapi;
+
+    #[test]
+    fn composes_contract_schemas_without_runtime_paths() {
+        let document = serde_json::to_value(schema_only_openapi()).expect("OpenAPI serializes");
+
+        assert_eq!(document["info"]["version"], CONTRACT_VERSION);
+        assert_eq!(document["paths"], serde_json::json!({}));
+        assert!(document["components"]["schemas"]
+            .get("ContractManifest")
+            .is_some());
+    }
+}
