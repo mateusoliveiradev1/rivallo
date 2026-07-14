@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+/** @param {string} path */
 const rootFile = (path) => readFile(resolve(root, path), 'utf8');
 
 describe('Phase 4 local API runtime scope', () => {

@@ -42,8 +42,10 @@ describe('Phase 3 contracts pipeline', () => {
 });
 
 describe('Phase 3 scope fences', () => {
-  it('keeps the contract-only foundation free of runtime and later-phase implementation', async () => {
-    const files = await Promise.all(['crates', 'scripts'].map(sourceFiles));
+  it('keeps inner crates and the contract pipeline free of runtime implementation', async () => {
+    const files = await Promise.all(
+      ['crates/domain', 'crates/application', 'crates/contracts', 'scripts'].map(sourceFiles),
+    );
     const inventory = await Promise.all(
       files.flat().map(async (file) => [file, await readFile(file, 'utf8')]),
     );

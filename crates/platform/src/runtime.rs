@@ -56,8 +56,8 @@ pub fn validate_readiness_response(
         return Err(ReadinessDiagnostic::UnhealthyStatus(status));
     }
 
-    let Value::Object(payload) = serde_json::from_slice(body)
-        .map_err(|_| ReadinessDiagnostic::MalformedPayload)?
+    let Value::Object(payload) =
+        serde_json::from_slice(body).map_err(|_| ReadinessDiagnostic::MalformedPayload)?
     else {
         return Err(ReadinessDiagnostic::MalformedPayload);
     };
@@ -128,10 +128,7 @@ pub async fn run_local_api(cancellation: CancellationToken) -> io::Result<()> {
     serve_listener(listener, cancellation).await
 }
 
-pub async fn read_shutdown_control<R>(
-    reader: R,
-    cancellation: CancellationToken,
-) -> io::Result<()>
+pub async fn read_shutdown_control<R>(reader: R, cancellation: CancellationToken) -> io::Result<()>
 where
     R: AsyncBufRead + Unpin,
 {
@@ -185,13 +182,17 @@ mod tests {
 
     #[test]
     fn readiness_reuse_requires_an_exact_compatible_payload() {
-        let expected = br#"{"service":"rivallo-local-api","contractVersion":"0.1.0","runtimeProtocol":1}"#;
+        let expected =
+            br#"{"service":"rivallo-local-api","contractVersion":"0.1.0","runtimeProtocol":1}"#;
 
         assert_eq!(
             validate_readiness_response(200, expected),
             Ok(ReadinessPayload::current())
         );
-        assert_eq!(ReadinessPayload::current().contract_version, CONTRACT_VERSION);
+        assert_eq!(
+            ReadinessPayload::current().contract_version,
+            CONTRACT_VERSION
+        );
 
         for incompatible in [
             br#"{"service":"other","contractVersion":"0.1.0","runtimeProtocol":1}"#.as_slice(),
@@ -301,7 +302,10 @@ mod tests {
             .await
             .expect("test server accepts connections");
         stream
-            .write_all(format!("GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n").as_bytes())
+            .write_all(
+                format!("GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                    .as_bytes(),
+            )
             .await
             .expect("request writes");
         let mut response = Vec::new();
