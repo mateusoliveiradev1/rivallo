@@ -1,6 +1,6 @@
 # Phase 04 Plan 01: Desktop Package Legitimacy Review
 
-**Review status:** PENDING HUMAN DECISION  
+**Review status:** APPROVED
 **Evidence captured:** 2026-07-14  
 **Registry:** npm (`https://registry.npmjs.org/`)  
 **Installation status:** No installation or dependency transaction has occurred.
@@ -68,7 +68,7 @@ All four exact pins must receive one explicit human decision before Plan 04-03 o
 
 To accept the set, record the approver name, date, and an explicit statement approving every exact package above. To reject it, record the rejected exact package and reason. Until then, `package.json`, `pnpm-lock.yaml`, application scaffolding, and installed dependencies must remain unchanged by this plan.
 
-**Decision:** Pending  
-**Approver:** —  
-**Decision date:** —  
-**Rationale or rejection reason:** —
+**Decision:** APPROVED — Mateus explicitly approves exactly `@tauri-apps/cli@2.11.4`, `@tauri-apps/api@2.11.1`, `vite@8.1.4`, and `@vitejs/plugin-react@6.0.3` for use by downstream plans. This approval does not cover any other package or version.
+**Approver:** Mateus
+**Decision date:** 2026-07-14
+**Rationale or rejection reason:** Registry provenance, exact-version integrity and tarball metadata, trusted-publisher evidence, and the absence of consumer install lifecycle hooks were reviewed and accepted. No installation is authorized as part of Plan 04-01; dependency changes remain the responsibility of the later installation plan.
