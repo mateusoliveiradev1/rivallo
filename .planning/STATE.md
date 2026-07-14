@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 4 — Desktop Shell, Local Persistence Boundary, Containers and CI Skeleton
-status: Ready to plan
-stopped_at: Completed 04-04-PLAN.md
-last_updated: "2026-07-14T16:31:57.413Z"
+status: Phase complete — ready for verification
+stopped_at: Completed 04-06-PLAN.md
+last_updated: "2026-07-14T16:42:24.058Z"
 progress:
   total_phases: 13
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 19
-  completed_plans: 18
-  percent: 15
+  completed_plans: 19
+  percent: 23
 ---
 
 # State
@@ -24,7 +24,7 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 **Current phase:** 4 — Desktop Shell, Local Persistence Boundary, Containers and CI Skeleton
 **Current gate:** 1 — Scaffold.
 **Gate 0:** APPROVED by Mateus.
-**Next action:** `$gsd-discuss-phase 4`.
+**Next action:** `$gsd-verify-work 4`.
 
 ## Gate History
 
@@ -34,8 +34,8 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 
 ## Session
 
-**Last session:** 2026-07-14T16:31:57.409Z
-**Stopped at:** Completed 04-04-PLAN.md
+**Last session:** 2026-07-14T16:42:23.979Z
+**Stopped at:** Completed 04-06-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -54,6 +54,7 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 | Phase 04 P03 | 18min | 2 tasks | 71 files |
 | Phase 04 P05 | 10min | 2 tasks | 7 files |
 | Phase 04 P04 | 17min | 2 tasks | 15 files |
+| Phase 04 P06 | 10min | 2 tasks | 7 files |
 
 ## Decisions
 
@@ -77,3 +78,6 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 - [Phase ?]: Represent the Phase 4 SQLite boundary as a disconnected adapter with injected per-user location resolution and no driver or filesystem side effects. — Preserves D-05 through D-08 until later storage phases.
 - [Phase 04]: Lifecycle status remains a host-owned typed union — React can only read status and request retry, never select process authority.
 - [Phase 04]: Copyable lifecycle diagnostics are compiled out of production — Technical detail stays inside a development-only disclosure.
+- [Phase 04]: Use postgres:17-alpine with loopback-only publishing, overrideable non-secret local defaults, and a named volume.
+- [Phase 04]: Keep CI at exactly three Ubuntu jobs and cache only the pnpm dependency store; publish no artifacts.
+- [Phase 04]: Run Vitest files serially because generated-contract writer tests and drift readers share tracked artifacts and must never overlap.

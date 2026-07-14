@@ -8,7 +8,7 @@
 ### Foundation
 
 - [x] **FOUND-01**: Repository has Tauri/React/Rust workspace boundaries and repeatable local tooling.
-- [ ] **FOUND-02**: CI independently verifies frontend, Rust, integration, contracts, visual checks, and desktop build.
+- [x] **FOUND-02**: CI independently verifies frontend, Rust, integration, contracts, visual checks, and desktop build.
 - [x] **FOUND-03**: Domain rules compile independently of React, Tauri, axum, and database adapters.
 
 ### Desktop experience
