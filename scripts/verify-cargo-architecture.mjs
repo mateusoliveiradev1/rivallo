@@ -134,10 +134,12 @@ export const auditCargoArchitecture = (metadata) => {
 export const formatArchitectureFailures = (failures) => failures.join('\n');
 
 const cargo = process.platform === 'win32' ? 'cargo.exe' : 'cargo';
+const CARGO_METADATA_MAX_BUFFER = 64 * 1024 * 1024;
 const runAudit = () => {
   const result = spawnSync(cargo, ['metadata', '--format-version=1'], {
     encoding: 'utf8',
     env: { ...process.env, RUSTUP_AUTO_INSTALL: '0' },
+    maxBuffer: CARGO_METADATA_MAX_BUFFER,
   });
   if (result.error || result.status !== 0) {
     const detail = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim();

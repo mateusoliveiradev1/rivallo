@@ -21,7 +21,9 @@ describe('Phase 2 workspace configuration', () => {
     const turboJson = JSON.parse(turboConfig);
 
     expect(packageJson.private).toBe(true);
-    expect(pnpmWorkspace).toContain('packages:\n  - packages/*');
+    expect(pnpmWorkspace).toMatch(/^packages:\r?$/m);
+    expect(pnpmWorkspace).toMatch(/^\s+- apps\/\*\r?$/m);
+    expect(pnpmWorkspace).toMatch(/^\s+- packages\/\*\r?$/m);
     expect(turboJson.$schema).toContain('turbo.build/schema.json');
     expect(cargoManifest).toContain('[workspace]');
   });

@@ -80,6 +80,7 @@ describe('Cargo architecture audit', () => {
     const stdout = execFileSync(cargo, ['metadata', '--format-version=1'], {
       encoding: 'utf8',
       env: { ...process.env, RUSTUP_AUTO_INSTALL: '0' },
+      maxBuffer: 64 * 1024 * 1024,
     });
 
     expect(auditCargoArchitecture(JSON.parse(stdout))).toEqual([]);
