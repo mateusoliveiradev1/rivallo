@@ -8,6 +8,7 @@
     "lint": "eslint scripts tooling-tests eslint.config.mjs vitest.config.mjs --max-warnings 0",
     "quality": "pnpm smoke",
     "check": "node scripts/run-quality.mjs check",
+    "contracts:openapi:generate": "node scripts/generate-openapi.mjs",
     "rust:clippy": "node scripts/check-rust-quality.mjs clippy",
     "rust:fmt": "node scripts/check-rust-quality.mjs fmt",
     "rust:test": "node scripts/check-rust-quality.mjs test",
