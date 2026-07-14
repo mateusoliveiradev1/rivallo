@@ -69,4 +69,46 @@ describe('Phase 3 scope fences', () => {
     expect(document).toContain('"paths": {}');
     expect(document).not.toMatch(/"\/[^"\\]+"\s*:/);
   });
+
+  it('bounds the contracts-client package to its approved generated core allowance', async () => {
+    const files = await sourceFiles('packages/contracts-client/src');
+    const relativeFiles = files
+      .map((file) => file.slice(root.length + 1).replaceAll('\\', '/'))
+      .sort();
+    const allowedGeneratedFiles = [
+      'generated/client.gen.ts',
+      'generated/client/client.gen.ts',
+      'generated/client/index.ts',
+      'generated/client/types.gen.ts',
+      'generated/client/utils.gen.ts',
+      'generated/core/auth.gen.ts',
+      'generated/core/bodySerializer.gen.ts',
+      'generated/core/params.gen.ts',
+      'generated/core/pathSerializer.gen.ts',
+      'generated/core/queryKeySerializer.gen.ts',
+      'generated/core/serverSentEvents.gen.ts',
+      'generated/core/types.gen.ts',
+      'generated/core/utils.gen.ts',
+      'generated/index.ts',
+      'generated/sdk.gen.ts',
+      'generated/types.gen.ts',
+    ];
+
+    expect(relativeFiles).toEqual(
+      [
+        ...allowedGeneratedFiles.map((file) => `packages/contracts-client/src/${file}`),
+        'packages/contracts-client/src/index.ts',
+      ].sort(),
+    );
+
+    const [entrypoint, publicBarrel, publicTypes, publicMetadata] = await Promise.all([
+      rootFile('packages/contracts-client/src/index.ts'),
+      rootFile('packages/contracts-client/src/generated/index.ts'),
+      rootFile('packages/contracts-client/src/generated/types.gen.ts'),
+      rootFile('packages/contracts-client/src/generated/sdk.gen.ts'),
+    ]);
+    for (const publicSource of [entrypoint, publicBarrel, publicTypes, publicMetadata]) {
+      expect(publicSource).not.toMatch(/generated\/core|auth|retry|backoff|sse/i);
+    }
+  });
 });

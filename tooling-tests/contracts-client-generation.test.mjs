@@ -10,6 +10,16 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const packageDirectory = resolve(repositoryRoot, 'packages', 'contracts-client');
 const generatedDirectory = resolve(packageDirectory, 'src', 'generated');
 const packageRequire = createRequire(join(packageDirectory, 'package.json'));
+const dormantCoreFiles = [
+  'core/auth.gen.ts',
+  'core/bodySerializer.gen.ts',
+  'core/params.gen.ts',
+  'core/pathSerializer.gen.ts',
+  'core/queryKeySerializer.gen.ts',
+  'core/serverSentEvents.gen.ts',
+  'core/types.gen.ts',
+  'core/utils.gen.ts',
+];
 
 /** @param {string} script @param {NodeJS.ProcessEnv} [environment] */
 const runNode = (script, environment = {}) =>
@@ -36,6 +46,12 @@ describe('generated contracts client', () => {
     expect(contractClient.createConfig).toBeTypeOf('function');
     expect(contractClient).not.toHaveProperty('Auth');
     expect(contractClient).not.toHaveProperty('serverSentEvents');
+    expect(contractClient.client.getConfig()).not.toMatchObject({
+      auth: expect.anything(),
+      retry: expect.anything(),
+      backoff: expect.anything(),
+      security: expect.anything(),
+    });
   });
 
   it('derives generated types, version schema, and Fetch client only from committed OpenAPI', () => {
@@ -125,5 +141,29 @@ describe('generated contracts client', () => {
     expect(packageEntrypoint).toContain("from './generated/client/index.js';");
     expect(packageEntrypoint).not.toMatch(/generated\/core|auth|retry|backoff|sse/i);
     expect(configuration).not.toMatch(/auth|retry|axios|application/i);
+  });
+
+  it('keeps the approved dormant generator core private and inert', () => {
+    const document = JSON.parse(
+      readFileSync(resolve(repositoryRoot, 'contracts', 'openapi.json'), 'utf8'),
+    );
+    const packageEntrypoint = readFileSync(resolve(packageDirectory, 'src', 'index.ts'), 'utf8');
+    const generatedPublicBarrel = readFileSync(join(generatedDirectory, 'index.ts'), 'utf8');
+    const generatedTypes = readFileSync(join(generatedDirectory, 'types.gen.ts'), 'utf8');
+    const generatedMetadata = readFileSync(join(generatedDirectory, 'sdk.gen.ts'), 'utf8');
+
+    expect(
+      inventory(generatedDirectory)
+        .map((file) => file.replaceAll('\\', '/'))
+        .filter((file) => file.startsWith('core/')),
+    ).toEqual(dormantCoreFiles);
+    expect(packageEntrypoint).not.toMatch(/generated\/core|auth|retry|backoff|sse/i);
+    for (const publicSource of [generatedPublicBarrel, generatedTypes, generatedMetadata]) {
+      expect(publicSource).not.toMatch(
+        /core\/(auth|serverSentEvents)|sse(?:Default|Max)|security/i,
+      );
+    }
+    expect(document.components?.securitySchemes).toBeUndefined();
+    expect(document.security).toBeUndefined();
   });
 });
