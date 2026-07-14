@@ -56,11 +56,7 @@ describe('Phase 4 inert local-persistence boundary', () => {
   it('keeps SQLite knowledge out of inner and UI-facing source', async () => {
     const protectedFiles = (
       await Promise.all(
-        [
-          'crates/domain/src',
-          'crates/application/src',
-          'apps/desktop',
-        ].map(sourceFiles),
+        ['crates/domain/src', 'crates/application/src', 'apps/desktop'].map(sourceFiles),
       )
     ).flat();
     const protectedSources = await Promise.all(protectedFiles.map(rootFile));
