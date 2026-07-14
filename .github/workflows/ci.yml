@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  javascript-typescript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.8.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+
+  rust-contracts:
+    runs-on: ubuntu-latest
+    env:
+      RUSTUP_AUTO_INSTALL: 0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.8.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: rustup toolchain install 1.88.0 --profile minimal --component rustfmt,clippy
+      - run: cargo install cargo-nextest --locked --version 0.9.114
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm rust:fmt
+      - run: pnpm rust:clippy
+      - run: pnpm rust:test
+      - run: pnpm rust:architecture
+      - run: pnpm contracts:openapi:check
+      - run: pnpm contracts:client:check
+
+  desktop-linux:
+    runs-on: ubuntu-latest
+    env:
+      RUSTUP_AUTO_INSTALL: 0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.8.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: rustup toolchain install 1.88.0 --profile minimal
+      - name: Install Tauri Linux prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            build-essential \
+            curl \
+            file \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev \
+            patchelf \
+            wget
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm desktop:build

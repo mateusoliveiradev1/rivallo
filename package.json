@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "format:check": "prettier --check package.json turbo.json pnpm-workspace.yaml scripts/*.mjs tooling-tests/*.mjs apps/desktop/package.json apps/desktop/vite.config.ts apps/desktop/index.html apps/desktop/src/App.tsx apps/desktop/src/main.tsx apps/desktop/src/styles.css apps/desktop/src/react-runtime.d.ts apps/desktop/src-tauri/tauri.conf.json eslint.config.mjs vitest.config.mjs tsconfig.json .prettierrc.json",
+    "format:check": "prettier --check package.json turbo.json pnpm-workspace.yaml scripts/*.mjs tooling-tests/*.mjs apps/desktop/package.json apps/desktop/vite.config.ts apps/desktop/index.html apps/desktop/src/App.tsx apps/desktop/src/main.tsx apps/desktop/src/styles.css apps/desktop/src/react-runtime.d.ts apps/desktop/src-tauri/tauri.conf.json docker-compose.yml .github/workflows/ci.yml docs/operations/local-development.md eslint.config.mjs vitest.config.mjs tsconfig.json .prettierrc.json",
     "lint": "eslint scripts tooling-tests eslint.config.mjs vitest.config.mjs --max-warnings 0",
     "quality": "pnpm smoke",
     "check": "node scripts/run-quality.mjs check",
@@ -12,6 +12,7 @@
     "contracts:openapi:check": "node scripts/verify-openapi-drift.mjs",
     "contracts:client:generate": "node scripts/generate-contract-client.mjs",
     "contracts:client:check": "node scripts/verify-contract-client-drift.mjs",
+    "desktop:build": "node scripts/build-desktop.mjs",
     "rust:clippy": "node scripts/check-rust-quality.mjs clippy",
     "rust:fmt": "node scripts/check-rust-quality.mjs fmt",
     "rust:test": "node scripts/check-rust-quality.mjs test",

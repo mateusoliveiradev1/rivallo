@@ -47,6 +47,7 @@ for (const command of [
   'contracts:openapi:check',
   'contracts:client:generate',
   'contracts:client:check',
+  'desktop:build',
   'check',
 ]) {
   if (typeof packageJson.scripts?.[command] !== 'string') {
@@ -113,7 +114,7 @@ if (aggregateMode) {
   ]) {
     runPnpm(script);
   }
-  console.log('All Phase 3 quality checks passed.');
+  console.log('All repository quality checks passed.');
   process.exit(0);
 }
 
