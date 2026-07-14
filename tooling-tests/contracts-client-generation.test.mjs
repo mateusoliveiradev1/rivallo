@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -8,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const packageDirectory = resolve(repositoryRoot, 'packages', 'contracts-client');
 const generatedDirectory = resolve(packageDirectory, 'src', 'generated');
+const packageRequire = createRequire(join(packageDirectory, 'package.json'));
 
 /** @param {string} script @param {NodeJS.ProcessEnv} [environment] */
 const runNode = (script, environment = {}) =>
@@ -25,6 +27,17 @@ const inventory = (directory) =>
     .sort();
 
 describe('generated contracts client', () => {
+  it('exposes the generated Fetch client and configuration surface only from the public package', async () => {
+    const publicEntrypoint = packageRequire.resolve('@rivallo/contracts-client');
+    const contractClient = await import(publicEntrypoint);
+
+    expect(contractClient.client).toBeDefined();
+    expect(contractClient.createClient).toBeTypeOf('function');
+    expect(contractClient.createConfig).toBeTypeOf('function');
+    expect(contractClient).not.toHaveProperty('Auth');
+    expect(contractClient).not.toHaveProperty('serverSentEvents');
+  });
+
   it('derives generated types, version schema, and Fetch client only from committed OpenAPI', () => {
     const configuration = readFileSync(resolve(packageDirectory, 'openapi-ts.config.ts'), 'utf8');
     const document = JSON.parse(
