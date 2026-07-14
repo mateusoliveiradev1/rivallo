@@ -12,7 +12,7 @@ Make consequential football-management decisions feel deep and dependable, inclu
 
 ### Validated
 
-(None yet.)
+- Phase 2 — workspace pnpm/Turborepo/Cargo, validação de toolchains e scripts de qualidade reproduzíveis, sem componentes de produto.
 
 ### Active
 
@@ -42,4 +42,4 @@ Make consequential football-management decisions feel deep and dependable, inclu
 | Dev identity in V0.1 | Defer provider selection while preserving AuthPort | — Pending |
 
 ---
-*Last updated: 2026-07-13 after Gate 0 planning*
+*Last updated: 2026-07-14 after Phase 2 completion*
