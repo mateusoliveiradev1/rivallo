@@ -10,7 +10,7 @@
 
 - **D-01:** Enforce strict inward dependencies: `domain` depends on no other phase crate; `application` depends on `domain`; `contracts` depends only on permitted core types; `platform` is the only outer layer that may depend on `application` and `contracts`.
 - **D-02:** Create `platform` now only because it owns contract composition, OpenAPI export, pipeline integration, and test-only fixtures. It must not host an HTTP server or persistence adapter.
-- **D-03:** `application` must have a real, non-product responsibility: a contract-preparation service that orchestrates assembly from `domain` and `contracts` without an HTTP endpoint.
+- **D-03 (read with D-01):** `application` has a real, non-product contract-preparation service, but it consumes domain inputs and emits domain-owned neutral preparation data only; `platform` alone composes that output with contracts metadata without an HTTP endpoint.
 - **D-04:** `domain` contains neutral core primitives and module identity used by contract preparation. It must not contain clubs, players, matches, leagues, or other football entities.
 
 ### Canonical Rust contract and OpenAPI export
@@ -44,7 +44,7 @@ None — discussion stayed within Phase 3 scope.
 
 ## Summary
 
-Use four exercised crates: `rivallo-domain`, `rivallo-application`, `rivallo-contracts`, and `rivallo-platform`. The only production dependency edges are `application -> domain`, `application -> contracts` (for the preparation result), and `platform -> application, contracts`; `domain` has no Phase-3-crate edge and `contracts` has no Phase-3-crate edge. Keep `platform` a library/binary generator composition boundary only—no axum, Tauri, network listener, persistence adapter, or runtime registration. This implements FOUND-03 while reserving runtime/API work for Phase 4. [VERIFIED: repository Phase 3 CONTEXT.md and SPEC.md]
+Use four exercised crates: `rivallo-domain`, `rivallo-application`, `rivallo-contracts`, and `rivallo-platform`. The only production dependency edges are `application -> domain` and `platform -> application, contracts`; `domain` and `contracts` have no Phase-3-crate edge. Application emits only domain-owned neutral preparation data; platform is the sole composition boundary that combines that output with contracts metadata for export. Keep `platform` a library/binary generator composition boundary only—no axum, Tauri, network listener, persistence adapter, or runtime registration. This implements FOUND-03 while reserving runtime/API work for Phase 4. [VERIFIED: repository Phase 3 CONTEXT.md and SPEC.md]
 
 Use `utoipa` 5.5.0 with its `macros` feature for `ToSchema` contract models and a schema-only `#[derive(OpenApi)]` document that lists `components(schemas(...))`; the derive documentation explicitly supports component schemas separately from its optional `paths(...)` list. Serialize the composed `OpenApi` document once in `platform` with a stable pretty-JSON policy, then write only `contracts/openapi.json`. [VERIFIED: https://docs.rs/utoipa/5.5.0/utoipa/derive.OpenApi.html]
 
@@ -63,7 +63,7 @@ Use a pinned `@hey-api/openapi-ts` 0.97.3 configuration to consume only `contrac
 | Capability | Primary Tier | Secondary Tier | Rationale |
 |---|---|---|---|
 | Neutral module identity/primitives | domain | — | Domain remains framework/product neutral. [VERIFIED: 03-CONTEXT.md D-01/D-04] |
-| Contract-preparation service | application | domain, contracts | Real non-product orchestration consumes only inward/core inputs. [VERIFIED: 03-CONTEXT.md D-03] |
+| Contract-preparation service | application | domain | Real non-product orchestration emits domain-owned neutral preparation data and does not import contracts. [VERIFIED: 03-CONTEXT.md D-01/D-03] |
 | Schema definitions and semantic contract version | contracts | — | Canonical source of transport schemas/OpenAPI metadata. [VERIFIED: 03-CONTEXT.md D-05/D-06] |
 | OpenAPI composition/export and pipeline test wiring | platform | application, contracts | The outer composition boundary is required but is not a server. [VERIFIED: 03-CONTEXT.md D-02/D-05] |
 | Generated TypeScript package | `packages/contracts-client` | contracts/openapi.json | Generated output is independent of applications and traceable to the committed OpenAPI input. [VERIFIED: 03-CONTEXT.md D-08–D-12] |
@@ -116,9 +116,8 @@ pnpm add -D --save-exact @hey-api/openapi-ts@0.97.3 --workspace-root
 ```mermaid
 flowchart LR
   D["domain: ModuleId / neutral primitives"] --> A["application: ContractPreparationService"]
-  C["contracts: schemas + CONTRACT_VERSION"] --> A
-  C --> P["platform: compose and export"]
-  A --> P
+  A --> P["platform: compose and export"]
+  C["contracts: schemas + CONTRACT_VERSION"] --> P
   P --> O["contracts/openapi.json\ncommitted canonical artifact"]
   O --> T["packages/contracts-client\ngenerated types, metadata, fetch client"]
   P --> M["cargo metadata graph audit"]
@@ -133,7 +132,7 @@ The primary path is schema-first: no runtime request enters this phase. A determ
 ```text
 crates/
 ├── domain/                 # ModuleId and neutral primitives only
-├── application/            # ContractPreparationService only
+├── application/            # domain-owned neutral preparation data only
 ├── contracts/              # schemas, CONTRACT_VERSION, openapi.json
 └── platform/               # OpenAPI composition/export and pipeline integration test
 packages/
@@ -199,7 +198,7 @@ struct ContractDocument;
 | Pitfall | Prevention / verification |
 |---|---|
 | A schema-only document yields no operations. | Treat this as valid proof; only add a neutral test fixture if the selected generator fails without an operation, then assert it is absent from all production registration. [VERIFIED: 03-CONTEXT.md D-13–D-16] |
-| `contracts` imports domain/application types. | Permit only explicitly approved neutral core types; otherwise duplicate neither model nor business rule—move the neutral primitive to domain. [VERIFIED: 03-CONTEXT.md D-01/D-05] |
+| Application imports contracts types. | Keep application output domain-owned and neutral; platform alone combines that output with contracts metadata. [VERIFIED: 03-CONTEXT.md D-01/D-03/D-05] |
 | `domain` accidentally gains `utoipa`/network/framework transitively. | Apply a small positive allowlist and denylisted package-family reachability scan over real metadata. [VERIFIED: 03-SPEC.md R2] |
 | JSON differs because a timestamp, absolute path, or map order leaks into output. | Set only stable metadata, avoid environment/time fields, serialize once with a fixed formatter, and run generation twice in an integration test. [ASSUMED]
 | Generated client metadata does not read the contract semantic version. | Make generation config/package metadata derive it from `openapi.json.info.version`; test equality with the Rust `CONTRACT_VERSION` exported into the document. [VERIFIED: 03-CONTEXT.md D-06] |

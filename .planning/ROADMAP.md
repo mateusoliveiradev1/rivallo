@@ -66,7 +66,7 @@ Plans:
 **Success criteria:**
 
 - Domain/application boundaries compile without React, Tauri, axum, SQLite, or PostgreSQL dependencies.
-- axum API structure and generated OpenAPI/client drift workflow are established without product endpoints beyond the scaffold need.
+- Schema-only Rust contracts/exporter and generated OpenAPI/client drift workflow are established without runtime API endpoints.
 - No competitive domain rule is placed in TypeScript.
 
 ## Phase 4: Desktop Shell, Local Persistence Boundary, Containers and CI Skeleton
