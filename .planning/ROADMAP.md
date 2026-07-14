@@ -52,7 +52,7 @@ Delivery is sequential. A gate may advance only after the named approval and its
 
 **Dependencies:** Phase 2.
 
-**Plans:** 1/7 plans executed
+**Plans:** 2/7 plans executed
 
 Plans:
 **Wave 1**
@@ -61,7 +61,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 03-02-PLAN.md — Enforce resolved Cargo metadata dependency policy.
+- [x] 03-02-PLAN.md — Enforce resolved Cargo metadata dependency policy.
 - [ ] 03-03-PLAN.md — Record human approval for the pinned TypeScript generator.
 
 **Wave 3** *(blocked on Wave 2 completion)*
