@@ -52,7 +52,7 @@ Delivery is sequential. A gate may advance only after the named approval and its
 
 **Dependencies:** Phase 2.
 
-**Plans:** 7/7 plans complete
+**Plans:** 7/8 plans complete
 
 Plans:
 **Wave 1**
@@ -79,6 +79,10 @@ Plans:
 **Wave 6** *(blocked on Wave 5 completion)*
 
 - [x] 03-07-PLAN.md — Integrate quality checks, proof, scope fences, and documentation.
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [ ] 03-08-PLAN.md — Close generated-client public export and D-10 generated-inventory gaps.
 
 **Success criteria:**
 
