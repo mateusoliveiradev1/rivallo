@@ -52,7 +52,7 @@ Delivery is sequential. A gate may advance only after the named approval and its
 
 **Dependencies:** Phase 2.
 
-**Plans:** 4/7 plans executed
+**Plans:** 5/7 plans executed
 
 Plans:
 **Wave 1**
@@ -70,7 +70,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 03-05-PLAN.md — Materialize committed OpenAPI and prove deterministic non-mutating verification.
+- [x] 03-05-PLAN.md — Materialize committed OpenAPI and prove deterministic non-mutating verification.
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
