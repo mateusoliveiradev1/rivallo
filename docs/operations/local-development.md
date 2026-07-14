@@ -1,37 +1,41 @@
 # Local Development
 
-## Phase 2 boundary
+## Phase 3 foundation
 
-This phase is a configuration-only foundation for Windows, macOS, and Linux. It has no application, API, Rust member crate, database, Docker service, cloud resource, credential, or CI workflow. Do not expect Tauri, axum/API, persistence, integration, Docker, or CI-specific commands yet.
+Phase 3 provides four Rust crates: `rivallo-domain` holds framework-independent primitives, `rivallo-application` prepares neutral use cases, `rivallo-contracts` owns versioned transport schemas, and `rivallo-platform` composes and exports those schemas. The committed `contracts/openapi.json` and `packages/contracts-client/src/generated/` are generated artifacts, not hand-maintained models.
 
-Root `package.json`, `pnpm-workspace.yaml`, `turbo.json`, `Cargo.toml`, and `rust-toolchain.toml` are root-owned configuration. Phase 3 owns real Rust crates and the contract pipeline. Phase 4 owns the desktop/API shell, local persistence boundary, containers, and CI skeleton.
+Executable API routes, desktop/Tauri integration, persistence, infrastructure, identity, and product behavior remain later-phase work. There is no runtime server, health check, Docker/CI workflow, database, or product service to run here.
 
 ## Prerequisites
 
-Install stable Node.js 22.0.0 or newer, pnpm 10.0.0 or newer, and matching stable Rust/Cargo 1.88.0 or newer yourself. Rust must also provide the `rustfmt` and `clippy` components, and `cargo-nextest` is required for `pnpm rust:test`.
+Install stable Node.js 22.0.0 or newer, pnpm 10.0.0 or newer, and stable Rust/Cargo 1.88.0 or newer yourself. Rust must provide `rustfmt`, `clippy`, and `cargo-nextest`. Use supported Windows, macOS, or Linux tooling; the root Node adapters choose the platform executable names.
 
-The validator accepts compatible stable releases and rejects prereleases. A failure reports the expected tool, minimum version, detected version when available, and a concise remediation. Follow that remediation manually; no project command installs or updates a toolchain.
+Every Rust/Cargo child process uses `RUSTUP_AUTO_INSTALL=0`. Project commands never install or update a Rust toolchain: install the selected channel and required components manually when validation reports them missing. Install JavaScript dependencies with `pnpm install --frozen-lockfile`.
 
-All Rust/Cargo subprocesses set `RUSTUP_AUTO_INSTALL=0`. If the selected Rust channel is unavailable, install it and required components manually before rerunning the validator. `pnpm install --frozen-lockfile` installs only the lockfile's JavaScript dependencies; it is not toolchain setup.
+## Generate intentionally
 
-## Clean-checkout validation
-
-Run these commands from the repository root:
+Writers are explicit and serialized per artifact. Do not run two writers for the same artifact at once.
 
 ```text
-pnpm install --frozen-lockfile
+pnpm contracts:openapi:generate
+pnpm contracts:client:generate
+```
+
+Run the OpenAPI writer before the client writer after a Rust-contract change. Commit their tracked outputs only when the intended generated diff has been reviewed.
+
+## Verify without writes
+
+From a clean checkout, run individual checks or the aggregate:
+
+```text
 pnpm toolchains
-pnpm format:check
-pnpm lint
-pnpm typecheck
-pnpm test
 pnpm rust:fmt
 pnpm rust:clippy
 pnpm rust:test
-pnpm smoke
+pnpm rust:architecture
+pnpm contracts:openapi:check
+pnpm contracts:client:check
 pnpm check
 ```
 
-`pnpm check` executes the same meaningful layers in fail-fast order, beginning with `pnpm toolchains`. Each layer is runnable independently for reproduction. All validation commands are non-mutating: use a dedicated formatter write command only when intentionally changing formatting.
-
-Repeated validation may create ignored local artifacts such as `node_modules/`, `.turbo/`, `target/`, coverage data, and `tooling-tests/.tmp/`. Starting from a clean tracked tree, commands must leave `git status --porcelain` empty. No credentials, Neon, Docker, or product services are required.
+`pnpm check` is fail-fast and toolchain-first. It runs only verification paths after validation; it never invokes either generation writer or repairs tracked artifacts. If an OpenAPI drift check fails, run `pnpm contracts:openapi:generate`; if a client drift check fails, run `pnpm contracts:client:generate`, then review the diff and rerun the matching check. Repeated checks may create ignored local output such as `node_modules/`, `target/`, and temporary directories, but must not change tracked OpenAPI or client files.
