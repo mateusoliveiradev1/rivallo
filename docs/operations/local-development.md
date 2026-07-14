@@ -1,16 +1,50 @@
 # Local Development
 
-## Phase 3 foundation
+## Workspace foundation
 
 Phase 3 provides four Rust crates: `rivallo-domain` holds framework-independent primitives, `rivallo-application` prepares neutral use cases, `rivallo-contracts` owns versioned transport schemas, and `rivallo-platform` composes and exports those schemas. The committed `contracts/openapi.json` and `packages/contracts-client/src/generated/` are generated artifacts, not hand-maintained models. Exact `orval@8.21.0` converts the local committed OpenAPI document into generated types, metadata, and a direct Fetch operation.
 
-Executable API routes, desktop/Tauri integration, persistence, infrastructure, identity, and product behavior remain later-phase work. There is no runtime server, health check, Docker/CI workflow, database, or product service to run here.
+The repository also contains the bounded Phase 4 desktop and loopback API shell. It still has no product persistence, identity, football feature, schema, migration, seed, or hosted service.
 
 ## Prerequisites
 
 Install stable Node.js 22.0.0 or newer, pnpm 10.0.0 or newer, and stable Rust/Cargo 1.88.0 or newer yourself. Rust must provide `rustfmt`, `clippy`, and `cargo-nextest`. Use supported Windows, macOS, or Linux tooling; the root Node adapters choose the platform executable names.
 
 Every Rust/Cargo child process uses `RUSTUP_AUTO_INSTALL=0`. Project commands never install or update a Rust toolchain: install the selected channel and required components manually when validation reports them missing. Install JavaScript dependencies with `pnpm install --frozen-lockfile`.
+
+## Local PostgreSQL with Docker Compose
+
+The official `postgres:17-alpine` major image is the only local Compose service. Its database, user, password, and loopback port are non-secret local development defaults. Override them in your shell with `RIVALLO_POSTGRES_DB`, `RIVALLO_POSTGRES_USER`, `RIVALLO_POSTGRES_PASSWORD`, and `RIVALLO_POSTGRES_PORT`; do not add a repository `.env` file.
+
+Start PostgreSQL in the background:
+
+```text
+docker compose up -d postgres
+```
+
+Inspect its container and health status. Wait for the status to report `healthy` before using it:
+
+```text
+docker compose ps postgres
+```
+
+### Normal stop (preserves local data)
+
+The named `rivallo-postgres-data` volume survives an ordinary stop:
+
+```text
+docker compose down
+```
+
+### Destructive cleanup (deletes all local PostgreSQL data)
+
+The following command is intentionally separate. Run it only when the local database may be permanently erased:
+
+```text
+docker compose down --volumes
+```
+
+Compose creates only the PostgreSQL container, its default network, the named volume, and the healthcheck. It does not run initialization SQL, schemas, migrations, fixtures, seeds, application mounts, or external infrastructure such as Neon.
 
 ## Generate intentionally
 

@@ -13,7 +13,8 @@ describe('Phase 4 local PostgreSQL infrastructure', () => {
     const compose = await rootFile('docker-compose.yml');
 
     expect(compose).toMatch(/^services:\s*\r?\n {2}postgres:\s*$/m);
-    expect(compose.match(/^ {2}[a-z][\w-]*:\s*$/gm)).toEqual(['  postgres:', '  volumes:']);
+    const servicesBlock = compose.split(/^volumes:\s*$/m)[0];
+    expect(servicesBlock.match(/^ {2}[a-z][\w-]*:\s*$/gm)).toEqual(['  postgres:']);
     expect(compose).toContain('image: postgres:17-alpine');
     expect(compose).toContain('127.0.0.1:${RIVALLO_POSTGRES_PORT:-5432}:5432');
     expect(compose).toContain('${RIVALLO_POSTGRES_DB:-rivallo_dev}');
