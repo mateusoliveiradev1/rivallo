@@ -52,7 +52,7 @@ Delivery is sequential. A gate may advance only after the named approval and its
 
 **Dependencies:** Phase 2.
 
-**Plans:** 7/8 plans complete
+**Plans:** 8/8 plans complete
 
 Plans:
 **Wave 1**
@@ -82,7 +82,7 @@ Plans:
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
-- [ ] 03-08-PLAN.md — Close generated-client public export and enforce the approved bounded D-10 bundled-core exception.
+- [x] 03-08-PLAN.md — Close generated-client public export and enforce the approved bounded D-10 bundled-core exception.
 
 **Success criteria:**
 
