@@ -24,7 +24,7 @@ Delivery is sequential. A gate may advance only after the named approval and its
 
 ## Phase 2: Workspace, Toolchains and Quality Scripts
 
-**Status:** Planned — ready to execute  
+**Status:** Complete — ready for Phase 3  
 **Gate:** 1  
 **Directory:** `.planning/phases/02-workspace-toolchains-quality-scripts/`
 
@@ -36,7 +36,7 @@ Delivery is sequential. A gate may advance only after the named approval and its
 
 **Success criteria:**
 
-- pnpm workspace, Turborepo, Cargo workspace, TypeScript, ESLint, Prettier, rustfmt, Clippy, cargo-nextest, Vitest, and Playwright preparation are reproducibly configured.
+- pnpm workspace, Turborepo, Cargo workspace, TypeScript, ESLint, Prettier, rustfmt, Clippy, cargo-nextest, and Vitest are reproducibly configured.
 - No dashboard, squad, authentication, simulation, multiplayer, editor, mod, or production infrastructure feature is implemented.
 - Local-development documentation explains the installed toolchain and quality commands.
 

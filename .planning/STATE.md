@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 2 — Workspace, Toolchains and Quality Scripts.
-status: In progress
-stopped_at: Plan 02-01 complete; remaining Phase 2 plans are pending execution
-last_updated: "2026-07-14T02:10:00.000Z"
+current_phase: 3 — Rust Modular Monolith and API Contract Pipeline.
+status: Ready to plan
+stopped_at: Phase 2 complete; awaiting Phase 3 specification
+last_updated: "2026-07-14T23:05:00.000Z"
 progress:
   total_phases: 13
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 1
-  percent: 25
+  completed_plans: 4
+  percent: 100
 ---
 
 # State
@@ -21,19 +21,19 @@ progress:
 See `.planning/PROJECT.md` (updated 2026-07-13).
 
 **Core value:** dependable deep management in local and shared online competition.
-**Current phase:** 2 — Workspace, Toolchains and Quality Scripts.
+**Current phase:** 3 — Rust Modular Monolith and API Contract Pipeline.
 **Current gate:** 1 — Scaffold.
 **Gate 0:** APPROVED by Mateus.
-**Next action:** `$gsd-execute-phase 2` to continue the remaining Phase 2 plans.
+**Next action:** `$gsd-spec-phase 3`.
 
 ## Gate History
 
 - Gate 0 was approved after review of documentation, architecture, product, data, testing, design, and ADRs.
-- Phase 2 Plan 01 is complete: root pnpm/Turborepo metadata, a zero-member Cargo workspace, a numbered Rust 1.88.0 minimum, and a non-installing Cargo metadata probe are in place.
-- The Cargo metadata probe sets `RUSTUP_AUTO_INSTALL=0`; future Phase 2 Rust/Cargo child processes must preserve that boundary.
+- Phase 2 is complete: reproducible pnpm/Turborepo/Cargo roots, toolchain validation, real JavaScript and Rust quality commands, Vitest infrastructure smoke coverage, narrow cache ignores, and clean-checkout documentation are in place.
+- Every Rust/Cargo child process uses a Node adapter with `RUSTUP_AUTO_INSTALL=0`. The zero-member workspace explicitly validates components and metadata; Phase 3 must switch to source-level `rustfmt` checks and warnings-denied Clippy once it adds real members.
 
 ## Session
 
-**Last session:** 2026-07-14T02:10:00.000Z
-**Stopped at:** Plan 02-01 complete
-**Resume file:** .planning/phases/02-workspace-toolchains-quality-scripts/02-03-PLAN.md
+**Last session:** 2026-07-14T23:05:00.000Z
+**Stopped at:** Phase 2 complete
+**Resume file:** .planning/phases/02-workspace-toolchains-quality-scripts/02-04-SUMMARY.md
