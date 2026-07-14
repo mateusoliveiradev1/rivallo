@@ -1,5 +1,7 @@
 //! Transport-neutral contract metadata owned by the contracts boundary.
 
+use utoipa::ToSchema;
+
 /// The semantic version used by contract exports and generated clients.
 pub const CONTRACT_VERSION: &str = "0.1.0";
 
@@ -20,6 +22,22 @@ impl ContractMetadata {
     /// Returns the semantic version owned by this contract metadata.
     pub const fn semantic_version(&self) -> &'static str {
         self.semantic_version
+    }
+}
+
+/// The neutral schema that declares the canonical contract version.
+#[derive(Clone, Debug, Eq, PartialEq, ToSchema)]
+pub struct ContractManifest {
+    /// The semantic version owned by the canonical Rust contract.
+    pub version: String,
+}
+
+impl ContractManifest {
+    /// Creates the schema value for the canonical contract version.
+    pub fn current() -> Self {
+        Self {
+            version: CONTRACT_VERSION.to_owned(),
+        }
     }
 }
 
