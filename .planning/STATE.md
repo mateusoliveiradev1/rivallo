@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 4 — Desktop Shell, Local Persistence Boundary, Containers and CI Skeleton
 status: Ready to plan
-stopped_at: Completed 04-05-PLAN.md
-last_updated: "2026-07-14T16:08:10.016Z"
+stopped_at: Completed 04-04-PLAN.md
+last_updated: "2026-07-14T16:31:57.413Z"
 progress:
   total_phases: 13
   completed_phases: 2
   total_plans: 19
-  completed_plans: 17
+  completed_plans: 18
   percent: 15
 ---
 
@@ -34,8 +34,8 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 
 ## Session
 
-**Last session:** 2026-07-14T16:08:10.012Z
-**Stopped at:** Completed 04-05-PLAN.md
+**Last session:** 2026-07-14T16:31:57.409Z
+**Stopped at:** Completed 04-04-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -53,6 +53,7 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 | Phase 04 P02 | 8min | 2 tasks | 7 files |
 | Phase 04 P03 | 18min | 2 tasks | 71 files |
 | Phase 04 P05 | 10min | 2 tasks | 7 files |
+| Phase 04 P04 | 17min | 2 tasks | 15 files |
 
 ## Decisions
 
@@ -74,3 +75,5 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 - [Phase 04]: Track Tauri icon sources while ignoring copied sidecars, generated schemas, and build output.
 - [Phase ?]: Expose only Unavailable and InvalidData from the application persistence boundary; adapter-specific causes stay outside the public contract. — Keeps database and OS detail out of UI-facing recovery semantics.
 - [Phase ?]: Represent the Phase 4 SQLite boundary as a disconnected adapter with injected per-user location resolution and no driver or filesystem side effects. — Preserves D-05 through D-08 until later storage phases.
+- [Phase 04]: Lifecycle status remains a host-owned typed union — React can only read status and request retry, never select process authority.
+- [Phase 04]: Copyable lifecycle diagnostics are compiled out of production — Technical detail stays inside a development-only disclosure.
