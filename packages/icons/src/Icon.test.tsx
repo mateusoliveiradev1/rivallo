@@ -1,8 +1,12 @@
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+
 import { render, screen } from '@testing-library/react';
 import { createElement } from 'react';
 import { describe, expect, it } from 'vitest';
 
 import { Icon, genericIconMetadata, type IconProps } from './Icon.js';
+import { FootballIcon, footballIconMetadata, type FootballIconProps } from './football-icons.js';
 
 describe('curated generic Icon boundary', () => {
   it.each([16, 20, 24] as const)(
@@ -107,6 +111,119 @@ describe('curated generic Icon boundary', () => {
       createElement(Icon, { name: 'add', strokeWidth: 2 });
       // @ts-expect-error semantic icons require a label
       createElement(Icon, { name: 'warning', decorative: false });
+    }
+
+    expect(true).toBe(true);
+  });
+});
+
+describe('original football icon registry', () => {
+  it('keeps the proof vocabulary small, versioned, and Rivallo-owned', async () => {
+    expect(Object.keys(footballIconMetadata)).toEqual([
+      'football-ball',
+      'goal-frame',
+      'training-cone',
+    ]);
+    expect(
+      Object.values(footballIconMetadata).every(
+        ({ version, source, viewBox, meaning }) =>
+          version === '1.0.0' &&
+          source === 'rivallo-project-original' &&
+          viewBox === '0 0 24 24' &&
+          meaning.length > 0,
+      ),
+    ).toBe(true);
+
+    const authorship = await readFile(resolve('packages/icons/AUTHORSHIP.md'), 'utf8');
+    expect(authorship).toContain('2026-07-15');
+    expect(authorship).toContain('Version 1.0.0');
+    expect(authorship).toContain(
+      'No external SVG path, crest, icon library, or game asset was imported',
+    );
+    for (const name of Object.keys(footballIconMetadata)) {
+      expect(authorship).toContain(`\`${name}\``);
+    }
+  });
+
+  it.each([16, 20, 24] as const)(
+    'renders every football entry at the approved %ipx grid with coherent fixed geometry',
+    (size) => {
+      for (const name of Object.keys(footballIconMetadata) as Array<
+        keyof typeof footballIconMetadata
+      >) {
+        const { container, unmount } = render(<FootballIcon name={name} size={size} />);
+        const svg = container.querySelector('svg');
+
+        expect(svg?.getAttribute('viewBox')).toBe('0 0 24 24');
+        expect(svg?.getAttribute('width')).toBe(String(size));
+        expect(svg?.getAttribute('height')).toBe(String(size));
+        expect(svg?.getAttribute('stroke')).toBe('currentColor');
+        expect(svg?.getAttribute('stroke-width')).toBe('1.75');
+        expect(svg?.getAttribute('fill')).toBe('none');
+        expect(svg?.getAttribute('data-icon-version')).toBe('1.0.0');
+        expect(container.querySelectorAll('path, circle, line').length).toBeGreaterThan(1);
+        unmount();
+      }
+    },
+  );
+
+  it('shares the decorative and meaningful accessibility boundary', () => {
+    const { rerender } = render(<FootballIcon name="football-ball" />);
+    expect(document.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+
+    rerender(<FootballIcon name="training-cone" decorative={false} label="Treinamento de campo" />);
+    expect(screen.getByRole('img', { name: 'Treinamento de campo' })).toBeTruthy();
+  });
+
+  it('contains only fixed local static SVG geometry and safe attributes', () => {
+    for (const name of Object.keys(footballIconMetadata) as Array<
+      keyof typeof footballIconMetadata
+    >) {
+      const { container, unmount } = render(
+        <FootballIcon name={name} decorative={false} label={footballIconMetadata[name].meaning} />,
+      );
+      const markup = container.innerHTML;
+
+      expect(markup).not.toMatch(/https?:|javascript:|data:|<use|<image|<animate|<foreignObject/iu);
+      expect(container.querySelectorAll('[href], [src], [style]').length).toBe(0);
+      for (const element of container.querySelectorAll('*')) {
+        expect(element.getAttributeNames().some((attribute) => /^on/iu.test(attribute))).toBe(
+          false,
+        );
+      }
+      unmount();
+    }
+  });
+
+  it('rejects unsupported runtime geometry configuration', () => {
+    expect(() =>
+      render(
+        createElement(FootballIcon, {
+          name: 'football-ball',
+          size: 18,
+        } as unknown as FootballIconProps),
+      ),
+    ).toThrow(/Unsupported Rivallo football icon size/u);
+    expect(() =>
+      render(
+        createElement(FootballIcon, {
+          name: 'external-crest',
+          size: 20,
+        } as unknown as FootballIconProps),
+      ),
+    ).toThrow(/Unsupported Rivallo football icon name/u);
+  });
+
+  it('keeps consumer paths, markup, handlers, and animation outside the public type', () => {
+    if (false) {
+      // @ts-expect-error no consumer SVG path input
+      createElement(FootballIcon, { name: 'football-ball', path: 'M0 0' });
+      // @ts-expect-error no consumer raw markup input
+      createElement(FootballIcon, { name: 'football-ball', dangerouslySetInnerHTML: {} });
+      // @ts-expect-error no consumer event handler input
+      createElement(FootballIcon, { name: 'football-ball', onClick: () => undefined });
+      // @ts-expect-error no consumer animation or style input
+      createElement(FootballIcon, { name: 'football-ball', style: { animation: 'spin 1s' } });
     }
 
     expect(true).toBe(true);
