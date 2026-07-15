@@ -1,0 +1,221 @@
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+
+import { render, screen } from '@testing-library/react';
+import { userEvent } from '@testing-library/user-event';
+import { createElement } from 'react';
+import { describe, expect, it, vi } from 'vitest';
+
+import { Button, IconButton, type IconButtonProps } from './actions.js';
+import { Checkbox, RadioGroup, Select, TextField } from './forms.js';
+
+describe('native action primitives', () => {
+  it('exposes every approved button treatment through one native boundary', () => {
+    render(
+      <>
+        <Button variant="primary">Confirmar</Button>
+        <Button variant="secondary">Comparar</Button>
+        <Button variant="quiet">Cancelar</Button>
+        <Button variant="destructive-proof">Remover exemplo</Button>
+      </>,
+    );
+
+    for (const [name, variant] of [
+      ['Confirmar', 'primary'],
+      ['Comparar', 'secondary'],
+      ['Cancelar', 'quiet'],
+      ['Remover exemplo', 'destructive-proof'],
+    ] as const) {
+      const button = screen.getByRole('button', { name });
+      expect(button).toBeInstanceOf(HTMLButtonElement);
+      expect(button.getAttribute('data-variant')).toBe(variant);
+      expect(button.getAttribute('type')).toBe('button');
+    }
+  });
+
+  it('prevents duplicate disabled/loading actions while retaining label context', async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    render(
+      <>
+        <Button disabled onClick={onClick}>
+          Indisponível
+        </Button>
+        <Button loading onClick={onClick}>
+          Salvar configuração
+        </Button>
+      </>,
+    );
+
+    const disabled = screen.getByRole('button', { name: 'Indisponível' });
+    const loading = screen.getByRole('button', { name: /Salvar configuração.*Carregando/u });
+    expect((disabled as HTMLButtonElement).disabled).toBe(true);
+    expect((loading as HTMLButtonElement).disabled).toBe(true);
+    expect(loading.getAttribute('aria-busy')).toBe('true');
+
+    await user.click(disabled);
+    await user.click(loading);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('requires a visible-to-assistive-technology name for icon-only actions', () => {
+    render(<IconButton icon="columns" accessibleLabel="Configurar colunas" />);
+
+    const button = screen.getByRole('button', { name: 'Configurar colunas' });
+    expect(button).toBeInstanceOf(HTMLButtonElement);
+    expect(button.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+
+    if (false) {
+      // @ts-expect-error Icon-only actions cannot omit their accessible label.
+      createElement(IconButton, { icon: 'columns' } satisfies IconButtonProps);
+    }
+  });
+});
+
+describe('labelled native form primitives', () => {
+  it('associates visible text-field labels, help, and errors with the input', () => {
+    const { rerender } = render(
+      <TextField label="Nome da visualização" helperText="Use um nome fácil de reconhecer." />,
+    );
+
+    const input = screen.getByRole('textbox', { name: 'Nome da visualização' });
+    const helper = screen.getByText('Use um nome fácil de reconhecer.');
+    expect(input.getAttribute('aria-describedby')).toBe(helper.id);
+    expect(input.hasAttribute('aria-invalid')).toBe(false);
+
+    rerender(
+      <TextField
+        label="Nome da visualização"
+        helperText="Use um nome fácil de reconhecer."
+        error="Informe um nome válido."
+      />,
+    );
+
+    const errorText = screen.getByText('Informe um nome válido.');
+    const error = errorText.closest('p');
+    expect(error).not.toBeNull();
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    expect(input.getAttribute('aria-describedby')?.split(' ')).toEqual(
+      expect.arrayContaining([helper.id, error?.id]),
+    );
+    expect(error?.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('keeps native select naming, help, error, and disabled semantics', () => {
+    render(
+      <Select
+        label="Densidade"
+        helperText="Altera somente esta inspeção."
+        error="Escolha uma densidade disponível."
+        disabled
+        options={[
+          { value: 'compact', label: 'Compacta' },
+          { value: 'comfortable', label: 'Confortável' },
+        ]}
+      />,
+    );
+
+    const select = screen.getByRole('combobox', { name: 'Densidade' });
+    expect((select as HTMLSelectElement).disabled).toBe(true);
+    expect(select.getAttribute('aria-invalid')).toBe('true');
+    expect(select.getAttribute('aria-describedby')).toContain(
+      screen.getByText('Escolha uma densidade disponível.').id,
+    );
+  });
+
+  it('sets the real native checkbox property for all three explicit states', async () => {
+    const user = userEvent.setup();
+    const onCheckedChange = vi.fn();
+    const { rerender } = render(
+      <Checkbox
+        label="Selecionar todos os exemplos"
+        checked={false}
+        onCheckedChange={onCheckedChange}
+      />,
+    );
+
+    const checkbox = screen.getByRole('checkbox', { name: 'Selecionar todos os exemplos' });
+    expect((checkbox as HTMLInputElement).checked).toBe(false);
+    expect((checkbox as HTMLInputElement).indeterminate).toBe(false);
+    expect(screen.getByText('Não marcado')).toBeInstanceOf(HTMLElement);
+
+    await user.click(checkbox);
+    expect(onCheckedChange).toHaveBeenCalledWith(true);
+
+    rerender(
+      <Checkbox
+        label="Selecionar todos os exemplos"
+        checked="indeterminate"
+        onCheckedChange={onCheckedChange}
+      />,
+    );
+    expect((checkbox as HTMLInputElement).indeterminate).toBe(true);
+    expect(screen.getByText('Parcialmente marcado')).toBeInstanceOf(HTMLElement);
+
+    rerender(
+      <Checkbox label="Selecionar todos os exemplos" checked onCheckedChange={onCheckedChange} />,
+    );
+    expect((checkbox as HTMLInputElement).checked).toBe(true);
+    expect((checkbox as HTMLInputElement).indeterminate).toBe(false);
+    expect(screen.getByText('Marcado')).toBeInstanceOf(HTMLElement);
+  });
+
+  it('associates checkbox group errors and preserves native disabled behavior', () => {
+    render(
+      <Checkbox
+        label="Incluir coluna indisponível"
+        checked={false}
+        disabled
+        error="Esta coluna não pode ser usada neste estado."
+        onCheckedChange={() => undefined}
+      />,
+    );
+
+    const checkbox = screen.getByRole('checkbox', { name: 'Incluir coluna indisponível' });
+    const error = screen.getByText('Esta coluna não pode ser usada neste estado.').closest('p');
+    expect(error).not.toBeNull();
+    expect((checkbox as HTMLInputElement).disabled).toBe(true);
+    expect(checkbox.getAttribute('aria-invalid')).toBe('true');
+    expect(checkbox.getAttribute('aria-describedby')).toBe(error?.id);
+  });
+
+  it('uses native radios with a visible group label and non-colour selection text', async () => {
+    const user = userEvent.setup();
+    const onValueChange = vi.fn();
+    render(
+      <RadioGroup
+        label="Estado inspecionado"
+        value="default"
+        onValueChange={onValueChange}
+        options={[
+          { value: 'default', label: 'Padrão' },
+          { value: 'loading', label: 'Carregando' },
+        ]}
+      />,
+    );
+
+    const group = screen.getByRole('group', { name: 'Estado inspecionado' });
+    const selected = screen.getByRole('radio', { name: /Padrão/u });
+    const loading = screen.getByRole('radio', { name: /Carregando/u });
+    expect(group.contains(selected)).toBe(true);
+    expect((selected as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByText('Selecionado')).toBeInstanceOf(HTMLElement);
+
+    await user.click(loading);
+    expect(onValueChange).toHaveBeenCalledWith('loading');
+  });
+});
+
+describe('compact primitive geometry contract', () => {
+  it('keeps controls at 32px with 6px radius and semantic focus/motion variables', async () => {
+    const css = await readFile(resolve('apps/desktop/src/ui/primitives/primitives.css'), 'utf8');
+
+    expect(css).toMatch(/height:\s*var\(--rv-control-height\)/u);
+    expect(css).toMatch(/border-radius:\s*var\(--rv-radius-control\)/u);
+    expect(css).toMatch(/outline:\s*var\(--rv-stroke-focus\) solid var\(--rv-color-focus\)/u);
+    expect(css).toMatch(/outline-offset:\s*2px/u);
+    expect(css).toMatch(/var\(--rv-motion-feedback\)/u);
+    expect(css).toMatch(/var\(--rv-motion-control\)/u);
+    expect(css).not.toMatch(/#[0-9a-f]{3,8}|rgba?\(|hsla?\(/iu);
+  });
+});
