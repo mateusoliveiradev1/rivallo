@@ -2,7 +2,7 @@ import { Icon } from '@rivallo/icons';
 import { useState, type ReactNode } from 'react';
 
 import { Button } from '../primitives/actions.js';
-import { Menu, type MenuItem } from '../primitives/disclosure.js';
+import { Menu, Tooltip, type MenuItem } from '../primitives/disclosure.js';
 import { EmptyState, ErrorState, Skeleton } from '../primitives/feedback.js';
 import { ScrollArea } from '../primitives/layout.js';
 import './DenseTable.css';
@@ -62,6 +62,52 @@ type SortDirection = 'ascending' | 'descending';
 interface SortState {
   readonly columnId: string;
   readonly direction: SortDirection;
+}
+
+export interface DenseTableNationalityProps {
+  readonly code: string;
+  readonly countryName: string;
+  readonly flagSrc: string;
+}
+
+export function DenseTableNationality({ code, countryName, flagSrc }: DenseTableNationalityProps) {
+  const [flagFailed, setFlagFailed] = useState(false);
+  if (code.trim().length === 0 || countryName.trim().length === 0) {
+    throw new Error('DenseTableNationality requires a country code and full country name.');
+  }
+
+  return (
+    <span className="rv-dense-table__nationality">
+      {!flagFailed && (
+        <img
+          alt=""
+          aria-hidden="true"
+          className="rv-dense-table__flag"
+          onError={() => setFlagFailed(true)}
+          src={flagSrc}
+        />
+      )}
+      <Tooltip content={countryName}>
+        <abbr
+          aria-label={`${countryName}, código ${code}`}
+          className="rv-dense-table__country-code"
+          tabIndex={0}
+        >
+          {code}
+        </abbr>
+      </Tooltip>
+    </span>
+  );
+}
+
+export function DenseTableTruncatedText({ text }: { readonly text: string }) {
+  return (
+    <Tooltip content={text}>
+      <span aria-label={text} className="rv-dense-table__truncated" tabIndex={0}>
+        {text}
+      </span>
+    </Tooltip>
+  );
 }
 
 function assertColumns<Row>(columns: readonly DenseTableColumn<Row>[]) {

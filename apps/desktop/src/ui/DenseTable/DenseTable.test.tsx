@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -349,7 +349,7 @@ describe('DenseTable deterministic football-shaped UI evidence', () => {
     expect(screen.getByText('AR')).toBeInstanceOf(HTMLElement);
     expect(container.querySelector('img[src="/fixture-flag-missing.svg"]')).toBeNull();
 
-    argentinaCode.focus();
+    await act(async () => argentinaCode.focus());
     expect((await screen.findByRole('tooltip')).textContent).toContain('Argentina');
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('tooltip')).toBeNull();

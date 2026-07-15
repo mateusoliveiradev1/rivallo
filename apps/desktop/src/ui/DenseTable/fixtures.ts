@@ -1,15 +1,13 @@
 import { createElement } from 'react';
 
-import type { DenseTableColumn } from './DenseTable.js';
+import {
+  DenseTableNationality,
+  DenseTableTruncatedText,
+  type DenseTableColumn,
+} from './DenseTable.js';
 
 export type DenseTableEvidenceStatus =
-  | 'neutral'
-  | 'info'
-  | 'positive'
-  | 'warning'
-  | 'danger'
-  | 'offline'
-  | 'loading';
+  'neutral' | 'info' | 'positive' | 'warning' | 'danger' | 'offline' | 'loading';
 
 export interface DenseTableEvidenceRow {
   readonly id: string;
@@ -98,14 +96,15 @@ export const denseTableEvidenceColumns: readonly DenseTableColumn<DenseTableEvid
     priority: 1,
     sortable: true,
     sortValue: (row) => row.name,
-    render: (row) => row.name,
+    render: (row) =>
+      row.name.length > 40 ? createElement(DenseTableTruncatedText, { text: row.name }) : row.name,
   },
   {
     id: 'nationality',
     header: 'Nação',
     width: 104,
     priority: 1,
-    render: (row) => row.nationality.code,
+    render: (row) => createElement(DenseTableNationality, row.nationality),
   },
   {
     id: 'score',
@@ -116,8 +115,7 @@ export const denseTableEvidenceColumns: readonly DenseTableColumn<DenseTableEvid
     hideable: true,
     sortable: true,
     sortValue: (row) => row.score,
-    render: (row) =>
-      row.score ?? createElement('span', { 'aria-label': 'Dado indisponível' }, '—'),
+    render: (row) => row.score ?? createElement('span', { 'aria-label': 'Dado indisponível' }, '—'),
   },
   {
     id: 'status',
@@ -138,6 +136,9 @@ export const denseTableEvidenceColumns: readonly DenseTableColumn<DenseTableEvid
     width: 420,
     priority: 3,
     hideable: true,
-    render: (row) => row.note ?? createElement('span', { 'aria-label': 'Dado indisponível' }, '—'),
+    render: (row) =>
+      row.note
+        ? createElement(DenseTableTruncatedText, { text: row.note })
+        : createElement('span', { 'aria-label': 'Dado indisponível' }, '—'),
   },
 ];
