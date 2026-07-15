@@ -61,8 +61,10 @@ updated: 2026-07-15
 | 05-09-03 | 09   | UI-01       | T-05-09-SC   | CI/full                                   | `pnpm quality:clean`                                                                                                                            | `.github/workflows/ci.yml`                           | ✅ green  |
 | 05-10-01 | 10   | UI-01       | T-05-10-SP   | human-only optical review + record syntax | Visual hierarchy, icon originality, non-imitation and polish require human-only judgment; Plan 10 adds a strict record parser beside the review | `05-10-PLAN.md`                                      | 🟦 mapped |
 | 05-10-02 | 10   | UI-01       | T-05-10-RP   | human-only terminal decision              | APPROVED/REJECTED authority remains human-only; deterministic digest/checklist syntax is verified by the task-local parser specified in Plan 10 | `05-10-PLAN.md`                                      | 🟦 mapped |
+| 05-11-01 | 11   | UI-01       | T-05-11-SVG  | icon contract/DOM/type/lint                | `pnpm test -- packages/icons/src/Icon.test.tsx && pnpm typecheck && pnpm lint`                                                                  | `packages/icons/src/Icon.test.tsx`                   | 🟨 planned |
+| 05-11-02 | 11   | UI-01       | T-05-11-RP   | Lab DOM/browser/build                      | `pnpm test -- apps/desktop/src/ui-lab/UiLab.test.tsx packages/icons/src/Icon.test.tsx && pnpm ui-lab:test && pnpm --filter @rivallo/desktop build` | `browser-tests/ui-lab.spec.ts`                       | 🟨 planned |
 
-Legend: ✅ implemented and green · 🟦 mapped to a future task-local check or irreducible human-only judgment.
+Legend: ✅ implemented and green · 🟦 mapped to a future task-local check or irreducible human-only judgment · 🟨 planned and not yet proved green.
 
 ## Wave 0 Completion
 
@@ -77,6 +79,8 @@ Legend: ✅ implemented and green · 🟦 mapped to a future task-local check or
 
 Plan 10 needs no missing shared test infrastructure. Its strict review-record parser is deliberately created with that task, while the optical and approval decisions remain human-only.
 
+Plan 11 reuses the implemented Vitest, Playwright, typecheck, lint and desktop-build infrastructure. Its two rows remain planned until gap-closure execution records green evidence.
+
 ## Manual-Only Verifications
 
 | Behavior                                         | Requirement | Why human-only                                                                             | Exact review instruction                                                                                                        |
@@ -87,13 +91,13 @@ Plan 10 needs no missing shared test infrastructure. Its strict review-record pa
 
 ## Validation Sign-Off
 
-- [x] All 26 task IDs have a concrete non-watch check or explicit human-only rationale.
+- [x] All 28 task IDs have a concrete non-watch check or explicit human-only rationale; 05-11-01 and 05-11-02 remain planned until execution.
 - [x] No three consecutive implementation tasks lack automated feedback.
 - [x] Shared Wave 0 infrastructure exists and is used by local and hosted checks.
 - [x] Writer commands are excluded from `pnpm quality` and `pnpm quality:clean`.
 - [x] Browser evidence is deterministic, ignored locally and never uploaded by CI.
 - [x] Human optical review remains explicitly manual.
 
-**Automated validation:** green.
+**Automated validation:** green for executed plans; Plan 05-11 checks are planned.
 
 **Human visual approval:** pending Plan 05-10.

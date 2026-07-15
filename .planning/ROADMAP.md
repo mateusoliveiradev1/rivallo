@@ -123,7 +123,7 @@ Plans:
 
 **Dependencies:** Phase 4; approved DESIGN FOUNDATION V0.
 
-**Plans:** 9/10 plans executed
+**Plans:** 9/11 plans executed
 
 Plans:
 
@@ -164,6 +164,10 @@ Plans:
 - [x] 05-09-PLAN.md — Integrate Playwright, quality, CI, and clean-worktree evidence.
 
 **Wave 10** *(blocked on Wave 9 completion)*
+
+- [ ] 05-11-PLAN.md — Close the diagnosed premium icon-foundation gap with enforced grammar and optical evidence.
+
+**Wave 11** *(blocked on Wave 10 completion)*
 
 - [ ] 05-10-PLAN.md — Close with evidence-backed human visual and interaction review.
 
