@@ -81,7 +81,7 @@ describe('DenseTable semantic structure and finite content states', () => {
     let table = screen.getByRole('table', { name: 'Estados da tabela' });
     expect(table.getAttribute('aria-busy')).toBe('true');
     expect(table.getAttribute('data-density')).toBe('comfortable');
-    expect(within(table).getAllByRole('row')).toHaveLength(4);
+    expect(table.querySelectorAll('tbody tr')).toHaveLength(3);
     expect(table.querySelectorAll('[data-skeleton-cell="true"]')).toHaveLength(6);
 
     rerender(
