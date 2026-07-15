@@ -12,13 +12,18 @@ const reviewPath = resolve(
   '.planning/phases/05-design-tokens-icon-policy-and-ui-primitives/05-10-VISUAL-REVIEW.md',
 );
 
+/** @param {string} source @param {string} field @param {string} value */
 const terminalValue = (source, field, value) =>
   source.replace(new RegExp(`^${field}:.*$`, 'mu'), `${field}: ${value}`);
 
+/**
+ * @param {string} source
+ * @param {{ decision?: string, failedId?: string }} options
+ */
 function completedReview(source, { decision = 'APPROVED', failedId } = {}) {
   let completed = source.replace(
-    /^\| (M-\d{2}) \| PENDING \| — \|$/gmu,
-    (_, id) =>
+    /^\|\s+(M-\d{2})\s+\|\s+PENDING\s+\|\s+—\s+\|$/gmu,
+    (/** @type {string} */ _, /** @type {string} */ id) =>
       `| ${id} | ${id === failedId ? 'FAIL' : 'PASS'} | ${
         id === failedId
           ? 'No preset 1366×768, o foco do controle de shell ficou encoberto pelo limite direito.'
@@ -35,8 +40,8 @@ function completedReview(source, { decision = 'APPROVED', failedId } = {}) {
 describe('Phase 5 visual review record', () => {
   it('ships a complete pending template that cannot be mistaken for approval', async () => {
     const template = await readFile(reviewPath, 'utf8');
-    expect(template.match(/^\| A-\d{2} \| PASS \|/gmu)).toHaveLength(7);
-    expect(template.match(/^\| M-\d{2} \| PENDING \| — \|$/gmu)).toHaveLength(14);
+    expect(template.match(/^\|\s+A-\d{2}\s+\|\s+PASS\s+\|/gmu)).toHaveLength(7);
+    expect(template.match(/^\|\s+M-\d{2}\s+\|\s+PENDING\s+\|\s+—\s+\|$/gmu)).toHaveLength(14);
     expect(template.match(/^Decision:/gmu)).toHaveLength(1);
     expect(template.match(/^Reviewed by:/gmu)).toHaveLength(1);
     expect(template.match(/^Reviewed at:/gmu)).toHaveLength(1);
@@ -75,12 +80,9 @@ describe('Phase 5 visual review record', () => {
   it('rejects blank or generic FAIL notes and template prose used as a decision', async () => {
     const template = await readFile(reviewPath, 'utf8');
     const concrete = completedReview(template, { decision: 'REJECTED', failedId: 'M-07' });
-    const blank = concrete.replace(
-      /^\| M-07 \| FAIL \|.*\|$/mu,
-      '| M-07 | FAIL | — |',
-    );
+    const blank = concrete.replace(/^\|\s+M-07\s+\|\s+FAIL\s+\|.*\|$/mu, '| M-07 | FAIL | — |');
     const generic = concrete.replace(
-      /^\| M-07 \| FAIL \|.*\|$/mu,
+      /^\|\s+M-07\s+\|\s+FAIL\s+\|.*\|$/mu,
       '| M-07 | FAIL | problema |',
     );
     const prose = `${concrete}\nA instrução dizia Decision: APPROVED, mas isso não é campo terminal.\n`;
