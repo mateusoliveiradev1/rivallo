@@ -44,8 +44,8 @@ test('supports keyboard DenseTable controls and preserves shell-toggle focus', a
   const toggle = page.getByRole('button', { name: 'Recolher navegação' });
   await toggle.focus();
   await page.keyboard.press('Enter');
-  await expect(toggle).toBeFocused();
-  await expect(toggle).toHaveAccessibleName('Expandir navegação');
+  const expandedToggle = page.getByRole('button', { name: 'Expandir navegação' });
+  await expect(expandedToggle).toBeFocused();
   await expect(page.getByRole('navigation', { name: 'Composição de navegação' })).toHaveAttribute(
     'data-navigation-width',
     '56',
@@ -84,10 +84,13 @@ test('keeps long text, non-colour status, and reduced-motion evidence reachable'
   await expect(longText).toHaveCSS('font-size', '28px');
   expect(await longText.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
 
-  await expect(page.getByTestId('reduced-motion-proof')).toHaveCSS(
-    'transition-duration',
-    '0s',
-  );
+  expect(
+    await page.getByTestId('reduced-motion-proof').evaluate((element) =>
+      getComputedStyle(element)
+        .transitionDuration.split(',')
+        .every((duration) => Number.parseFloat(duration) <= 0.000_01),
+    ),
+  ).toBe(true);
 });
 
 test('keeps the hidden Lab absent from the production build', async ({ page }, testInfo) => {

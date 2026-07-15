@@ -17,3 +17,9 @@ apps/desktop/dist/
 apps/desktop/src-tauri/binaries/local_api-*
 apps/desktop/src-tauri/gen/schemas/
 tooling-tests/.tmp/
+
+# Playwright local evidence (never committed or published)
+playwright-report/
+test-results/
+blob-report/
+.cache/ms-playwright/
