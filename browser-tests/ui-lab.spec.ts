@@ -51,9 +51,18 @@ test('supports keyboard DenseTable controls and preserves shell-toggle focus', a
   );
 });
 
-test('keeps DenseTable width finite and reaches both horizontal edges', async ({ page }) => {
+test('keeps DenseTable width finite and reaches both horizontal edges', async ({
+  page,
+}, testInfo) => {
   await page.goto(developmentUrl);
   await page.getByRole('button', { name: 'DenseTable' }).click();
+  const viewportLabel = {
+    'desktop-1366x768': '1366×768',
+    'desktop-1920x1080': '1920×1080',
+    'desktop-2560x1080': '2560×1080',
+  }[testInfo.project.name];
+  if (!viewportLabel) throw new Error(`Unsupported desktop project: ${testInfo.project.name}`);
+  await page.getByRole('radio', { name: viewportLabel }).check();
   await page.getByRole('combobox', { name: 'Estado da tabela' }).selectOption('ready');
   await page.getByRole('combobox', { name: 'Prioridade de colunas' }).selectOption('3');
 
@@ -64,6 +73,7 @@ test('keeps DenseTable width finite and reaches both horizontal edges', async ({
   });
   const firstIdentifier = table.getByLabel(
     'Exemplo Ágata do Norte com nome deliberadamente extenso para localização',
+    { exact: true },
   );
   const actionsHeader = table.getByRole('columnheader', { name: 'Ações' });
   const primaryAction = table.getByRole('button', { name: 'Abrir evidência' }).first();
@@ -85,7 +95,12 @@ test('keeps DenseTable width finite and reaches both horizontal edges', async ({
       }
       return total + width;
     }, 0);
-    const availableInlineSize = Math.min(region.getBoundingClientRect().width, window.innerWidth);
+    const preview = region.closest<HTMLElement>('.ui-lab__preview-frame');
+    if (!preview) throw new Error('DenseTable missing from its labelled viewport frame.');
+    const availableInlineSize = Math.min(
+      region.getBoundingClientRect().width,
+      preview.getBoundingClientRect().width,
+    );
     const tolerance = 4;
 
     return {
@@ -113,10 +128,11 @@ test('keeps DenseTable width finite and reaches both horizontal edges', async ({
       if (!region) return false;
       const bounds = element.getBoundingClientRect();
       const regionBounds = region.getBoundingClientRect();
-      const visibleLeft = Math.max(0, regionBounds.left);
-      const visibleRight = Math.min(window.innerWidth, regionBounds.right);
       const tolerance = 1;
-      return bounds.left >= visibleLeft - tolerance && bounds.right <= visibleRight + tolerance;
+      return (
+        bounds.left >= regionBounds.left - tolerance &&
+        bounds.right <= regionBounds.right + tolerance
+      );
     });
 
   await scrollArea.evaluate((region) => {
@@ -130,6 +146,7 @@ test('keeps DenseTable width finite and reaches both horizontal edges', async ({
   });
   expect(await isVisibleAtTheInlineEdge(actionsHeader)).toBe(true);
   expect(await isVisibleAtTheInlineEdge(primaryAction)).toBe(true);
+  await primaryAction.scrollIntoViewIfNeeded();
   await primaryAction.focus();
   await expect(primaryAction).toBeFocused();
   await primaryAction.click();

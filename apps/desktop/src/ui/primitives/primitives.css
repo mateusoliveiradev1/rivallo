@@ -402,7 +402,10 @@
 }
 
 .rv-scroll-area {
+  width: 100%;
+  min-width: 0;
   max-width: 100%;
+  box-sizing: border-box;
   overflow: auto;
   border: var(--rv-stroke-border) solid var(--rv-color-border);
   border-radius: var(--rv-radius-control);

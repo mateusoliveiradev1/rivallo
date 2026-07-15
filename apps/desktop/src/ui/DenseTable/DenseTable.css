@@ -27,8 +27,8 @@
 }
 
 .rv-dense-table {
-  width: max-content;
-  min-width: 100%;
+  width: 100%;
+  min-width: 0;
   border-spacing: 0;
   border-collapse: separate;
   color: var(--rv-color-text);
