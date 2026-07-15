@@ -13,9 +13,11 @@
   "include": [
     "scripts/**/*.mjs",
     "tooling-tests/**/*.mjs",
+    "browser-tests/**/*.ts",
     "apps/**/*.ts",
     "apps/**/*.tsx",
     "packages/**/src/**/*.ts",
-    "*.config.mjs"
+    "*.config.mjs",
+    "playwright.config.ts"
   ]
 }

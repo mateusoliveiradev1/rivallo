@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const cleanVerifier = resolve(repositoryRoot, 'scripts/verify-clean-worktree.mjs');
 
+/** @param {string} path */
 const readRootFile = (path) => readFile(resolve(repositoryRoot, path), 'utf8');
 
 async function createGitFixture() {
@@ -41,11 +42,21 @@ if (mode === 'ignored') {
   return { repository, harness, counter };
 }
 
+/**
+ * @param {string} repository
+ * @param {string} harness
+ * @param {string} counter
+ * @param {string} mode
+ */
 function runVerifier(repository, harness, counter, mode) {
-  return spawnSync(process.execPath, [cleanVerifier, '--', process.execPath, harness, mode, counter], {
-    cwd: repository,
-    encoding: 'utf8',
-  });
+  return spawnSync(
+    process.execPath,
+    [cleanVerifier, '--', process.execPath, harness, mode, counter],
+    {
+      cwd: repository,
+      encoding: 'utf8',
+    },
+  );
 }
 
 describe('Phase 5 quality surfaces', () => {
@@ -83,7 +94,7 @@ describe('Phase 5 quality surfaces', () => {
     expect(qualitySource).toContain("'ui-lab:test'");
     expect(qualitySource).not.toMatch(/aggregateScripts[\s\S]*tokens:generate/u);
     expect(manifest.scripts['format:check']).toContain('browser-tests');
-    expect(manifest.scripts['format:check']).toContain('ui-lab');
+    expect(manifest.scripts['format:check']).toContain('apps/desktop/src/**/*.{ts,tsx,css}');
     expect(manifest.scripts.lint).toContain('browser-tests');
     expect(eslintSource).toContain("files: ['**/*.ts', '**/*.tsx']");
     expect(tsconfigSource).toContain('browser-tests/**/*.ts');
@@ -104,7 +115,12 @@ describe('Phase 5 quality surfaces', () => {
 
   it('accepts ignored evidence but rejects tracked and untracked status deltas actionably', async () => {
     const ignored = await createGitFixture();
-    const ignoredResult = runVerifier(ignored.repository, ignored.harness, ignored.counter, 'ignored');
+    const ignoredResult = runVerifier(
+      ignored.repository,
+      ignored.harness,
+      ignored.counter,
+      'ignored',
+    );
     expect(ignoredResult.status, `${ignoredResult.stdout}\n${ignoredResult.stderr}`).toBe(0);
 
     for (const mode of ['tracked', 'untracked']) {
@@ -112,7 +128,9 @@ describe('Phase 5 quality surfaces', () => {
       const result = runVerifier(fixture.repository, fixture.harness, fixture.counter, mode);
       expect(result.status).not.toBe(0);
       expect(`${result.stdout}\n${result.stderr}`).toContain('Quality command changed Git status');
-      expect(`${result.stdout}\n${result.stderr}`).toMatch(/[?M]{1,2}\s+(tracked|unexpected)\.txt/u);
+      expect(`${result.stdout}\n${result.stderr}`).toMatch(
+        /[?M]{1,2}\s+(tracked|unexpected)\.txt/u,
+      );
     }
   });
 });

@@ -133,7 +133,7 @@ function assertColumns<Row>(columns: readonly DenseTableColumn<Row>[]) {
   }
 }
 
-function LoadingRows<Row>({
+function LoadingRows({
   alignments,
   rowCount,
 }: {

@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
 const repositoryRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const aggregateMode = process.argv[2] === 'check';
+const mode = process.argv[2] ?? 'smoke';
+const aggregateMode = mode === 'check' || mode === 'clean-pass';
 const requiredFiles = [
   'eslint.config.mjs',
   '.prettierrc.json',
@@ -15,8 +16,12 @@ const requiredFiles = [
   'scripts/verify-cargo-architecture.mjs',
   'scripts/verify-openapi-drift.mjs',
   'scripts/verify-contract-client-drift.mjs',
+  'scripts/verify-clean-worktree.mjs',
   'scripts/verify-cargo-workspace.mjs',
   'tooling-tests/workspace-config.test.mjs',
+  'tooling-tests/phase-5-quality.test.mjs',
+  'browser-tests/ui-lab.spec.ts',
+  'playwright.config.ts',
   'tsconfig.json',
   'turbo.json',
   'vitest.config.mjs',
@@ -48,6 +53,12 @@ for (const command of [
   'contracts:client:generate',
   'contracts:client:check',
   'desktop:build',
+  'components:test',
+  'tokens:check',
+  'tokens:generate',
+  'ui-lab:test',
+  'quality',
+  'quality:clean',
   'check',
 ]) {
   if (typeof packageJson.scripts?.[command] !== 'string') {
@@ -91,6 +102,11 @@ const runPnpm = (script) => {
   if (result.status !== 0 || result.error) {
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
+    if (script === 'ui-lab:test') {
+      console.error(
+        'Install the approved Chromium binary manually: pnpm exec playwright install chromium',
+      );
+    }
     console.error(`Quality aggregate stopped at: pnpm ${script}`);
     process.exit(result.status ?? 1);
   }
@@ -98,12 +114,14 @@ const runPnpm = (script) => {
 };
 
 if (aggregateMode) {
-  for (const script of [
+  const aggregateScripts = [
     'toolchains',
     'format:check',
     'lint',
     'typecheck',
+    'tokens:check',
     'test',
+    'ui-lab:test',
     'rust:fmt',
     'rust:clippy',
     'rust:test',
@@ -111,8 +129,12 @@ if (aggregateMode) {
     'contracts:openapi:check',
     'contracts:client:check',
     'smoke',
-  ]) {
+  ];
+  for (const script of aggregateScripts) {
     runPnpm(script);
+  }
+  if (mode === 'clean-pass') {
+    runPnpm('desktop:build');
   }
   console.log('All repository quality checks passed.');
   process.exit(0);

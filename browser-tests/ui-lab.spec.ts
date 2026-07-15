@@ -10,10 +10,9 @@ test('renders deterministic UI Lab evidence at the configured desktop viewport',
 
   await expect(page.getByRole('heading', { name: 'UI Lab Rivallo' })).toBeVisible();
   await expect(page.getByText('Evidência de layout, não emulação de dispositivo.')).toBeVisible();
-  expect(await page.evaluate(() => [document.documentElement.clientWidth, window.innerHeight])).toEqual([
-    testInfo.project.use.viewport?.width,
-    testInfo.project.use.viewport?.height,
-  ]);
+  expect(
+    await page.evaluate(() => [document.documentElement.clientWidth, window.innerHeight]),
+  ).toEqual([testInfo.project.use.viewport?.width, testInfo.project.use.viewport?.height]);
 
   await page.screenshot({ path: testInfo.outputPath('ui-lab.png'), fullPage: true });
 });
@@ -67,7 +66,9 @@ test('contains modal focus and returns it to the invoker', async ({ page }) => {
   await expect(trigger).toBeFocused();
 });
 
-test('keeps long text, non-colour status, and reduced-motion evidence reachable', async ({ page }) => {
+test('keeps long text, non-colour status, and reduced-motion evidence reachable', async ({
+  page,
+}) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 683, height: 768 });
   await page.goto(developmentUrl);
@@ -82,7 +83,9 @@ test('keeps long text, non-colour status, and reduced-motion evidence reachable'
   const longText = page.getByTestId('long-text-proof');
   await expect(longText).toBeVisible();
   await expect(longText).toHaveCSS('font-size', '28px');
-  expect(await longText.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  expect(await longText.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+    true,
+  );
 
   expect(
     await page.getByTestId('reduced-motion-proof').evaluate((element) =>
@@ -94,7 +97,10 @@ test('keeps long text, non-colour status, and reduced-motion evidence reachable'
 });
 
 test('keeps the hidden Lab absent from the production build', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-1920x1080', 'One production-boundary proof is enough.');
+  test.skip(
+    testInfo.project.name !== 'desktop-1920x1080',
+    'One production-boundary proof is enough.',
+  );
 
   await page.goto(productionUrl);
   await expect(page.getByRole('heading', { name: 'UI Lab Rivallo' })).toHaveCount(0);

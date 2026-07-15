@@ -1,8 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
 const developmentServer = {
-  command:
-    'pnpm --filter @rivallo/desktop exec vite --host 127.0.0.1 --port 4173 --strictPort',
+  command: 'pnpm --filter @rivallo/desktop exec vite --host 127.0.0.1 --port 4173 --strictPort',
   url: 'http://127.0.0.1:4173/__ui-lab',
   reuseExistingServer: !process.env.CI,
   timeout: 60_000,
@@ -28,7 +27,6 @@ export default defineConfig({
     colorScheme: 'dark',
     deviceScaleFactor: 1,
     locale: 'pt-BR',
-    reducedMotion: 'no-preference',
     screenshot: 'off',
     timezoneId: 'America/Sao_Paulo',
     trace: 'retain-on-failure',
