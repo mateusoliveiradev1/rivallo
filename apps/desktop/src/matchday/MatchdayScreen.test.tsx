@@ -91,6 +91,8 @@ const playedState: MatchdayState = {
 
 describe('MatchdayScreen', () => {
   beforeEach(() => {
+    window.localStorage.clear();
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1920 });
     clientMock.loadMatchday.mockReset().mockResolvedValue(state);
     clientMock.saveMatchdayLineup.mockReset().mockResolvedValue(state);
     clientMock.playNextMatch.mockReset().mockResolvedValue(playedState);
@@ -101,18 +103,19 @@ describe('MatchdayScreen', () => {
     expect(await screen.findByRole('heading', { name: 'Visão geral do elenco' })).toBeInstanceOf(
       HTMLHeadingElement,
     );
-    expect(screen.getByText('11/11')).toBeInstanceOf(HTMLElement);
+    expect(screen.getAllByRole('button', { name: /Retirar/u })).toHaveLength(11);
     expect((screen.getByRole('button', { name: 'Continuar' }) as HTMLButtonElement).disabled).toBe(
       false,
     );
-    expect(screen.getAllByRole('checkbox')).toHaveLength(12);
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+    expect(screen.getAllByRole('button', { name: /Retirar|Escalar/u })).toHaveLength(12);
   });
 
   it('lets the manager replace the goalkeeper and save a valid XI', async () => {
     render(<MatchdayScreen serviceOwnership="owned" />);
     await screen.findByRole('heading', { name: '12 jogadores' });
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Retirar Caio Brandão' }));
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Escalar Ícaro Reis' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Retirar Caio Brandão' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Escalar Ícaro Reis' }));
     fireEvent.click(screen.getByRole('button', { name: 'Salvar escalação' }));
     await waitFor(() => expect(clientMock.saveMatchdayLineup).toHaveBeenCalledOnce());
     const [selectedIds] = clientMock.saveMatchdayLineup.mock.calls[0] as [string[]];
@@ -129,5 +132,22 @@ describe('MatchdayScreen', () => {
     expect(screen.getByText('Vitória · Rodada 1')).toBeInstanceOf(HTMLElement);
     expect(clientMock.saveMatchdayLineup).toHaveBeenCalledOnce();
     expect(clientMock.playNextMatch).toHaveBeenCalledOnce();
+  });
+
+  it('collapses the navigation and persists real interface preferences', async () => {
+    render(<MatchdayScreen serviceOwnership="owned" />);
+    await screen.findByRole('heading', { name: 'Visão geral do elenco' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Recolher navegação' }));
+    expect(screen.getByRole('button', { name: 'Expandir navegação' })).toBeInstanceOf(
+      HTMLButtonElement,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Densidade confortável' }));
+
+    await waitFor(() => {
+      const stored = window.localStorage.getItem('rivallo.squad-ui.v2');
+      expect(stored).toContain('"sidebarCollapsed":true');
+      expect(stored).toContain('"density":"comfortable"');
+    });
   });
 });

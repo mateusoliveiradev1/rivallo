@@ -171,3 +171,44 @@ test('changes tactics, plays the match, and reveals the result feed', async ({
   await expect(page.getByRole('dialog')).toBeHidden();
   await expect(playButton).toBeFocused();
 });
+
+test('personalizes the squad workspace and persists the choices', async ({ page }) => {
+  await page.goto(developmentUrl);
+
+  await page.getByRole('button', { name: 'Recolher navegação' }).click();
+  await expect(page.getByRole('button', { name: 'Expandir navegação' })).toBeVisible();
+  await page.getByRole('button', { name: 'Densidade confortável' }).click();
+  await page.getByText('Colunas', { exact: true }).click();
+  await page.getByRole('button', { name: /Idade.*Visível/u }).click();
+  await expect(page.getByRole('columnheader', { name: 'Idade' })).toBeHidden();
+
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Expandir navegação' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Idade' })).toBeHidden();
+});
+
+test('uses real squad filters and opens the dedicated tactical workspace', async ({ page }) => {
+  await page.goto(developmentUrl);
+
+  await page.getByRole('combobox', { name: 'Filtro rápido' }).selectOption('reserve');
+  await expect(page.getByRole('row', { name: /Ícaro Reis/u })).toBeVisible();
+  await expect(page.getByRole('row', { name: /Caio Brandão/u })).toBeHidden();
+
+  await page.getByRole('button', { name: 'Táticas' }).click();
+  await expect(page.getByRole('table')).toBeHidden();
+  await expect(page.getByLabel('Escalação no 4-3-3')).toBeVisible();
+  await page.getByRole('button', { name: 'Análise' }).click();
+  await expect(page.getByText('Jogador em foco')).toBeVisible();
+});
+
+test('keeps the complete manager surface usable at 1024 pixels', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.goto(developmentUrl);
+
+  await expect(page.getByRole('heading', { name: 'Visão geral do elenco' })).toBeVisible();
+  await expect(page.getByLabel('Escalação no 4-3-3')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  await page.screenshot({ path: testInfo.outputPath('matchday-1024.png'), fullPage: true });
+});
