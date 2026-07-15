@@ -3,12 +3,12 @@ status: partial
 phase: 04-desktop-shell-local-persistence
 source: [04-VERIFICATION.md]
 started: 2026-07-14T16:53:52.653Z
-updated: 2026-07-14T17:24:02.561Z
+updated: 2026-07-15T00:08:59.091Z
 ---
 
 ## Current Test
 
-[testing paused — 3 items blocked by the current environment]
+[testing paused — 2 items blocked by the current environment]
 
 ## Tests
 
@@ -20,9 +20,7 @@ result: pass
 ### 2. Lifecycle shell keyboard and visual check
 
 expected: Initializing, Ready, and failure states are legible; Retry and development diagnostics are keyboard reachable with visible focus; ordinary UI does not expose raw logs; reduced-motion preference is respected.
-result: blocked
-blocked_by: remote-session
-reason: User is connected remotely and cannot reliably validate focus visibility or reduced-motion behavior.
+result: pass
 
 ### 3. Docker PostgreSQL runtime
 
@@ -41,11 +39,11 @@ reason: The workflow has not been pushed to GitHub, so no hosted Actions run exi
 ## Summary
 
 total: 4
-passed: 1
+passed: 2
 issues: 0
 pending: 0
 skipped: 0
-blocked: 3
+blocked: 2
 
 ## Gaps
 
