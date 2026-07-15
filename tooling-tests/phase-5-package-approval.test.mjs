@@ -6,6 +6,7 @@ import {
   computeInventoryDigest,
   verifyApprovedPackageReview,
   verifyInstalledInventory,
+  verifyInstalledWorkspace,
 } from '../scripts/verify-phase-5-package-approval.mjs';
 
 const ROW_A =
@@ -13,6 +14,44 @@ const ROW_A =
 const ROW_B =
   'lucide-react@1.24.0|icons-runtime|sha512-YT6mBD8lGKkg4nM39enlm94/sfJIiW0YKUT60fBy4YK8tai31ylg1VhGNWxkpSKHo9UagfnZqwIff3HTDQwXeA==';
 const VALID_ROWS = [ROW_A, ROW_B];
+const WORKSPACE_BASELINE = {
+  root: { devDependencies: { existing: '^1.0.0' } },
+  desktop: { dependencies: { '@rivallo/contracts-client': 'workspace:*' } },
+  icons: {},
+  designTokens: {},
+};
+
+function makeInstalledWorkspace() {
+  return {
+    approvedRows: VALID_ROWS,
+    baselineManifests: structuredClone(WORKSPACE_BASELINE),
+    currentManifests: {
+      root: {
+        devDependencies: /** @type {Record<string, string>} */ ({
+          existing: '^1.0.0',
+          '@playwright/test': '1.61.1',
+        }),
+      },
+      desktop: {
+        dependencies: /** @type {Record<string, string>} */ ({
+          '@rivallo/contracts-client': 'workspace:*',
+          '@rivallo/design-tokens': 'workspace:*',
+          '@rivallo/icons': 'workspace:*',
+        }),
+      },
+      icons: {
+        dependencies: /** @type {Record<string, string>} */ ({ 'lucide-react': '1.24.0' }),
+      },
+      designTokens: {},
+    },
+    lockfileText: `packages:
+  '@playwright/test@1.61.1':
+    resolution: {integrity: ${ROW_A.split('|')[2]}}
+  lucide-react@1.24.0:
+    resolution: {integrity: ${ROW_B.split('|')[2]}}
+`,
+  };
+}
 
 function makeReview({
   decision = 'APPROVED',
@@ -36,6 +75,7 @@ Inventory digest: ${digest}
 `;
 }
 
+/** @param {string} review @param {string} field */
 function removeField(review, field) {
   return review
     .split('\n')
@@ -165,5 +205,70 @@ describe('installed inventory comparison', () => {
         '@types/react@19.2.17|root-dev|sha512-MXfmqaVPEVgkBT/aY0aGCkRWWtByiYQXo3xdQ8r5RzuFrPiRn8Gar2tQdXSUQ2GKV3bkXckek89V8wQBY2Q/Aw==',
       ]),
     ).toThrow(/unapproved package/u);
+  });
+});
+
+describe('installed workspace comparison', () => {
+  it('accepts preserved baseline entries, the exact registry delta, approved links, and lock integrities', () => {
+    expect(verifyInstalledWorkspace(makeInstalledWorkspace())).toEqual({
+      approvedCount: 2,
+      workspaceLinkCount: 2,
+    });
+  });
+
+  it('rejects an extra or missing approved direct dependency', () => {
+    const extra = makeInstalledWorkspace();
+    extra.currentManifests.root.devDependencies = {
+      ...extra.currentManifests.root.devDependencies,
+      unapproved: '1.0.0',
+    };
+    expect(() => verifyInstalledWorkspace(extra)).toThrow(/Unapproved direct dependency/u);
+
+    const missing = makeInstalledWorkspace();
+    missing.currentManifests.icons.dependencies = {};
+    expect(() => verifyInstalledWorkspace(missing)).toThrow(/missing approved package/u);
+  });
+
+  it('rejects a modified or removed baseline dependency', () => {
+    const modified = makeInstalledWorkspace();
+    modified.currentManifests.root.devDependencies.existing = '^2.0.0';
+    expect(() => verifyInstalledWorkspace(modified)).toThrow(/Baseline direct dependency changed/u);
+
+    const removed = makeInstalledWorkspace();
+    removed.currentManifests.root.devDependencies = {
+      '@playwright/test': '1.61.1',
+    };
+    expect(() => verifyInstalledWorkspace(removed)).toThrow(
+      /Baseline direct dependency was removed/u,
+    );
+  });
+
+  it('rejects an approved package placed in the wrong owner scope', () => {
+    const fixture = makeInstalledWorkspace();
+    fixture.currentManifests.icons.dependencies = {};
+    fixture.currentManifests.desktop.dependencies = {
+      ...fixture.currentManifests.desktop.dependencies,
+      'lucide-react': '1.24.0',
+    };
+    expect(() => verifyInstalledWorkspace(fixture)).toThrow(/wrong scope/u);
+  });
+
+  it('rejects a wrong or additional workspace link', () => {
+    const wrongSpecifier = makeInstalledWorkspace();
+    wrongSpecifier.currentManifests.desktop.dependencies['@rivallo/icons'] = 'workspace:^';
+    expect(() => verifyInstalledWorkspace(wrongSpecifier)).toThrow(/Unapproved workspace link/u);
+
+    const extraLink = makeInstalledWorkspace();
+    extraLink.currentManifests.desktop.dependencies = {
+      ...extraLink.currentManifests.desktop.dependencies,
+      '@rivallo/future': 'workspace:*',
+    };
+    expect(() => verifyInstalledWorkspace(extraLink)).toThrow(/Unapproved workspace link/u);
+  });
+
+  it('rejects lockfile integrity drift', () => {
+    const fixture = makeInstalledWorkspace();
+    fixture.lockfileText = fixture.lockfileText.replace(ROW_B.split('|')[2], ROW_A.split('|')[2]);
+    expect(() => verifyInstalledWorkspace(fixture)).toThrow(/integrity diverges/u);
   });
 });
