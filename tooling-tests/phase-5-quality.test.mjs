@@ -145,7 +145,7 @@ describe('Phase 5 quality surfaces', () => {
     ]);
     const manifest = JSON.parse(manifestSource);
     const jobsBlock = ci.slice(ci.indexOf('\njobs:\n') + '\njobs:\n'.length);
-    const jobs = jobsBlock.match(/^  [a-z][a-z0-9-]+:\s*$/gmu) ?? [];
+    const jobs = jobsBlock.match(/^ {2}[a-z][a-z0-9-]+:\s*$/gmu) ?? [];
 
     expect(jobs).toHaveLength(3);
     expect(ci).toContain('pnpm exec playwright install --with-deps chromium');

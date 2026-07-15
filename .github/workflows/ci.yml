@@ -23,9 +23,13 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
+      - run: pnpm tokens:check
+      - run: pnpm components:test
+      - run: pnpm ui-lab:test
 
   rust-contracts:
     runs-on: ubuntu-latest
