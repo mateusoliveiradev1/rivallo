@@ -3,7 +3,11 @@ import { resolve } from 'node:path';
 
 import { render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { footballIconMetadata, genericIconMetadata } from '@rivallo/icons';
+import {
+  footballIconGrammar,
+  footballIconMetadata,
+  genericIconMetadata,
+} from '@rivallo/icons';
 import { describe, expect, it } from 'vitest';
 
 import { UiLab } from './UiLab.js';
@@ -125,6 +129,55 @@ describe('UI Lab proof hierarchy and real specimen inventory', () => {
     expect(screen.getByText('Este grupo contém um erro de demonstração.')).toBeInstanceOf(
       HTMLElement,
     );
+  });
+
+  it('exposes bounded navigation, football optical, and extension-review evidence', async () => {
+    const user = userEvent.setup();
+    render(<UiLab />);
+
+    await user.click(screen.getByRole('button', { name: 'Icons' }));
+
+    expect(
+      Array.from(document.querySelectorAll('[data-navigation-reference]')).map(
+        (entry) => entry.getAttribute('data-navigation-reference'),
+      ),
+    ).toEqual(['workspace', 'people', 'schedule', 'settings']);
+
+    const footballNames = Object.keys(footballIconMetadata);
+    expect(
+      Array.from(document.querySelectorAll('[data-football-review]')).map((entry) =>
+        entry.getAttribute('data-football-review'),
+      ),
+    ).toEqual(footballNames);
+    expect(footballNames).toEqual(['football-ball', 'goal-frame', 'training-cone']);
+
+    const grammar = screen.getByTestId('football-icon-grammar');
+    expect(grammar.dataset.masterGrid).toBe(String(footballIconGrammar.masterGrid));
+    expect(grammar.dataset.strokeWidth).toBe(String(footballIconGrammar.strokeWidth));
+    expect(grammar.dataset.opticalPadding).toBe(String(footballIconGrammar.opticalPadding));
+    expect(grammar.textContent).toContain('16 / 20 / 24px');
+    expect(grammar.textContent).toContain('currentColor');
+
+    const footballSvgs = document.querySelectorAll(
+      'svg[data-icon-family="rivallo-football"]',
+    );
+    expect(footballSvgs).toHaveLength(footballNames.length * 3 * 2);
+    expect(new Set(Array.from(footballSvgs, (svg) => svg.getAttribute('data-icon-name')))).toEqual(
+      new Set(footballNames),
+    );
+    expect(document.querySelectorAll('[data-icon-surface="canvas"]')).toHaveLength(
+      footballNames.length * 3,
+    );
+    expect(document.querySelectorAll('[data-icon-surface="raised"]')).toHaveLength(
+      footballNames.length * 3,
+    );
+
+    expect(
+      Array.from(document.querySelectorAll('[data-extension-case]')).map((entry) =>
+        entry.getAttribute('data-extension-case'),
+      ),
+    ).toEqual(['training', 'tactics', 'scouting', 'medicine']);
+    expect(screen.getAllByText('Geometria não autorizada · texto obrigatório')).toHaveLength(4);
   });
 });
 

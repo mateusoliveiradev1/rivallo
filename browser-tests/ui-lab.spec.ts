@@ -51,6 +51,42 @@ test('supports keyboard DenseTable controls and preserves shell-toggle focus', a
   );
 });
 
+test('keeps the icon review cells optically bounded at the target viewport', async ({
+  page,
+}, testInfo) => {
+  await page.goto(developmentUrl);
+  await page.getByRole('button', { name: 'Icons' }).click();
+
+  await expect(page.locator('[data-navigation-reference]')).toHaveCount(4);
+  await expect(page.locator('[data-football-review]')).toHaveCount(3);
+  await expect(page.locator('[data-extension-case]')).toHaveCount(4);
+
+  const reviewCells = page.locator('[data-icon-review-cell]');
+  await expect(reviewCells).toHaveCount(36);
+  expect(
+    await reviewCells.evaluateAll((cells) =>
+      cells.flatMap((cell) => {
+        const cellBounds = cell.getBoundingClientRect();
+        const svg = cell.querySelector('svg');
+        if (!svg) return ['missing-svg'];
+        const svgBounds = svg.getBoundingClientRect();
+        const tolerance = 0.5;
+        return svgBounds.left + tolerance >= cellBounds.left &&
+          svgBounds.top + tolerance >= cellBounds.top &&
+          svgBounds.right - tolerance <= cellBounds.right &&
+          svgBounds.bottom - tolerance <= cellBounds.bottom
+          ? []
+          : [cell.getAttribute('data-icon-review-cell') ?? 'unnamed-cell'];
+      }),
+    ),
+  ).toEqual([]);
+
+  await page.screenshot({
+    path: testInfo.outputPath(`icon-review-${testInfo.project.name}.png`),
+    fullPage: true,
+  });
+});
+
 test('contains modal focus and returns it to the invoker', async ({ page }) => {
   await page.goto(developmentUrl);
   await page.getByRole('button', { name: 'Primitives' }).click();
