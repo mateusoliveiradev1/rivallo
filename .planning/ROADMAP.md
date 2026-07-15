@@ -123,7 +123,7 @@ Plans:
 
 **Dependencies:** Phase 4; approved DESIGN FOUNDATION V0.
 
-**Plans:** 3/10 plans executed
+**Plans:** 4/10 plans executed
 
 Plans:
 
@@ -141,7 +141,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 05-04-PLAN.md — Implement the constrained generic-icon and original football-SVG boundaries.
+- [x] 05-04-PLAN.md — Implement the constrained generic-icon and original football-SVG boundaries.
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
