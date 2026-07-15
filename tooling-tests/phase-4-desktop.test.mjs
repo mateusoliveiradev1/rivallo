@@ -64,7 +64,10 @@ describe('Phase 4 desktop-owned local API lifecycle', () => {
 
 describe('Phase 4 operational lifecycle shell', () => {
   it('renders typed initializing, ready, and recoverable failure states', async () => {
-    const app = await readRootFile('apps/desktop/src/App.tsx');
+    const [app, feedback] = await Promise.all([
+      readRootFile('apps/desktop/src/App.tsx'),
+      readRootFile('apps/desktop/src/ui/primitives/feedback.tsx'),
+    ]);
 
     for (const required of [
       "state: 'initializing'",
@@ -73,10 +76,13 @@ describe('Phase 4 operational lifecycle shell', () => {
       'Local service ready',
       'Retry startup',
       'role="status"',
-      'role="alert"',
+      'variant="loading"',
+      'variant="positive"',
+      'variant="danger"',
     ]) {
       expect(app).toContain(required);
     }
+    expect(feedback).toContain("role={assertive ? 'alert' : 'status'}");
     expect(app).toContain("invoke<LifecycleStatus>('lifecycle_status')");
     expect(app).toContain("invoke<LifecycleStatus>('retry_lifecycle')");
   });
@@ -92,18 +98,23 @@ describe('Phase 4 operational lifecycle shell', () => {
   });
 
   it('keeps the shell free of persistence and direct shell authority', async () => {
-    const [entry, app, styles] = await Promise.all([
+    const [entry, app, styles, generatedTokens, primitives] = await Promise.all([
       readRootFile('apps/desktop/src/main.tsx'),
       readRootFile('apps/desktop/src/App.tsx'),
       readRootFile('apps/desktop/src/styles.css'),
+      readRootFile('packages/design-tokens/src/generated.css'),
+      readRootFile('apps/desktop/src/ui/primitives/primitives.css'),
     ]);
     const shell = `${entry}\n${app}`;
+    const styleBoundary = `${styles}\n${generatedTokens}\n${primitives}`;
 
     expect(entry).toContain('<App />');
     expect(shell).toContain("from '@tauri-apps/api/core'");
     expect(shell).not.toMatch(
       /tauri-plugin-shell|@tauri-apps\/plugin-shell|Command\.|sqlite|database/i,
     );
-    expect(styles).toContain('@media (prefers-reduced-motion: reduce)');
+    expect(styles).toContain("@import '@rivallo/design-tokens/generated.css'");
+    expect(styles).toContain("@import './ui/primitives/primitives.css'");
+    expect(styleBoundary).toContain('@media (prefers-reduced-motion: reduce)');
   });
 });
