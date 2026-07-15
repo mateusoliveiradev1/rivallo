@@ -172,7 +172,43 @@ describe('Phase 5 quality surfaces', () => {
 
     expect(validation).toContain('nyquist_compliant: true');
     expect(validation).toContain('wave_0_complete: true');
-    expect(validation.match(/^\| 05-\d{2}-\d{2} \|/gmu)).toHaveLength(28);
+    const validationRows = validation.match(/^\| 05-\d{2}-\d{2} \|.*$/gmu) ?? [];
+    const validationRowsByTask = new Map(
+      validationRows.map((row) => [row.split('|')[1].trim(), row]),
+    );
+    const gapClosureTaskIds = [
+      '05-12-01',
+      '05-12-02',
+      '05-13-01',
+      '05-13-02',
+      '05-14-01',
+      '05-14-02',
+      '05-15-01',
+      '05-16-01',
+    ];
+
+    expect(validationRows).toHaveLength(36);
+    expect(gapClosureTaskIds.every((taskId) => validationRowsByTask.has(taskId))).toBe(true);
+    expect(validationRowsByTask.get('05-12-01')).toContain('✅ green');
+    expect(validationRowsByTask.get('05-12-02')).toContain('✅ green');
+
+    for (const plannedTaskId of [
+      '05-13-01',
+      '05-13-02',
+      '05-14-01',
+      '05-14-02',
+      '05-15-01',
+    ]) {
+      expect(validationRowsByTask.get(plannedTaskId)).toMatch(/\| planned\s+\|$/u);
+    }
+
+    const humanDecisionRow = validationRowsByTask.get('05-16-01') ?? '';
+    expect(humanDecisionRow).toContain('Human-only authority');
+    expect(humanDecisionRow).toContain('structural-integrity evidence only');
+    expect(humanDecisionRow).toMatch(/\| human-pending\s+\|$/u);
+    expect(validation).toContain(
+      'automation and parser integrity cannot change that status',
+    );
     expect(validation).not.toContain('❌ Wave 0');
     expect(validation).toContain('05-10-01');
     expect(validation).toContain('05-11-01');
