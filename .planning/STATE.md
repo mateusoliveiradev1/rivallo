@@ -53,6 +53,12 @@ Last activity: 2026-07-15 — Plan 05-09 completed; Plan 05-10 is next
 **Stopped at:** Completed 05-09-PLAN.md
 **Resume file:** None
 
+## Accumulated Context
+
+### Pending Todos
+
+- 1 pending — [Design initial menu and football icon system](todos/pending/2026-07-15-design-initial-menu-and-football-icon-system.md)
+
 ## Performance Metrics
 
 | Phase | Plan | Duration | Notes |
