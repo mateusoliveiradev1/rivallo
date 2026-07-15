@@ -4,18 +4,18 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 5
 current_phase_name: Design Tokens, Icon Policy and UI Primitives
-current_plan: 3
+current_plan: 4
 status: Ready to execute
-stopped_at: Completed 05-02-PLAN.md
-last_updated: "2026-07-15T15:20:58.517Z"
+stopped_at: Completed 05-03-PLAN.md
+last_updated: "2026-07-15T15:32:36.298Z"
 last_activity: 2026-07-15
-last_activity_desc: Plan 05-02 completed; Plan 05-03 is next
+last_activity_desc: Plan 05-03 completed; Plan 05-04 is next
 progress:
   total_phases: 13
   completed_phases: 3
   total_plans: 29
-  completed_plans: 21
-  percent: 72
+  completed_plans: 22
+  percent: 76
 ---
 
 # State
@@ -35,11 +35,11 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 
 Current Phase: 5
 Current Phase Name: Design Tokens, Icon Policy and UI Primitives
-Current Plan: 3
+Current Plan: 4
 Total Plans in Phase: 10
 Status: Ready to execute
-Progress: 72%
-Last activity: 2026-07-15 — Plan 05-02 completed; Plan 05-03 is next
+Progress: 76%
+Last activity: 2026-07-15 — Plan 05-03 completed; Plan 05-04 is next
 
 ## Gate History
 
@@ -49,8 +49,8 @@ Last activity: 2026-07-15 — Plan 05-02 completed; Plan 05-03 is next
 
 ## Session
 
-**Last session:** 2026-07-15T15:20:58.513Z
-**Stopped at:** Completed 05-02-PLAN.md
+**Last session:** 2026-07-15T15:32:36.294Z
+**Stopped at:** Completed 05-03-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -72,6 +72,7 @@ Last activity: 2026-07-15 — Plan 05-02 completed; Plan 05-03 is next
 | Phase 04 P06 | 10min | 2 tasks | 7 files |
 | Phase 05 P01 | 1h 4m | 2 tasks | 3 files |
 | Phase 05 P02 | 9 min | 2 tasks | 10 files |
+| Phase 05 P03 | 11 min | 3 tasks | 8 files |
 
 ## Decisions
 
@@ -107,3 +108,6 @@ Last activity: 2026-07-15 — Plan 05-02 completed; Plan 05-03 is next
 - [Phase 05]: Allow exactly the @rivallo/icons and @rivallo/design-tokens desktop workspace links at workspace:* — Maintains narrow ownership and rejects speculative package wiring.
 - [Phase 05]: Run Vitest files serially across the aggregate while separating Node and DOM projects. — Tracked contract writers and drift readers share artifacts and must never race.
 - [Phase 05]: Use official React 19 types and retain only CSS and ImportMeta project declarations. — Eliminates the obsolete ambient React shim without weakening type safety.
+- [Phase 05]: Raise color-border to oklch(0.52 0.022 190) while retaining a quiet subtle separator. — The provisional control border failed 3:1; the adjusted role passes against raised graphite without brightening ordinary dividers.
+- [Phase 05]: Compile the import-free canonical TypeScript token module in memory with the existing compiler. — Preserves Node 22.0 compatibility and avoids an unapproved loader or duplicated token source.
+- [Phase 05]: Keep generated CSS authored in OKLCH and export separately resolved sRGB contrast evidence. — Modern WebViews retain the intended palette while WCAG checks measure actual target values.
