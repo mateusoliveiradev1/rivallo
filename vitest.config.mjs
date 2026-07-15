@@ -2,7 +2,23 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    include: ['tooling-tests/**/*.test.mjs'],
     fileParallelism: false,
+    projects: [
+      {
+        test: {
+          name: 'tooling-node',
+          environment: 'node',
+          include: ['tooling-tests/**/*.test.mjs'],
+        },
+      },
+      {
+        test: {
+          name: 'desktop-dom',
+          environment: 'jsdom',
+          include: ['apps/desktop/src/**/*.test.{ts,tsx}'],
+          globals: true,
+        },
+      },
+    ],
   },
 });
