@@ -189,10 +189,32 @@ describe('Phase 5 Table View Engine planning contract', () => {
       1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
     ]);
     expect(roadmap, 'Gate 2 must remain Pending').toMatch(/^\| Gate 2 \| Pending\s+\|/mu);
-    expect(phaseSection(roadmap, 6)).toMatch(
-      /screen contracts[\s\S]*state, keyboard, data, offline, and viewport/iu,
-    );
-    expect(phaseSection(roadmap, 9)).toMatch(/adapters\/repositories/iu);
+    const phase6 = phaseSection(roadmap, 6);
+    const phase9 = phaseSection(roadmap, 9);
+    expectTerms(phase6, 'Roadmap Phase 6 ownership', [
+      /05-TABLE-VIEW-ENGINE-CONTRACT\.md/,
+      /stable `tableId`/,
+      /column\/filter\/sort\/grouping capabilities/iu,
+      /system\/default views/iu,
+      /keyboard paths/iu,
+      /live announcements/iu,
+      /loading\/empty\/error\/offline states/iu,
+      /viewport behavior/iu,
+      /acceptance fixtures/iu,
+      /Mostrar somente gols/iu,
+      /shared saved-view model/iu,
+    ]);
+    expectTerms(phase9, 'Roadmap Phase 9 ownership', [
+      /05-TABLE-VIEW-ENGINE-CONTRACT\.md/,
+      /adapters\/repositories/iu,
+      /versioned persistence and sequential migrations/iu,
+      /actual dashboard\/squad data/iu,
+      /client virtualization, client pagination, server pagination, or server query/iu,
+      /measured data scale/iu,
+      /query\/cancellation/iu,
+      /cache\/offline/iu,
+      /drift, migration, and recovery evidence/iu,
+    ]);
 
     expectTerms(contract, 'responsibility matrix', [
       /Cross-Phase Responsibility and Acceptance Matrix/,

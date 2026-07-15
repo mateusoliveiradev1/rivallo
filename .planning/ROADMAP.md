@@ -217,6 +217,8 @@ Plans:
 **Success criteria:**
 
 - Every listed screen has an approved brief with state, keyboard, data, offline, and viewport criteria.
+- Every screen-owned table follows `05-TABLE-VIEW-ENGINE-CONTRACT.md` and declares its stable `tableId`, column/filter/sort/grouping capabilities, system/default views, keyboard paths, live announcements, loading/empty/error/offline states, viewport behavior, and acceptance fixtures before screen approval.
+- The `Mostrar somente gols` fixture, when owned by a listed screen, is expressed through the shared saved-view model with explicit columns/filter/sort semantics rather than screen-specific behavior.
 - Visual, contrast, reduced-motion, and accessibility QA evidence meets Gate 2 requirements.
 
 ## Phase 7: Dev Identity, Fixtures and Minimal API
@@ -269,6 +271,8 @@ Plans:
 **Success criteria:**
 
 - Dashboard and squad render from adapters/repositories, not component-local mocks.
+- The real Table View Engine implements `05-TABLE-VIEW-ENGINE-CONTRACT.md` through adapters/repositories, versioned persistence and sequential migrations, using actual dashboard/squad data rather than fixtures or component-local state authority.
+- Each real table selects client virtualization, client pagination, server pagination, or server query from measured data scale and records query/cancellation, cache/offline, drift, migration, and recovery evidence.
 - Offline, stale, queued, synchronising, and reconnected states are explicit and usable from cache.
 
 ## Phase 10: V0.1 Verification and Release Evidence
