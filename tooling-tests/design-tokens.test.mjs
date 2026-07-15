@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -29,6 +29,7 @@ import {
 const execFileAsync = promisify(execFile);
 const root = resolve(import.meta.dirname, '..');
 const generator = resolve(root, 'scripts/generate-design-tokens.mjs');
+const driftChecker = resolve(root, 'scripts/verify-design-token-drift.mjs');
 
 const REQUIRED_COLORS = [
   'color-canvas',
@@ -218,5 +219,38 @@ describe('generated semantic CSS', () => {
       code: 1,
       stderr: expect.stringMatching(/Usage:.*--output <path>/u),
     });
+  });
+});
+
+describe('semantic CSS drift check', () => {
+  it('passes without changing the repository porcelain baseline', async () => {
+    const before = await execFileAsync('git', ['status', '--porcelain'], { cwd: root });
+
+    await execFileAsync(process.execPath, [driftChecker], { cwd: root });
+
+    const after = await execFileAsync('git', ['status', '--porcelain'], { cwd: root });
+    expect(after.stdout).toBe(before.stdout);
+  });
+
+  it('detects controlled drift actionably without repairing altered bytes', async () => {
+    const temporaryRoot = await mkdtemp(join(tmpdir(), 'rivallo-token-drift-'));
+    const driftedArtifact = join(temporaryRoot, 'generated.css');
+    const driftedBytes = Buffer.from('/* deliberately drifted */\n', 'utf8');
+    await writeFile(driftedArtifact, driftedBytes);
+
+    try {
+      await expect(
+        execFileAsync(process.execPath, [driftChecker], {
+          cwd: root,
+          env: { ...process.env, DESIGN_TOKENS_CSS: driftedArtifact },
+        }),
+      ).rejects.toMatchObject({
+        code: 1,
+        stderr: expect.stringMatching(/Design token drift detected[\s\S]*pnpm tokens:generate/u),
+      });
+      expect(await readFile(driftedArtifact)).toEqual(driftedBytes);
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
   });
 });
