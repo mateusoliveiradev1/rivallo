@@ -4,18 +4,18 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 5
 current_phase_name: Design Tokens, Icon Policy and UI Primitives
-current_plan: 6
+current_plan: 7
 status: Ready to execute
-stopped_at: Completed 05-05-PLAN.md
-last_updated: "2026-07-15T16:03:36.954Z"
+stopped_at: Completed 05-06-PLAN.md
+last_updated: "2026-07-15T16:16:45.373Z"
 last_activity: 2026-07-15
-last_activity_desc: Plan 05-05 completed; Plan 05-06 is next
+last_activity_desc: Plan 05-06 completed; Plan 05-07 is next
 progress:
   total_phases: 13
   completed_phases: 3
   total_plans: 29
-  completed_plans: 24
-  percent: 83
+  completed_plans: 25
+  percent: 86
 ---
 
 # State
@@ -35,11 +35,11 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 
 Current Phase: 5
 Current Phase Name: Design Tokens, Icon Policy and UI Primitives
-Current Plan: 6
+Current Plan: 7
 Total Plans in Phase: 10
 Status: Ready to execute
-Progress: 83%
-Last activity: 2026-07-15 — Plan 05-05 completed; Plan 05-06 is next
+Progress: 86%
+Last activity: 2026-07-15 — Plan 05-06 completed; Plan 05-07 is next
 
 ## Gate History
 
@@ -49,8 +49,8 @@ Last activity: 2026-07-15 — Plan 05-05 completed; Plan 05-06 is next
 
 ## Session
 
-**Last session:** 2026-07-15T16:03:36.950Z
-**Stopped at:** Completed 05-05-PLAN.md
+**Last session:** 2026-07-15T16:16:45.369Z
+**Stopped at:** Completed 05-06-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -75,9 +75,14 @@ Last activity: 2026-07-15 — Plan 05-05 completed; Plan 05-06 is next
 | Phase 05 P03 | 11 min | 3 tasks | 8 files |
 | Phase 05 P04 | 10 min | 2 tasks | 10 files |
 | Phase 05 P05 | 16 min | 3 tasks | 10 files |
+| Phase 05 P06 | 9 min | 3 tasks | 8 files |
 
 ## Decisions
 
+- [Phase 05]: Require stable positioning and an independent accessible name before an icon-only action may expose a tooltip. — Tooltip text supplements the control label and never becomes the sole source of meaning.
+- [Phase 05]: Keep radio controls native while adding deterministic cyclic arrow navigation that skips disabled options. — Preserves browser semantics without introducing another selection implementation.
+- [Phase 05]: Use approved Radix packages only for difficult keyboard, focus and overlay behavior. — Rivallo continues to own every visual class, token and state treatment.
+- [Phase 05]: Restrict Toast to brief neutral or positive feedback; persistent danger, offline and error conditions remain Status content. — Ephemeral announcements must not hide durable product state.
 - [Phase 05]: Keep action, form, choice, pagination, and overflow behavior native while Rivallo owns typed APIs and token-based appearance. — Preserves standard keyboard and disabled semantics without custom-control reinvention.
 - [Phase 05]: Let Status own polite/assertive live semantics and optionally render its label as a real heading. — Host lifecycle structure remains semantic without nested or duplicated live regions.
 - [Phase 05]: Export generated.css explicitly from @rivallo/design-tokens and retain Tauri invoke/poll/retry authority outside primitives. — Makes the visual boundary consumable without moving process authority into UI components.
