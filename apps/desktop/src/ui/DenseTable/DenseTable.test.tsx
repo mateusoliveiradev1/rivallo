@@ -1,11 +1,12 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import { DenseTable, type DenseTableColumn } from './DenseTable.js';
+import { denseTableEvidenceColumns, denseTableEvidenceRows } from './fixtures.js';
 
 interface EvidenceRow {
   readonly id: string;
@@ -307,5 +308,74 @@ describe('DenseTable local interaction contracts', () => {
     const secondary = await screen.findByRole('menuitem', { name: 'Comparar exemplo' });
     await user.keyboard('{Enter}');
     expect(onSecondary).toHaveBeenCalledWith('row-1');
+  });
+});
+
+describe('DenseTable deterministic football-shaped UI evidence', () => {
+  it('covers stable order, long text, numeric absence, priority and every semantic tone', () => {
+    expect(denseTableEvidenceRows.map((row) => row.id)).toEqual([
+      'evidence-01',
+      'evidence-02',
+      'evidence-03',
+      'evidence-04',
+      'evidence-05',
+      'evidence-06',
+      'evidence-07',
+    ]);
+    expect(new Set(denseTableEvidenceRows.map((row) => row.status.tone))).toEqual(
+      new Set(['neutral', 'info', 'positive', 'warning', 'danger', 'offline', 'loading']),
+    );
+    expect(denseTableEvidenceRows.some((row) => row.name.length > 60)).toBe(true);
+    expect(denseTableEvidenceRows.some((row) => row.score === null)).toBe(true);
+    expect(denseTableEvidenceRows.some((row) => row.note === null)).toBe(true);
+    expect(denseTableEvidenceColumns.map((column) => column.priority)).toEqual([1, 1, 2, 2, 3]);
+  });
+
+  it('keeps country code visible after flag failure and exposes the full name by keyboard', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <DenseTable
+        caption="Nacionalidade de evidência"
+        columns={denseTableEvidenceColumns}
+        content={{ kind: 'ready', rows: denseTableEvidenceRows }}
+        label="Tabela de nacionalidade"
+      />,
+    );
+
+    const argentinaCode = screen.getByText('AR');
+    const argentinaImage = argentinaCode.closest('span')?.querySelector('img');
+    expect(argentinaImage).toBeInstanceOf(HTMLImageElement);
+    fireEvent.error(argentinaImage as HTMLImageElement);
+    expect(screen.getByText('AR')).toBeInstanceOf(HTMLElement);
+    expect(container.querySelector('img[src="/fixture-flag-missing.svg"]')).toBeNull();
+
+    argentinaCode.focus();
+    expect((await screen.findByRole('tooltip')).textContent).toContain('Argentina');
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+
+  it('renders every status and missing value with a visible non-colour text cue', () => {
+    render(
+      <DenseTable
+        caption="Estados de evidência"
+        columns={denseTableEvidenceColumns}
+        content={{ kind: 'ready', rows: denseTableEvidenceRows }}
+        label="Tabela de estados"
+      />,
+    );
+
+    for (const row of denseTableEvidenceRows) {
+      expect(screen.getByText(row.status.label)).toBeInstanceOf(HTMLElement);
+    }
+    expect(screen.getAllByLabelText('Dado indisponível')).toHaveLength(2);
+  });
+
+  it('keeps fixtures locally owned and disconnected from production authority', async () => {
+    const source = await readFile(resolve('apps/desktop/src/ui/DenseTable/fixtures.ts'), 'utf8');
+
+    expect(source).toContain('UI evidence only');
+    expect(source).not.toMatch(/from\s+['"][^'"]*(?:contracts-client|@tauri-apps|domain)/iu);
+    expect(source).not.toMatch(/\binvoke\(|\bfetch\(/u);
   });
 });
