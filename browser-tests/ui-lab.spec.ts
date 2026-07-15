@@ -51,6 +51,100 @@ test('supports keyboard DenseTable controls and preserves shell-toggle focus', a
   );
 });
 
+test('keeps DenseTable width finite and reaches both horizontal edges', async ({ page }) => {
+  await page.goto(developmentUrl);
+  await page.getByRole('button', { name: 'DenseTable' }).click();
+  await page.getByRole('combobox', { name: 'Estado da tabela' }).selectOption('ready');
+  await page.getByRole('combobox', { name: 'Prioridade de colunas' }).selectOption('3');
+
+  const scrollArea = page.getByRole('region', { name: 'Tabela densa configurável' });
+  const table = page.getByRole('table', { name: 'DenseTable de evidência' });
+  const firstHeader = table.getByRole('columnheader').filter({
+    has: page.getByRole('button', { name: 'Ordenar por Exemplo' }),
+  });
+  const firstIdentifier = table.getByLabel(
+    'Exemplo Ágata do Norte com nome deliberadamente extenso para localização',
+  );
+  const actionsHeader = table.getByRole('columnheader', { name: 'Ações' });
+  const primaryAction = table.getByRole('button', { name: 'Abrir evidência' }).first();
+
+  await expect(scrollArea).toBeVisible();
+  await expect(table).toBeVisible();
+  await expect(scrollArea.getByText('Use a rolagem para acessar todo o conteúdo.')).toBeVisible();
+
+  const geometry = await scrollArea.evaluate((region) => {
+    const denseTable = region.querySelector('table');
+    if (!denseTable) throw new Error('DenseTable missing from its labelled ScrollArea.');
+
+    const declaredColumnWidth = [...denseTable.querySelectorAll('col')].reduce((total, column) => {
+      if (column.classList.contains('rv-dense-table__selection-column')) return total + 56;
+      if (column.classList.contains('rv-dense-table__actions-column')) return total + 220;
+      const width = Number.parseFloat(column.style.width);
+      if (!Number.isFinite(width) || width <= 0) {
+        throw new Error('DenseTable data columns require finite positive inline widths.');
+      }
+      return total + width;
+    }, 0);
+    const availableInlineSize = Math.min(region.getBoundingClientRect().width, window.innerWidth);
+    const tolerance = 4;
+
+    return {
+      clientWidth: region.clientWidth,
+      scrollWidth: region.scrollWidth,
+      tableWidth: denseTable.getBoundingClientRect().width,
+      declaredColumnWidth,
+      maximumExpectedWidth: Math.max(declaredColumnWidth, availableInlineSize) + tolerance,
+    };
+  });
+
+  expect(Object.values(geometry).every((measurement) => Number.isFinite(measurement))).toBe(true);
+  expect(geometry.clientWidth).toBeGreaterThan(0);
+  expect(geometry.scrollWidth).toBeGreaterThan(0);
+  expect(geometry.tableWidth).toBeGreaterThan(0);
+  expect(geometry.declaredColumnWidth).toBe(1_432);
+  expect(geometry.clientWidth).toBeLessThanOrEqual(geometry.maximumExpectedWidth);
+  expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.maximumExpectedWidth);
+  expect(geometry.tableWidth).toBeLessThanOrEqual(geometry.maximumExpectedWidth);
+  expect(geometry.scrollWidth).toBeGreaterThanOrEqual(geometry.clientWidth);
+
+  const isVisibleAtTheInlineEdge = async (locator: typeof firstHeader) =>
+    locator.evaluate((element) => {
+      const region = element.closest<HTMLElement>('.rv-scroll-area');
+      if (!region) return false;
+      const bounds = element.getBoundingClientRect();
+      const regionBounds = region.getBoundingClientRect();
+      const visibleLeft = Math.max(0, regionBounds.left);
+      const visibleRight = Math.min(window.innerWidth, regionBounds.right);
+      const tolerance = 1;
+      return bounds.left >= visibleLeft - tolerance && bounds.right <= visibleRight + tolerance;
+    });
+
+  await scrollArea.evaluate((region) => {
+    region.scrollLeft = 0;
+  });
+  expect(await isVisibleAtTheInlineEdge(firstHeader)).toBe(true);
+  expect(await isVisibleAtTheInlineEdge(firstIdentifier)).toBe(true);
+
+  await scrollArea.evaluate((region) => {
+    region.scrollLeft = region.scrollWidth - region.clientWidth;
+  });
+  expect(await isVisibleAtTheInlineEdge(actionsHeader)).toBe(true);
+  expect(await isVisibleAtTheInlineEdge(primaryAction)).toBe(true);
+  await primaryAction.focus();
+  await expect(primaryAction).toBeFocused();
+  await primaryAction.click();
+
+  const density = page.getByRole('combobox', { name: 'Densidade da tabela' });
+  await density.selectOption('compact');
+  expect(
+    await table.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize)),
+  ).toBeGreaterThanOrEqual(12);
+  await density.selectOption('comfortable');
+  expect(
+    await table.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize)),
+  ).toBeGreaterThanOrEqual(14);
+});
+
 test('keeps the icon review cells optically bounded at the target viewport', async ({
   page,
 }, testInfo) => {
