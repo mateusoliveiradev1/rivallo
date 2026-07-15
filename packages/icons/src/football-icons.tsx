@@ -3,9 +3,9 @@ import type { IconSize } from './Icon.js';
 function FootballBallGeometry() {
   return (
     <>
-      <circle cx="12" cy="12" r="8.75" />
-      <path d="m9.2 9.25 2.8-2.05 2.8 2.05-1.05 3.3h-3.5Z" />
-      <path d="m12 7.2-.1-3.95M9.2 9.25 5.45 8M10.25 12.55l-2.3 3.2M13.75 12.55l2.3 3.2M14.8 9.25 18.55 8M7.95 15.75l-2.25 1.1M16.05 15.75l2.25 1.1" />
+      <circle cx="12" cy="12" r="9.25" />
+      <path d="M12 7.25 L16 10.15 L14.45 14.8 H9.55 L8 10.15 Z" />
+      <path d="M12 7.25 V2.75 M8 10.15 L3.2 8.6 M9.55 14.8 L6.65 18.75 M14.45 14.8 L17.35 18.75 M16 10.15 L20.8 8.6" />
     </>
   );
 }
@@ -13,10 +13,10 @@ function FootballBallGeometry() {
 function GoalFrameGeometry() {
   return (
     <>
-      <path d="M4 19V6h16v13" />
-      <path d="M4 10h16M8 6v13m8-13v13" />
-      <path d="m4 14 4-4 4 4 4-4 4 4" />
-      <path d="M3 20h18" />
+      <path d="M3.5 20.5 V5.25 H20.5 V20.5" />
+      <path d="M3.5 5.25 L6.25 8.25 H17.75 L20.5 5.25" />
+      <path d="M6.25 8.25 V20.5 M12 8.25 V20.5 M17.75 8.25 V20.5" />
+      <path d="M3.5 12.25 H20.5 M3.5 16.5 H20.5" />
     </>
   );
 }
@@ -24,13 +24,28 @@ function GoalFrameGeometry() {
 function TrainingConeGeometry() {
   return (
     <>
-      <path d="M9.25 5h5.5l3.4 13H5.85Z" />
-      <path d="M7.55 12h8.9" />
-      <path d="M4 20h16" />
-      <path d="M10.2 5 9.65 3h4.7l-.55 2" />
+      <path d="M10 4 H14 L18.1 19 H5.9 L10 4 Z" />
+      <path d="M8.55 9.25 H15.45 M7.4 13.5 H16.6" />
+      <path d="M4 19 H20 V21 H4 V19 Z" />
     </>
   );
 }
+
+export const footballIconGrammar = {
+  masterGrid: 24,
+  viewBox: '0 0 24 24',
+  approvedSizes: [16, 20, 24],
+  strokeWidth: 1.75,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+  color: 'currentColor',
+  fill: 'none',
+  opticalPadding: 2,
+  detailCeiling: {
+    elements: 4,
+    pathCommands: 14,
+  },
+} as const;
 
 const footballIconComponents = {
   'football-ball': FootballBallGeometry,
@@ -41,19 +56,19 @@ const footballIconComponents = {
 export const footballIconMetadata = {
   'football-ball': {
     meaning: 'Futebol e bola em jogo',
-    version: '1.0.0',
+    version: '1.1.0',
     source: 'rivallo-project-original',
     viewBox: '0 0 24 24',
   },
   'goal-frame': {
     meaning: 'Meta e gol de futebol',
-    version: '1.0.0',
+    version: '1.1.0',
     source: 'rivallo-project-original',
     viewBox: '0 0 24 24',
   },
   'training-cone': {
     meaning: 'Treinamento de campo',
-    version: '1.0.0',
+    version: '1.1.0',
     source: 'rivallo-project-original',
     viewBox: '0 0 24 24',
   },
@@ -61,7 +76,7 @@ export const footballIconMetadata = {
   keyof typeof footballIconComponents,
   {
     readonly meaning: string;
-    readonly version: '1.0.0';
+    readonly version: '1.1.0';
     readonly source: 'rivallo-project-original';
     readonly viewBox: '0 0 24 24';
   }
@@ -99,7 +114,7 @@ export function FootballIcon({
   if (!Geometry) {
     throw new Error(`Unsupported Rivallo football icon name: ${String(name)}.`);
   }
-  if (size !== 16 && size !== 20 && size !== 24) {
+  if (!footballIconGrammar.approvedSizes.includes(size)) {
     throw new Error(`Unsupported Rivallo football icon size: ${String(size)}. Use 16, 20, or 24.`);
   }
   if (!decorative && (!label || label.trim().length === 0)) {
@@ -112,17 +127,19 @@ export function FootballIcon({
       aria-hidden={decorative ? true : undefined}
       aria-label={decorative ? undefined : label}
       className={className}
+      data-icon-family="rivallo-football"
+      data-icon-grid={footballIconGrammar.masterGrid}
       data-icon-name={name}
       data-icon-version={metadata.version}
-      fill="none"
+      fill={footballIconGrammar.fill}
       focusable="false"
       height={size}
       role={decorative ? undefined : 'img'}
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.75"
-      viewBox={metadata.viewBox}
+      stroke={footballIconGrammar.color}
+      strokeLinecap={footballIconGrammar.strokeLinecap}
+      strokeLinejoin={footballIconGrammar.strokeLinejoin}
+      strokeWidth={footballIconGrammar.strokeWidth}
+      viewBox={footballIconGrammar.viewBox}
       width={size}
     >
       <Geometry />

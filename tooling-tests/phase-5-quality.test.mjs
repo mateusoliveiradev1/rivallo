@@ -172,9 +172,11 @@ describe('Phase 5 quality surfaces', () => {
 
     expect(validation).toContain('nyquist_compliant: true');
     expect(validation).toContain('wave_0_complete: true');
-    expect(validation.match(/^\| 05-\d{2}-\d{2} \|/gmu)).toHaveLength(26);
+    expect(validation.match(/^\| 05-\d{2}-\d{2} \|/gmu)).toHaveLength(28);
     expect(validation).not.toContain('❌ Wave 0');
     expect(validation).toContain('05-10-01');
+    expect(validation).toContain('05-11-01');
+    expect(validation).toContain('05-11-02');
     expect(validation).toContain('human-only');
   });
 });

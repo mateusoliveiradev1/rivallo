@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 
 import { render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
+import { footballIconMetadata, genericIconMetadata } from '@rivallo/icons';
 import { describe, expect, it } from 'vitest';
 
 import { UiLab } from './UiLab.js';
@@ -95,7 +96,8 @@ describe('UI Lab proof hierarchy and real specimen inventory', () => {
     render(<UiLab />);
 
     await user.click(screen.getByRole('button', { name: 'Icons' }));
-    expect(document.querySelectorAll('[data-icon-proof]')).toHaveLength(66);
+    const iconCount = Object.keys(genericIconMetadata).length + Object.keys(footballIconMetadata).length;
+    expect(document.querySelectorAll('[data-icon-proof]')).toHaveLength(iconCount * 3);
     expect(screen.getByText('football-ball · Futebol e bola em jogo')).toBeInstanceOf(HTMLElement);
 
     await user.click(screen.getByRole('button', { name: 'Primitives' }));

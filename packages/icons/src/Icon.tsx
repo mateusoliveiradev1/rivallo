@@ -1,6 +1,7 @@
 import {
   ArrowDown,
   ArrowUp,
+  CalendarDays,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -11,12 +12,15 @@ import {
   Ellipsis,
   Info,
   LoaderCircle,
+  LayoutDashboard,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
   RotateCcw,
   Search,
+  Settings,
   TriangleAlert,
+  Users,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -36,13 +40,17 @@ const genericIconComponents = {
   loading: LoaderCircle,
   'more-actions': Ellipsis,
   next: ChevronRight,
+  people: Users,
   previous: ChevronLeft,
   retry: RotateCcw,
+  schedule: CalendarDays,
   search: Search,
+  settings: Settings,
   'sort-ascending': ArrowUp,
   'sort-descending': ArrowDown,
   success: CircleCheck,
   warning: TriangleAlert,
+  workspace: LayoutDashboard,
 } satisfies Record<string, LucideIcon>;
 
 export const genericIconMetadata = {
@@ -58,13 +66,17 @@ export const genericIconMetadata = {
   loading: { meaning: 'Aguardar operação real' },
   'more-actions': { meaning: 'Abrir ações adicionais' },
   next: { meaning: 'Avançar' },
+  people: { meaning: 'Pessoas e equipes' },
   previous: { meaning: 'Voltar' },
   retry: { meaning: 'Tentar novamente' },
+  schedule: { meaning: 'Agenda e calendário' },
   search: { meaning: 'Pesquisar' },
+  settings: { meaning: 'Configurações' },
   'sort-ascending': { meaning: 'Ordem crescente' },
   'sort-descending': { meaning: 'Ordem decrescente' },
   success: { meaning: 'Estado confirmado ou positivo' },
   warning: { meaning: 'Atenção necessária' },
+  workspace: { meaning: 'Área de trabalho' },
 } as const satisfies Record<keyof typeof genericIconComponents, { readonly meaning: string }>;
 
 export type GenericIconName = keyof typeof genericIconComponents;

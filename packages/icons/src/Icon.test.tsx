@@ -222,7 +222,7 @@ describe('original football icon registry', () => {
 
       expect(geometry.length).toBeLessThanOrEqual(footballIconGrammar.detailCeiling.elements);
       for (const element of geometry) {
-        if (element instanceof SVGCircleElement) {
+        if (element.tagName.toLowerCase() === 'circle') {
           const cx = Number(element.getAttribute('cx'));
           const cy = Number(element.getAttribute('cy'));
           const radius = Number(element.getAttribute('r'));
