@@ -123,7 +123,7 @@ Plans:
 
 **Dependencies:** Phase 4; approved DESIGN FOUNDATION V0.
 
-**Plans:** 10/11 plans executed
+**Plans:** 11/11 current plans executed — visual review rejected; gap plans required
 
 Plans:
 
@@ -169,12 +169,14 @@ Plans:
 
 **Wave 11** _(blocked on Wave 10 completion)_
 
-- [ ] 05-10-PLAN.md — Close with evidence-backed human visual and interaction review.
+- [x] 05-10-PLAN.md — Close with evidence-backed human visual and interaction review.
 
 **Success criteria:**
 
 - UI Lab exposes tokens, typography, icons, primitive states, dense table examples, and target viewports.
 - Generic icon-family choice and football SVG policy are implemented consistently.
+
+**Human review result:** REJECTED by Mateus. Phase 5 remains In Progress until the diagnosed DenseTable width/overflow and contextual 16px icon gaps are corrected and reviewed again. The complete Table View Engine must be specified across the responsible phases; Gate 2 remains pending.
 
 ## Phase 6: Approved V0.1 Screen Contracts and Visual QA
 

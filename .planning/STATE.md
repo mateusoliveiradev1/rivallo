@@ -4,18 +4,18 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 5
 current_phase_name: Design Tokens, Icon Policy and UI Primitives
-current_plan: 10
-status: Awaiting human visual review
-stopped_at: Completed 05-11-PLAN.md; 05-10 human review pending
-last_updated: '2026-07-15T18:51:25.519Z'
+current_plan: 11
+status: Visual review rejected — gap planning required
+stopped_at: Completed 05-10-PLAN.md with REJECTED review; gap planning required
+last_updated: "2026-07-15T19:42:32.215Z"
 last_activity: 2026-07-15
-last_activity_desc: Plan 05-11 icon gap closure complete; Plan 05-10 human review remains pending
+last_activity_desc: Plan 05-10 completed with Mateus REJECTED decision; concrete Phase 5 and cross-phase gaps diagnosed
 progress:
   total_phases: 13
   completed_phases: 3
   total_plans: 30
-  completed_plans: 29
-  percent: 97
+  completed_plans: 30
+  percent: 100
 ---
 
 # State
@@ -29,17 +29,17 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 **Current phase name:** Design Tokens, Icon Policy and UI Primitives
 **Current gate:** 2 — Visual foundation.
 **Gate 0:** APPROVED by Mateus.
-**Next action:** `$gsd-execute-phase 5`.
+**Next action:** `$gsd-plan-phase 5 --gaps`.
 
 ## Current Position
 
 Current Phase: 5
 Current Phase Name: Design Tokens, Icon Policy and UI Primitives
-Current Plan: 10
+Current Plan: 11
 Total Plans in Phase: 11
-Status: Awaiting human visual review
-Progress: 97%
-Last activity: 2026-07-15 — Plan 05-11 icon gap closure complete; Plan 05-10 human review remains pending
+Status: Visual review rejected — gap planning required
+Progress: 100% of currently planned tasks executed; Phase 5 remains open
+Last activity: 2026-07-15 — Plan 05-10 completed with Mateus REJECTED decision; concrete Phase 5 and cross-phase gaps diagnosed
 
 ## Gate History
 
@@ -49,9 +49,9 @@ Last activity: 2026-07-15 — Plan 05-11 icon gap closure complete; Plan 05-10 h
 
 ## Session
 
-**Last session:** 2026-07-15T18:51:02.806Z
-**Stopped at:** Completed 05-11-PLAN.md; 05-10 human review pending
-**Resume file:** .planning/phases/05-design-tokens-icon-policy-and-ui-primitives/05-10-PLAN.md
+**Last session:** 2026-07-15T19:42:01.376Z
+**Stopped at:** Completed 05-10-PLAN.md with REJECTED review; gap planning required
+**Resume file:** .planning/phases/05-design-tokens-icon-policy-and-ui-primitives/05-UAT.md
 
 ## Accumulated Context
 
@@ -86,6 +86,7 @@ Last activity: 2026-07-15 — Plan 05-11 icon gap closure complete; Plan 05-10 h
 | Phase 05 P08 | 17 min | 3 tasks  | 6 files  |
 | Phase 05 P09 | 13 min | 3 tasks  | 11 files |
 | Phase 05 P11 | 20 min | 2 tasks  | 11 files |
+| Phase 05 P10 | 12 min | 2 tasks | 6 files |
 
 ## Decisions
 
@@ -148,3 +149,6 @@ Last activity: 2026-07-15 — Plan 05-11 icon gap closure complete; Plan 05-10 h
 - [Phase 05]: Limit the football SVG proof set to ball, goal frame, and training cone. — Proves original versioned icon capability without introducing a pitch, crest, mascot, or product identity.
 - [Phase 05]: Bound the Rivallo football grammar to a 24-unit grid, 2-unit optical padding, four geometry elements, and fourteen commands per path. — Keeps current and future football symbols coherent, safe, and reviewable at 16, 20, and 24px.
 - [Phase 05]: Require owning screen contracts, unambiguous meaning, and visible-label fallbacks before future domain icon geometry is created. — Proves extension discipline for training, tactics, scouting, and medicine without speculative assets or product screens.
+- [Phase 05]: Mateus rejected the current Phase 5 visual foundation. — Phase 5 and Gate 2 remain open while bounded table and icon gaps are corrected.
+- [Phase 05]: Preserve the strong, sober, premium and highly legible graphite-first direction. — The rejection targets table usability and icon context/16px quality, not the approved visual direction.
+- [Phase 05]: Specify the complete Table View Engine now but implement it only in the responsible product phases. — Phase 5 fixes primitive width and icon evidence; Phase 6 owns screen contracts and Phase 9 owns real data integration.
