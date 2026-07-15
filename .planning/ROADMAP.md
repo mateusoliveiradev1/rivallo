@@ -123,7 +123,7 @@ Plans:
 
 **Dependencies:** Phase 4; approved DESIGN FOUNDATION V0.
 
-**Plans:** 11/16 executed — five verified gap-closure plans ready
+**Plans:** 12/16 plans executed
 
 Plans:
 
@@ -173,7 +173,7 @@ Plans:
 
 **Wave 12** _(blocked on Wave 11 completion)_
 
-- [ ] 05-12-PLAN.md — Repair DenseTable/ScrollArea width ownership and prove finite, reachable geometry in all target viewports.
+- [x] 05-12-PLAN.md — Repair DenseTable/ScrollArea width ownership and prove finite, reachable geometry in all target viewports.
 
 **Wave 13** _(blocked on Wave 12 completion)_
 

@@ -2,20 +2,19 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 5
+current_phase: 05
 current_phase_name: Design Tokens, Icon Policy and UI Primitives
-current_plan: 12
-status: Ready to execute Phase 5 gap closure
-stopped_at: Planned 05-12 through 05-16; checker passed with zero blockers and warnings
-last_updated: '2026-07-15T20:54:57.7704325Z'
+current_plan: 13
+status: executing
+stopped_at: Completed 05-12-PLAN.md
+last_updated: '2026-07-15T21:14:01.238Z'
 last_activity: 2026-07-15
-last_activity_desc: Phase 5 gap closure planned in five verified plans across Waves 12-16
 progress:
   total_phases: 13
   completed_phases: 3
   total_plans: 35
-  completed_plans: 30
-  percent: 86
+  completed_plans: 31
+  percent: 23
 ---
 
 # State
@@ -25,7 +24,7 @@ progress:
 See `.planning/PROJECT.md` (updated 2026-07-13).
 
 **Core value:** dependable deep management in local and shared online competition.
-**Current phase:** 5
+**Current phase:** 05
 **Current phase name:** Design Tokens, Icon Policy and UI Primitives
 **Current gate:** 2 — Visual foundation.
 **Gate 0:** APPROVED by Mateus.
@@ -35,11 +34,11 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 
 Current Phase: 5
 Current Phase Name: Design Tokens, Icon Policy and UI Primitives
-Current Plan: 12
+Current Plan: 13
 Total Plans in Phase: 16
-Status: Ready to execute Phase 5 gap closure
-Progress: 11/16 plans executed; five verified gap-closure plans remain
-Last activity: 2026-07-15 — Plans 05-12 through 05-16 created and passed the GSD plan-checker with zero blockers and warnings
+Status: Executing Phase 05
+Progress: 12/16 plans executed; four verified gap-closure plans remain
+Last activity: 2026-07-15
 
 ## Gate History
 
@@ -49,9 +48,9 @@ Last activity: 2026-07-15 — Plans 05-12 through 05-16 created and passed the G
 
 ## Session
 
-**Last session:** 2026-07-15T20:54:57.7704325Z
-**Stopped at:** Planned 05-12 through 05-16; ready for gap-only execution
-**Resume file:** .planning/phases/05-design-tokens-icon-policy-and-ui-primitives/05-UAT.md
+**Last session:** 2026-07-15T21:12:09.915Z
+**Stopped at:** Completed 05-12-PLAN.md
+**Resume file:** None
 
 ## Accumulated Context
 
@@ -87,6 +86,7 @@ Last activity: 2026-07-15 — Plans 05-12 through 05-16 created and passed the G
 | Phase 05 P09 | 13 min | 3 tasks  | 11 files |
 | Phase 05 P11 | 20 min | 2 tasks  | 11 files |
 | Phase 05 P10 | 12 min | 2 tasks  | 6 files  |
+| Phase 05 P12 | 15 min | 2 tasks  | 4 files  |
 
 ## Decisions
 
@@ -152,3 +152,5 @@ Last activity: 2026-07-15 — Plans 05-12 through 05-16 created and passed the G
 - [Phase 05]: Mateus rejected the current Phase 5 visual foundation. — Phase 5 and Gate 2 remain open while bounded table and icon gaps are corrected.
 - [Phase 05]: Preserve the strong, sober, premium and highly legible graphite-first direction. — The rejection targets table usability and icon context/16px quality, not the approved visual direction.
 - [Phase 05]: Specify the complete Table View Engine now but implement it only in the responsible product phases. — Phase 5 fixes primitive width and icon evidence; Phase 6 owns screen contracts and Phase 9 owns real data integration.
+- [Phase 05]: Keep DenseTable finite through fixed colgroup widths and a non-amplifying percentage fill. — Removes the million-pixel intrinsic chain while preserving semantic table geometry and the operational type floor.
+- [Phase 05]: Keep the labelled ScrollArea as the only native overflow owner. — Width, min-width, max-width and border-box constraints prevent parent layout amplification without introducing a second scroll layer.
