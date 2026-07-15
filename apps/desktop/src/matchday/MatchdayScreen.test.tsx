@@ -98,19 +98,19 @@ describe('MatchdayScreen', () => {
 
   it('loads the real squad workspace and exposes eleven selected players', async () => {
     render(<MatchdayScreen serviceOwnership="owned" />);
-    expect(
-      await screen.findByRole('heading', { name: 'Prepare o Aurora para a rodada 1' }),
-    ).toBeInstanceOf(HTMLHeadingElement);
-    expect(screen.getByText('11/11 jogadores selecionados')).toBeInstanceOf(HTMLElement);
-    expect(
-      (screen.getByRole('button', { name: 'Jogar partida' }) as HTMLButtonElement).disabled,
-    ).toBe(false);
+    expect(await screen.findByRole('heading', { name: 'Visão geral do elenco' })).toBeInstanceOf(
+      HTMLHeadingElement,
+    );
+    expect(screen.getByText('11/11')).toBeInstanceOf(HTMLElement);
+    expect((screen.getByRole('button', { name: 'Continuar' }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
     expect(screen.getAllByRole('checkbox')).toHaveLength(12);
   });
 
   it('lets the manager replace the goalkeeper and save a valid XI', async () => {
     render(<MatchdayScreen serviceOwnership="owned" />);
-    await screen.findByText('Elenco disponível');
+    await screen.findByRole('heading', { name: '12 jogadores' });
     fireEvent.click(screen.getByRole('checkbox', { name: 'Retirar Caio Brandão' }));
     fireEvent.click(screen.getByRole('checkbox', { name: 'Escalar Ícaro Reis' }));
     fireEvent.click(screen.getByRole('button', { name: 'Salvar escalação' }));
@@ -123,8 +123,8 @@ describe('MatchdayScreen', () => {
 
   it('plays through Rust and presents the persisted match result', async () => {
     render(<MatchdayScreen serviceOwnership="owned" />);
-    await screen.findByText('Elenco disponível');
-    fireEvent.click(screen.getByRole('button', { name: 'Jogar partida' }));
+    await screen.findByRole('heading', { name: '12 jogadores' });
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
     expect(await screen.findByRole('dialog', { name: '2 × 0' })).toBeInstanceOf(HTMLElement);
     expect(screen.getByText('Vitória · Rodada 1')).toBeInstanceOf(HTMLElement);
     expect(clientMock.saveMatchdayLineup).toHaveBeenCalledOnce();

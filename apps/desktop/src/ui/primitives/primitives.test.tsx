@@ -378,9 +378,9 @@ describe('desktop lifecycle shell regression', () => {
     );
     render(<App />);
 
-    expect(
-      await screen.findByRole('heading', { name: 'Prepare o Aurora para a rodada 1' }),
-    ).toBeInstanceOf(HTMLHeadingElement);
+    expect(await screen.findByRole('heading', { name: 'Visão geral do elenco' })).toBeInstanceOf(
+      HTMLHeadingElement,
+    );
     expect(screen.getByTitle('Serviço local iniciado pelo Rivallo')).toBeInstanceOf(HTMLElement);
   });
 
@@ -420,9 +420,9 @@ describe('desktop lifecycle shell regression', () => {
 
     await user.click(screen.getByRole('button', { name: 'Retry startup' }));
     expect(invokeMock).toHaveBeenCalledWith('retry_lifecycle');
-    expect(
-      await screen.findByRole('heading', { name: 'Prepare o Aurora para a rodada 1' }),
-    ).toBeInstanceOf(HTMLHeadingElement);
+    expect(await screen.findByRole('heading', { name: 'Visão geral do elenco' })).toBeInstanceOf(
+      HTMLHeadingElement,
+    );
     expect(screen.getByTitle('Serviço local reutilizado')).toBeInstanceOf(HTMLElement);
   });
 

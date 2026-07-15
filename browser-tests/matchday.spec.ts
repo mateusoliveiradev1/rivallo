@@ -145,9 +145,7 @@ test('renders the real first-playable workspace without viewport overflow', asyn
 }, testInfo) => {
   await page.goto(developmentUrl);
 
-  await expect(
-    page.getByRole('heading', { name: 'Prepare o Aurora para a rodada 1' }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Visão geral do elenco' })).toBeVisible();
   await expect(page.getByRole('table')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
@@ -160,9 +158,9 @@ test('changes tactics, plays the match, and reveals the result feed', async ({
 }, testInfo) => {
   await page.goto(developmentUrl);
 
-  await page.getByRole('combobox').selectOption('4-2-3-1');
+  await page.getByRole('combobox', { name: 'Formação' }).selectOption('4-2-3-1');
   await page.getByRole('radio', { name: /Protagonista/u }).check();
-  const playButton = page.getByRole('button', { name: 'Jogar partida' });
+  const playButton = page.getByRole('button', { name: 'Continuar' });
   await playButton.click();
 
   await expect(page.getByRole('dialog', { name: '2 × 0' })).toBeVisible();
