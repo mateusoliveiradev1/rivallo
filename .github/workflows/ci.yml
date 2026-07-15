@@ -61,6 +61,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
       - run: pnpm rust:fmt
+      - run: pnpm desktop:sidecar:prepare
       - run: pnpm rust:clippy
       - run: pnpm rust:test
       - run: pnpm rust:architecture

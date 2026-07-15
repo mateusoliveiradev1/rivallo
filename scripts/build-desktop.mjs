@@ -9,6 +9,7 @@ const tauriDirectory = resolve(rootDirectory, 'apps', 'desktop', 'src-tauri');
 const cargo = process.platform === 'win32' ? 'cargo.exe' : 'cargo';
 const rustc = process.platform === 'win32' ? 'rustc.exe' : 'rustc';
 const executableSuffix = process.platform === 'win32' ? '.exe' : '';
+const prepareSidecarOnly = process.argv.includes('--prepare-sidecar-only');
 
 process.env.RUSTUP_AUTO_INSTALL = '0';
 
@@ -67,6 +68,8 @@ const packagedBinary = resolve(sidecarDirectory, `local_api-${targetTriple}${exe
 mkdirSync(sidecarDirectory, { recursive: true });
 copyFileSync(sourceBinary, packagedBinary);
 console.log(`Prepared Tauri sidecar for ${targetTriple}.`);
+
+if (prepareSidecarOnly) process.exit(0);
 
 process.chdir(tauriDirectory);
 await runTauri(['build', '--no-bundle']);

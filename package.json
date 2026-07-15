@@ -13,6 +13,7 @@
     "contracts:client:generate": "node scripts/generate-contract-client.mjs",
     "contracts:client:check": "node scripts/verify-contract-client-drift.mjs",
     "desktop:build": "node scripts/build-desktop.mjs",
+    "desktop:sidecar:prepare": "node scripts/build-desktop.mjs --prepare-sidecar-only",
     "rust:clippy": "node scripts/check-rust-quality.mjs clippy",
     "rust:fmt": "node scripts/check-rust-quality.mjs fmt",
     "rust:test": "node scripts/check-rust-quality.mjs test",
