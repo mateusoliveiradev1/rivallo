@@ -2,16 +2,20 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 5 — Design Tokens, Icon Policy and UI Primitives
+current_phase: 5
+current_phase_name: Design Tokens, Icon Policy and UI Primitives
+current_plan: 2
+total_plans_in_phase: 10
 status: Ready to execute
-stopped_at: Phase 5 planned — 10 plans ready
-last_updated: "2026-07-15T10:54:51.2793203-03:00"
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-07-15T15:07:48.552Z"
+last_activity: 2026-07-15
 progress:
   total_phases: 13
   completed_phases: 3
   total_plans: 29
-  completed_plans: 19
-  percent: 23
+  completed_plans: 20
+  percent: 69
 ---
 
 # State
@@ -21,10 +25,21 @@ progress:
 See `.planning/PROJECT.md` (updated 2026-07-13).
 
 **Core value:** dependable deep management in local and shared online competition.
-**Current phase:** 5 — Design Tokens, Icon Policy and UI Primitives
+**Current phase:** 5
+**Current phase name:** Design Tokens, Icon Policy and UI Primitives
 **Current gate:** 2 — Visual foundation.
 **Gate 0:** APPROVED by Mateus.
 **Next action:** `$gsd-execute-phase 5`.
+
+## Current Position
+
+Current Phase: 5
+Current Phase Name: Design Tokens, Icon Policy and UI Primitives
+Current Plan: 2
+Total Plans in Phase: 10
+Status: Ready to execute
+Progress: 69%
+Last activity: 2026-07-15 — Plan 05-01 approved and completed; Plan 05-02 is next
 
 ## Gate History
 
@@ -34,9 +49,9 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 
 ## Session
 
-**Last session:** 2026-07-15T10:54:51.2793203-03:00
-**Stopped at:** Phase 5 planned — 10 plans ready
-**Resume file:** .planning/phases/05-design-tokens-icon-policy-and-ui-primitives/05-01-PLAN.md
+**Last session:** 2026-07-15T15:07:48.548Z
+**Stopped at:** Completed 05-01-PLAN.md
+**Resume file:** None
 
 ## Performance Metrics
 
@@ -55,8 +70,14 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 | Phase 04 P05 | 10min | 2 tasks | 7 files |
 | Phase 04 P04 | 17min | 2 tasks | 15 files |
 | Phase 04 P06 | 10min | 2 tasks | 7 files |
+| Phase 05 P01 | 1h 4m | 2 tasks | 3 files |
 
 ## Decisions
+
+- [Phase 05]: Mateus approved exactly 16 reviewed direct packages under digest `sha256:56d9bfb036d3b3d42acc09faa968911cfc5aa760def3c991288dfe2e8fcf8b7f`. — No dependency transaction may exceed the reviewed names, versions, scopes, or integrity records.
+- [Phase 05]: Use `lucide-react@1.24.0` as the sole generic icon family and seven narrow Radix packages only for accessible behavior. — Rivallo owns all appearance; native HTML remains preferred where suitable.
+- [Phase 05]: Use `colorjs.io@0.6.1` for deterministic OKLCH, gamut mapping, and contrast calculations. — Avoids an unreviewed local color-science implementation and the less-observed 0.7.0 release.
+- [Phase 05]: Use `jsdom@27.0.1` for component-test infrastructure. — Preserves the project-wide Node 22.0.0+ minimum that later jsdom releases would raise.
 
 - [Phase 03]: Platform composes generic application output with contracts metadata without directly depending on domain. — Preserves the locked platform-to-application-and-contracts-only dependency graph.
 - [Phase 03]: D-01 is enforced from Cargo resolved metadata with a small domain core allowlist and a full framework, network, frontend, persistence, and database denylist. — Resolved graph traversal prevents direct and transitive manifest bypasses.
