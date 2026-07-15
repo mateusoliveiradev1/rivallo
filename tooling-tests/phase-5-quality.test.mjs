@@ -133,4 +133,48 @@ describe('Phase 5 quality surfaces', () => {
       );
     }
   });
+
+  it('runs hosted Chromium evidence in the existing three-job CI without artifact publication', async () => {
+    const [ci, manifestSource, mainSource, validation] = await Promise.all([
+      readRootFile('.github/workflows/ci.yml'),
+      readRootFile('package.json'),
+      readRootFile('apps/desktop/src/main.tsx'),
+      readRootFile(
+        '.planning/phases/05-design-tokens-icon-policy-and-ui-primitives/05-VALIDATION.md',
+      ),
+    ]);
+    const manifest = JSON.parse(manifestSource);
+    const jobsBlock = ci.slice(ci.indexOf('\njobs:\n') + '\njobs:\n'.length);
+    const jobs = jobsBlock.match(/^  [a-z][a-z0-9-]+:\s*$/gmu) ?? [];
+
+    expect(jobs).toHaveLength(3);
+    expect(ci).toContain('pnpm exec playwright install --with-deps chromium');
+    expect(ci).toContain('pnpm tokens:check');
+    expect(ci).toContain('pnpm components:test');
+    expect(ci).toContain('pnpm ui-lab:test');
+    expect(ci).not.toMatch(/upload-artifact|tokens:generate|playwright-report|test-results/iu);
+    expect(mainSource).toContain(
+      "const isUiLab = import.meta.env.DEV && window.location.pathname === '/__ui-lab';",
+    );
+    expect(mainSource).toMatch(
+      /isUiLab\s*\?\s*import\('\.\/ui-lab\/UiLab\.js'\)\s*:\s*import\('\.\/App\.js'\)/u,
+    );
+
+    for (const forbiddenPackage of [
+      '@tanstack/react-table',
+      'ag-grid',
+      '@fortawesome',
+      '@heroicons',
+      'shadcn',
+    ]) {
+      expect(JSON.stringify(manifest)).not.toContain(forbiddenPackage);
+    }
+
+    expect(validation).toContain('nyquist_compliant: true');
+    expect(validation).toContain('wave_0_complete: true');
+    expect(validation.match(/^\| 05-\d{2}-\d{2} \|/gmu)).toHaveLength(26);
+    expect(validation).not.toContain('❌ Wave 0');
+    expect(validation).toContain('05-10-01');
+    expect(validation).toContain('human-only');
+  });
 });
