@@ -3,12 +3,12 @@ status: partial
 phase: 04-desktop-shell-local-persistence
 source: [04-VERIFICATION.md]
 started: 2026-07-14T16:53:52.653Z
-updated: 2026-07-15T01:01:24.373Z
+updated: 2026-07-15T01:31:02.000Z
 ---
 
 ## Current Test
 
-[testing paused — Docker requires one reboot to load the corrected hypervisor configuration]
+[testing paused — the host WSL 2 layer cannot create any Linux distribution]
 
 ## Tests
 
@@ -27,7 +27,7 @@ result: pass
 expected: `docker compose up -d postgres` starts one loopback PostgreSQL service that becomes healthy; ordinary `docker compose down` preserves the named volume; restart reuses it; only the separately documented `down --volumes` path is destructive.
 result: blocked
 blocked_by: environment
-reason: Docker Desktop 4.82.0 and Compose are installed, but the engine reports `hasNoVirtualization: true`. WSL 2 and Virtual Machine Platform were re-enabled and `hypervisorlaunchtype` was set to `auto`; a reboot is required before the runtime and volume-persistence checks can run.
+reason: Docker Desktop 4.82.0 and Compose are installed, and WSL, Virtual Machine Platform, Hyper-V, Windows Hypervisor Platform, and `hypervisorlaunchtype=auto` are enabled. After reboots and `wsl --install --no-distribution`, Docker's `docker-desktop` import and a direct `wsl --install --distribution Ubuntu --no-launch` both fail with `Wsl/.../CreateVm/HCS/HCS_E_HYPERV_NOT_INSTALLED`. The Windows host must restore a supported, functioning WSL 2/HCS virtualization layer before this runtime check can proceed.
 
 ### 4. Hosted CI run
 
