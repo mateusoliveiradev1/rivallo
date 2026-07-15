@@ -43,6 +43,20 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - run: rustup toolchain install 1.88.0 --profile minimal --component rustfmt,clippy
+      - name: Install Tauri Linux prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            build-essential \
+            curl \
+            file \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev \
+            patchelf \
+            wget
       - run: cargo install cargo-nextest --locked --version 0.9.114
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
