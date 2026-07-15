@@ -23,13 +23,41 @@ export interface StatusProps {
   readonly variant: StatusVariant;
   readonly children: ReactNode;
   readonly label?: string;
+  readonly labelId?: string;
+  readonly headingLevel?: 2 | 3 | 4;
   readonly className?: string;
 }
 
-export function Status({ variant, children, label, className }: StatusProps) {
+export function Status({
+  variant,
+  children,
+  label,
+  labelId,
+  headingLevel,
+  className,
+}: StatusProps) {
   const presentation = statusPresentation[variant];
   const assertive = variant === 'danger';
   const loading = variant === 'loading';
+  const visibleLabel = label ?? presentation.label;
+  const heading =
+    headingLevel === 2 ? (
+      <h2 className="rv-status__label" id={labelId}>
+        {visibleLabel}
+      </h2>
+    ) : headingLevel === 3 ? (
+      <h3 className="rv-status__label" id={labelId}>
+        {visibleLabel}
+      </h3>
+    ) : headingLevel === 4 ? (
+      <h4 className="rv-status__label" id={labelId}>
+        {visibleLabel}
+      </h4>
+    ) : (
+      <strong className="rv-status__label" id={labelId}>
+        {visibleLabel}
+      </strong>
+    );
 
   return (
     <div
@@ -41,7 +69,7 @@ export function Status({ variant, children, label, className }: StatusProps) {
     >
       <Icon className={loading ? 'rv-icon--loading' : undefined} name={presentation.icon} />
       <div className="rv-status__content">
-        <strong className="rv-status__label">{label ?? presentation.label}</strong>
+        {heading}
         <div className="rv-status__message">{children}</div>
       </div>
     </div>

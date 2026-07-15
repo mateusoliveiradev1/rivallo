@@ -1,6 +1,9 @@
 import { invoke } from '@tauri-apps/api/core';
 import { useEffect, useState } from 'react';
 
+import { Button } from './ui/primitives/actions.js';
+import { Skeleton, Status } from './ui/primitives/feedback.js';
+
 type ServiceOwnership = 'owned' | 'reused';
 
 type FailureCode =
@@ -108,61 +111,68 @@ export function App() {
         aria-labelledby="state-title"
       >
         {status.state === 'initializing' && (
-          <div className="state-content" role="status" aria-live="polite" aria-busy="true">
-            <span className="state-indicator" aria-hidden="true" />
-            <div>
-              <h2 id="state-title">Starting local service</h2>
-              <p>This should only take a few seconds.</p>
-            </div>
-          </div>
+          <Status
+            headingLevel={2}
+            label="Starting local service"
+            labelId="state-title"
+            variant="loading"
+          >
+            <p>This should only take a few seconds.</p>
+            <Skeleton className="lifecycle-skeleton" lines={2} />
+          </Status>
         )}
 
         {status.state === 'ready' && (
-          <div className="state-content" role="status" aria-live="polite">
-            <span className="state-indicator" aria-hidden="true" />
-            <div>
-              <h2 id="state-title">Local service ready</h2>
-              <p>{ownershipMessage(status.ownership)}</p>
-            </div>
-          </div>
+          <Status
+            headingLevel={2}
+            label="Local service ready"
+            labelId="state-title"
+            variant="positive"
+          >
+            <p>{ownershipMessage(status.ownership)}</p>
+          </Status>
         )}
 
         {status.state === 'recoverableFailure' && (
-          <div className="failure-content" role="alert">
-            <div className="state-content">
-              <span className="state-indicator" aria-hidden="true" />
-              <div>
-                <h2 id="state-title">Local service needs attention</h2>
-                <p>{status.failure.message}</p>
-              </div>
-            </div>
+          <div className="failure-content">
+            <Status
+              headingLevel={2}
+              label="Local service needs attention"
+              labelId="state-title"
+              variant="danger"
+            >
+              <p>{status.failure.message}</p>
+            </Status>
 
             <p className="recovery-copy">
               Close any conflicting local service if needed, then try startup again. Rivallo will
               never stop a process it did not start.
             </p>
 
-            <button
-              type="button"
-              className="retry-button"
+            <Button
+              className="shell-action"
+              leadingIcon="retry"
+              loading={retrying}
+              loadingLabel="Retrying…"
               onClick={() => void retryLifecycle()}
-              disabled={retrying}
+              variant="primary"
             >
-              {retrying ? 'Retrying…' : 'Retry startup'}
-            </button>
+              Retry startup
+            </Button>
 
             {import.meta.env.DEV && (
               <details className="development-diagnostics">
                 <summary>Development diagnostics</summary>
                 <p>Share this safe lifecycle code when investigating startup.</p>
                 <code>{`${status.failure.code}\n${status.failure.diagnostic}`}</code>
-                <button
-                  type="button"
+                <Button
                   className="copy-button"
+                  leadingIcon="copy"
                   onClick={() => void copyDiagnostic(status.failure)}
+                  variant="secondary"
                 >
                   Copy diagnostic
-                </button>
+                </Button>
                 <span className="copy-confirmation" role="status" aria-live="polite">
                   {copyConfirmation}
                 </span>

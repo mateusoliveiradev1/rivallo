@@ -6,6 +6,7 @@ type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'destructive-proof';
 export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'color'> {
   readonly variant?: ButtonVariant;
   readonly loading?: boolean;
+  readonly loadingLabel?: string;
   readonly leadingIcon?: GenericIconName;
   readonly children: ReactNode;
 }
@@ -13,6 +14,7 @@ export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
 export function Button({
   variant = 'secondary',
   loading = false,
+  loadingLabel = 'Carregando',
   leadingIcon,
   disabled,
   type = 'button',
@@ -37,7 +39,7 @@ export function Button({
       {loading && (
         <span className="rv-button__loading">
           <Icon className="rv-icon--loading" name="loading" size={16} />
-          <span>Carregando</span>
+          <span>{loadingLabel}</span>
         </span>
       )}
     </button>

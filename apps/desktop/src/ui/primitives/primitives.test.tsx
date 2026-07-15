@@ -4,8 +4,12 @@ import { resolve } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { createElement } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const invokeMock = vi.hoisted(() => vi.fn());
+vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }));
+
+import { App } from '../../App.js';
 import { Button, IconButton, type IconButtonProps } from './actions.js';
 import { EmptyState, ErrorState, Skeleton, Status } from './feedback.js';
 import { Checkbox, RadioGroup, Select, TextField } from './forms.js';
@@ -314,5 +318,94 @@ describe('native layout primitives', () => {
     expect(region.getAttribute('tabindex')).toBe('0');
     expect(region.textContent).toContain('Um conteúdo muito longo para inspeção horizontal.');
     expect(region.textContent).toContain('Use a rolagem para acessar todo o conteúdo.');
+  });
+});
+
+describe('desktop lifecycle shell regression', () => {
+  beforeEach(() => {
+    invokeMock.mockReset();
+  });
+
+  it('keeps initialization explicit while the Tauri lifecycle authority is pending', () => {
+    invokeMock.mockReturnValue(new Promise(() => undefined));
+    render(<App />);
+
+    const status = screen.getByRole('status');
+    expect(status.getAttribute('data-variant')).toBe('loading');
+    expect(status.getAttribute('aria-busy')).toBe('true');
+    expect(screen.getByRole('heading', { name: 'Starting local service' })).toBeInstanceOf(
+      HTMLHeadingElement,
+    );
+    expect(invokeMock).toHaveBeenCalledWith('lifecycle_status');
+  });
+
+  it('keeps owned readiness and its ownership explanation explicit', async () => {
+    invokeMock.mockResolvedValue({ state: 'ready', ownership: 'owned' });
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Local service ready' })).toBeInstanceOf(
+      HTMLHeadingElement,
+    );
+    const status = screen.getByRole('status');
+    expect(status.getAttribute('data-variant')).toBe('positive');
+    expect(status.textContent).toContain('The local service started for this desktop session.');
+  });
+
+  it('retains recoverable failure, retry authority, and development diagnostics', async () => {
+    const failure = {
+      state: 'recoverableFailure',
+      failure: {
+        code: 'port_occupied',
+        message: 'The configured local port is occupied.',
+        diagnostic: 'port 3100 is unavailable',
+      },
+    };
+    invokeMock.mockImplementation((command: string) => {
+      if (command === 'retry_lifecycle') {
+        return Promise.resolve({ state: 'ready', ownership: 'reused' });
+      }
+      return Promise.resolve(failure);
+    });
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+    render(<App />);
+
+    expect(
+      await screen.findByRole('heading', { name: 'Local service needs attention' }),
+    ).toBeInstanceOf(HTMLHeadingElement);
+    expect(screen.getByRole('alert').textContent).toContain(
+      'The configured local port is occupied.',
+    );
+    const diagnosticsSummary = screen.getByText('Development diagnostics');
+    expect(diagnosticsSummary).toBeInstanceOf(HTMLElement);
+
+    await user.click(diagnosticsSummary);
+    await user.click(screen.getByRole('button', { name: 'Copy diagnostic' }));
+    expect(await screen.findByText('Diagnostic copied.')).toBeInstanceOf(HTMLElement);
+    expect(writeText).toHaveBeenCalledWith('port_occupied\nport 3100 is unavailable');
+
+    await user.click(screen.getByRole('button', { name: 'Retry startup' }));
+    expect(invokeMock).toHaveBeenCalledWith('retry_lifecycle');
+    expect(await screen.findByRole('heading', { name: 'Local service ready' })).toBeInstanceOf(
+      HTMLHeadingElement,
+    );
+    expect(screen.getByRole('status').textContent).toContain(
+      'A compatible local service is already running and has been reused.',
+    );
+  });
+
+  it('keeps polling, diagnostics guards, token imports, and raw palette out of the shell', async () => {
+    const [appSource, styles] = await Promise.all([
+      readFile(resolve('apps/desktop/src/App.tsx'), 'utf8'),
+      readFile(resolve('apps/desktop/src/styles.css'), 'utf8'),
+    ]);
+
+    expect(appSource).toContain('STATUS_REFRESH_INTERVAL_MS = 500');
+    expect(appSource).toContain("invoke<LifecycleStatus>('lifecycle_status')");
+    expect(appSource).toContain("invoke<LifecycleStatus>('retry_lifecycle')");
+    expect(appSource).toContain('import.meta.env.DEV');
+    expect(styles).toContain("@import '@rivallo/design-tokens/generated.css'");
+    expect(styles).toContain("@import './ui/primitives/primitives.css'");
+    expect(styles).not.toMatch(/#[0-9a-f]{3,8}|rgba?\(|hsla?\(/iu);
   });
 });

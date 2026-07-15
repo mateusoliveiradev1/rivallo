@@ -3,9 +3,12 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "./src/generated.css"
+  ],
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./generated.css": "./src/generated.css"
   },
   "dependencies": {
     "colorjs.io": "0.6.1"
