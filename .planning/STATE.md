@@ -4,18 +4,18 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 5
 current_phase_name: Design Tokens, Icon Policy and UI Primitives
-current_plan: 11
-status: Ready to execute
-stopped_at: Completed 05-09-PLAN.md
-last_updated: "2026-07-15T18:21:05.378Z"
+current_plan: 10
+status: Awaiting human visual review
+stopped_at: Completed 05-11-PLAN.md; 05-10 human review pending
+last_updated: '2026-07-15T18:51:25.519Z'
 last_activity: 2026-07-15
-last_activity_desc: Phase 5 icon gap planned and verified; Plan 05-11 is next before final Plan 05-10 review
+last_activity_desc: Plan 05-11 icon gap closure complete; Plan 05-10 human review remains pending
 progress:
   total_phases: 13
   completed_phases: 3
   total_plans: 30
-  completed_plans: 28
-  percent: 93
+  completed_plans: 29
+  percent: 97
 ---
 
 # State
@@ -35,11 +35,11 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 
 Current Phase: 5
 Current Phase Name: Design Tokens, Icon Policy and UI Primitives
-Current Plan: 11
+Current Plan: 10
 Total Plans in Phase: 11
-Status: Ready to execute
-Progress: 93%
-Last activity: 2026-07-15 — Phase 5 icon gap planned and verified; Plan 05-11 is next before final Plan 05-10 review
+Status: Awaiting human visual review
+Progress: 97%
+Last activity: 2026-07-15 — Plan 05-11 icon gap closure complete; Plan 05-10 human review remains pending
 
 ## Gate History
 
@@ -49,9 +49,9 @@ Last activity: 2026-07-15 — Phase 5 icon gap planned and verified; Plan 05-11 
 
 ## Session
 
-**Last session:** 2026-07-15T17:08:42.451Z
-**Stopped at:** Completed 05-09-PLAN.md
-**Resume file:** None
+**Last session:** 2026-07-15T18:51:02.806Z
+**Stopped at:** Completed 05-11-PLAN.md; 05-10 human review pending
+**Resume file:** .planning/phases/05-design-tokens-icon-policy-and-ui-primitives/05-10-PLAN.md
 
 ## Accumulated Context
 
@@ -61,30 +61,31 @@ Last activity: 2026-07-15 — Phase 5 icon gap planned and verified; Plan 05-11 
 
 ## Performance Metrics
 
-| Phase | Plan | Duration | Notes |
-|-------|------|----------|-------|
-| Phase 03 P01 | 15min | 1 tasks | 10 files |
-| Phase 03 P02 | 10min | 1 tasks | 3 files |
-| Phase 03 P04 | 12min | 2 tasks | 6 files |
-| Phase 03 P05 | 10min | 2 tasks | 5 files |
-| Phase 03 P06 | 20min | 2 tasks | 25 files |
-| Phase 03 P08 | 10min | 2 tasks | 4 files |
-| Phase 03 P09 | 28min | 3 tasks | 15 files |
-| Phase 04 P01 | 2min | 2 tasks | 2 files |
-| Phase 04 P02 | 8min | 2 tasks | 7 files |
-| Phase 04 P03 | 18min | 2 tasks | 71 files |
-| Phase 04 P05 | 10min | 2 tasks | 7 files |
-| Phase 04 P04 | 17min | 2 tasks | 15 files |
-| Phase 04 P06 | 10min | 2 tasks | 7 files |
-| Phase 05 P01 | 1h 4m | 2 tasks | 3 files |
-| Phase 05 P02 | 9 min | 2 tasks | 10 files |
-| Phase 05 P03 | 11 min | 3 tasks | 8 files |
-| Phase 05 P04 | 10 min | 2 tasks | 10 files |
-| Phase 05 P05 | 16 min | 3 tasks | 10 files |
-| Phase 05 P06 | 9 min | 3 tasks | 8 files |
-| Phase 05 P07 | 12 min | 3 tasks | 5 files |
-| Phase 05 P08 | 17 min | 3 tasks | 6 files |
-| Phase 05 P09 | 13 min | 3 tasks | 11 files |
+| Phase        | Plan   | Duration | Notes    |
+| ------------ | ------ | -------- | -------- |
+| Phase 03 P01 | 15min  | 1 tasks  | 10 files |
+| Phase 03 P02 | 10min  | 1 tasks  | 3 files  |
+| Phase 03 P04 | 12min  | 2 tasks  | 6 files  |
+| Phase 03 P05 | 10min  | 2 tasks  | 5 files  |
+| Phase 03 P06 | 20min  | 2 tasks  | 25 files |
+| Phase 03 P08 | 10min  | 2 tasks  | 4 files  |
+| Phase 03 P09 | 28min  | 3 tasks  | 15 files |
+| Phase 04 P01 | 2min   | 2 tasks  | 2 files  |
+| Phase 04 P02 | 8min   | 2 tasks  | 7 files  |
+| Phase 04 P03 | 18min  | 2 tasks  | 71 files |
+| Phase 04 P05 | 10min  | 2 tasks  | 7 files  |
+| Phase 04 P04 | 17min  | 2 tasks  | 15 files |
+| Phase 04 P06 | 10min  | 2 tasks  | 7 files  |
+| Phase 05 P01 | 1h 4m  | 2 tasks  | 3 files  |
+| Phase 05 P02 | 9 min  | 2 tasks  | 10 files |
+| Phase 05 P03 | 11 min | 3 tasks  | 8 files  |
+| Phase 05 P04 | 10 min | 2 tasks  | 10 files |
+| Phase 05 P05 | 16 min | 3 tasks  | 10 files |
+| Phase 05 P06 | 9 min  | 3 tasks  | 8 files  |
+| Phase 05 P07 | 12 min | 3 tasks  | 5 files  |
+| Phase 05 P08 | 17 min | 3 tasks  | 6 files  |
+| Phase 05 P09 | 13 min | 3 tasks  | 11 files |
+| Phase 05 P11 | 20 min | 2 tasks  | 11 files |
 
 ## Decisions
 
@@ -145,3 +146,5 @@ Last activity: 2026-07-15 — Phase 5 icon gap planned and verified; Plan 05-11 
 - [Phase 05]: Expose semantic icon names through one curated Lucide boundary with fixed sizes and 1.75px stroke. — Prevents arbitrary paths, visual props, mixed families, and implementation-name leakage.
 - [Phase 05]: Declare React 19.2.7 as one exact pre-existing peer of @rivallo/icons. — A reusable React package must not rely on aliases or hoisting; no new registry package was installed.
 - [Phase 05]: Limit the football SVG proof set to ball, goal frame, and training cone. — Proves original versioned icon capability without introducing a pitch, crest, mascot, or product identity.
+- [Phase 05]: Bound the Rivallo football grammar to a 24-unit grid, 2-unit optical padding, four geometry elements, and fourteen commands per path. — Keeps current and future football symbols coherent, safe, and reviewable at 16, 20, and 24px.
+- [Phase 05]: Require owning screen contracts, unambiguous meaning, and visible-label fallbacks before future domain icon geometry is created. — Proves extension discipline for training, tactics, scouting, and medicine without speculative assets or product screens.

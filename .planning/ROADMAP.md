@@ -62,28 +62,28 @@ Plans:
 
 - [x] 03-01-PLAN.md — Establish D-01 crate topology with application → domain only.
 
-**Wave 2** *(blocked on Wave 1 completion)*
+**Wave 2** _(blocked on Wave 1 completion)_
 
 - [x] 03-02-PLAN.md — Enforce resolved Cargo metadata dependency policy.
 - [x] 03-03-PLAN.md — Record human approval for the pinned TypeScript generator.
 
-**Wave 3** *(blocked on Wave 2 completion)*
+**Wave 3** _(blocked on Wave 2 completion)_
 
 - [x] 03-04-PLAN.md — Implement canonical Rust contracts and the schema-only platform exporter.
 
-**Wave 4** *(blocked on Wave 3 completion)*
+**Wave 4** _(blocked on Wave 3 completion)_
 
 - [x] 03-05-PLAN.md — Materialize committed OpenAPI and prove deterministic non-mutating verification.
 
-**Wave 5** *(blocked on Wave 4 completion)*
+**Wave 5** _(blocked on Wave 4 completion)_
 
 - [x] 03-06-PLAN.md — Generate and verify the TypeScript contract client.
 
-**Wave 6** *(blocked on Wave 5 completion)*
+**Wave 6** _(blocked on Wave 5 completion)_
 
 - [x] 03-07-PLAN.md — Integrate quality checks, proof, scope fences, and documentation.
 
-**Wave 7** *(blocked on Wave 6 completion)*
+**Wave 7** _(blocked on Wave 6 completion)_
 
 - [x] 03-08-PLAN.md — Close generated-client public export and enforce the approved bounded D-10 bundled-core exception.
 
@@ -123,7 +123,7 @@ Plans:
 
 **Dependencies:** Phase 4; approved DESIGN FOUNDATION V0.
 
-**Plans:** 9/11 plans executed
+**Plans:** 10/11 plans executed
 
 Plans:
 
@@ -131,43 +131,43 @@ Plans:
 
 - [x] 05-01-PLAN.md — Establish the mandatory human supply-chain approval gate.
 
-**Wave 2** *(blocked on Wave 1 completion)*
+**Wave 2** _(blocked on Wave 1 completion)_
 
 - [x] 05-02-PLAN.md — Apply the approved dependency transaction and real DOM test environment.
 
-**Wave 3** *(blocked on Wave 2 completion)*
+**Wave 3** _(blocked on Wave 2 completion)_
 
 - [x] 05-03-PLAN.md — Implement deterministic semantic tokens and contrast evidence.
 
-**Wave 4** *(blocked on Wave 3 completion)*
+**Wave 4** _(blocked on Wave 3 completion)_
 
 - [x] 05-04-PLAN.md — Implement the constrained generic-icon and original football-SVG boundaries.
 
-**Wave 5** *(blocked on Wave 4 completion)*
+**Wave 5** _(blocked on Wave 4 completion)_
 
 - [x] 05-05-PLAN.md — Build native-first primitives and migrate the lifecycle shell.
 
-**Wave 6** *(blocked on Wave 5 completion)*
+**Wave 6** _(blocked on Wave 5 completion)_
 
 - [x] 05-06-PLAN.md — Complete accessible composite primitives and keyboard/focus behavior.
 
-**Wave 7** *(blocked on Wave 6 completion)*
+**Wave 7** _(blocked on Wave 6 completion)_
 
 - [x] 05-07-PLAN.md — Implement and prove the semantic DenseTable foundation.
 
-**Wave 8** *(blocked on Wave 7 completion)*
+**Wave 8** _(blocked on Wave 7 completion)_
 
 - [x] 05-08-PLAN.md — Assemble the development-only UI Lab.
 
-**Wave 9** *(blocked on Wave 8 completion)*
+**Wave 9** _(blocked on Wave 8 completion)_
 
 - [x] 05-09-PLAN.md — Integrate Playwright, quality, CI, and clean-worktree evidence.
 
-**Wave 10** *(blocked on Wave 9 completion)*
+**Wave 10** _(blocked on Wave 9 completion)_
 
-- [ ] 05-11-PLAN.md — Close the diagnosed premium icon-foundation gap with enforced grammar and optical evidence.
+- [x] 05-11-PLAN.md — Close the diagnosed premium icon-foundation gap with enforced grammar and optical evidence.
 
-**Wave 11** *(blocked on Wave 10 completion)*
+**Wave 11** _(blocked on Wave 10 completion)_
 
 - [ ] 05-10-PLAN.md — Close with evidence-backed human visual and interaction review.
 
@@ -315,9 +315,9 @@ Plans:
 
 ## Approval Record
 
-| Gate | Status | Approved by | Result |
-|---|---|---|---|
-| Gate 0 | APPROVED | Mateus | Documentation, architecture, product, data, tests, design, and ADRs approved to proceed to scaffold. |
-| Gate 1 | Pending | — | Requires Phases 2–4 success criteria and explicit approval. |
-| Gate 2 | Pending | — | Requires Phases 5–6 success criteria and explicit approval. |
-| Gate 3 | Pending | — | Requires Phases 7–10 success criteria and explicit approval. |
+| Gate   | Status   | Approved by | Result                                                                                               |
+| ------ | -------- | ----------- | ---------------------------------------------------------------------------------------------------- |
+| Gate 0 | APPROVED | Mateus      | Documentation, architecture, product, data, tests, design, and ADRs approved to proceed to scaffold. |
+| Gate 1 | Pending  | —           | Requires Phases 2–4 success criteria and explicit approval.                                          |
+| Gate 2 | Pending  | —           | Requires Phases 5–6 success criteria and explicit approval.                                          |
+| Gate 3 | Pending  | —           | Requires Phases 7–10 success criteria and explicit approval.                                         |

@@ -26,7 +26,7 @@
 
 ### Design quality
 
-- [ ] **UI-01**: UI Lab documents tokens, component states, dense tables, and responsive examples.
+- [x] **UI-01**: UI Lab documents tokens, component states, dense tables, and responsive examples.
 - [ ] **UI-02**: Initial desktop screens meet WCAG AA, keyboard, reduced-motion, and visual-regression checks.
 
 ## V0.2 requirements
@@ -41,10 +41,10 @@ Simulation, advanced tactics, market, training, development, injuries, academy, 
 
 ## Traceability
 
-| Requirement group | Phase | Status |
-|---|---:|---|
-| Gate 0 documentation | 1 | Pending approval |
-| FOUND | 2–4 | Pending |
-| UI | 5–6 | Pending |
-| DESK/DATA | 7–10 | Pending |
-| MULTI | 11–13 | Deferred to V0.2 |
+| Requirement group    | Phase | Status           |
+| -------------------- | ----: | ---------------- |
+| Gate 0 documentation |     1 | Pending approval |
+| FOUND                |   2–4 | Pending          |
+| UI                   |   5–6 | Pending          |
+| DESK/DATA            |  7–10 | Pending          |
+| MULTI                | 11–13 | Deferred to V0.2 |
