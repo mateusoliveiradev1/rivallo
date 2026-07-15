@@ -4,18 +4,18 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 5
 current_phase_name: Design Tokens, Icon Policy and UI Primitives
-current_plan: 11
-status: Visual review rejected — gap planning required
-stopped_at: Completed 05-10-PLAN.md with REJECTED review; gap planning required
-last_updated: "2026-07-15T19:42:32.215Z"
+current_plan: 12
+status: Ready to execute Phase 5 gap closure
+stopped_at: Planned 05-12 through 05-16; checker passed with zero blockers and warnings
+last_updated: '2026-07-15T20:54:57.7704325Z'
 last_activity: 2026-07-15
-last_activity_desc: Plan 05-10 completed with Mateus REJECTED decision; concrete Phase 5 and cross-phase gaps diagnosed
+last_activity_desc: Phase 5 gap closure planned in five verified plans across Waves 12-16
 progress:
   total_phases: 13
   completed_phases: 3
-  total_plans: 30
+  total_plans: 35
   completed_plans: 30
-  percent: 100
+  percent: 86
 ---
 
 # State
@@ -29,17 +29,17 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 **Current phase name:** Design Tokens, Icon Policy and UI Primitives
 **Current gate:** 2 — Visual foundation.
 **Gate 0:** APPROVED by Mateus.
-**Next action:** `$gsd-plan-phase 5 --gaps`.
+**Next action:** `$gsd-execute-phase 5 --gaps-only`.
 
 ## Current Position
 
 Current Phase: 5
 Current Phase Name: Design Tokens, Icon Policy and UI Primitives
-Current Plan: 11
-Total Plans in Phase: 11
-Status: Visual review rejected — gap planning required
-Progress: 100% of currently planned tasks executed; Phase 5 remains open
-Last activity: 2026-07-15 — Plan 05-10 completed with Mateus REJECTED decision; concrete Phase 5 and cross-phase gaps diagnosed
+Current Plan: 12
+Total Plans in Phase: 16
+Status: Ready to execute Phase 5 gap closure
+Progress: 11/16 plans executed; five verified gap-closure plans remain
+Last activity: 2026-07-15 — Plans 05-12 through 05-16 created and passed the GSD plan-checker with zero blockers and warnings
 
 ## Gate History
 
@@ -49,8 +49,8 @@ Last activity: 2026-07-15 — Plan 05-10 completed with Mateus REJECTED decision
 
 ## Session
 
-**Last session:** 2026-07-15T19:42:01.376Z
-**Stopped at:** Completed 05-10-PLAN.md with REJECTED review; gap planning required
+**Last session:** 2026-07-15T20:54:57.7704325Z
+**Stopped at:** Planned 05-12 through 05-16; ready for gap-only execution
 **Resume file:** .planning/phases/05-design-tokens-icon-policy-and-ui-primitives/05-UAT.md
 
 ## Accumulated Context
@@ -86,7 +86,7 @@ Last activity: 2026-07-15 — Plan 05-10 completed with Mateus REJECTED decision
 | Phase 05 P08 | 17 min | 3 tasks  | 6 files  |
 | Phase 05 P09 | 13 min | 3 tasks  | 11 files |
 | Phase 05 P11 | 20 min | 2 tasks  | 11 files |
-| Phase 05 P10 | 12 min | 2 tasks | 6 files |
+| Phase 05 P10 | 12 min | 2 tasks  | 6 files  |
 
 ## Decisions
 

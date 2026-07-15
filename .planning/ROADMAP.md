@@ -123,7 +123,7 @@ Plans:
 
 **Dependencies:** Phase 4; approved DESIGN FOUNDATION V0.
 
-**Plans:** 11/11 current plans executed — visual review rejected; gap plans required
+**Plans:** 11/16 executed — five verified gap-closure plans ready
 
 Plans:
 
@@ -171,10 +171,34 @@ Plans:
 
 - [x] 05-10-PLAN.md — Close with evidence-backed human visual and interaction review.
 
+**Wave 12** _(blocked on Wave 11 completion)_
+
+- [ ] 05-12-PLAN.md — Repair DenseTable/ScrollArea width ownership and prove finite, reachable geometry in all target viewports.
+
+**Wave 13** _(blocked on Wave 12 completion)_
+
+- [ ] 05-13-PLAN.md — Specify and structurally verify the complete cross-phase Table View Engine contract without implementing it.
+
+**Wave 14** _(blocked on Wave 13 completion)_
+
+- [ ] 05-14-PLAN.md — Refine 16px ball/goal optics and prove bounded Lucide-versus-Rivallo contextual use.
+
+**Wave 15** _(blocked on Wave 14 completion)_
+
+- [ ] 05-15-PLAN.md — Assemble fresh automated evidence and a pending, scope-bounded human review package.
+
+**Wave 16** _(blocked on Wave 15 completion)_
+
+- [ ] 05-16-PLAN.md — Obtain Mateus's explicit terminal decision on the corrected DESIGN FOUNDATION V0.
+
 **Success criteria:**
 
 - UI Lab exposes tokens, typography, icons, primitive states, dense table examples, and target viewports.
 - Generic icon-family choice and football SVG policy are implemented consistently.
+- DenseTable remains finite and intentionally scrollable at 1366×768, 1920×1080, and 2560×1080.
+- Ball and physical goal-frame are clear at 16px in bounded product-context specimens.
+- The complete Table View Engine is specified once for Phase 6 screen contracts and Phase 9 implementation, without engine code in Phase 5.
+- Mateus records an explicit APPROVED or REJECTED terminal review after inspecting the corrected browser surface.
 
 **Human review result:** REJECTED by Mateus. Phase 5 remains In Progress until the diagnosed DenseTable width/overflow and contextual 16px icon gaps are corrected and reviewed again. The complete Table View Engine must be specified across the responsible phases; Gate 2 remains pending.
 
