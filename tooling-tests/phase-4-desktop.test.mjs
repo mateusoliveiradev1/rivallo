@@ -108,7 +108,9 @@ describe('Phase 4 operational lifecycle shell', () => {
     const shell = `${entry}\n${app}`;
     const styleBoundary = `${styles}\n${generatedTokens}\n${primitives}`;
 
-    expect(entry).toContain('<App />');
+    expect(entry).toContain(": import('./App.js')");
+    expect(entry).toContain('surfaceModule.App');
+    expect(entry).toContain('<Surface />');
     expect(shell).toContain("from '@tauri-apps/api/core'");
     expect(shell).not.toMatch(
       /tauri-plugin-shell|@tauri-apps\/plugin-shell|Command\.|sqlite|database/i,
