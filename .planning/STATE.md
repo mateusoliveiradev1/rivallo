@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 4 — Desktop Shell, Local Persistence Boundary, Containers and CI Skeleton
-status: Phase complete — ready for verification
-stopped_at: Phase 5 UI-SPEC approved
-last_updated: "2026-07-15T12:39:08.398Z"
+current_phase: 5 — Design Tokens, Icon Policy and UI Primitives
+status: Ready to execute
+stopped_at: Phase 5 planned — 10 plans ready
+last_updated: "2026-07-15T10:54:51.2793203-03:00"
 progress:
   total_phases: 13
   completed_phases: 3
-  total_plans: 19
+  total_plans: 29
   completed_plans: 19
   percent: 23
 ---
@@ -21,10 +21,10 @@ progress:
 See `.planning/PROJECT.md` (updated 2026-07-13).
 
 **Core value:** dependable deep management in local and shared online competition.
-**Current phase:** 4 — Desktop Shell, Local Persistence Boundary, Containers and CI Skeleton
-**Current gate:** 1 — Scaffold.
+**Current phase:** 5 — Design Tokens, Icon Policy and UI Primitives
+**Current gate:** 2 — Visual foundation.
 **Gate 0:** APPROVED by Mateus.
-**Next action:** `$gsd-verify-work 4`.
+**Next action:** `$gsd-execute-phase 5`.
 
 ## Gate History
 
@@ -34,9 +34,9 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 
 ## Session
 
-**Last session:** 2026-07-15T12:39:08.394Z
-**Stopped at:** Phase 5 UI-SPEC approved
-**Resume file:** .planning/phases/05-design-tokens-icon-policy-and-ui-primitives/05-UI-SPEC.md
+**Last session:** 2026-07-15T10:54:51.2793203-03:00
+**Stopped at:** Phase 5 planned — 10 plans ready
+**Resume file:** .planning/phases/05-design-tokens-icon-policy-and-ui-primitives/05-01-PLAN.md
 
 ## Performance Metrics
 

@@ -115,13 +115,57 @@ Plans:
 
 **Status:** Planned  
 **Gate:** 2  
-**Directory slug:** `05-design-tokens-icon-policy-ui-primitives`
+**Directory slug:** `05-design-tokens-icon-policy-and-ui-primitives`
 
 **Objective:** Implement the approved token source, icon policy, accessible primitives, and UI Lab foundation.
 
 **Requirements:** UI-01.
 
 **Dependencies:** Phase 4; approved DESIGN FOUNDATION V0.
+
+**Plans:** 0/10 plans executed
+
+Plans:
+
+**Wave 1**
+
+- [ ] 05-01-PLAN.md — Establish the mandatory human supply-chain approval gate.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 05-02-PLAN.md — Apply the approved dependency transaction and real DOM test environment.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 05-03-PLAN.md — Implement deterministic semantic tokens and contrast evidence.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 05-04-PLAN.md — Implement the constrained generic-icon and original football-SVG boundaries.
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 05-05-PLAN.md — Build native-first primitives and migrate the lifecycle shell.
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 05-06-PLAN.md — Complete accessible composite primitives and keyboard/focus behavior.
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [ ] 05-07-PLAN.md — Implement and prove the semantic DenseTable foundation.
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
+- [ ] 05-08-PLAN.md — Assemble the development-only UI Lab.
+
+**Wave 9** *(blocked on Wave 8 completion)*
+
+- [ ] 05-09-PLAN.md — Integrate Playwright, quality, CI, and clean-worktree evidence.
+
+**Wave 10** *(blocked on Wave 9 completion)*
+
+- [ ] 05-10-PLAN.md — Close with evidence-backed human visual and interaction review.
 
 **Success criteria:**
 
