@@ -242,3 +242,206 @@
     animation: none;
   }
 }
+
+.rv-status,
+.rv-empty-state,
+.rv-error-state {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--rv-space-3);
+  color: var(--rv-color-text);
+  font-family: var(--rv-font-operational);
+  font-size: var(--rv-type-14-size);
+  line-height: var(--rv-type-14-line-height);
+}
+
+.rv-status {
+  padding: var(--rv-space-3);
+  border: var(--rv-stroke-border) solid var(--rv-color-border);
+  border-radius: var(--rv-radius-control);
+  background: var(--rv-color-surface);
+}
+
+.rv-status > svg,
+.rv-empty-state > svg,
+.rv-error-state > svg {
+  margin-top: var(--rv-space-1);
+  flex: 0 0 auto;
+}
+
+.rv-status[data-variant='info'],
+.rv-status[data-variant='neutral'] {
+  color: var(--rv-color-info);
+}
+
+.rv-status[data-variant='positive'] {
+  color: var(--rv-color-action-primary);
+}
+
+.rv-status[data-variant='warning'],
+.rv-status[data-variant='offline'] {
+  color: var(--rv-color-warning);
+}
+
+.rv-status[data-variant='danger'] {
+  color: var(--rv-color-danger);
+}
+
+.rv-status[data-variant='loading'] {
+  color: var(--rv-color-info);
+}
+
+.rv-status__content {
+  min-width: 0;
+}
+
+.rv-status__label {
+  display: block;
+  color: currentColor;
+  font-size: var(--rv-type-12-size);
+  line-height: var(--rv-type-12-line-height);
+}
+
+.rv-status__message {
+  margin-top: var(--rv-space-1);
+  color: var(--rv-color-text);
+}
+
+.rv-skeleton {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--rv-space-2);
+}
+
+.rv-skeleton__line {
+  display: block;
+  height: var(--rv-type-12-line-height);
+  border-radius: var(--rv-radius-1);
+  background: var(--rv-color-surface-raised);
+  animation: rv-skeleton-pulse var(--rv-motion-emphasis-max) var(--rv-motion-ease-out) infinite
+    alternate;
+}
+
+.rv-skeleton__line:nth-child(2n) {
+  width: 78%;
+}
+
+.rv-skeleton__line:nth-child(3n) {
+  width: 56%;
+}
+
+.rv-empty-state,
+.rv-error-state {
+  max-width: 65ch;
+  padding-block: var(--rv-space-4);
+}
+
+.rv-empty-state > svg {
+  color: var(--rv-color-info);
+}
+
+.rv-error-state > svg {
+  color: var(--rv-color-danger);
+}
+
+.rv-empty-state h3,
+.rv-error-state h3,
+.rv-empty-state p {
+  margin: 0;
+}
+
+.rv-empty-state h3,
+.rv-error-state h3 {
+  color: var(--rv-color-text-strong);
+  font-size: var(--rv-type-14-size);
+  font-weight: var(--rv-font-weight-semibold);
+  line-height: var(--rv-type-14-line-height);
+  text-wrap: pretty;
+}
+
+.rv-empty-state p {
+  margin-top: var(--rv-space-1);
+  color: var(--rv-color-text-muted);
+  text-wrap: pretty;
+}
+
+.rv-state-action {
+  margin-top: var(--rv-space-3);
+}
+
+.rv-pagination {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--rv-space-1);
+  color: var(--rv-color-text);
+  font-family: var(--rv-font-operational);
+}
+
+.rv-pagination__pages {
+  display: flex;
+  gap: var(--rv-space-1);
+}
+
+.rv-pagination [data-selected='true'] {
+  border-color: var(--rv-color-info);
+  color: var(--rv-color-text-strong);
+  background: var(--rv-color-selection);
+  opacity: 1;
+}
+
+.rv-pagination__summary {
+  min-width: max-content;
+  margin-inline: var(--rv-space-2);
+  color: var(--rv-color-text-muted);
+  font-size: var(--rv-type-12-size);
+  font-variant-numeric: var(--rv-font-numeric-variant);
+  line-height: var(--rv-type-12-line-height);
+}
+
+.rv-scroll-area {
+  max-width: 100%;
+  overflow: auto;
+  border: var(--rv-stroke-border) solid var(--rv-color-border);
+  border-radius: var(--rv-radius-control);
+  background: var(--rv-color-surface);
+}
+
+.rv-scroll-area:focus-visible {
+  outline: var(--rv-stroke-focus) solid var(--rv-color-focus);
+  outline-offset: 2px;
+}
+
+.rv-scroll-area__affordance {
+  position: sticky;
+  left: 0;
+  width: max-content;
+  margin: 0;
+  padding: var(--rv-space-1) var(--rv-space-2);
+  color: var(--rv-color-text-muted);
+  font-family: var(--rv-font-operational);
+  font-size: var(--rv-type-12-size);
+  line-height: var(--rv-type-12-line-height);
+}
+
+.rv-scroll-area__content {
+  min-width: max-content;
+}
+
+@keyframes rv-skeleton-pulse {
+  from {
+    opacity: 0.52;
+  }
+
+  to {
+    opacity: 0.9;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rv-skeleton__line {
+    animation: none;
+  }
+}

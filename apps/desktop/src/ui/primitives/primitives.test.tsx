@@ -7,7 +7,9 @@ import { createElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { Button, IconButton, type IconButtonProps } from './actions.js';
+import { EmptyState, ErrorState, Skeleton, Status } from './feedback.js';
 import { Checkbox, RadioGroup, Select, TextField } from './forms.js';
+import { Pagination, ScrollArea } from './layout.js';
 
 describe('native action primitives', () => {
   it('exposes every approved button treatment through one native boundary', () => {
@@ -217,5 +219,100 @@ describe('compact primitive geometry contract', () => {
     expect(css).toMatch(/var\(--rv-motion-feedback\)/u);
     expect(css).toMatch(/var\(--rv-motion-control\)/u);
     expect(css).not.toMatch(/#[0-9a-f]{3,8}|rgba?\(|hsla?\(/iu);
+  });
+});
+
+describe('persistent feedback primitives', () => {
+  it.each([
+    ['neutral', 'status', 'Estado neutro'],
+    ['info', 'status', 'Informação'],
+    ['positive', 'status', 'Positivo'],
+    ['warning', 'status', 'Atenção'],
+    ['danger', 'alert', 'Crítico'],
+    ['offline', 'status', 'Offline'],
+    ['loading', 'status', 'Carregando'],
+  ] as const)(
+    'renders %s with explicit %s semantics and a visible label',
+    (variant, role, label) => {
+      const { unmount } = render(<Status variant={variant}>Descrição persistente.</Status>);
+      const status = screen.getByRole(role);
+
+      expect(status.getAttribute('data-variant')).toBe(variant);
+      expect(status.textContent).toContain(label);
+      expect(status.textContent).toContain('Descrição persistente.');
+      expect(status.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+      expect(status.getAttribute('aria-live')).toBe(role === 'alert' ? 'assertive' : 'polite');
+      expect(status.getAttribute('aria-busy')).toBe(variant === 'loading' ? 'true' : null);
+      unmount();
+    },
+  );
+
+  it('keeps skeleton content inert and marks its reduced-motion contract', () => {
+    const { container } = render(<Skeleton lines={3} />);
+    const skeleton = container.firstElementChild;
+
+    expect(skeleton?.getAttribute('aria-hidden')).toBe('true');
+    expect(skeleton?.getAttribute('data-reduced-motion')).toBe('static');
+    expect(skeleton?.querySelectorAll('.rv-skeleton__line')).toHaveLength(3);
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('uses the exact approved empty-state copy', () => {
+    render(<EmptyState />);
+
+    expect(
+      screen.getByRole('heading', { name: 'Nenhum exemplo disponível para este estado.' }),
+    ).toBeInstanceOf(HTMLHeadingElement);
+    expect(
+      screen.getByText('Selecione outro estado no controle acima para continuar a inspeção.'),
+    ).toBeInstanceOf(HTMLParagraphElement);
+  });
+
+  it('uses the exact approved recovery copy and only exposes a meaningful retry', async () => {
+    const user = userEvent.setup();
+    const onRetry = vi.fn();
+    const { rerender } = render(<ErrorState onRetry={onRetry} />);
+
+    const error = screen.getByRole('alert');
+    expect(error.textContent).toContain(
+      'Não foi possível renderizar este exemplo. Revise a configuração e tente novamente.',
+    );
+    await user.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    expect(onRetry).toHaveBeenCalledOnce();
+
+    rerender(<ErrorState />);
+    expect(screen.queryByRole('button', { name: 'Tentar novamente' })).toBeNull();
+  });
+});
+
+describe('native layout primitives', () => {
+  it('labels pagination, exposes the current page, and disables real boundaries', async () => {
+    const user = userEvent.setup();
+    const onPageChange = vi.fn();
+    render(<Pagination currentPage={1} onPageChange={onPageChange} totalPages={3} />);
+
+    const navigation = screen.getByRole('navigation', { name: 'Paginação' });
+    const previous = screen.getByRole('button', { name: 'Página anterior' });
+    const current = screen.getByRole('button', { name: 'Página 1, atual' });
+    expect(navigation.contains(current)).toBe(true);
+    expect((previous as HTMLButtonElement).disabled).toBe(true);
+    expect(current.getAttribute('aria-current')).toBe('page');
+    expect(screen.getByText('Página 1 de 3')).toBeInstanceOf(HTMLElement);
+
+    await user.click(screen.getByRole('button', { name: 'Próxima página' }));
+    expect(onPageChange).toHaveBeenCalledWith(2);
+  });
+
+  it('keeps overflow native, labelled, keyboard reachable, and visibly discoverable', () => {
+    render(
+      <ScrollArea label="Comparação extensa">
+        <p>Um conteúdo muito longo para inspeção horizontal.</p>
+      </ScrollArea>,
+    );
+
+    const region = screen.getByRole('region', { name: 'Comparação extensa' });
+    expect(region.getAttribute('tabindex')).toBe('0');
+    expect(region.textContent).toContain('Um conteúdo muito longo para inspeção horizontal.');
+    expect(region.textContent).toContain('Use a rolagem para acessar todo o conteúdo.');
   });
 });
