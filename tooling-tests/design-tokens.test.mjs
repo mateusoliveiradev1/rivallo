@@ -1,3 +1,9 @@
+import { execFile } from 'node:child_process';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { promisify } from 'node:util';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -8,6 +14,7 @@ import {
   elevationTokens,
   layerTokens,
   motionTokens,
+  publicTokenEntries,
   radiusTokens,
   reducedMotion,
   spacingTokens,
@@ -18,6 +25,10 @@ import {
   measureContrastPairs,
   resolveColor,
 } from '../packages/design-tokens/src/contrast.js';
+
+const execFileAsync = promisify(execFile);
+const root = resolve(import.meta.dirname, '..');
+const generator = resolve(root, 'scripts/generate-design-tokens.mjs');
 
 const REQUIRED_COLORS = [
   'color-canvas',
@@ -160,5 +171,52 @@ describe('rendered contrast evidence', () => {
     ).toThrow(
       /forced low-contrast evidence.*#[0-9a-f]{6}.*#[0-9a-f]{6}.*ratio \d+\.\d{2}.*threshold 4\.50/iu,
     );
+  });
+});
+
+describe('generated semantic CSS', () => {
+  it('writes byte-identical isolated output with every public token exactly once', async () => {
+    const temporaryRoot = await mkdtemp(join(tmpdir(), 'rivallo-design-tokens-'));
+    const first = join(temporaryRoot, 'first', 'generated.css');
+    const second = join(temporaryRoot, 'second', 'generated.css');
+
+    try {
+      await execFileAsync(process.execPath, [generator, '--output', first], { cwd: root });
+      await execFileAsync(process.execPath, [generator, '--output', second], { cwd: root });
+      const [firstBytes, secondBytes] = await Promise.all([readFile(first), readFile(second)]);
+      const css = firstBytes.toString('utf8');
+
+      expect(firstBytes.equals(secondBytes)).toBe(true);
+      expect(css).toMatch(
+        /^\/\* Rivallo semantic tokens — generated from tokens\.ts; do not edit\. \*\//u,
+      );
+      expect(css).toContain('@media (prefers-reduced-motion: reduce)');
+      const writtenPaths = (await readdir(temporaryRoot, { recursive: true }))
+        .map((path) => path.replaceAll('\\', '/'))
+        .sort();
+      expect(writtenPaths).toEqual([
+        'first',
+        'first/generated.css',
+        'second',
+        'second/generated.css',
+      ]);
+
+      for (const { token } of publicTokenEntries) {
+        expect(css.match(new RegExp(`--rv-${token}:`, 'gu'))).toHaveLength(1);
+      }
+      expect(css.match(/--rv-[a-z0-9-]+:/gu)).toHaveLength(publicTokenEntries.length);
+      expect(css).not.toMatch(/(?:z-index:\s*999|3\d{2}ms|border-radius:\s*(?:16|24|32)px)/u);
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('fails actionably for an invalid writer invocation', async () => {
+    await expect(
+      execFileAsync(process.execPath, [generator, '--output'], { cwd: root }),
+    ).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringMatching(/Usage:.*--output <path>/u),
+    });
   });
 });

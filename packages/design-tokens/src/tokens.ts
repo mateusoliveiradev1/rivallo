@@ -9,21 +9,21 @@ export const colorPolicy = {
 export const colorTokens = {
   'color-canvas': 'oklch(0.145 0.014 190)',
   'color-surface': 'oklch(0.185 0.018 190)',
-  'color-surface-raised': 'oklch(0.225 0.020 190)',
-  'color-overlay': 'oklch(0.105 0.010 190 / 0.78)',
-  'color-border': 'oklch(0.520 0.022 190)',
-  'color-border-subtle': 'oklch(0.270 0.018 190)',
+  'color-surface-raised': 'oklch(0.225 0.02 190)',
+  'color-overlay': 'oklch(0.105 0.01 190 / 0.78)',
+  'color-border': 'oklch(0.52 0.022 190)',
+  'color-border-subtle': 'oklch(0.27 0.018 190)',
   'color-text': 'oklch(0.955 0.008 185)',
   'color-text-strong': 'oklch(0.985 0.004 185)',
-  'color-text-muted': 'oklch(0.760 0.018 185)',
-  'color-action-primary': 'oklch(0.720 0.150 155)',
+  'color-text-muted': 'oklch(0.76 0.018 185)',
+  'color-action-primary': 'oklch(0.72 0.15 155)',
   'color-on-action-primary': 'oklch(0.165 0.018 175)',
-  'color-info': 'oklch(0.780 0.120 220)',
-  'color-focus': 'oklch(0.780 0.120 220)',
-  'color-warning': 'oklch(0.800 0.135 80)',
-  'color-danger': 'oklch(0.680 0.180 25)',
-  'color-premium': 'oklch(0.750 0.100 85)',
-  'color-selection': 'oklch(0.320 0.055 210)',
+  'color-info': 'oklch(0.78 0.12 220)',
+  'color-focus': 'oklch(0.78 0.12 220)',
+  'color-warning': 'oklch(0.8 0.135 80)',
+  'color-danger': 'oklch(0.68 0.18 25)',
+  'color-premium': 'oklch(0.75 0.1 85)',
+  'color-selection': 'oklch(0.32 0.055 210)',
 } as const;
 
 export type ColorTokenName = keyof typeof colorTokens;
@@ -258,6 +258,13 @@ export const publicTokenGroups = [
   { name: 'elevation', values: elevationTokens },
   { name: 'layer', values: layerTokens },
   { name: 'motion', values: motionTokens },
+  {
+    name: 'reduced-motion',
+    values: {
+      'motion-reduced-duration': reducedMotion.duration,
+      'motion-reduced-iteration-count': reducedMotion.iterationCount,
+    },
+  },
   { name: 'dimension', values: dimensionTokens },
   {
     name: 'typography',

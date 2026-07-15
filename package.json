@@ -20,6 +20,7 @@
     "rust:architecture": "node scripts/verify-cargo-architecture.mjs",
     "smoke": "node scripts/run-quality.mjs",
     "test": "vitest run",
+    "tokens:generate": "node scripts/generate-design-tokens.mjs",
     "toolchains": "node scripts/check-toolchains.mjs",
     "typecheck": "tsc --noEmit"
   },
