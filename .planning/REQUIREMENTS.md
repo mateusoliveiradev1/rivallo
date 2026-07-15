@@ -18,6 +18,10 @@
 - [ ] **DESK-03**: User selection and local state restore after restart.
 - [ ] **DESK-04**: UI shows explicit offline and synchronisation status and remains usable from cache.
 
+### Gameplay
+
+- [x] **GAME-01**: User can select a valid XI and tactical approach, simulate one deterministic fictional match, inspect events and result, and resume the resulting matchday state after restart.
+
 ### Data and API
 
 - [ ] **DATA-01**: SQLite persists local career state, cache/projections, preferences, and command queue through adapters.
@@ -37,7 +41,7 @@
 
 ## Later requirements
 
-Simulation, advanced tactics, market, training, development, injuries, academy, scouting, public mods, and the full editor are planned after the private alpha foundation.
+Advanced simulation, market, training, development, injuries, academy, scouting, public mods, and the full editor remain later work. A deliberately small matchday simulation is part of V0.1 so the product is validated as a game rather than as infrastructure.
 
 ## Traceability
 
@@ -46,5 +50,6 @@ Simulation, advanced tactics, market, training, development, injuries, academy, 
 | Gate 0 documentation |     1 | Pending approval |
 | FOUND                |   2–4 | Pending          |
 | UI                   |   5–6 | Pending          |
+| GAME                 |     6 | Complete         |
 | DESK/DATA            |  7–10 | Pending          |
 | MULTI                | 11–13 | Deferred to V0.2 |

@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 05
-current_phase_name: Design Tokens, Icon Policy and UI Primitives
-current_plan: 14
-status: executing
-stopped_at: Completed 05-13-PLAN.md
-last_updated: "2026-07-15T21:29:35.132Z"
+current_phase: 06
+current_phase_name: First Playable Matchday
+current_plan: 1
+status: awaiting_user_validation
+stopped_at: First playable matchday built, verified, and ready to run
+last_updated: '2026-07-15T22:38:00.000Z'
 last_activity: 2026-07-15
 progress:
   total_phases: 13
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 35
-  completed_plans: 32
-  percent: 23
+  completed_plans: 33
+  percent: 31
 ---
 
 # State
@@ -24,20 +24,20 @@ progress:
 See `.planning/PROJECT.md` (updated 2026-07-13).
 
 **Core value:** dependable deep management in local and shared online competition.
-**Current phase:** 05
-**Current phase name:** Design Tokens, Icon Policy and UI Primitives
-**Current gate:** 2 — Visual foundation.
+**Current phase:** 06
+**Current phase name:** First Playable Matchday
+**Current gate:** First Playable.
 **Gate 0:** APPROVED by Mateus.
-**Next action:** `$gsd-execute-phase 5 --gaps-only`.
+**Next action:** Run the built first playable and collect Mateus's product feedback before expanding the season.
 
 ## Current Position
 
-Current Phase: 5
-Current Phase Name: Design Tokens, Icon Policy and UI Primitives
-Current Plan: 14
-Total Plans in Phase: 16
-Status: Ready to execute
-Progress: 13/16 plans executed; three verified gap-closure plans remain
+Current Phase: 6
+Current Phase Name: First Playable Matchday
+Current Plan: 1
+Total Plans in Phase: 1
+Status: Awaiting user validation
+Progress: First playable implementation and automated verification complete
 Last activity: 2026-07-15
 
 ## Gate History
@@ -48,8 +48,8 @@ Last activity: 2026-07-15
 
 ## Session
 
-**Last session:** 2026-07-15T21:29:35.128Z
-**Stopped at:** Completed 05-13-PLAN.md
+**Last session:** 2026-07-15T22:38:00.000Z
+**Stopped at:** First playable matchday built and verified
 **Resume file:** None
 
 ## Accumulated Context
@@ -87,9 +87,15 @@ Last activity: 2026-07-15
 | Phase 05 P11 | 20 min | 2 tasks  | 11 files |
 | Phase 05 P10 | 12 min | 2 tasks  | 6 files  |
 | Phase 05 P12 | 15 min | 2 tasks  | 4 files  |
-| Phase 05 P13 | 10min | 2 tasks | 4 files |
+| Phase 05 P13 | 10min  | 2 tasks  | 4 files  |
+| Phase 06 P01 | 35min  | 5 tasks  | 26 files |
 
 ## Decisions
+
+- [Phase 06]: Make the normal Tauri ready state open the real matchday workspace; keep the UI Lab development-only at `/__ui-lab`. — Product validation now happens on a playable surface rather than a component inventory.
+- [Phase 06]: Keep lineup validation, deterministic simulation, record progression, and match events in Rust domain code. — React selects intent and renders outcomes but never owns competitive rules.
+- [Phase 06]: Persist the complete first-playable state as adapter-owned JSON under the Tauri application-data directory. — The smallest restart-safe loop ships without prematurely introducing the later SQLite career schema.
+- [Phase 06]: Gate the real matchday in component tests and three deterministic browser viewports, including native modal focus return. — Visual and keyboard regressions now cover the product surface in the normal quality aggregate.
 
 - [Phase 05]: Run Chromium against independent development and production Vite servers. — UI Lab evidence remains independent of Tauri, sidecar, API and Docker state while production exclusion is tested in a real browser.
 - [Phase 05]: Keep `pnpm quality` writer-free and make `pnpm quality:clean` run the aggregate plus desktop build twice against exact porcelain. — Checks are repeatable, fail-fast and preserve both clean and pre-existing dirty baselines.

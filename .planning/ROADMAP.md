@@ -113,7 +113,7 @@ Plans:
 
 ## Phase 5: Design Tokens, Icon Policy and UI Primitives
 
-**Status:** In Progress  
+**Status:** Complete — provisional technical foundation  
 **Gate:** 2  
 **Directory slug:** `05-design-tokens-icon-policy-and-ui-primitives`
 
@@ -123,7 +123,7 @@ Plans:
 
 **Dependencies:** Phase 4; approved DESIGN FOUNDATION V0.
 
-**Plans:** 13/16 plans executed
+**Plans:** 13/13 plans executed
 
 Plans:
 
@@ -179,59 +179,55 @@ Plans:
 
 - [x] 05-13-PLAN.md — Specify and structurally verify the complete cross-phase Table View Engine contract without implementing it.
 
-**Wave 14** _(blocked on Wave 13 completion)_
-
-- [ ] 05-14-PLAN.md — Refine 16px ball/goal optics and prove bounded Lucide-versus-Rivallo contextual use.
-
-**Wave 15** _(blocked on Wave 14 completion)_
-
-- [ ] 05-15-PLAN.md — Assemble fresh automated evidence and a pending, scope-bounded human review package.
-
-**Wave 16** _(blocked on Wave 15 completion)_
-
-- [ ] 05-16-PLAN.md — Obtain Mateus's explicit terminal decision on the corrected DESIGN FOUNDATION V0.
+**Superseded gap plans:** 05-14 through 05-16 are retired. Visual approval moves to a real product surface in Phase 6 instead of another UI Lab review cycle.
 
 **Success criteria:**
 
 - UI Lab exposes tokens, typography, icons, primitive states, dense table examples, and target viewports.
 - Generic icon-family choice and football SVG policy are implemented consistently.
 - DenseTable remains finite and intentionally scrollable at 1366×768, 1920×1080, and 2560×1080.
-- Ball and physical goal-frame are clear at 16px in bounded product-context specimens.
+- Football icon refinement is evaluated only inside a real product context.
 - The complete Table View Engine is specified once for Phase 6 screen contracts and Phase 9 implementation, without engine code in Phase 5.
-- Mateus records an explicit APPROVED or REJECTED terminal review after inspecting the corrected browser surface.
+- The foundation remains provisional until Mateus reviews the real first-playable surface.
 
-**Human review result:** REJECTED by Mateus. Phase 5 remains In Progress until the diagnosed DenseTable width/overflow and contextual 16px icon gaps are corrected and reviewed again. The complete Table View Engine must be specified across the responsible phases; Gate 2 remains pending.
+**Human review result:** The UI Lab was rejected as a proxy for the product experience. Its technical primitives remain available, but the visual direction is not approved and must be proven in Phase 6 through the real application.
 
-## Phase 6: Approved V0.1 Screen Contracts and Visual QA
+## Phase 6: First Playable Matchday
 
-**Status:** Planned  
-**Gate:** 2  
-**Directory slug:** `06-v0-1-screen-contracts-visual-qa`
+**Status:** Complete — first playable ready for product review  
+**Gate:** First Playable  
+**Directory slug:** `06-first-playable-matchday`
 
-**Objective:** Shape and validate bootstrap, club-selection, dashboard, and squad screen contracts before their implementation.
+**Goal:** As a football manager, I want to complete one matchday, so that I can test Rivallo's core gameplay loop.
+**Mode:** mvp
 
-**Requirements:** UI-02 design-contract portion.
+**Requirements:** GAME-01; UI-02 first-playable portion; DATA-03.
 
-**Dependencies:** Phase 5; human approval of each screen brief.
+**Dependencies:** Phase 5 technical assets. UI Lab visual approval is not a dependency.
+
+**Plans:** 1/1 complete
+
+- [x] 06-01-PLAN.md — Ship the persisted XI → tactics → deterministic match → result loop.
 
 **Success criteria:**
 
-- Every listed screen has an approved brief with state, keyboard, data, offline, and viewport criteria.
-- Every screen-owned table follows `05-TABLE-VIEW-ENGINE-CONTRACT.md` and declares its stable `tableId`, column/filter/sort/grouping capabilities, system/default views, keyboard paths, live announcements, loading/empty/error/offline states, viewport behavior, and acceptance fixtures before screen approval.
-- The `Mostrar somente gols` fixture, when owned by a listed screen, is expressed through the shared saved-view model with explicit columns/filter/sort semantics rather than screen-specific behavior.
-- Visual, contrast, reduced-motion, and accessibility QA evidence meets Gate 2 requirements.
+- The normal Tauri application opens a real AppShell and matchday workspace rather than the UI Lab.
+- A fixed fictional club exposes an adapter-fed squad; the user can select a valid XI, formation, and tactical approach.
+- A deterministic Rust domain simulation produces match events and a result from the saved lineup.
+- The selected lineup, match result, round, and season record survive a desktop restart.
+- The full path is keyboard-operable, tested, buildable from a clean checkout, and visually reviewable at 1366×768 and 1920×1080.
 
-## Phase 7: Dev Identity, Fixtures and Minimal API
+## Phase 7: Career Start and Club Selection
 
 **Status:** Planned  
 **Gate:** 3  
 **Directory slug:** `07-dev-identity-fixtures-minimal-api`
 
-**Objective:** Provide deterministic identity, fictional fixtures, and the minimal health/session/clubs/context API.
+**Objective:** Turn the fixed first-playable club into a selectable fictional career with deterministic identity and shared fixtures.
 
 **Requirements:** DESK-01; DATA-02; DATA-03.
 
-**Dependencies:** Phase 6.
+**Dependencies:** Phase 6 first-playable evidence and Mateus's product-surface feedback.
 
 **Success criteria:**
 
@@ -239,13 +235,13 @@ Plans:
 - Fictional fixtures are shared appropriately by adapters and tests.
 - `/health`, `/ready`, `/api/v1/session`, `/api/v1/clubs`, and `/api/v1/me/context` meet their contract.
 
-## Phase 8: Club Selection and Local Restore
+## Phase 8: Season Calendar and Matchday Depth
 
 **Status:** Planned  
 **Gate:** 3  
 **Directory slug:** `08-club-selection-local-restore`
 
-**Objective:** Implement fictional club selection and SQLite-backed restoration through application ports.
+**Objective:** Expand the single matchday into a short season calendar with multiple opponents, standings, availability, and richer tactical consequences.
 
 **Requirements:** DESK-02; DESK-03; DATA-01 local-career portion.
 
@@ -253,10 +249,10 @@ Plans:
 
 **Success criteria:**
 
-- A user can select one fictional club and restore that selection after restart.
-- UI does not directly access SQLite; fixtures are not embedded in React components.
+- A user can advance through a short fictional season and see standings and availability change.
+- Matchday outcomes remain domain-owned and reproducible; React never becomes simulation authority.
 
-## Phase 9: Dashboard, Squad, Cache and Offline States
+## Phase 9: Dashboard, Squad, Cache and Offline Hardening
 
 **Status:** Planned  
 **Gate:** 3  
