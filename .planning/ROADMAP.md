@@ -113,7 +113,7 @@ Plans:
 
 ## Phase 5: Design Tokens, Icon Policy and UI Primitives
 
-**Status:** Planned  
+**Status:** In Progress  
 **Gate:** 2  
 **Directory slug:** `05-design-tokens-icon-policy-and-ui-primitives`
 
@@ -123,7 +123,7 @@ Plans:
 
 **Dependencies:** Phase 4; approved DESIGN FOUNDATION V0.
 
-**Plans:** 7/10 plans executed
+**Plans:** 8/10 plans executed
 
 Plans:
 
@@ -157,7 +157,7 @@ Plans:
 
 **Wave 8** *(blocked on Wave 7 completion)*
 
-- [ ] 05-08-PLAN.md — Assemble the development-only UI Lab.
+- [x] 05-08-PLAN.md — Assemble the development-only UI Lab.
 
 **Wave 9** *(blocked on Wave 8 completion)*
 
