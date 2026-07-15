@@ -125,3 +125,164 @@ describe('UI Lab proof hierarchy and real specimen inventory', () => {
     );
   });
 });
+
+describe('UI Lab viewport, accessibility, and shell proofs', () => {
+  it('labels the three deterministic viewport presets without claiming device emulation', async () => {
+    const user = userEvent.setup();
+    render(<UiLab />);
+
+    const controls = screen.getByRole('group', { name: 'Resolução de inspeção' });
+    const compact = within(controls).getByRole('radio', { name: '1366×768' });
+    const defaultDesktop = within(controls).getByRole('radio', { name: '1920×1080' });
+    const ultrawide = within(controls).getByRole('radio', { name: '2560×1080' });
+    const preview = screen.getByTestId('viewport-preview');
+
+    expect(defaultDesktop).toBeChecked();
+    expect(preview).toHaveAttribute('aria-label', 'Quadro de inspeção 1920×1080');
+    expect(preview).toHaveAttribute('data-viewport', '1920x1080');
+    expect(preview.style.getPropertyValue('--ui-lab-preview-width')).toBe('1920px');
+    expect(preview.style.getPropertyValue('--ui-lab-preview-height')).toBe('1080px');
+    expect(screen.getByText('Evidência de layout, não emulação de dispositivo.')).toBeInstanceOf(
+      HTMLElement,
+    );
+
+    await user.click(compact);
+    expect(preview).toHaveAttribute('aria-label', 'Quadro de inspeção 1366×768');
+    expect(preview).toHaveAttribute('data-viewport', '1366x768');
+    expect(preview.style.getPropertyValue('--ui-lab-preview-width')).toBe('1366px');
+
+    await user.click(ultrawide);
+    expect(preview).toHaveAttribute('aria-label', 'Quadro de inspeção 2560×1080');
+    expect(preview).toHaveAttribute('data-viewport', '2560x1080');
+    expect(preview.style.getPropertyValue('--ui-lab-preview-width')).toBe('2560px');
+  });
+
+  it('keeps DenseTable density, content state, and column priority local and resettable', async () => {
+    const user = userEvent.setup();
+    const firstRender = render(<UiLab />);
+    await user.click(screen.getByRole('button', { name: 'DenseTable' }));
+
+    const density = screen.getByRole('combobox', { name: 'Densidade da tabela' });
+    const contentState = screen.getByRole('combobox', { name: 'Estado da tabela' });
+    const columnPriority = screen.getByRole('combobox', { name: 'Prioridade de colunas' });
+
+    expect(density).toHaveValue('compact');
+    expect(contentState).toHaveValue('ready');
+    expect(columnPriority).toHaveValue('3');
+
+    await user.selectOptions(density, 'comfortable');
+    expect(screen.getByRole('table', { name: 'DenseTable de evidência' })).toHaveAttribute(
+      'data-density',
+      'comfortable',
+    );
+
+    await user.selectOptions(columnPriority, '2');
+    expect(screen.queryByRole('columnheader', { name: 'Nota de evidência' })).toBeNull();
+    expect(screen.getByRole('columnheader', { name: 'Estado' })).toBeInstanceOf(
+      HTMLTableCellElement,
+    );
+
+    await user.selectOptions(contentState, 'loading');
+    expect(screen.getByRole('table', { name: 'DenseTable de evidência' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
+    await user.selectOptions(contentState, 'empty');
+    expect(screen.getByText('Nenhum exemplo disponível para este estado.')).toBeInstanceOf(
+      HTMLHeadingElement,
+    );
+    await user.selectOptions(contentState, 'error');
+    expect(
+      screen.getByText(
+        'Não foi possível renderizar este exemplo. Revise a configuração e tente novamente.',
+      ),
+    ).toBeInstanceOf(HTMLHeadingElement);
+
+    firstRender.unmount();
+    render(<UiLab />);
+    await user.click(screen.getByRole('button', { name: 'DenseTable' }));
+    expect(screen.getByRole('combobox', { name: 'Densidade da tabela' })).toHaveValue('compact');
+    expect(screen.getByRole('combobox', { name: 'Estado da tabela' })).toHaveValue('ready');
+    expect(screen.getByRole('combobox', { name: 'Prioridade de colunas' })).toHaveValue('3');
+  });
+
+  it('exposes keyboard, focus, non-colour, long-text, 200%, text-spacing, and motion evidence', async () => {
+    const user = userEvent.setup();
+    render(<UiLab />);
+    await user.click(screen.getByRole('button', { name: 'Accessibility evidence' }));
+
+    const keyboardPath = screen.getByRole('group', { name: 'Ordem de teclado demonstrável' });
+    const firstTarget = within(keyboardPath).getByRole('button', {
+      name: 'Primeiro alvo de teclado',
+    });
+    const secondTarget = within(keyboardPath).getByRole('button', {
+      name: 'Segundo alvo de teclado',
+    });
+    firstTarget.focus();
+    await user.tab();
+    expect(secondTarget).toHaveFocus();
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Informação acompanhada por ícone e texto; a cor não é o único sinal.',
+    );
+    expect(screen.getByTestId('visible-focus-proof')).toHaveAttribute('tabindex', '0');
+    expect(screen.getByTestId('long-text-proof')).toHaveAttribute('data-text-expansion', '200');
+    expect(screen.getByTestId('text-spacing-proof')).toHaveClass('ui-lab-a11y__text-spacing');
+    expect(screen.getByTestId('reduced-motion-proof')).toHaveAttribute(
+      'data-reduced-motion-supported',
+      'true',
+    );
+
+    const css = await readFile(resolve('apps/desktop/src/ui-lab/UiLab.css'), 'utf8');
+    expect(css).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)/u);
+  });
+
+  it('collapses the shell proof from 232px to 56px without moving content or focus', async () => {
+    const user = userEvent.setup();
+    const firstRender = render(<UiLab />);
+    await user.click(screen.getByRole('button', { name: 'Shell proof' }));
+
+    const shell = screen.getByTestId('shell-proof');
+    const navigation = within(shell).getByRole('navigation', {
+      name: 'Composição de navegação',
+    });
+    const workspace = within(shell).getByTestId('shell-workspace');
+    const initialOrder = navigation.compareDocumentPosition(workspace);
+    const collapse = within(shell).getByRole('button', { name: 'Recolher navegação' });
+
+    expect(navigation).toHaveAttribute('data-navigation-width', '232');
+    expect(within(navigation).getAllByTestId('shell-navigation-icon')).toHaveLength(3);
+    await user.click(collapse);
+
+    expect(collapse).toHaveFocus();
+    expect(collapse).toHaveAccessibleName('Expandir navegação');
+    expect(navigation).toHaveAttribute('data-navigation-width', '56');
+    expect(navigation.compareDocumentPosition(workspace)).toBe(initialOrder);
+    expect(within(navigation).getAllByTestId('shell-navigation-icon')).toHaveLength(3);
+    expect(workspace).toHaveTextContent('Área de trabalho preservada');
+
+    firstRender.unmount();
+    render(<UiLab />);
+    await user.click(screen.getByRole('button', { name: 'Shell proof' }));
+    expect(
+      screen.getByRole('navigation', { name: 'Composição de navegação' }),
+    ).toHaveAttribute('data-navigation-width', '232');
+    expect(screen.getByRole('button', { name: 'Recolher navegação' })).toBeInstanceOf(
+      HTMLButtonElement,
+    );
+  });
+
+  it('contains no persistence or preference boundary in the Lab sources', async () => {
+    const sources = await Promise.all(
+      ['UiLab.tsx', 'specimens.tsx'].map((file) =>
+        readFile(resolve('apps/desktop/src/ui-lab', file), 'utf8'),
+      ),
+    );
+
+    for (const source of sources) {
+      expect(source).not.toMatch(
+        /localStorage|sessionStorage|indexedDB|navigator\.storage|storage|preferences/iu,
+      );
+    }
+  });
+});
