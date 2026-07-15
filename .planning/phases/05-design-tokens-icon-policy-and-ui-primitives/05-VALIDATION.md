@@ -1,7 +1,7 @@
 ---
 phase: 5
 slug: design-tokens-icon-policy-and-ui-primitives
-status: implemented-awaiting-human-review
+status: implemented-human-review-rejected
 nyquist_compliant: true
 wave_0_complete: true
 created: 2026-07-15
@@ -59,8 +59,8 @@ updated: 2026-07-15
 | 05-09-01 | 09   | UI-01       | T-05-09-ID   | real browser                              | `pnpm ui-lab:test`                                                                                                                                 | `browser-tests/ui-lab.spec.ts`                       | ✅ green  |
 | 05-09-02 | 09   | UI-01       | T-05-09-TM   | quality/idempotency                       | `pnpm exec vitest run tooling-tests/phase-5-quality.test.mjs && pnpm quality`                                                                      | `scripts/verify-clean-worktree.mjs`                  | ✅ green  |
 | 05-09-03 | 09   | UI-01       | T-05-09-SC   | CI/full                                   | `pnpm quality:clean`                                                                                                                               | `.github/workflows/ci.yml`                           | ✅ green  |
-| 05-10-01 | 10   | UI-01       | T-05-10-SP   | human-only optical review + record syntax | Visual hierarchy, icon originality, non-imitation and polish require human-only judgment; Plan 10 adds a strict record parser beside the review    | `05-10-PLAN.md`                                      | 🟦 mapped |
-| 05-10-02 | 10   | UI-01       | T-05-10-RP   | human-only terminal decision              | APPROVED/REJECTED authority remains human-only; deterministic digest/checklist syntax is verified by the task-local parser specified in Plan 10    | `05-10-PLAN.md`                                      | 🟦 mapped |
+| 05-10-01 | 10   | UI-01       | T-05-10-SP   | human-only optical review + record syntax | Mateus completed all 14 manual rows; concrete FAIL evidence identifies icon-context/16px clarity and DenseTable width/overflow gaps                | `05-10-VISUAL-REVIEW.md`                             | ❌ rejected |
+| 05-10-02 | 10   | UI-01       | T-05-10-RP   | human-only terminal decision              | `REJECTED`, reviewer Mateus, ISO timestamp and canonical digest pass the strict structural parser without claiming visual quality                  | `05-10-VISUAL-REVIEW.md`                             | ✅ recorded |
 | 05-11-01 | 11   | UI-01       | T-05-11-SVG  | icon contract/DOM/type/lint               | `pnpm test -- packages/icons/src/Icon.test.tsx && pnpm typecheck && pnpm lint`                                                                     | `packages/icons/src/Icon.test.tsx`                   | ✅ green  |
 | 05-11-02 | 11   | UI-01       | T-05-11-RP   | Lab DOM/browser/build                     | `pnpm test -- apps/desktop/src/ui-lab/UiLab.test.tsx packages/icons/src/Icon.test.tsx && pnpm ui-lab:test && pnpm --filter @rivallo/desktop build` | `browser-tests/ui-lab.spec.ts`                       | ✅ green  |
 
@@ -77,7 +77,7 @@ Legend: ✅ implemented and green · 🟦 mapped to a future task-local check or
 - [x] Repeated exact-porcelain quality wrapper and narrow ignored browser evidence.
 - [x] Hosted Chromium installation and execution without artifact publication.
 
-Plan 10 needs no missing shared test infrastructure. Its strict review-record parser is deliberately created with that task, while the optical and approval decisions remain human-only.
+Plan 10 used the existing shared infrastructure and recorded Mateus's explicit rejection. The parser proves record integrity only; `05-UAT.md` now separates immediate Phase 5 fixes from cross-phase Table View Engine specification.
 
 Plan 11 reuses the implemented Vitest, Playwright, typecheck, lint and desktop-build infrastructure. Its two rows are green with exact package, Lab, three-viewport and production-build evidence.
 
@@ -96,8 +96,8 @@ Plan 11 reuses the implemented Vitest, Playwright, typecheck, lint and desktop-b
 - [x] Shared Wave 0 infrastructure exists and is used by local and hosted checks.
 - [x] Writer commands are excluded from `pnpm quality` and `pnpm quality:clean`.
 - [x] Browser evidence is deterministic, ignored locally and never uploaded by CI.
-- [x] Human optical review remains explicitly manual.
+- [x] Human optical review remained explicitly manual and produced an auditable rejection with concrete gaps.
 
 **Automated validation:** green for all executed plans, including Plan 05-11.
 
-**Human visual approval:** pending Plan 05-10.
+**Human visual approval:** REJECTED by Mateus. Phase 5 remains open for bounded DenseTable width/overflow and icon-context/16px gap closure; the complete Table View Engine is a cross-phase specification whose real implementation remains in the responsible product phases.

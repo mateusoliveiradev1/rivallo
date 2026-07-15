@@ -6,34 +6,34 @@
 
 | ID   | Result | Concrete evidence / note                                                                                                                       |
 | ---- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| A-01 | PASS   | `pnpm quality:clean` completed two full aggregate and desktop-build runs in 98.1s with unchanged exact porcelain status.                       |
-| A-02 | PASS   | Vitest completed 165 of 165 tests across 20 files, including tokens, icons, primitives, DenseTable, UI Lab and architectural boundaries.       |
+| A-01 | PASS   | `pnpm quality:clean` completed two full aggregate and desktop-build runs in 107.8s with unchanged exact porcelain status.                      |
+| A-02 | PASS   | Vitest completed 172 of 172 tests across 21 files, including tokens, icons, primitives, DenseTable, UI Lab and architectural boundaries.       |
 | A-03 | PASS   | Token generation tests and `tokens:check` proved byte-identical output, authored/resolved contrast evidence and non-mutating drift detection.  |
-| A-04 | PASS   | Playwright executed 13 Chromium checks across 1366×768, 1920×1080 and 2560×1080; two redundant production checks were intentionally skipped.   |
+| A-04 | PASS   | Playwright executed 16 Chromium checks across 1366×768, 1920×1080 and 2560×1080; two redundant production checks were intentionally skipped.   |
 | A-05 | PASS   | Production Vite build and browser boundary exposed neither the UI Lab heading nor its category navigation at `/__ui-lab`.                      |
 | A-06 | PASS   | Browser screenshots, traces and reports stayed under narrowly ignored local paths; CI contains no artifact-upload step.                        |
 | A-07 | PASS   | Static CI policy proved exactly three jobs, explicit approved Chromium installation, real token/component/Lab execution and no writer command. |
 
 ## Manual Review Checklist
 
-Replace every PENDING result with PASS or FAIL and replace the dash with a concrete observation. A FAIL note must identify where, at which preset/state, and what must change.
+Mateus completed the review with source, browser, automated and dual-agent critique evidence. A FAIL note identifies the affected surface and the required correction.
 
-| ID   | Result  | Concrete evidence / note |
-| ---- | ------- | ------------------------ |
-| M-01 | PENDING | —                        |
-| M-02 | PENDING | —                        |
-| M-03 | PENDING | —                        |
-| M-04 | PENDING | —                        |
-| M-05 | PENDING | —                        |
-| M-06 | PENDING | —                        |
-| M-07 | PENDING | —                        |
-| M-08 | PENDING | —                        |
-| M-09 | PENDING | —                        |
-| M-10 | PENDING | —                        |
-| M-11 | PENDING | —                        |
-| M-12 | PENDING | —                        |
-| M-13 | PENDING | —                        |
-| M-14 | PENDING | —                        |
+| ID   | Result | Concrete evidence / note |
+| ---- | ------ | ------------------------ |
+| M-01 | FAIL | O Lab continua técnico e com aparência de laboratório: ainda não comunica a personalidade operacional forte de futebol nem mostra claramente onde os ícones vivem nos fluxos reais. Incluir provas contextuais limitadas antes de nova aprovação. |
+| M-02 | PASS | A inspeção do Lab e a crítica dupla confirmaram base grafite, contraste controlado e uso contido de esmeralda, dourado, vermelho, âmbar, ciano e cores contextuais, sem preto puro ou dominância cromática. |
+| M-03 | PASS | Inter permanece operacional, Space Grotesk restrita, estatísticas usam números tabulares e os exemplos densos conservam hierarquia e leitura; a crítica não encontrou inflação tipográfica. |
+| M-04 | FAIL | Em 16px, a bola fica densa e genérica e a trave pode parecer grade ou janela; o significado de uso e a prova contextual são insuficientes. Criar masters ópticos de 16px e esclarecer semântica antes da aprovação. |
+| M-05 | PASS | A matriz implementada e os testes DOM cobrem estados aplicáveis, Checkbox tri-state e Tooltip do IconButton com nomes acessíveis; a evidência do Lab mantém os estados separados e inspecionáveis. |
+| M-06 | FAIL | A crítica no Chromium mediu `clientWidth`/`scrollWidth` de 1.000.000px em 1366 e 1920, deixando conteúdo fora da tela. A primitiva também não possui o contrato completo de view engine: estado controlado, reorder/resize/pinning, filtros, multi-sort, visões salvas/reset e fronteira versionada de persistência. |
+| M-07 | PASS | Testes DOM e Chromium provaram foco visível, contenção, Escape e retorno ao invocador nos controles e overlays existentes; nenhum bloqueio adicional de teclado foi observado fora do defeito de largura tratado em M-06/M-12. |
+| M-08 | PASS | A implementação limita feedback a transições funcionais e os testes com `prefers-reduced-motion` confirmam retorno estático/instantâneo, sem informação ou autoridade dependente de animação. |
+| M-09 | FAIL | A largura extrema da DenseTable torna cabeçalhos, células e ações inalcançáveis sob largura restrita e agrava magnificação/200%; corrigir o contrato de overflow e provar texto longo e zoom sem conteúdo perdido. |
+| M-10 | PASS | Status, erros, alertas, seleção e nacionalidade permanecem acompanhados por texto, ícone, geometria ou estado nativo; a crítica confirmou a base sem significado transmitido apenas por cor. |
+| M-11 | PASS | As provas de shell 232px/56px reutilizam os mesmos ícones, exibem labels/tooltips adequados, preservam ordem e foco do toggle e ampliam o workspace sem persistência indevida. |
+| M-12 | FAIL | A revisão dos viewports falha em 1366×768 e 1920×1080 porque o defeito de 1.000.000px deixa cabeçalhos e células visualmente ausentes ou inalcançáveis; os três presets devem passar após regressão de largura/overflow. |
+| M-13 | PASS | A crítica dupla não encontrou shadcn padrão, cards aninhados, glass decorativo, gradientes roxo-azul, neon, cassino, sombras/cantos gigantes, UI mobile ampliada ou cópia de outro manager. |
+| M-14 | PASS | O Lab continua explicitamente como DESIGN FOUNDATION V0 e não apresenta dashboard, elenco, tática, pitch, scouting, mascote, marca final ou nome definitivo como produto aprovado. |
 
 ### Meaning of each manual ID
 
@@ -54,13 +54,14 @@ Replace every PENDING result with PASS or FAIL and replace the dash with a concr
 
 ## Conflicts and Provisional Points
 
-- No implementation conflict is currently recorded between `DESIGN.md`, `05-UI-SPEC.md` and the automated evidence.
+- A inspeção real encontrou conflito entre a intenção de DenseTable densa/legível e a largura calculada de 1.000.000px; testes estáticos anteriores não detectaram o defeito.
+- A fundação atual prova uma tabela semântica, mas o Table View Engine completo deve ser especificado agora e implementado somente pelas fases de telas/produto responsáveis.
 - Rivallo remains a working name; the final mark, mascot, imagery, generic icon future, and title-face finalization remain provisional.
 - Gate 2 is not complete after this review; Phase 6 and its own human screen approval are still required.
 
 ## Terminal Human Record
 
-Decision: PENDING
-Reviewed by: —
-Reviewed at: —
-Evidence digest: sha256:dba6bbb9be7c1a0dedcfce18010ab7fa0a3a056c83ceda5b532420954be5d74b
+Decision: REJECTED
+Reviewed by: Mateus
+Reviewed at: 2026-07-15T16:38:01.780-03:00
+Evidence digest: sha256:1227c384620102dad08d7936d4830539e0fec7c9f47950464e4ae00a8ce6561a

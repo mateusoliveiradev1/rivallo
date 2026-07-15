@@ -37,20 +37,32 @@ function completedReview(source, { decision = 'APPROVED', failedId } = {}) {
   return terminalValue(completed, 'Evidence digest', computeEvidenceDigest(completed));
 }
 
+/** @param {string} source */
+function pendingReview(source) {
+  let pending = source.replace(
+    /^\|\s+(M-\d{2})\s+\|\s+(?:PASS|FAIL)\s+\|.*\|$/gmu,
+    (_, id) => `| ${id} | PENDING | — |`,
+  );
+  pending = terminalValue(pending, 'Decision', 'PENDING');
+  pending = terminalValue(pending, 'Reviewed by', '—');
+  pending = terminalValue(pending, 'Reviewed at', '—');
+  return terminalValue(pending, 'Evidence digest', computeEvidenceDigest(pending));
+}
+
 describe('Phase 5 visual review record', () => {
-  it('ships a complete pending template that cannot be mistaken for approval', async () => {
-    const template = await readFile(reviewPath, 'utf8');
-    expect(template.match(/^\|\s+A-\d{2}\s+\|\s+PASS\s+\|/gmu)).toHaveLength(7);
-    expect(template.match(/^\|\s+M-\d{2}\s+\|\s+PENDING\s+\|\s+—\s+\|$/gmu)).toHaveLength(14);
-    expect(template.match(/^Decision:/gmu)).toHaveLength(1);
-    expect(template.match(/^Reviewed by:/gmu)).toHaveLength(1);
-    expect(template.match(/^Reviewed at:/gmu)).toHaveLength(1);
-    expect(template.match(/^Evidence digest:/gmu)).toHaveLength(1);
-    expect(validateVisualReview(template).valid).toBe(false);
+  it('ships Mateus’s complete rejected record with a matching canonical digest', async () => {
+    const record = await readFile(reviewPath, 'utf8');
+    expect(record.match(/^\|\s+A-\d{2}\s+\|\s+PASS\s+\|/gmu)).toHaveLength(7);
+    expect(record.match(/^\|\s+M-\d{2}\s+\|\s+(?:PASS|FAIL)\s+\|/gmu)).toHaveLength(14);
+    expect(record.match(/^Decision: REJECTED$/gmu)).toHaveLength(1);
+    expect(record.match(/^Reviewed by: Mateus$/gmu)).toHaveLength(1);
+    expect(record.match(/^Reviewed at:/gmu)).toHaveLength(1);
+    expect(record.match(/^Evidence digest:/gmu)).toHaveLength(1);
+    expect(validateVisualReview(record)).toEqual({ valid: true, errors: [] });
   });
 
   it('accepts structurally complete all-PASS approval and concrete-FAIL rejection', async () => {
-    const template = await readFile(reviewPath, 'utf8');
+    const template = pendingReview(await readFile(reviewPath, 'utf8'));
     const approved = completedReview(template);
     const rejected = completedReview(template, { decision: 'REJECTED', failedId: 'M-07' });
 
@@ -59,7 +71,7 @@ describe('Phase 5 visual review record', () => {
   });
 
   it('rejects incomplete, duplicated, spoofed, contradictory, and mismatched records', async () => {
-    const template = await readFile(reviewPath, 'utf8');
+    const template = pendingReview(await readFile(reviewPath, 'utf8'));
     const approved = completedReview(template);
 
     const cases = [
@@ -78,7 +90,7 @@ describe('Phase 5 visual review record', () => {
   });
 
   it('rejects blank or generic FAIL notes and template prose used as a decision', async () => {
-    const template = await readFile(reviewPath, 'utf8');
+    const template = pendingReview(await readFile(reviewPath, 'utf8'));
     const concrete = completedReview(template, { decision: 'REJECTED', failedId: 'M-07' });
     const blank = concrete.replace(/^\|\s+M-07\s+\|\s+FAIL\s+\|.*\|$/mu, '| M-07 | FAIL | — |');
     const generic = concrete.replace(

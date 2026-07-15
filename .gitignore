@@ -9,6 +9,7 @@
 .impeccable/screenshots/
 .impeccable/sessions/
 .impeccable/reports/
+.impeccable/critique/
 node_modules/
 .turbo/
 target/
