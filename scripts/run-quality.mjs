@@ -20,6 +20,7 @@ const requiredFiles = [
   'scripts/verify-cargo-workspace.mjs',
   'tooling-tests/workspace-config.test.mjs',
   'tooling-tests/phase-5-quality.test.mjs',
+  'browser-tests/matchday.spec.ts',
   'browser-tests/ui-lab.spec.ts',
   'playwright.config.ts',
   'tsconfig.json',
@@ -53,6 +54,7 @@ for (const command of [
   'contracts:client:generate',
   'contracts:client:check',
   'desktop:build',
+  'browser:test',
   'components:test',
   'tokens:check',
   'tokens:generate',
@@ -102,7 +104,7 @@ const runPnpm = (script) => {
   if (result.status !== 0 || result.error) {
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
-    if (script === 'ui-lab:test') {
+    if (script === 'browser:test' || script === 'ui-lab:test') {
       console.error(
         'Install the approved Chromium binary manually: pnpm exec playwright install chromium',
       );
@@ -121,7 +123,7 @@ if (aggregateMode) {
     'typecheck',
     'tokens:check',
     'test',
-    'ui-lab:test',
+    'browser:test',
     'rust:fmt',
     'rust:clippy',
     'rust:test',

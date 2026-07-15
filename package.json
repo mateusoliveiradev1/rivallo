@@ -9,6 +9,7 @@
     "quality": "node scripts/run-quality.mjs check",
     "quality:clean": "node scripts/verify-clean-worktree.mjs -- node scripts/run-quality.mjs clean-pass",
     "check": "node scripts/run-quality.mjs check",
+    "browser:test": "playwright test",
     "components:test": "vitest run apps/desktop/src packages/icons/src",
     "contracts:openapi:generate": "node scripts/generate-openapi.mjs",
     "contracts:openapi:check": "node scripts/verify-openapi-drift.mjs",

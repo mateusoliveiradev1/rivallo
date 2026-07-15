@@ -70,6 +70,7 @@ describe('Phase 5 quality surfaces', () => {
     const manifest = JSON.parse(manifestSource);
 
     for (const command of [
+      'browser:test',
       'components:test',
       'desktop:build',
       'format:check',
@@ -86,6 +87,7 @@ describe('Phase 5 quality surfaces', () => {
     }
 
     expect(manifest.scripts['ui-lab:test']).toContain('playwright test');
+    expect(manifest.scripts['browser:test']).toBe('playwright test');
     expect(manifest.scripts['components:test']).toContain('vitest run');
     expect(manifest.scripts.quality).toContain('run-quality.mjs check');
     expect(manifest.scripts['quality:clean']).toContain('verify-clean-worktree.mjs');
@@ -151,7 +153,7 @@ describe('Phase 5 quality surfaces', () => {
     expect(ci).toContain('pnpm exec playwright install --with-deps chromium');
     expect(ci).toContain('pnpm tokens:check');
     expect(ci).toContain('pnpm components:test');
-    expect(ci).toContain('pnpm ui-lab:test');
+    expect(ci).toContain('pnpm browser:test');
     expect(ci).not.toMatch(/upload-artifact|tokens:generate|playwright-report|test-results/iu);
     expect(mainSource).toContain(
       "const isUiLab = import.meta.env.DEV && window.location.pathname === '/__ui-lab';",
