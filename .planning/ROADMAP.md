@@ -123,7 +123,7 @@ Plans:
 
 **Dependencies:** Phase 4; approved DESIGN FOUNDATION V0.
 
-**Plans:** 12/16 plans executed
+**Plans:** 13/16 plans executed
 
 Plans:
 
@@ -177,7 +177,7 @@ Plans:
 
 **Wave 13** _(blocked on Wave 12 completion)_
 
-- [ ] 05-13-PLAN.md — Specify and structurally verify the complete cross-phase Table View Engine contract without implementing it.
+- [x] 05-13-PLAN.md — Specify and structurally verify the complete cross-phase Table View Engine contract without implementing it.
 
 **Wave 14** _(blocked on Wave 13 completion)_
 

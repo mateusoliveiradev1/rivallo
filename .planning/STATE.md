@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 05
 current_phase_name: Design Tokens, Icon Policy and UI Primitives
-current_plan: 13
+current_plan: 14
 status: executing
-stopped_at: Completed 05-12-PLAN.md
-last_updated: '2026-07-15T21:14:01.238Z'
+stopped_at: Completed 05-13-PLAN.md
+last_updated: "2026-07-15T21:29:35.132Z"
 last_activity: 2026-07-15
 progress:
   total_phases: 13
   completed_phases: 3
   total_plans: 35
-  completed_plans: 31
+  completed_plans: 32
   percent: 23
 ---
 
@@ -34,10 +34,10 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 
 Current Phase: 5
 Current Phase Name: Design Tokens, Icon Policy and UI Primitives
-Current Plan: 13
+Current Plan: 14
 Total Plans in Phase: 16
-Status: Executing Phase 05
-Progress: 12/16 plans executed; four verified gap-closure plans remain
+Status: Ready to execute
+Progress: 13/16 plans executed; three verified gap-closure plans remain
 Last activity: 2026-07-15
 
 ## Gate History
@@ -48,8 +48,8 @@ Last activity: 2026-07-15
 
 ## Session
 
-**Last session:** 2026-07-15T21:12:09.915Z
-**Stopped at:** Completed 05-12-PLAN.md
+**Last session:** 2026-07-15T21:29:35.128Z
+**Stopped at:** Completed 05-13-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -87,6 +87,7 @@ Last activity: 2026-07-15
 | Phase 05 P11 | 20 min | 2 tasks  | 11 files |
 | Phase 05 P10 | 12 min | 2 tasks  | 6 files  |
 | Phase 05 P12 | 15 min | 2 tasks  | 4 files  |
+| Phase 05 P13 | 10min | 2 tasks | 4 files |
 
 ## Decisions
 
@@ -154,3 +155,5 @@ Last activity: 2026-07-15
 - [Phase 05]: Specify the complete Table View Engine now but implement it only in the responsible product phases. — Phase 5 fixes primitive width and icon evidence; Phase 6 owns screen contracts and Phase 9 owns real data integration.
 - [Phase 05]: Keep DenseTable finite through fixed colgroup widths and a non-amplifying percentage fill. — Removes the million-pixel intrinsic chain while preserving semantic table geometry and the operational type floor.
 - [Phase 05]: Keep the labelled ScrollArea as the only native overflow owner. — Width, min-width, max-width and border-box constraints prevent parent layout amplification without introducing a second scroll layer.
+- [Phase 05]: Keep Table View State language-neutral and controlled while commands, events, persistence, queries, and React rendering remain separate authorities. — Prevents screen-specific engines and direct storage or query authority in React.
+- [Phase 05]: Model Mostrar somente gols as an ordinary saved view; Phase 6 resolves screen semantics and Phase 9 executes the general pipeline. — Prevents one-off flags, renderers, and query branches.
