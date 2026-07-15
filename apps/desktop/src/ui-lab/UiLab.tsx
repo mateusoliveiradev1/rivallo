@@ -1,4 +1,4 @@
-import { useState, type ComponentType } from 'react';
+import { useState, type ComponentType, type CSSProperties } from 'react';
 
 import {
   AccessibilityEvidenceSpecimen,
@@ -63,11 +63,30 @@ const categories = [
 
 type CategoryId = (typeof categories)[number]['id'];
 
+const viewportPresets = [
+  { id: '1366x768', label: '1366×768', width: 1366, height: 768 },
+  { id: '1920x1080', label: '1920×1080', width: 1920, height: 1080 },
+  { id: '2560x1080', label: '2560×1080', width: 2560, height: 1080 },
+] as const;
+
+type ViewportPresetId = (typeof viewportPresets)[number]['id'];
+type PreviewStyle = CSSProperties & {
+  '--ui-lab-preview-width': string;
+  '--ui-lab-preview-height': string;
+};
+
 export function UiLab() {
   const [activeCategoryId, setActiveCategoryId] = useState<CategoryId>('semantic-tokens');
+  const [viewportPresetId, setViewportPresetId] = useState<ViewportPresetId>('1920x1080');
   const activeCategory =
     categories.find((category) => category.id === activeCategoryId) ?? categories[0];
+  const viewportPreset =
+    viewportPresets.find((preset) => preset.id === viewportPresetId) ?? viewportPresets[1];
   const ActiveSpecimen = activeCategory.Specimen;
+  const previewStyle: PreviewStyle = {
+    '--ui-lab-preview-width': `${viewportPreset.width}px`,
+    '--ui-lab-preview-height': `${viewportPreset.height}px`,
+  };
 
   return (
     <main aria-labelledby="ui-lab-title" className="ui-lab">
@@ -104,9 +123,42 @@ export function UiLab() {
             <h2 id={`${activeCategory.id}-title`}>{activeCategory.label}</h2>
             <p>{activeCategory.purpose}</p>
           </header>
-          <div className="ui-lab__specimen-canvas">
-            <ActiveSpecimen />
+          <div className="ui-lab__preview-scroll">
+            <div
+              aria-label={`Quadro de inspeção ${viewportPreset.label}`}
+              className="ui-lab__preview-frame"
+              data-category={activeCategory.id}
+              data-testid="viewport-preview"
+              data-viewport={viewportPreset.id}
+              style={previewStyle}
+            >
+              <div className="ui-lab__preview-label">
+                <strong>{viewportPreset.label}</strong>
+                <span>Evidência de layout, não emulação de dispositivo.</span>
+              </div>
+              <div className="ui-lab__specimen-canvas">
+                <ActiveSpecimen />
+              </div>
+            </div>
           </div>
+
+          <fieldset className="ui-lab__viewport-controls">
+            <legend>Resolução de inspeção</legend>
+            <div>
+              {viewportPresets.map((preset) => (
+                <label key={preset.id}>
+                  <input
+                    checked={preset.id === viewportPreset.id}
+                    name="ui-lab-viewport"
+                    onChange={() => setViewportPresetId(preset.id)}
+                    type="radio"
+                    value={preset.id}
+                  />
+                  <span>{preset.label}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <p className="ui-lab__evidence-note">
             Evidência local e reiniciável. Nenhuma configuração desta área é persistida.
           </p>

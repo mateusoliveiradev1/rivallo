@@ -137,9 +137,9 @@ describe('UI Lab viewport, accessibility, and shell proofs', () => {
     const ultrawide = within(controls).getByRole('radio', { name: '2560×1080' });
     const preview = screen.getByTestId('viewport-preview');
 
-    expect(defaultDesktop).toBeChecked();
-    expect(preview).toHaveAttribute('aria-label', 'Quadro de inspeção 1920×1080');
-    expect(preview).toHaveAttribute('data-viewport', '1920x1080');
+    expect((defaultDesktop as HTMLInputElement).checked).toBe(true);
+    expect(preview.getAttribute('aria-label')).toBe('Quadro de inspeção 1920×1080');
+    expect(preview.dataset.viewport).toBe('1920x1080');
     expect(preview.style.getPropertyValue('--ui-lab-preview-width')).toBe('1920px');
     expect(preview.style.getPropertyValue('--ui-lab-preview-height')).toBe('1080px');
     expect(screen.getByText('Evidência de layout, não emulação de dispositivo.')).toBeInstanceOf(
@@ -147,13 +147,13 @@ describe('UI Lab viewport, accessibility, and shell proofs', () => {
     );
 
     await user.click(compact);
-    expect(preview).toHaveAttribute('aria-label', 'Quadro de inspeção 1366×768');
-    expect(preview).toHaveAttribute('data-viewport', '1366x768');
+    expect(preview.getAttribute('aria-label')).toBe('Quadro de inspeção 1366×768');
+    expect(preview.dataset.viewport).toBe('1366x768');
     expect(preview.style.getPropertyValue('--ui-lab-preview-width')).toBe('1366px');
 
     await user.click(ultrawide);
-    expect(preview).toHaveAttribute('aria-label', 'Quadro de inspeção 2560×1080');
-    expect(preview).toHaveAttribute('data-viewport', '2560x1080');
+    expect(preview.getAttribute('aria-label')).toBe('Quadro de inspeção 2560×1080');
+    expect(preview.dataset.viewport).toBe('2560x1080');
     expect(preview.style.getPropertyValue('--ui-lab-preview-width')).toBe('2560px');
   });
 
@@ -166,13 +166,12 @@ describe('UI Lab viewport, accessibility, and shell proofs', () => {
     const contentState = screen.getByRole('combobox', { name: 'Estado da tabela' });
     const columnPriority = screen.getByRole('combobox', { name: 'Prioridade de colunas' });
 
-    expect(density).toHaveValue('compact');
-    expect(contentState).toHaveValue('ready');
-    expect(columnPriority).toHaveValue('3');
+    expect((density as HTMLSelectElement).value).toBe('compact');
+    expect((contentState as HTMLSelectElement).value).toBe('ready');
+    expect((columnPriority as HTMLSelectElement).value).toBe('3');
 
     await user.selectOptions(density, 'comfortable');
-    expect(screen.getByRole('table', { name: 'DenseTable de evidência' })).toHaveAttribute(
-      'data-density',
+    expect(screen.getByRole('table', { name: 'DenseTable de evidência' }).dataset.density).toBe(
       'comfortable',
     );
 
@@ -183,10 +182,9 @@ describe('UI Lab viewport, accessibility, and shell proofs', () => {
     );
 
     await user.selectOptions(contentState, 'loading');
-    expect(screen.getByRole('table', { name: 'DenseTable de evidência' })).toHaveAttribute(
-      'aria-busy',
-      'true',
-    );
+    expect(
+      screen.getByRole('table', { name: 'DenseTable de evidência' }).getAttribute('aria-busy'),
+    ).toBe('true');
     await user.selectOptions(contentState, 'empty');
     expect(screen.getByText('Nenhum exemplo disponível para este estado.')).toBeInstanceOf(
       HTMLHeadingElement,
@@ -201,9 +199,15 @@ describe('UI Lab viewport, accessibility, and shell proofs', () => {
     firstRender.unmount();
     render(<UiLab />);
     await user.click(screen.getByRole('button', { name: 'DenseTable' }));
-    expect(screen.getByRole('combobox', { name: 'Densidade da tabela' })).toHaveValue('compact');
-    expect(screen.getByRole('combobox', { name: 'Estado da tabela' })).toHaveValue('ready');
-    expect(screen.getByRole('combobox', { name: 'Prioridade de colunas' })).toHaveValue('3');
+    expect(
+      (screen.getByRole('combobox', { name: 'Densidade da tabela' }) as HTMLSelectElement).value,
+    ).toBe('compact');
+    expect(
+      (screen.getByRole('combobox', { name: 'Estado da tabela' }) as HTMLSelectElement).value,
+    ).toBe('ready');
+    expect(
+      (screen.getByRole('combobox', { name: 'Prioridade de colunas' }) as HTMLSelectElement).value,
+    ).toBe('3');
   });
 
   it('exposes keyboard, focus, non-colour, long-text, 200%, text-spacing, and motion evidence', async () => {
@@ -220,18 +224,17 @@ describe('UI Lab viewport, accessibility, and shell proofs', () => {
     });
     firstTarget.focus();
     await user.tab();
-    expect(secondTarget).toHaveFocus();
+    expect(document.activeElement).toBe(secondTarget);
 
-    expect(screen.getByRole('status')).toHaveTextContent(
+    expect(screen.getByRole('status').textContent).toContain(
       'Informação acompanhada por ícone e texto; a cor não é o único sinal.',
     );
-    expect(screen.getByTestId('visible-focus-proof')).toHaveAttribute('tabindex', '0');
-    expect(screen.getByTestId('long-text-proof')).toHaveAttribute('data-text-expansion', '200');
-    expect(screen.getByTestId('text-spacing-proof')).toHaveClass('ui-lab-a11y__text-spacing');
-    expect(screen.getByTestId('reduced-motion-proof')).toHaveAttribute(
-      'data-reduced-motion-supported',
-      'true',
+    expect(screen.getByTestId('visible-focus-proof').getAttribute('tabindex')).toBe('0');
+    expect(screen.getByTestId('long-text-proof').dataset.textExpansion).toBe('200');
+    expect(screen.getByTestId('text-spacing-proof').classList).toContain(
+      'ui-lab-a11y__text-spacing',
     );
+    expect(screen.getByTestId('reduced-motion-proof').dataset.reducedMotionSupported).toBe('true');
 
     const css = await readFile(resolve('apps/desktop/src/ui-lab/UiLab.css'), 'utf8');
     expect(css).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)/u);
@@ -250,23 +253,23 @@ describe('UI Lab viewport, accessibility, and shell proofs', () => {
     const initialOrder = navigation.compareDocumentPosition(workspace);
     const collapse = within(shell).getByRole('button', { name: 'Recolher navegação' });
 
-    expect(navigation).toHaveAttribute('data-navigation-width', '232');
+    expect(navigation.dataset.navigationWidth).toBe('232');
     expect(within(navigation).getAllByTestId('shell-navigation-icon')).toHaveLength(3);
     await user.click(collapse);
 
-    expect(collapse).toHaveFocus();
-    expect(collapse).toHaveAccessibleName('Expandir navegação');
-    expect(navigation).toHaveAttribute('data-navigation-width', '56');
+    expect(document.activeElement).toBe(collapse);
+    expect(collapse.getAttribute('aria-label')).toBe('Expandir navegação');
+    expect(navigation.dataset.navigationWidth).toBe('56');
     expect(navigation.compareDocumentPosition(workspace)).toBe(initialOrder);
     expect(within(navigation).getAllByTestId('shell-navigation-icon')).toHaveLength(3);
-    expect(workspace).toHaveTextContent('Área de trabalho preservada');
+    expect(workspace.textContent).toContain('Área de trabalho preservada');
 
     firstRender.unmount();
     render(<UiLab />);
     await user.click(screen.getByRole('button', { name: 'Shell proof' }));
     expect(
-      screen.getByRole('navigation', { name: 'Composição de navegação' }),
-    ).toHaveAttribute('data-navigation-width', '232');
+      screen.getByRole('navigation', { name: 'Composição de navegação' }).dataset.navigationWidth,
+    ).toBe('232');
     expect(screen.getByRole('button', { name: 'Recolher navegação' })).toBeInstanceOf(
       HTMLButtonElement,
     );

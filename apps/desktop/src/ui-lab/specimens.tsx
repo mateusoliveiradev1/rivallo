@@ -17,7 +17,11 @@ import {
 } from '@rivallo/icons';
 import { useState, type ReactNode } from 'react';
 
-import { DenseTable } from '../ui/DenseTable/DenseTable.js';
+import {
+  DenseTable,
+  type DenseTableContent,
+  type DenseTableDensity,
+} from '../ui/DenseTable/DenseTable.js';
 import { denseTableEvidenceColumns, denseTableEvidenceRows } from '../ui/DenseTable/fixtures.js';
 import { Button, IconButton } from '../ui/primitives/actions.js';
 import { AlertDialogProof, Dialog } from '../ui/primitives/dialogs.js';
@@ -355,40 +359,169 @@ export function PrimitiveSpecimen() {
 }
 
 export function DenseTableSpecimen() {
+  const [density, setDensity] = useState<DenseTableDensity>('compact');
+  const [contentState, setContentState] = useState<'ready' | 'loading' | 'empty' | 'error'>(
+    'ready',
+  );
+  const [columnPriority, setColumnPriority] = useState('3');
+  const content: DenseTableContent<(typeof denseTableEvidenceRows)[number]> =
+    contentState === 'ready'
+      ? { kind: 'ready', rows: denseTableEvidenceRows }
+      : contentState === 'loading'
+        ? { kind: 'loading', rowCount: 5 }
+        : { kind: contentState };
+
   return (
-    <DenseTable
-      caption="DenseTable de evidência"
-      columns={denseTableEvidenceColumns}
-      content={{ kind: 'ready', rows: denseTableEvidenceRows }}
-      getRowActions={() => ({
-        primary: { label: 'Abrir evidência', onSelect: () => undefined },
-        secondary: [{ id: 'compare', label: 'Comparar evidência', onSelect: () => undefined }],
-      })}
-      getRowLabel={(row) => row.name}
-      label="Tabela densa configurável"
-      selectable
-      stickyHeader
-    />
+    <div className="ui-lab-dense-table-specimen">
+      <DenseTable
+        caption="DenseTable de evidência"
+        columnPriorityLimit={Number(columnPriority)}
+        columns={denseTableEvidenceColumns}
+        content={content}
+        density={density}
+        getRowActions={() => ({
+          primary: { label: 'Abrir evidência', onSelect: () => undefined },
+          secondary: [{ id: 'compare', label: 'Comparar evidência', onSelect: () => undefined }],
+        })}
+        getRowLabel={(row) => row.name}
+        label="Tabela densa configurável"
+        selectable
+        stickyHeader
+      />
+
+      <fieldset className="ui-lab-local-controls">
+        <legend>Controles locais da DenseTable</legend>
+        <Select
+          label="Densidade da tabela"
+          onChange={(event) => setDensity(event.currentTarget.value as DenseTableDensity)}
+          options={[
+            { value: 'compact', label: 'Compacta · 32px' },
+            { value: 'comfortable', label: 'Confortável · 40px' },
+          ]}
+          value={density}
+        />
+        <Select
+          label="Estado da tabela"
+          onChange={(event) =>
+            setContentState(event.currentTarget.value as 'ready' | 'loading' | 'empty' | 'error')
+          }
+          options={[
+            { value: 'ready', label: 'Pronta' },
+            { value: 'loading', label: 'Carregando' },
+            { value: 'empty', label: 'Vazia' },
+            { value: 'error', label: 'Erro' },
+          ]}
+          value={contentState}
+        />
+        <Select
+          label="Prioridade de colunas"
+          onChange={(event) => setColumnPriority(event.currentTarget.value)}
+          options={[
+            { value: '1', label: 'Somente essenciais' },
+            { value: '2', label: 'Essenciais e contexto' },
+            { value: '3', label: 'Todas as colunas' },
+          ]}
+          value={columnPriority}
+        />
+      </fieldset>
+    </div>
   );
 }
 
 export function AccessibilityEvidenceSpecimen() {
   return (
     <div className="ui-lab-accessibility-evidence">
-      <Status variant="info">Estado identificado por ícone e texto, nunca apenas por cor.</Status>
-      <p tabIndex={0}>
-        Este texto recebe foco para comprovar ordem, contorno e leitura por teclado.
+      <Status variant="info">
+        Informação acompanhada por ícone e texto; a cor não é o único sinal.
+      </Status>
+
+      <fieldset className="ui-lab-a11y__keyboard-path">
+        <legend>Ordem de teclado demonstrável</legend>
+        <Button variant="secondary">Primeiro alvo de teclado</Button>
+        <Button variant="secondary">Segundo alvo de teclado</Button>
+      </fieldset>
+
+      <p data-testid="visible-focus-proof" tabIndex={0}>
+        Foco visível em ciano, com contorno e deslocamento que não dependem da cor de fundo.
       </p>
-      <p>Movimento reduzido substitui transições não essenciais por resposta instantânea.</p>
+
+      <p
+        className="ui-lab-a11y__expanded-copy"
+        data-testid="long-text-proof"
+        data-text-expansion="200"
+      >
+        Associação Desportiva Vale das Águas Internacional — texto longo ampliado a duzentos por
+        cento para provar quebra segura, leitura integral e futura localização.
+      </p>
+
+      <p className="ui-lab-a11y__text-spacing" data-testid="text-spacing-proof">
+        Espaçamento de texto ampliado preserva palavras, linhas, controles e a ordem de leitura.
+      </p>
+
+      <div
+        className="ui-lab-a11y__motion-proof"
+        data-reduced-motion-supported="true"
+        data-testid="reduced-motion-proof"
+      >
+        <Icon name="information" size={20} />
+        <span>
+          Movimento reduzido torna a resposta instantânea; nenhuma informação depende da transição.
+        </span>
+      </div>
     </div>
   );
 }
 
 export function ShellProofSpecimen() {
+  const [collapsed, setCollapsed] = useState(false);
+  const toggleLabel = collapsed ? 'Expandir navegação' : 'Recolher navegação';
+  const navigationItems = [
+    { label: 'Região de exemplo A', icon: 'search' as const },
+    { label: 'Região de exemplo B', icon: 'columns' as const },
+    { label: 'Região de exemplo C', icon: 'information' as const },
+  ];
+
   return (
-    <div className="ui-lab-shell-placeholder">
-      <Icon name="collapse-navigation" />
-      <p>Composição estrutural local; não representa navegação de produto.</p>
+    <div className="ui-lab-shell-proof" data-collapsed={collapsed} data-testid="shell-proof">
+      <nav
+        aria-label="Composição de navegação"
+        className="ui-lab-shell-proof__navigation"
+        data-navigation-width={collapsed ? '56' : '232'}
+      >
+        <IconButton
+          accessibleLabel={toggleLabel}
+          icon={collapsed ? 'expand-navigation' : 'collapse-navigation'}
+          onClick={() => setCollapsed((current) => !current)}
+          stablePosition
+          tooltip={toggleLabel}
+        />
+        <div className="ui-lab-shell-proof__items">
+          {navigationItems.map((item) => (
+            <Tooltip content={item.label} key={item.label}>
+              <span
+                aria-label={item.label}
+                className="ui-lab-shell-proof__item"
+                tabIndex={collapsed ? 0 : -1}
+              >
+                <span data-testid="shell-navigation-icon">
+                  <Icon name={item.icon} size={20} />
+                </span>
+                <span aria-hidden={collapsed || undefined} className="ui-lab-shell-proof__label">
+                  {item.label}
+                </span>
+              </span>
+            </Tooltip>
+          ))}
+        </div>
+      </nav>
+
+      <section className="ui-lab-shell-proof__workspace" data-testid="shell-workspace">
+        <strong>Área de trabalho preservada</strong>
+        <p>
+          A largura disponível muda, mas a ordem do conteúdo e o foco permanecem estáveis. Esta
+          composição não representa navegação de produto.
+        </p>
+      </section>
     </div>
   );
 }
