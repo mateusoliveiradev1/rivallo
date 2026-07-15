@@ -36,6 +36,37 @@ const rows: readonly EvidenceRow[] = [
   { id: 'row-2', name: 'Exemplo Beta', score: 74 },
 ];
 
+const interactiveColumns = [
+  {
+    id: 'name',
+    header: 'Nome',
+    width: 240,
+    priority: 1,
+    sortable: true,
+    sortValue: (row: EvidenceRow) => row.name,
+    render: (row: EvidenceRow) => row.name,
+  },
+  {
+    id: 'score',
+    header: 'Índice',
+    width: 96,
+    priority: 2,
+    align: 'end',
+    hideable: true,
+    sortable: true,
+    sortValue: (row: EvidenceRow) => row.score,
+    render: (row: EvidenceRow) => row.score,
+  },
+  {
+    id: 'note',
+    header: 'Observação',
+    width: 180,
+    priority: 3,
+    hideable: true,
+    render: (row: EvidenceRow) => `Nota de ${row.name}`,
+  },
+] as const satisfies readonly DenseTableColumn<EvidenceRow>[];
+
 describe('DenseTable semantic structure and finite content states', () => {
   it('uses native table relationships inside a labelled overflow region', () => {
     render(
@@ -131,5 +162,148 @@ describe('DenseTable semantic structure and finite content states', () => {
     expect(css).toContain('var(--rv-color-surface-raised)');
     expect(css).toContain('font-variant-numeric: var(--rv-font-numeric-variant)');
     expect(css).not.toMatch(/#[0-9a-f]{3,8}|rgba?\(|hsla?\(/iu);
+  });
+});
+
+describe('DenseTable local interaction contracts', () => {
+  it('cycles semantic sorting with visible direction and stable row order', async () => {
+    const user = userEvent.setup();
+    render(
+      <DenseTable
+        caption="Ordenação local"
+        columns={interactiveColumns}
+        content={{ kind: 'ready', rows: [rows[1], rows[0]] }}
+        label="Tabela ordenável"
+      />,
+    );
+
+    const table = screen.getByRole('table', { name: 'Ordenação local' });
+    const nameHeader = within(table).getByRole('columnheader', { name: /Nome/u });
+    const scoreHeader = within(table).getByRole('columnheader', { name: /Índice/u });
+    const sortButton = within(nameHeader).getByRole('button', { name: 'Ordenar por Nome' });
+
+    expect(nameHeader.hasAttribute('aria-sort')).toBe(false);
+    expect(scoreHeader.hasAttribute('aria-sort')).toBe(false);
+    await user.click(sortButton);
+    expect(nameHeader.getAttribute('aria-sort')).toBe('ascending');
+    expect(sortButton.textContent).toContain('Crescente');
+    expect(table.querySelector('tbody tr')?.textContent).toContain('Exemplo Alfa');
+
+    await user.click(sortButton);
+    expect(nameHeader.getAttribute('aria-sort')).toBe('descending');
+    expect(sortButton.textContent).toContain('Decrescente');
+    expect(table.querySelector('tbody tr')?.textContent).toContain('Exemplo Beta');
+
+    await user.click(sortButton);
+    expect(nameHeader.hasAttribute('aria-sort')).toBe(false);
+    expect(table.querySelector('tbody tr')?.textContent).toContain('Exemplo Beta');
+  });
+
+  it('operates labelled row and bulk selection by keyboard with a non-colour cue', async () => {
+    const user = userEvent.setup();
+    render(
+      <DenseTable
+        caption="Seleção local"
+        columns={interactiveColumns}
+        content={{ kind: 'ready', rows }}
+        getRowLabel={(row) => row.name}
+        label="Tabela selecionável"
+        selectable
+      />,
+    );
+
+    const table = screen.getByRole('table', { name: 'Seleção local' });
+    const firstCheckbox = within(table).getByRole('checkbox', { name: 'Selecionar Exemplo Alfa' });
+    firstCheckbox.focus();
+    await user.keyboard(' ');
+    const selectedRow = firstCheckbox.closest('tr');
+    expect((firstCheckbox as HTMLInputElement).checked).toBe(true);
+    expect(selectedRow?.getAttribute('data-selected')).toBe('true');
+    expect(within(selectedRow as HTMLTableRowElement).getByText('Selecionado')).toBeInstanceOf(
+      HTMLElement,
+    );
+
+    const bulk = within(table).getByRole('checkbox', { name: 'Selecionar todas as linhas' });
+    bulk.focus();
+    await user.keyboard(' ');
+    expect(
+      within(table)
+        .getAllByRole('checkbox', { name: /Selecionar Exemplo/u })
+        .every((checkbox) => (checkbox as HTMLInputElement).checked),
+    ).toBe(true);
+    expect(screen.getByText('2 linhas selecionadas')).toBeInstanceOf(HTMLElement);
+  });
+
+  it('removes priority-hidden and user-hidden columns consistently and resets locally', async () => {
+    const user = userEvent.setup();
+    const first = render(
+      <DenseTable
+        caption="Visibilidade local"
+        columns={interactiveColumns}
+        columnPriorityLimit={2}
+        content={{ kind: 'ready', rows }}
+        label="Tabela configurável"
+      />,
+    );
+
+    let table = screen.getByRole('table', { name: 'Visibilidade local' });
+    expect(within(table).queryByRole('columnheader', { name: 'Observação' })).toBeNull();
+    expect(within(table).getByRole('columnheader', { name: /Índice/u })).toBeInstanceOf(
+      HTMLTableCellElement,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Configurar colunas' }));
+    await user.click(screen.getByRole('menuitemcheckbox', { name: /Índice/u }));
+    table = screen.getByRole('table', { name: 'Visibilidade local' });
+    expect(within(table).queryByRole('columnheader', { name: /Índice/u })).toBeNull();
+    expect(within(table).getAllByRole('cell')).toHaveLength(2);
+
+    first.unmount();
+    render(
+      <DenseTable
+        caption="Visibilidade local"
+        columns={interactiveColumns}
+        columnPriorityLimit={2}
+        content={{ kind: 'error' }}
+        label="Tabela configurável"
+      />,
+    );
+    table = screen.getByRole('table', { name: 'Visibilidade local' });
+    expect(within(table).getByRole('columnheader', { name: /Índice/u })).toBeInstanceOf(
+      HTMLTableCellElement,
+    );
+    expect(within(table).getByRole('alert').closest('td')?.colSpan).toBe(2);
+  });
+
+  it('exposes one visible primary action and keyboard-accessible secondary actions per row', async () => {
+    const user = userEvent.setup();
+    const onPrimary = vi.fn();
+    const onSecondary = vi.fn();
+    render(
+      <DenseTable
+        caption="Ações locais"
+        columns={columns}
+        content={{ kind: 'ready', rows }}
+        getRowActions={(row) => ({
+          primary: { label: 'Inspecionar exemplo', onSelect: () => onPrimary(row.id) },
+          secondary: [
+            { id: 'compare', label: 'Comparar exemplo', onSelect: () => onSecondary(row.id) },
+          ],
+        })}
+        getRowLabel={(row) => row.name}
+        label="Tabela com ações"
+      />,
+    );
+
+    expect(screen.getAllByRole('button', { name: 'Inspecionar exemplo' })).toHaveLength(2);
+    await user.click(screen.getAllByRole('button', { name: 'Inspecionar exemplo' })[0]);
+    expect(onPrimary).toHaveBeenCalledWith('row-1');
+
+    const menuTrigger = screen.getByRole('button', { name: 'Mais ações para Exemplo Alfa' });
+    menuTrigger.focus();
+    await user.keyboard('{Enter}');
+    const secondary = await screen.findByRole('menuitem', { name: 'Comparar exemplo' });
+    await user.keyboard('{Enter}');
+    expect(onSecondary).toHaveBeenCalledWith('row-1');
   });
 });
