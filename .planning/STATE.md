@@ -4,18 +4,18 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 5
 current_phase_name: Design Tokens, Icon Policy and UI Primitives
-current_plan: 5
+current_plan: 6
 status: Ready to execute
-stopped_at: Completed 05-04-PLAN.md
-last_updated: "2026-07-15T15:43:03.322Z"
+stopped_at: Completed 05-05-PLAN.md
+last_updated: "2026-07-15T16:03:36.954Z"
 last_activity: 2026-07-15
-last_activity_desc: Plan 05-04 completed; Plan 05-05 is next
+last_activity_desc: Plan 05-05 completed; Plan 05-06 is next
 progress:
   total_phases: 13
   completed_phases: 3
   total_plans: 29
-  completed_plans: 23
-  percent: 79
+  completed_plans: 24
+  percent: 83
 ---
 
 # State
@@ -35,11 +35,11 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 
 Current Phase: 5
 Current Phase Name: Design Tokens, Icon Policy and UI Primitives
-Current Plan: 5
+Current Plan: 6
 Total Plans in Phase: 10
 Status: Ready to execute
-Progress: 79%
-Last activity: 2026-07-15 — Plan 05-04 completed; Plan 05-05 is next
+Progress: 83%
+Last activity: 2026-07-15 — Plan 05-05 completed; Plan 05-06 is next
 
 ## Gate History
 
@@ -49,8 +49,8 @@ Last activity: 2026-07-15 — Plan 05-04 completed; Plan 05-05 is next
 
 ## Session
 
-**Last session:** 2026-07-15T15:43:03.318Z
-**Stopped at:** Completed 05-04-PLAN.md
+**Last session:** 2026-07-15T16:03:36.950Z
+**Stopped at:** Completed 05-05-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -74,9 +74,13 @@ Last activity: 2026-07-15 — Plan 05-04 completed; Plan 05-05 is next
 | Phase 05 P02 | 9 min | 2 tasks | 10 files |
 | Phase 05 P03 | 11 min | 3 tasks | 8 files |
 | Phase 05 P04 | 10 min | 2 tasks | 10 files |
+| Phase 05 P05 | 16 min | 3 tasks | 10 files |
 
 ## Decisions
 
+- [Phase 05]: Keep action, form, choice, pagination, and overflow behavior native while Rivallo owns typed APIs and token-based appearance. — Preserves standard keyboard and disabled semantics without custom-control reinvention.
+- [Phase 05]: Let Status own polite/assertive live semantics and optionally render its label as a real heading. — Host lifecycle structure remains semantic without nested or duplicated live regions.
+- [Phase 05]: Export generated.css explicitly from @rivallo/design-tokens and retain Tauri invoke/poll/retry authority outside primitives. — Makes the visual boundary consumable without moving process authority into UI components.
 - [Phase 05]: Mateus approved exactly 16 reviewed direct packages under digest `sha256:56d9bfb036d3b3d42acc09faa968911cfc5aa760def3c991288dfe2e8fcf8b7f`. — No dependency transaction may exceed the reviewed names, versions, scopes, or integrity records.
 - [Phase 05]: Use `lucide-react@1.24.0` as the sole generic icon family and seven narrow Radix packages only for accessible behavior. — Rivallo owns all appearance; native HTML remains preferred where suitable.
 - [Phase 05]: Use `colorjs.io@0.6.1` for deterministic OKLCH, gamut mapping, and contrast calculations. — Avoids an unreviewed local color-science implementation and the less-observed 0.7.0 release.

@@ -123,7 +123,7 @@ Plans:
 
 **Dependencies:** Phase 4; approved DESIGN FOUNDATION V0.
 
-**Plans:** 4/10 plans executed
+**Plans:** 5/10 plans executed
 
 Plans:
 
@@ -145,7 +145,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 05-05-PLAN.md — Build native-first primitives and migrate the lifecycle shell.
+- [x] 05-05-PLAN.md — Build native-first primitives and migrate the lifecycle shell.
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
