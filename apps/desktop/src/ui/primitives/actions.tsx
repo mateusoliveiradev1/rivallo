@@ -1,6 +1,8 @@
 import { Icon, type GenericIconName } from '@rivallo/icons';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
+import { Tooltip } from './disclosure.js';
+
 type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'destructive-proof';
 
 export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'color'> {
@@ -46,21 +48,29 @@ export function Button({
   );
 }
 
-export interface IconButtonProps extends Omit<
+type IconButtonBaseProps = Omit<
   ButtonHTMLAttributes<HTMLButtonElement>,
   'aria-label' | 'children' | 'color'
-> {
+> & {
   readonly icon: GenericIconName;
   readonly accessibleLabel: string;
   readonly variant?: Exclude<ButtonVariant, 'primary'>;
   readonly loading?: boolean;
-}
+};
+
+type StableTooltipProps =
+  | { readonly tooltip: string; readonly stablePosition: true }
+  | { readonly tooltip?: never; readonly stablePosition?: never };
+
+export type IconButtonProps = IconButtonBaseProps & StableTooltipProps;
 
 export function IconButton({
   icon,
   accessibleLabel,
   variant = 'quiet',
   loading = false,
+  tooltip,
+  stablePosition,
   disabled,
   type = 'button',
   className,
@@ -70,7 +80,7 @@ export function IconButton({
     throw new Error('IconButton requires a non-empty accessibleLabel.');
   }
 
-  return (
+  const button = (
     <button
       {...buttonProps}
       aria-busy={loading || undefined}
@@ -87,4 +97,10 @@ export function IconButton({
       />
     </button>
   );
+
+  if (tooltip !== undefined && stablePosition !== true) {
+    throw new Error('IconButton tooltip requires stablePosition=true.');
+  }
+
+  return tooltip ? <Tooltip content={tooltip}>{button}</Tooltip> : button;
 }
