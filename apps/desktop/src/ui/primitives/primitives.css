@@ -427,7 +427,7 @@
 }
 
 .rv-scroll-area__content {
-  min-width: max-content;
+  min-width: 0;
 }
 
 @keyframes rv-skeleton-pulse {
