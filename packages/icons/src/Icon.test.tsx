@@ -6,7 +6,12 @@ import { createElement } from 'react';
 import { describe, expect, it } from 'vitest';
 
 import { Icon, genericIconMetadata, type IconProps } from './Icon.js';
-import { FootballIcon, footballIconMetadata, type FootballIconProps } from './football-icons.js';
+import {
+  FootballIcon,
+  footballIconGrammar,
+  footballIconMetadata,
+  type FootballIconProps,
+} from './football-icons.js';
 
 describe('curated generic Icon boundary', () => {
   it.each([16, 20, 24] as const)(
@@ -49,13 +54,17 @@ describe('curated generic Icon boundary', () => {
       'loading',
       'more-actions',
       'next',
+      'people',
       'previous',
       'retry',
+      'schedule',
       'search',
+      'settings',
       'sort-ascending',
       'sort-descending',
       'success',
       'warning',
+      'workspace',
     ]);
     expect(Object.values(genericIconMetadata).every(({ meaning }) => meaning.length > 0)).toBe(
       true,
@@ -118,6 +127,24 @@ describe('curated generic Icon boundary', () => {
 });
 
 describe('original football icon registry', () => {
+  it('publishes one bounded construction grammar for the complete football family', () => {
+    expect(footballIconGrammar).toEqual({
+      masterGrid: 24,
+      viewBox: '0 0 24 24',
+      approvedSizes: [16, 20, 24],
+      strokeWidth: 1.75,
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round',
+      color: 'currentColor',
+      fill: 'none',
+      opticalPadding: 2,
+      detailCeiling: {
+        elements: 4,
+        pathCommands: 14,
+      },
+    });
+  });
+
   it('keeps the proof vocabulary small, versioned, and Rivallo-owned', async () => {
     expect(Object.keys(footballIconMetadata)).toEqual([
       'football-ball',
@@ -127,7 +154,7 @@ describe('original football icon registry', () => {
     expect(
       Object.values(footballIconMetadata).every(
         ({ version, source, viewBox, meaning }) =>
-          version === '1.0.0' &&
+          version === '1.1.0' &&
           source === 'rivallo-project-original' &&
           viewBox === '0 0 24 24' &&
           meaning.length > 0,
@@ -136,7 +163,10 @@ describe('original football icon registry', () => {
 
     const authorship = await readFile(resolve('packages/icons/AUTHORSHIP.md'), 'utf8');
     expect(authorship).toContain('2026-07-15');
-    expect(authorship).toContain('Version 1.0.0');
+    expect(authorship).toContain('Version 1.1.0');
+    expect(authorship).toContain('24-unit master grid');
+    expect(authorship).toContain('optical safe zone');
+    expect(authorship).toContain('detail ceiling');
     expect(authorship).toContain(
       'No external SVG path, crest, icon library, or game asset was imported',
     );
@@ -154,13 +184,18 @@ describe('original football icon registry', () => {
         const { container, unmount } = render(<FootballIcon name={name} size={size} />);
         const svg = container.querySelector('svg');
 
-        expect(svg?.getAttribute('viewBox')).toBe('0 0 24 24');
+        expect(svg?.getAttribute('viewBox')).toBe(footballIconGrammar.viewBox);
         expect(svg?.getAttribute('width')).toBe(String(size));
         expect(svg?.getAttribute('height')).toBe(String(size));
-        expect(svg?.getAttribute('stroke')).toBe('currentColor');
-        expect(svg?.getAttribute('stroke-width')).toBe('1.75');
-        expect(svg?.getAttribute('fill')).toBe('none');
-        expect(svg?.getAttribute('data-icon-version')).toBe('1.0.0');
+        expect(svg?.getAttribute('stroke')).toBe(footballIconGrammar.color);
+        expect(svg?.getAttribute('stroke-width')).toBe(String(footballIconGrammar.strokeWidth));
+        expect(svg?.getAttribute('stroke-linecap')).toBe(footballIconGrammar.strokeLinecap);
+        expect(svg?.getAttribute('stroke-linejoin')).toBe(footballIconGrammar.strokeLinejoin);
+        expect(svg?.getAttribute('fill')).toBe(footballIconGrammar.fill);
+        expect(svg?.getAttribute('data-icon-name')).toBe(name);
+        expect(svg?.getAttribute('data-icon-version')).toBe(footballIconMetadata[name].version);
+        expect(svg?.getAttribute('data-icon-grid')).toBe(String(footballIconGrammar.masterGrid));
+        expect(svg?.getAttribute('data-icon-family')).toBe('rivallo-football');
         expect(container.querySelectorAll('path, circle, line').length).toBeGreaterThan(1);
         unmount();
       }
@@ -173,6 +208,44 @@ describe('original football icon registry', () => {
 
     rerender(<FootballIcon name="training-cone" decorative={false} label="Treinamento de campo" />);
     expect(screen.getByRole('img', { name: 'Treinamento de campo' })).toBeTruthy();
+  });
+
+  it('keeps every authored geometry inside the optical safe zone and detail ceiling', () => {
+    const minimum = footballIconGrammar.opticalPadding;
+    const maximum = footballIconGrammar.masterGrid - minimum;
+
+    for (const name of Object.keys(footballIconMetadata) as Array<
+      keyof typeof footballIconMetadata
+    >) {
+      const { container, unmount } = render(<FootballIcon name={name} />);
+      const geometry = Array.from(container.querySelectorAll('svg > path, svg > circle, svg > line'));
+
+      expect(geometry.length).toBeLessThanOrEqual(footballIconGrammar.detailCeiling.elements);
+      for (const element of geometry) {
+        if (element instanceof SVGCircleElement) {
+          const cx = Number(element.getAttribute('cx'));
+          const cy = Number(element.getAttribute('cy'));
+          const radius = Number(element.getAttribute('r'));
+          expect(cx - radius).toBeGreaterThanOrEqual(minimum);
+          expect(cy - radius).toBeGreaterThanOrEqual(minimum);
+          expect(cx + radius).toBeLessThanOrEqual(maximum);
+          expect(cy + radius).toBeLessThanOrEqual(maximum);
+          continue;
+        }
+
+        const data = element.getAttribute('d');
+        if (data) {
+          const commands = data.match(/[a-z]/giu) ?? [];
+          const values = data.match(/-?\d+(?:\.\d+)?/gu)?.map(Number) ?? [];
+          expect(commands.length).toBeLessThanOrEqual(
+            footballIconGrammar.detailCeiling.pathCommands,
+          );
+          expect(values.every((value) => value >= minimum && value <= maximum)).toBe(true);
+        }
+      }
+
+      unmount();
+    }
   });
 
   it('contains only fixed local static SVG geometry and safe attributes', () => {
