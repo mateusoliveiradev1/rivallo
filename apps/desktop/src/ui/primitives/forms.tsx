@@ -5,6 +5,7 @@ import {
   useRef,
   type ChangeEvent,
   type InputHTMLAttributes,
+  type KeyboardEvent,
   type SelectHTMLAttributes,
 } from 'react';
 
@@ -226,6 +227,29 @@ export function RadioGroup({
   const generatedId = useId();
   const groupName = name ?? `rv-radio-${generatedId}`;
   const errorId = `${groupName}-error`;
+  const radioRefs = useRef<Array<HTMLInputElement | null>>([]);
+
+  const moveSelection = (currentIndex: number, direction: -1 | 1) => {
+    for (let offset = 1; offset <= options.length; offset += 1) {
+      const candidateIndex = (currentIndex + direction * offset + options.length) % options.length;
+      const candidate = options[candidateIndex];
+      if (!candidate.disabled) {
+        onValueChange(candidate.value);
+        radioRefs.current[candidateIndex]?.focus();
+        return;
+      }
+    }
+  };
+
+  const handleArrowKey = (event: KeyboardEvent<HTMLInputElement>, index: number) => {
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      moveSelection(index, 1);
+    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      moveSelection(index, -1);
+    }
+  };
 
   return (
     <fieldset
@@ -236,7 +260,7 @@ export function RadioGroup({
     >
       <legend className="rv-field__label">{label}</legend>
       <div className="rv-radio-group__options">
-        {options.map((option) => {
+        {options.map((option, index) => {
           const selected = option.value === value;
           return (
             <label className="rv-radio" key={option.value}>
@@ -245,6 +269,10 @@ export function RadioGroup({
                 disabled={option.disabled}
                 name={groupName}
                 onChange={() => onValueChange(option.value)}
+                onKeyDown={(event) => handleArrowKey(event, index)}
+                ref={(element) => {
+                  radioRefs.current[index] = element;
+                }}
                 type="radio"
                 value={option.value}
               />

@@ -1,10 +1,11 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { createElement } from 'react';
+import { createElement, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { IconButton, type IconButtonProps } from './actions.js';
 import { Menu, Popover } from './disclosure.js';
+import { RadioGroup, Switch, Tabs } from './selection.js';
 
 describe('Tooltip and stable IconButton composition', () => {
   it('keeps the button named independently while tooltip follows focus, hover, and Escape', async () => {
@@ -135,5 +136,112 @@ describe('Menu command boundary', () => {
     await user.keyboard('{Escape}');
     expect(document.activeElement).toBe(trigger);
     expect(onSelect).not.toHaveBeenCalled();
+  });
+});
+
+describe('composite selection boundaries', () => {
+  it('uses roving arrow focus with stable tab and panel associations', async () => {
+    const user = userEvent.setup();
+    render(
+      <Tabs
+        defaultValue="overview"
+        label="Seções do exemplo"
+        items={[
+          { value: 'overview', label: 'Visão geral', content: 'Conteúdo geral' },
+          { value: 'details', label: 'Detalhes', content: 'Conteúdo detalhado' },
+          { value: 'disabled', label: 'Indisponível', content: 'Nunca exibido', disabled: true },
+        ]}
+      />,
+    );
+
+    const overview = screen.getByRole('tab', { name: 'Visão geral' });
+    const details = screen.getByRole('tab', { name: 'Detalhes' });
+    expect(overview.getAttribute('aria-selected')).toBe('true');
+    expect(overview.getAttribute('aria-controls')).toBe(
+      screen.getByRole('tabpanel', { name: 'Visão geral' }).id,
+    );
+
+    await user.click(overview);
+    await user.keyboard('{ArrowRight}');
+    expect(document.activeElement).toBe(details);
+    expect(details.getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('tabpanel', { name: 'Detalhes' }).textContent).toBe(
+      'Conteúdo detalhado',
+    );
+
+    await user.keyboard('{ArrowRight}');
+    expect(document.activeElement).toBe(overview);
+  });
+
+  it('keeps native radio naming while arrow-selecting and associating disabled/error state', async () => {
+    function RadioFixture() {
+      const [value, setValue] = useState('compact');
+      return (
+        <RadioGroup
+          error="Escolha uma densidade disponível."
+          label="Densidade do exemplo"
+          onValueChange={setValue}
+          options={[
+            { value: 'compact', label: 'Compacta' },
+            { value: 'comfortable', label: 'Confortável' },
+            { value: 'unavailable', label: 'Indisponível', disabled: true },
+          ]}
+          value={value}
+        />
+      );
+    }
+
+    const user = userEvent.setup();
+    render(<RadioFixture />);
+    const group = screen.getByRole('group', { name: 'Densidade do exemplo' });
+    const compact = screen.getByRole('radio', { name: 'Compacta' });
+    const comfortable = screen.getByRole('radio', { name: 'Confortável' });
+    const unavailable = screen.getByRole('radio', { name: 'Indisponível' });
+    expect(group.getAttribute('aria-invalid')).toBe('true');
+    expect(group.getAttribute('aria-describedby')).toBe(
+      screen.getByText('Escolha uma densidade disponível.').closest('p')?.id,
+    );
+    expect((unavailable as HTMLInputElement).disabled).toBe(true);
+
+    compact.focus();
+    await user.keyboard('{ArrowRight}');
+    expect(document.activeElement).toBe(comfortable);
+    expect((comfortable as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByText('Selecionado')).toBeInstanceOf(HTMLElement);
+  });
+
+  it('exposes a visible switch label/state and supports Space, Enter, focus, and disabled state', async () => {
+    function SwitchFixture() {
+      const [checked, setChecked] = useState(false);
+      return (
+        <>
+          <Switch checked={checked} label="Mostrar ajuda contextual" onCheckedChange={setChecked} />
+          <Switch
+            checked={false}
+            disabled
+            label="Opção indisponível"
+            onCheckedChange={() => undefined}
+          />
+        </>
+      );
+    }
+
+    const user = userEvent.setup();
+    render(<SwitchFixture />);
+    const control = screen.getByRole('switch', { name: /Mostrar ajuda contextual/u });
+    const disabled = screen.getByRole('switch', { name: /Opção indisponível/u });
+    const state = document.getElementById(control.getAttribute('aria-describedby') ?? '');
+    expect(control.getAttribute('aria-checked')).toBe('false');
+    expect(state?.textContent).toBe('Desativado');
+    expect((disabled as HTMLButtonElement).disabled).toBe(true);
+
+    control.focus();
+    await user.keyboard(' ');
+    expect(control.getAttribute('aria-checked')).toBe('true');
+    expect(state?.textContent).toBe('Ativado');
+
+    await user.keyboard('{Enter}');
+    expect(control.getAttribute('aria-checked')).toBe('false');
+    expect(document.activeElement).toBe(control);
   });
 });
