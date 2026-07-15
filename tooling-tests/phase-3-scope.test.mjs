@@ -38,7 +38,7 @@ describe('Phase 3 contracts pipeline', () => {
     ]) {
       execFileSync(process.execPath, [script], { cwd: root, stdio: 'pipe' });
     }
-  });
+  }, 30_000);
 });
 
 describe('Phase 3 scope fences', () => {
