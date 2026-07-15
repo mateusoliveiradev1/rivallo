@@ -5,7 +5,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { IconButton, type IconButtonProps } from './actions.js';
 import { Menu, Popover } from './disclosure.js';
+import { AlertDialogProof, Dialog } from './dialogs.js';
 import { RadioGroup, Switch, Tabs } from './selection.js';
+import { Toast } from './toast.js';
 
 describe('Tooltip and stable IconButton composition', () => {
   it('keeps the button named independently while tooltip follows focus, hover, and Escape', async () => {
@@ -243,5 +245,97 @@ describe('composite selection boundaries', () => {
     await user.keyboard('{Enter}');
     expect(control.getAttribute('aria-checked')).toBe('false');
     expect(document.activeElement).toBe(control);
+  });
+});
+
+describe('modal interruption boundaries', () => {
+  it('contains focus, closes with Escape, and returns focus across repeated Dialog opens', async () => {
+    const user = userEvent.setup();
+    render(
+      <div>
+        <Dialog
+          description="Revise esta interrupção de demonstração antes de continuar."
+          title="Inspeção interrompida"
+          triggerLabel="Abrir diálogo"
+        >
+          <button type="button">Ação interna</button>
+        </Dialog>
+        <button type="button">Ação de fundo</button>
+      </div>,
+    );
+
+    const trigger = screen.getByRole('button', { name: 'Abrir diálogo' });
+    const background = screen.getByRole('button', { name: 'Ação de fundo' });
+    await user.click(trigger);
+    const dialog = screen.getByRole('dialog', { name: 'Inspeção interrompida' });
+    expect(dialog.getAttribute('aria-describedby')).toBe(
+      screen.getByText('Revise esta interrupção de demonstração antes de continuar.').id,
+    );
+    const internal = screen.getByRole('button', { name: 'Ação interna' });
+    const close = screen.getByRole('button', { name: 'Fechar diálogo' });
+    expect(document.activeElement).toBe(internal);
+    expect(background.closest('[aria-hidden="true"]')).not.toBeNull();
+
+    await user.keyboard('{Shift>}{Tab}{/Shift}');
+    expect(document.activeElement).toBe(close);
+    await user.keyboard('{Tab}');
+    expect(document.activeElement).toBe(internal);
+
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(document.activeElement).toBe(trigger);
+
+    await user.click(trigger);
+    expect(screen.getByRole('dialog', { name: 'Inspeção interrompida' })).toBeInstanceOf(
+      HTMLElement,
+    );
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Ação interna' }));
+    await user.click(screen.getByRole('button', { name: 'Fechar diálogo' }));
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+  });
+
+  it('uses exact no-mutation AlertDialog proof copy with Cancelar as the safe default', async () => {
+    const user = userEvent.setup();
+    render(<AlertDialogProof triggerLabel="Abrir confirmação" />);
+
+    await user.click(screen.getByRole('button', { name: 'Abrir confirmação' }));
+    const dialog = screen.getByRole('alertdialog', { name: 'Confirmar ação' });
+    expect(dialog.textContent).toContain(
+      'Esta demonstração confirma apenas o comportamento do diálogo. Nenhuma ação real será executada.',
+    );
+    const cancel = screen.getByRole('button', { name: 'Cancelar' });
+    const confirm = screen.getByRole('button', { name: 'Confirmar ação' });
+    expect(cancel.getAttribute('data-variant')).toBe('primary');
+    expect(confirm.getAttribute('data-variant')).toBe('destructive-proof');
+    expect(document.activeElement).toBe(cancel);
+
+    await user.click(confirm);
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Abrir confirmação' }));
+  });
+});
+
+describe('brief Toast boundary', () => {
+  it('announces brief non-critical feedback and remains explicitly dismissible', async () => {
+    const user = userEvent.setup();
+    const onDismiss = vi.fn();
+    render(
+      <Toast
+        message="A preferência temporária foi aplicada somente a este exemplo."
+        onDismiss={onDismiss}
+        title="Exemplo atualizado"
+      />,
+    );
+
+    const toast = screen.getByRole('status', { name: 'Exemplo atualizado' });
+    expect(toast.getAttribute('aria-live')).toBe('polite');
+    expect(toast.textContent).toContain(
+      'A preferência temporária foi aplicada somente a este exemplo.',
+    );
+    expect(toast.getAttribute('data-persistence')).toBe('brief');
+
+    await user.click(screen.getByRole('button', { name: 'Dispensar aviso' }));
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('status', { name: 'Exemplo atualizado' })).toBeNull();
   });
 });
