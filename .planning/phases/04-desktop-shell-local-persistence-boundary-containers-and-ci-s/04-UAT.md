@@ -3,12 +3,12 @@ status: partial
 phase: 04-desktop-shell-local-persistence
 source: [04-VERIFICATION.md]
 started: 2026-07-14T16:53:52.653Z
-updated: 2026-07-15T00:08:59.091Z
+updated: 2026-07-15T01:01:24.373Z
 ---
 
 ## Current Test
 
-[testing paused — 2 items blocked by the current environment]
+[testing paused — Docker requires one reboot to load the corrected hypervisor configuration]
 
 ## Tests
 
@@ -26,24 +26,23 @@ result: pass
 
 expected: `docker compose up -d postgres` starts one loopback PostgreSQL service that becomes healthy; ordinary `docker compose down` preserves the named volume; restart reuses it; only the separately documented `down --volumes` path is destructive.
 result: blocked
-blocked_by: third-party
-reason: Docker Compose is not installed on the current verification host.
+blocked_by: environment
+reason: Docker Desktop 4.82.0 and Compose are installed, but the engine reports `hasNoVirtualization: true`. WSL 2 and Virtual Machine Platform were re-enabled and `hypervisorlaunchtype` was set to `auto`; a reboot is required before the runtime and volume-persistence checks can run.
 
 ### 4. Hosted CI run
 
 expected: After pushing or opening a pull request, `javascript-typescript`, `rust-contracts`, and `desktop-linux` pass independently on Linux and publish no installers, screenshots, or application artifacts.
-result: blocked
-blocked_by: third-party
-reason: The workflow has not been pushed to GitHub, so no hosted Actions run exists yet.
+result: pass
+evidence: GitHub Actions run https://github.com/mateusoliveiradev1/rivallo/actions/runs/29380208069 completed successfully for commit `b0cf7c6`; `javascript-typescript`, `rust-contracts`, and `desktop-linux` all passed independently, and the workflow contains no artifact publishing step.
 
 ## Summary
 
 total: 4
-passed: 2
+passed: 3
 issues: 0
 pending: 0
 skipped: 0
-blocked: 2
+blocked: 1
 
 ## Gaps
 
