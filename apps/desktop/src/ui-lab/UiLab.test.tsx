@@ -13,7 +13,9 @@ describe('UI Lab development boundary', () => {
     expect(mainSource).toContain(
       "const isUiLab = import.meta.env.DEV && window.location.pathname === '/__ui-lab';",
     );
-    expect(mainSource).toContain("isUiLab ? import('./ui-lab/UiLab.js') : import('./App.js')");
+    expect(mainSource).toMatch(
+      /isUiLab\s*\?\s*import\('\.\/ui-lab\/UiLab\.js'\)\s*:\s*import\('\.\/App\.js'\)/u,
+    );
     expect(mainSource).not.toMatch(/import\s+\{\s*UiLab\s*\}\s+from/u);
     expect(mainSource).not.toContain('href="/__ui-lab"');
   });
