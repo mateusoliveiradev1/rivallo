@@ -128,9 +128,11 @@ describe('DenseTable semantic structure and finite content states', () => {
       .getByText('Nenhum exemplo disponível para este estado.')
       .closest('td');
     expect(emptyCell?.colSpan).toBe(2);
-    expect(within(table).getByText('Selecione outro estado no controle acima para continuar a inspeção.')).toBeInstanceOf(
-      HTMLParagraphElement,
-    );
+    expect(
+      within(table).getByText(
+        'Selecione outro estado no controle acima para continuar a inspeção.',
+      ),
+    ).toBeInstanceOf(HTMLParagraphElement);
 
     rerender(
       <DenseTable
