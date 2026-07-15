@@ -4,18 +4,18 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 5
 current_phase_name: Design Tokens, Icon Policy and UI Primitives
-current_plan: 9
+current_plan: 10
 status: Ready to execute
-stopped_at: Completed 05-08-PLAN.md
-last_updated: "2026-07-15T16:51:26.291Z"
+stopped_at: Completed 05-09-PLAN.md
+last_updated: "2026-07-15T17:08:42.455Z"
 last_activity: 2026-07-15
-last_activity_desc: Plan 05-08 completed; Plan 05-09 is next
+last_activity_desc: Plan 05-09 completed; Plan 05-10 is next
 progress:
   total_phases: 13
   completed_phases: 3
   total_plans: 29
-  completed_plans: 27
-  percent: 93
+  completed_plans: 28
+  percent: 97
 ---
 
 # State
@@ -35,11 +35,11 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 
 Current Phase: 5
 Current Phase Name: Design Tokens, Icon Policy and UI Primitives
-Current Plan: 9
+Current Plan: 10
 Total Plans in Phase: 10
 Status: Ready to execute
-Progress: 93%
-Last activity: 2026-07-15 — Plan 05-08 completed; Plan 05-09 is next
+Progress: 97%
+Last activity: 2026-07-15 — Plan 05-09 completed; Plan 05-10 is next
 
 ## Gate History
 
@@ -49,8 +49,8 @@ Last activity: 2026-07-15 — Plan 05-08 completed; Plan 05-09 is next
 
 ## Session
 
-**Last session:** 2026-07-15T16:51:26.287Z
-**Stopped at:** Completed 05-08-PLAN.md
+**Last session:** 2026-07-15T17:08:42.451Z
+**Stopped at:** Completed 05-09-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -78,9 +78,14 @@ Last activity: 2026-07-15 — Plan 05-08 completed; Plan 05-09 is next
 | Phase 05 P06 | 9 min | 3 tasks | 8 files |
 | Phase 05 P07 | 12 min | 3 tasks | 5 files |
 | Phase 05 P08 | 17 min | 3 tasks | 6 files |
+| Phase 05 P09 | 13 min | 3 tasks | 11 files |
 
 ## Decisions
 
+- [Phase 05]: Run Chromium against independent development and production Vite servers. — UI Lab evidence remains independent of Tauri, sidecar, API and Docker state while production exclusion is tested in a real browser.
+- [Phase 05]: Keep `pnpm quality` writer-free and make `pnpm quality:clean` run the aggregate plus desktop build twice against exact porcelain. — Checks are repeatable, fail-fast and preserve both clean and pre-existing dirty baselines.
+- [Phase 05]: Install the approved Playwright Chromium binary explicitly in CI and never inside test commands. — Environment setup is visible and actionable without hidden downloads during verification.
+- [Phase 05]: Keep hierarchy, originality, non-imitation and terminal visual approval human-owned. — Automation proves structure and behavior but does not pretend to replace design judgment.
 - [Phase 05]: Keep `/__ui-lab` behind an exact compile-time DEV predicate and select App/UI Lab through dynamic imports. — Production retains the operational shell without exposing inspection behavior, navigation or bundle copy.
 - [Phase 05]: Treat 1366×768, 1920×1080 and 2560×1080 as labelled deterministic layout frames, not device emulation. — The Lab makes bounds inspectable without overstating browser-level evidence.
 - [Phase 05]: Keep viewport, DenseTable and shell configuration local to each mount. — Persistence, preferences, lifecycle, API, network and Tauri authority remain outside the Lab.

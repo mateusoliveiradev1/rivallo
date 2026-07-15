@@ -123,7 +123,7 @@ Plans:
 
 **Dependencies:** Phase 4; approved DESIGN FOUNDATION V0.
 
-**Plans:** 8/10 plans executed
+**Plans:** 9/10 plans executed
 
 Plans:
 
@@ -161,7 +161,7 @@ Plans:
 
 **Wave 9** *(blocked on Wave 8 completion)*
 
-- [ ] 05-09-PLAN.md — Integrate Playwright, quality, CI, and clean-worktree evidence.
+- [x] 05-09-PLAN.md — Integrate Playwright, quality, CI, and clean-worktree evidence.
 
 **Wave 10** *(blocked on Wave 9 completion)*
 
