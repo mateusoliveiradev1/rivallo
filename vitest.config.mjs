@@ -15,7 +15,7 @@ export default defineConfig({
         test: {
           name: 'desktop-dom',
           environment: 'jsdom',
-          include: ['apps/desktop/src/**/*.test.{ts,tsx}'],
+          include: ['apps/desktop/src/**/*.test.{ts,tsx}', 'packages/icons/src/**/*.test.{ts,tsx}'],
           globals: true,
         },
       },

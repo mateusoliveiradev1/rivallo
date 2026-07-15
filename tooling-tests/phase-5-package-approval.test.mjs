@@ -41,6 +41,7 @@ function makeInstalledWorkspace() {
       },
       icons: {
         dependencies: /** @type {Record<string, string>} */ ({ 'lucide-react': '1.24.0' }),
+        peerDependencies: /** @type {Record<string, string>} */ ({ react: '19.2.7' }),
       },
       designTokens: {},
     },
@@ -213,6 +214,7 @@ describe('installed workspace comparison', () => {
     expect(verifyInstalledWorkspace(makeInstalledWorkspace())).toEqual({
       approvedCount: 2,
       workspaceLinkCount: 2,
+      platformPeerCount: 1,
     });
   });
 
@@ -264,6 +266,16 @@ describe('installed workspace comparison', () => {
       '@rivallo/future': 'workspace:*',
     };
     expect(() => verifyInstalledWorkspace(extraLink)).toThrow(/Unapproved workspace link/u);
+  });
+
+  it('rejects a missing or mismatched React platform peer', () => {
+    const missing = makeInstalledWorkspace();
+    missing.currentManifests.icons.peerDependencies = {};
+    expect(() => verifyInstalledWorkspace(missing)).toThrow(/Required platform peer is missing/u);
+
+    const mismatched = makeInstalledWorkspace();
+    mismatched.currentManifests.icons.peerDependencies.react = '^19.0.0';
+    expect(() => verifyInstalledWorkspace(mismatched)).toThrow(/must be 19\.2\.7/u);
   });
 
   it('rejects lockfile integrity drift', () => {

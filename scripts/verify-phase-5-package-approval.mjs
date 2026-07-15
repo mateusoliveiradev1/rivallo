@@ -48,6 +48,7 @@ const ALLOWED_WORKSPACE_LINKS = new Map([
   ['desktop|dependencies|@rivallo/design-tokens', 'workspace:*'],
   ['desktop|dependencies|@rivallo/icons', 'workspace:*'],
 ]);
+const ALLOWED_PLATFORM_PEERS = new Map([['icons|peerDependencies|react', '19.2.7']]);
 
 // Captured from `git show HEAD:<owner-manifest>` immediately before the approved
 // Phase 5 transaction. Keeping the direct baseline here makes --installed stable
@@ -396,6 +397,7 @@ export function verifyInstalledWorkspace({
   const approvedByName = new Map(approved.map((item) => [item.name, item]));
   const installedRows = [];
   const seenWorkspaceLinks = new Set();
+  const seenPlatformPeers = new Set();
 
   for (const owner of /** @type {Owner[]} */ (Object.keys(OWNER_PATHS))) {
     const baseline = baselineManifests[owner] ?? {};
@@ -425,6 +427,16 @@ export function verifyInstalledWorkspace({
       if (baselineEntry) continue;
 
       const workspaceKey = `${owner}|${entry.section}|${entry.name}`;
+      const expectedPlatformPeer = ALLOWED_PLATFORM_PEERS.get(workspaceKey);
+      if (expectedPlatformPeer) {
+        if (entry.specifier !== expectedPlatformPeer) {
+          fail(
+            `Approved platform peer ${manifestLabel(owner, entry.section, entry.name)} must be ${expectedPlatformPeer}; found ${entry.specifier}.`,
+          );
+        }
+        seenPlatformPeers.add(workspaceKey);
+        continue;
+      }
       if (entry.specifier.startsWith('workspace:')) {
         const expectedSpecifier = ALLOWED_WORKSPACE_LINKS.get(workspaceKey);
         if (entry.specifier !== expectedSpecifier) {
@@ -465,8 +477,21 @@ export function verifyInstalledWorkspace({
     }
   }
 
+  for (const platformPeerKey of ALLOWED_PLATFORM_PEERS.keys()) {
+    if (!seenPlatformPeers.has(platformPeerKey)) {
+      const [owner, section, name] = platformPeerKey.split('|');
+      fail(
+        `Required platform peer is missing: ${manifestLabel(/** @type {Owner} */ (owner), /** @type {DirectSection} */ (section), name)}.`,
+      );
+    }
+  }
+
   verifyInstalledInventory(approvedRows, installedRows);
-  return { approvedCount: approved.length, workspaceLinkCount: seenWorkspaceLinks.size };
+  return {
+    approvedCount: approved.length,
+    workspaceLinkCount: seenWorkspaceLinks.size,
+    platformPeerCount: seenPlatformPeers.size,
+  };
 }
 
 /** @param {string} path @returns {Promise<DirectManifest>} */
@@ -511,7 +536,7 @@ async function runCli() {
   );
   if (installed) {
     console.log(
-      `Installed inventory valid: ${installed.approvedCount} approved registry addition(s), ${installed.workspaceLinkCount} approved workspace link(s), preserved baseline, and matching lockfile integrity.`,
+      `Installed inventory valid: ${installed.approvedCount} approved registry addition(s), ${installed.workspaceLinkCount} approved workspace link(s), ${installed.platformPeerCount} exact pre-existing platform peer(s), preserved baseline, and matching lockfile integrity.`,
     );
   }
 }
