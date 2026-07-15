@@ -3,11 +3,7 @@ import { resolve } from 'node:path';
 
 import { render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import {
-  footballIconGrammar,
-  footballIconMetadata,
-  genericIconMetadata,
-} from '@rivallo/icons';
+import { footballIconGrammar, footballIconMetadata, genericIconMetadata } from '@rivallo/icons';
 import { describe, expect, it } from 'vitest';
 
 import { UiLab } from './UiLab.js';
@@ -100,8 +96,11 @@ describe('UI Lab proof hierarchy and real specimen inventory', () => {
     render(<UiLab />);
 
     await user.click(screen.getByRole('button', { name: 'Icons' }));
-    const iconCount = Object.keys(genericIconMetadata).length + Object.keys(footballIconMetadata).length;
-    expect(document.querySelectorAll('[data-icon-proof]')).toHaveLength(iconCount * 3);
+    const genericProofs = Object.keys(genericIconMetadata).length * 3;
+    const footballProofs = Object.keys(footballIconMetadata).length * 3 * 2;
+    expect(document.querySelectorAll('[data-icon-proof]')).toHaveLength(
+      genericProofs + footballProofs,
+    );
     expect(screen.getByText('football-ball · Futebol e bola em jogo')).toBeInstanceOf(HTMLElement);
 
     await user.click(screen.getByRole('button', { name: 'Primitives' }));
@@ -138,8 +137,8 @@ describe('UI Lab proof hierarchy and real specimen inventory', () => {
     await user.click(screen.getByRole('button', { name: 'Icons' }));
 
     expect(
-      Array.from(document.querySelectorAll('[data-navigation-reference]')).map(
-        (entry) => entry.getAttribute('data-navigation-reference'),
+      Array.from(document.querySelectorAll('[data-navigation-reference]')).map((entry) =>
+        entry.getAttribute('data-navigation-reference'),
       ),
     ).toEqual(['workspace', 'people', 'schedule', 'settings']);
 
@@ -158,9 +157,7 @@ describe('UI Lab proof hierarchy and real specimen inventory', () => {
     expect(grammar.textContent).toContain('16 / 20 / 24px');
     expect(grammar.textContent).toContain('currentColor');
 
-    const footballSvgs = document.querySelectorAll(
-      'svg[data-icon-family="rivallo-football"]',
-    );
+    const footballSvgs = document.querySelectorAll('svg[data-icon-family="rivallo-football"]');
     expect(footballSvgs).toHaveLength(footballNames.length * 3 * 2);
     expect(new Set(Array.from(footballSvgs, (svg) => svg.getAttribute('data-icon-name')))).toEqual(
       new Set(footballNames),

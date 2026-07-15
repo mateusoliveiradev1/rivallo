@@ -63,6 +63,11 @@ test('keeps the icon review cells optically bounded at the target viewport', asy
 
   const reviewCells = page.locator('[data-icon-review-cell]');
   await expect(reviewCells).toHaveCount(36);
+  for (let index = 0; index < (await reviewCells.count()); index += 1) {
+    const cell = reviewCells.nth(index);
+    await cell.scrollIntoViewIfNeeded();
+    await expect(cell).toBeVisible();
+  }
   expect(
     await reviewCells.evaluateAll((cells) =>
       cells.flatMap((cell) => {
@@ -80,6 +85,10 @@ test('keeps the icon review cells optically bounded at the target viewport', asy
       }),
     ),
   ).toEqual([]);
+
+  await page.locator('.ui-lab__preview-scroll').evaluate((element) => {
+    element.scrollLeft = 0;
+  });
 
   await page.screenshot({
     path: testInfo.outputPath(`icon-review-${testInfo.project.name}.png`),

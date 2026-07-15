@@ -218,7 +218,9 @@ describe('original football icon registry', () => {
       keyof typeof footballIconMetadata
     >) {
       const { container, unmount } = render(<FootballIcon name={name} />);
-      const geometry = Array.from(container.querySelectorAll('svg > path, svg > circle, svg > line'));
+      const geometry = Array.from(
+        container.querySelectorAll('svg > path, svg > circle, svg > line'),
+      );
 
       expect(geometry.length).toBeLessThanOrEqual(footballIconGrammar.detailCeiling.elements);
       for (const element of geometry) {

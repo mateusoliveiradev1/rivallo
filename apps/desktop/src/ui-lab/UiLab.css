@@ -220,7 +220,9 @@
 
 .ui-lab-specimen,
 .ui-lab-primitive-catalog,
-.ui-lab-icon-catalog {
+.ui-lab-icon-catalog,
+.ui-lab-icon-review,
+.ui-lab-football-catalog {
   display: flex;
   min-width: 0;
   flex-direction: column;
@@ -354,6 +356,224 @@
   flex-direction: column;
   align-items: center;
   gap: var(--rv-space-1);
+}
+
+.ui-lab-icon-section {
+  min-width: 0;
+  padding-top: var(--rv-space-4);
+  border-top: var(--rv-stroke-border) solid var(--rv-color-border);
+}
+
+.ui-lab-icon-section:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.ui-lab-icon-section__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--rv-space-4);
+}
+
+.ui-lab-icon-section__header h3,
+.ui-lab-icon-section__header p {
+  margin: 0;
+}
+
+.ui-lab-icon-section__header h3 {
+  color: var(--rv-color-text-strong);
+  font-size: var(--rv-type-14-size);
+  font-weight: var(--rv-font-weight-semibold);
+  line-height: var(--rv-type-14-line-height);
+}
+
+.ui-lab-icon-section__header p {
+  max-width: 72ch;
+  margin-top: var(--rv-space-1);
+  color: var(--rv-color-text-muted);
+}
+
+.ui-lab-icon-section__header > span,
+.ui-lab-navigation-reference small,
+.ui-lab-football-grammar,
+.ui-lab-football-review dd,
+.ui-lab-icon-comparison small,
+.ui-lab-extension-table {
+  color: var(--rv-color-text-muted);
+  font-size: var(--rv-type-12-size);
+  line-height: var(--rv-type-12-line-height);
+}
+
+.ui-lab-navigation-references {
+  display: grid;
+  margin: var(--rv-space-3) 0 var(--rv-space-5);
+  padding: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--rv-space-2);
+  list-style: none;
+}
+
+.ui-lab-navigation-reference {
+  display: flex;
+  min-width: 0;
+  padding: var(--rv-space-2);
+  align-items: center;
+  gap: var(--rv-space-2);
+  border-bottom: var(--rv-stroke-border) solid var(--rv-color-border-subtle);
+  background: var(--rv-color-surface-raised);
+}
+
+.ui-lab-navigation-reference > span:last-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.ui-lab-navigation-reference strong {
+  color: var(--rv-color-text-strong);
+  font-weight: var(--rv-font-weight-semibold);
+}
+
+.ui-lab-generic-icon-inventory {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--rv-space-3);
+}
+
+.ui-lab-icon-cell {
+  display: inline-flex;
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  align-items: center;
+  justify-content: center;
+  border: var(--rv-stroke-border) solid var(--rv-color-border);
+  border-radius: var(--rv-radius-control);
+  color: var(--rv-color-text-strong);
+}
+
+.ui-lab-football-grammar {
+  display: flex;
+  margin-top: var(--rv-space-3);
+  padding: var(--rv-space-2) 0;
+  align-items: baseline;
+  gap: var(--rv-space-3);
+  border-bottom: var(--rv-stroke-border) solid var(--rv-color-border-subtle);
+  flex-wrap: wrap;
+}
+
+.ui-lab-football-grammar strong {
+  color: var(--rv-color-text-strong);
+}
+
+.ui-lab-football-review {
+  display: grid;
+  min-width: 0;
+  padding-bottom: var(--rv-space-4);
+  grid-template-columns: minmax(260px, 0.8fr) minmax(0, 2.2fr);
+  gap: var(--rv-space-4);
+  border-bottom: var(--rv-stroke-border) solid var(--rv-color-border-subtle);
+}
+
+.ui-lab-football-review__metadata > strong {
+  color: var(--rv-color-text-strong);
+  font-weight: var(--rv-font-weight-semibold);
+}
+
+.ui-lab-football-review dl {
+  display: grid;
+  margin: var(--rv-space-2) 0 0;
+  gap: var(--rv-space-1);
+}
+
+.ui-lab-football-review dl > div {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: var(--rv-space-2);
+}
+
+.ui-lab-football-review dt {
+  color: var(--rv-color-text-muted);
+  font-size: var(--rv-type-12-size);
+  font-weight: var(--rv-font-weight-semibold);
+  line-height: var(--rv-type-12-line-height);
+}
+
+.ui-lab-football-review dd {
+  margin: 0;
+}
+
+.ui-lab-football-review__comparisons {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(144px, 1fr));
+  gap: var(--rv-space-2);
+}
+
+.ui-lab-icon-comparison {
+  display: grid;
+  min-width: 0;
+  padding: var(--rv-space-2);
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--rv-space-1) var(--rv-space-2);
+  border-bottom: var(--rv-stroke-border) solid var(--rv-color-border-subtle);
+}
+
+.ui-lab-icon-comparison[data-icon-surface='canvas'] {
+  background: var(--rv-color-canvas);
+}
+
+.ui-lab-icon-comparison[data-icon-surface='raised'] {
+  background: var(--rv-color-surface-raised);
+}
+
+.ui-lab-icon-comparison__pair {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: var(--rv-space-2);
+}
+
+.ui-lab-icon-comparison__pair .ui-lab-icon-cell {
+  background: transparent;
+}
+
+.ui-lab-extension-table {
+  width: 100%;
+  min-width: 1120px;
+  margin-top: var(--rv-space-3);
+  border-spacing: 0;
+  color: var(--rv-color-text);
+  text-align: left;
+}
+
+.ui-lab-extension-table caption {
+  padding: var(--rv-space-2);
+  color: var(--rv-color-text-strong);
+  font-weight: var(--rv-font-weight-semibold);
+  text-align: left;
+}
+
+.ui-lab-extension-table th,
+.ui-lab-extension-table td {
+  max-width: 38ch;
+  padding: var(--rv-space-2);
+  border-bottom: var(--rv-stroke-border) solid var(--rv-color-border-subtle);
+  vertical-align: top;
+}
+
+.ui-lab-extension-table thead th {
+  color: var(--rv-color-text-muted);
+  background: var(--rv-color-surface-raised);
+}
+
+.ui-lab-extension-table tbody th,
+.ui-lab-extension-table tbody td:last-child {
+  color: var(--rv-color-text-strong);
+  font-weight: var(--rv-font-weight-semibold);
 }
 
 .ui-lab-primitive-row {
@@ -535,8 +755,18 @@
   }
 
   .ui-lab-icon-row,
-  .ui-lab-primitive-row {
+  .ui-lab-primitive-row,
+  .ui-lab-football-review {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ui-lab-icon-section__header {
+    flex-direction: column;
+  }
+
+  .ui-lab-navigation-references,
+  .ui-lab-football-review__comparisons {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .ui-lab-local-controls {

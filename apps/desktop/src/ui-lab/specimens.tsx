@@ -9,6 +9,7 @@ import {
 import {
   FootballIcon,
   Icon,
+  footballIconGrammar,
   footballIconMetadata,
   genericIconMetadata,
   type FootballIconName,
@@ -42,6 +43,52 @@ const footballIcons = Object.entries(footballIconMetadata) as readonly [
   FootballIconName,
   { readonly meaning: string; readonly version: string },
 ][];
+const navigationReferenceNames = [
+  'workspace',
+  'people',
+  'schedule',
+  'settings',
+] as const satisfies readonly GenericIconName[];
+const footballOpticalReferences = {
+  'football-ball': 'information',
+  'goal-frame': 'workspace',
+  'training-cone': 'warning',
+} as const satisfies Record<FootballIconName, GenericIconName>;
+const iconSurfaces = ['canvas', 'raised'] as const;
+const iconExtensionCases = [
+  {
+    id: 'training',
+    area: 'Treinamento',
+    owner: 'Contrato da tela de treinamento',
+    meaning: 'Distinguir carga, sessão e foco de desenvolvimento.',
+    ambiguity: 'Cone isolado não diferencia atividade, intensidade ou objetivo.',
+    fallback: 'Usar rótulo operacional completo até cada significado ser aprovado.',
+  },
+  {
+    id: 'tactics',
+    area: 'Tática',
+    owner: 'Contrato da tela tática',
+    meaning: 'Distinguir formação, função, instrução e familiaridade.',
+    ambiguity: 'Setas e campos genéricos podem sugerir ações ou estados diferentes.',
+    fallback: 'Usar texto explícito para a decisão tática e seu estado.',
+  },
+  {
+    id: 'scouting',
+    area: 'Observação',
+    owner: 'Contrato da tela de scouting',
+    meaning: 'Distinguir busca, atribuição, cobertura e confiança do relatório.',
+    ambiguity: 'Busca universal não representa sozinha conhecimento ou descoberta.',
+    fallback: 'Manter o estágio do relatório visível por texto.',
+  },
+  {
+    id: 'medicine',
+    area: 'Medicina',
+    owner: 'Contrato da tela médica',
+    meaning: 'Distinguir condição, avaliação, recuperação e disponibilidade.',
+    ambiguity: 'Símbolo médico isolado pode confundir estado, ação e severidade.',
+    fallback: 'Exibir condição e impacto em texto, nunca apenas por cor ou símbolo.',
+  },
+] as const;
 
 export function SemanticTokenSpecimen() {
   return (
@@ -151,6 +198,22 @@ function GenericIconProof({
   );
 }
 
+function NavigationReferenceProof({ name }: { readonly name: GenericIconName }) {
+  const metadata = genericIconMetadata[name];
+
+  return (
+    <li className="ui-lab-navigation-reference" data-navigation-reference={name}>
+      <span aria-hidden="true" className="ui-lab-icon-cell">
+        <Icon name={name} size={20} />
+      </span>
+      <span>
+        <strong>{name}</strong>
+        <small>{metadata.meaning}</small>
+      </span>
+    </li>
+  );
+}
+
 function FootballIconProof({
   name,
   meaning,
@@ -160,36 +223,167 @@ function FootballIconProof({
   readonly meaning: string;
   readonly version: string;
 }) {
+  const opticalReference = footballOpticalReferences[name];
+
   return (
-    <div className="ui-lab-icon-row">
-      <strong>{`${name} · ${meaning}`}</strong>
-      <div className="ui-lab-icon-sizes">
-        {iconSizes.map((size) => (
-          <span data-icon-proof={`${name}-${size}`} key={size}>
-            <FootballIcon name={name} size={size} />
-            <small>{size}</small>
-          </span>
-        ))}
+    <article className="ui-lab-football-review" data-football-review={name}>
+      <div className="ui-lab-football-review__metadata">
+        <strong>{`${name} · ${meaning}`}</strong>
+        <dl>
+          <div>
+            <dt>Família</dt>
+            <dd>Rivallo football</dd>
+          </div>
+          <div>
+            <dt>Versão</dt>
+            <dd>{version}</dd>
+          </div>
+          <div>
+            <dt>Comportamento</dt>
+            <dd>Decorativo por padrão; semântico exige nome acessível.</dd>
+          </div>
+          <div>
+            <dt>Referência óptica</dt>
+            <dd>{`${opticalReference} · ${genericIconMetadata[opticalReference].meaning}`}</dd>
+          </div>
+        </dl>
       </div>
-      <span>{`SVG original Rivallo · versão ${version}`}</span>
-    </div>
+      <div className="ui-lab-football-review__comparisons">
+        {iconSizes.flatMap((size) =>
+          iconSurfaces.map((surface) => (
+            <div
+              className="ui-lab-icon-comparison"
+              data-icon-size={size}
+              data-icon-surface={surface}
+              key={`${size}-${surface}`}
+            >
+              <small>{`${size}px · ${surface === 'canvas' ? 'canvas graphite' : 'raised graphite'}`}</small>
+              <div className="ui-lab-icon-comparison__pair">
+                <span
+                  aria-label={`${name}, ${size}px, ${surface}`}
+                  className="ui-lab-icon-cell"
+                  data-icon-proof={`${name}-${size}-${surface}`}
+                  data-icon-review-cell={`${name}-${size}-${surface}-football`}
+                  role="img"
+                >
+                  <FootballIcon name={name} size={size} />
+                </span>
+                <span
+                  aria-label={`${opticalReference}, ${size}px, ${surface}`}
+                  className="ui-lab-icon-cell"
+                  data-icon-review-cell={`${name}-${size}-${surface}-reference`}
+                  role="img"
+                >
+                  <Icon name={opticalReference} size={size} />
+                </span>
+              </div>
+              <small>Rivallo / Lucide</small>
+            </div>
+          )),
+        )}
+      </div>
+    </article>
   );
 }
 
 export function IconSpecimen() {
   return (
-    <div className="ui-lab-icon-catalog">
-      {genericIcons.map(([name, metadata]) => (
-        <GenericIconProof key={name} meaning={metadata.meaning} name={name} />
-      ))}
-      {footballIcons.map(([name, metadata]) => (
-        <FootballIconProof
-          key={name}
-          meaning={metadata.meaning}
-          name={name}
-          version={metadata.version}
-        />
-      ))}
+    <div className="ui-lab-icon-review">
+      <section aria-labelledby="generic-icon-heading" className="ui-lab-icon-section">
+        <div className="ui-lab-icon-section__header">
+          <div>
+            <h3 id="generic-icon-heading">Família universal e referências de navegação</h3>
+            <p>
+              Lucide é a única fonte genérica. Os quatro exemplos abaixo demonstram vocabulário, não
+              destinos ou um menu de produto.
+            </p>
+          </div>
+          <span>16 / 20 / 24px · 1.75px · currentColor</span>
+        </div>
+        <ul
+          aria-label="Referências universais de navegação"
+          className="ui-lab-navigation-references"
+        >
+          {navigationReferenceNames.map((name) => (
+            <NavigationReferenceProof key={name} name={name} />
+          ))}
+        </ul>
+        <div aria-label="Inventário genérico completo" className="ui-lab-generic-icon-inventory">
+          {genericIcons.map(([name, metadata]) => (
+            <GenericIconProof key={name} meaning={metadata.meaning} name={name} />
+          ))}
+        </div>
+      </section>
+
+      <section aria-labelledby="football-icon-heading" className="ui-lab-icon-section">
+        <div className="ui-lab-icon-section__header">
+          <div>
+            <h3 id="football-icon-heading">Comparador óptico Rivallo</h3>
+            <p>
+              Os três SVGs existentes são comparados com referências Lucide no mesmo tamanho e nas
+              duas superfícies canônicas.
+            </p>
+          </div>
+        </div>
+        <div
+          className="ui-lab-football-grammar"
+          data-master-grid={footballIconGrammar.masterGrid}
+          data-optical-padding={footballIconGrammar.opticalPadding}
+          data-stroke-width={footballIconGrammar.strokeWidth}
+          data-testid="football-icon-grammar"
+        >
+          <strong>Gramática executável</strong>
+          <span>{`Grid ${footballIconGrammar.masterGrid} · 16 / 20 / 24px · ${footballIconGrammar.strokeWidth}px · ${footballIconGrammar.color} · padding ${footballIconGrammar.opticalPadding}`}</span>
+          <span>{`Máximo ${footballIconGrammar.detailCeiling.elements} elementos e ${footballIconGrammar.detailCeiling.pathCommands} comandos por path.`}</span>
+        </div>
+        <div className="ui-lab-football-catalog">
+          {footballIcons.map(([name, metadata]) => (
+            <FootballIconProof
+              key={name}
+              meaning={metadata.meaning}
+              name={name}
+              version={metadata.version}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section aria-labelledby="extension-icon-heading" className="ui-lab-icon-section">
+        <div className="ui-lab-icon-section__header">
+          <div>
+            <h3 id="extension-icon-heading">Rubrica de extensão por contrato</h3>
+            <p>
+              Casos de avaliação somente textuais. Nenhum SVG ou destino de produto é criado antes
+              de a tela responsável aprovar um significado inequívoco.
+            </p>
+          </div>
+        </div>
+        <ScrollArea label="Rubrica de extensão da iconografia">
+          <table className="ui-lab-extension-table">
+            <caption>Critérios para futuros conceitos de domínio</caption>
+            <thead>
+              <tr>
+                <th scope="col">Área</th>
+                <th scope="col">Contrato responsável</th>
+                <th scope="col">Significado pretendido</th>
+                <th scope="col">Ambiguidade e fallback</th>
+                <th scope="col">Aprovação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {iconExtensionCases.map((extensionCase) => (
+                <tr data-extension-case={extensionCase.id} key={extensionCase.id}>
+                  <th scope="row">{extensionCase.area}</th>
+                  <td>{extensionCase.owner}</td>
+                  <td>{extensionCase.meaning}</td>
+                  <td>{`${extensionCase.ambiguity} ${extensionCase.fallback}`}</td>
+                  <td>Geometria não autorizada · texto obrigatório</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </ScrollArea>
+      </section>
     </div>
   );
 }
