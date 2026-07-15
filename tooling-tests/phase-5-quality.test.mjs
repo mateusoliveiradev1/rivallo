@@ -192,23 +192,17 @@ describe('Phase 5 quality surfaces', () => {
     expect(validationRowsByTask.get('05-12-01')).toContain('✅ green');
     expect(validationRowsByTask.get('05-12-02')).toContain('✅ green');
 
-    for (const plannedTaskId of [
-      '05-13-01',
-      '05-13-02',
-      '05-14-01',
-      '05-14-02',
-      '05-15-01',
-    ]) {
-      expect(validationRowsByTask.get(plannedTaskId)).toMatch(/\| planned\s+\|$/u);
+    expect(validationRowsByTask.get('05-13-01')).toContain('✅ green');
+    expect(validationRowsByTask.get('05-13-02')).toContain('✅ green');
+    for (const retiredTaskId of ['05-14-01', '05-14-02', '05-15-01']) {
+      expect(validationRowsByTask.get(retiredTaskId)).toMatch(/\| planned\s+\|$/u);
     }
 
     const humanDecisionRow = validationRowsByTask.get('05-16-01') ?? '';
     expect(humanDecisionRow).toContain('Human-only authority');
     expect(humanDecisionRow).toContain('structural-integrity evidence only');
     expect(humanDecisionRow).toMatch(/\| human-pending\s+\|$/u);
-    expect(validation).toContain(
-      'automation and parser integrity cannot change that status',
-    );
+    expect(validation).toContain('automation and parser integrity cannot change that status');
     expect(validation).not.toContain('❌ Wave 0');
     expect(validation).toContain('05-10-01');
     expect(validation).toContain('05-11-01');

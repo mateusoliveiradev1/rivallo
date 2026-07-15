@@ -5,11 +5,12 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use rivallo_platform::{
-    LOCAL_API_ADDRESS, READINESS_POLL_INTERVAL, READINESS_TIMEOUT, ReadinessDiagnostic,
-    SHUTDOWN_CONTROL_MESSAGE, validate_readiness_response,
+    Formation, LOCAL_API_ADDRESS, LineupSelection, MatchdayCoordinator, MatchdayState,
+    READINESS_POLL_INTERVAL, READINESS_TIMEOUT, ReadinessDiagnostic, SHUTDOWN_CONTROL_MESSAGE,
+    TacticalApproach, validate_readiness_response,
 };
 use serde::Serialize;
-use tauri::{AppHandle, RunEvent, State};
+use tauri::{AppHandle, Manager, RunEvent, State};
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 
@@ -411,14 +412,46 @@ fn retry_lifecycle(app: AppHandle, manager: State<'_, Arc<LifecycleManager>>) ->
     manager.status()
 }
 
+#[tauri::command]
+fn matchday_state(gameplay: State<'_, Arc<MatchdayCoordinator>>) -> Result<MatchdayState, String> {
+    gameplay.state()
+}
+
+#[tauri::command]
+fn update_matchday_lineup(
+    player_ids: Vec<String>,
+    formation: Formation,
+    approach: TacticalApproach,
+    gameplay: State<'_, Arc<MatchdayCoordinator>>,
+) -> Result<MatchdayState, String> {
+    gameplay.update_lineup(LineupSelection {
+        player_ids,
+        formation,
+        approach,
+    })
+}
+
+#[tauri::command]
+fn play_next_match(gameplay: State<'_, Arc<MatchdayCoordinator>>) -> Result<MatchdayState, String> {
+    gameplay.play_next_match()
+}
+
 fn main() {
     let manager = Arc::new(LifecycleManager::new());
     let exit_manager = Arc::clone(&manager);
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .manage(Arc::clone(&manager))
-        .invoke_handler(tauri::generate_handler![lifecycle_status, retry_lifecycle])
+        .invoke_handler(tauri::generate_handler![
+            lifecycle_status,
+            retry_lifecycle,
+            matchday_state,
+            update_matchday_lineup,
+            play_next_match
+        ])
         .setup(move |app| {
+            let matchday_path = app.path().app_data_dir()?.join("first-playable.json");
+            app.manage(Arc::new(MatchdayCoordinator::new(matchday_path)));
             manager.begin(app.handle().clone());
             Ok(())
         })

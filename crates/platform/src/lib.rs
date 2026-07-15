@@ -1,9 +1,12 @@
 //! Outer composition for contract-pipeline inputs and the local loopback runtime.
 
+mod matchday;
 pub mod persistence;
 mod runtime;
 
+pub use matchday::{FileMatchdayRepository, MatchdayCoordinator};
 pub use persistence::{LocalDataDirectoryResolver, SqlitePersistenceAdapter};
+pub use rivallo_application::{Formation, LineupSelection, MatchdayState, TacticalApproach};
 
 pub use runtime::{
     CancellationToken, LOCAL_API_ADDRESS, LOCAL_API_PORT, LOCAL_API_SERVICE_ID,

@@ -9,6 +9,37 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const invokeMock = vi.hoisted(() => vi.fn());
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }));
 
+const firstPlayableState = {
+  club: {
+    id: 'aurora',
+    name: 'Aurora Futebol Clube',
+    shortName: 'AUR',
+    city: 'Porto Claro',
+    primaryColor: '#35c88a',
+  },
+  opponent: {
+    id: 'ferroviario',
+    name: 'Ferroviário do Vale',
+    shortName: 'FDV',
+    city: 'Vale do Norte',
+    primaryColor: '#d18a42',
+  },
+  round: 1,
+  players: [],
+  formation: '4-3-3',
+  approach: 'balanced',
+  record: {
+    played: 0,
+    wins: 0,
+    draws: 0,
+    losses: 0,
+    goalsFor: 0,
+    goalsAgainst: 0,
+    points: 0,
+  },
+  lastResult: null,
+};
+
 import { App } from '../../App.js';
 import { Button, IconButton, type IconButtonProps } from './actions.js';
 import { EmptyState, ErrorState, Skeleton, Status } from './feedback.js';
@@ -340,15 +371,17 @@ describe('desktop lifecycle shell regression', () => {
   });
 
   it('keeps owned readiness and its ownership explanation explicit', async () => {
-    invokeMock.mockResolvedValue({ state: 'ready', ownership: 'owned' });
+    invokeMock.mockImplementation((command: string) =>
+      Promise.resolve(
+        command === 'matchday_state' ? firstPlayableState : { state: 'ready', ownership: 'owned' },
+      ),
+    );
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: 'Local service ready' })).toBeInstanceOf(
-      HTMLHeadingElement,
-    );
-    const status = screen.getByRole('status');
-    expect(status.getAttribute('data-variant')).toBe('positive');
-    expect(status.textContent).toContain('The local service started for this desktop session.');
+    expect(
+      await screen.findByRole('heading', { name: 'Prepare o Aurora para a rodada 1' }),
+    ).toBeInstanceOf(HTMLHeadingElement);
+    expect(screen.getByTitle('Serviço local iniciado pelo Rivallo')).toBeInstanceOf(HTMLElement);
   });
 
   it('retains recoverable failure, retry authority, and development diagnostics', async () => {
@@ -364,6 +397,7 @@ describe('desktop lifecycle shell regression', () => {
       if (command === 'retry_lifecycle') {
         return Promise.resolve({ state: 'ready', ownership: 'reused' });
       }
+      if (command === 'matchday_state') return Promise.resolve(firstPlayableState);
       return Promise.resolve(failure);
     });
     const user = userEvent.setup();
@@ -386,12 +420,10 @@ describe('desktop lifecycle shell regression', () => {
 
     await user.click(screen.getByRole('button', { name: 'Retry startup' }));
     expect(invokeMock).toHaveBeenCalledWith('retry_lifecycle');
-    expect(await screen.findByRole('heading', { name: 'Local service ready' })).toBeInstanceOf(
-      HTMLHeadingElement,
-    );
-    expect(screen.getByRole('status').textContent).toContain(
-      'A compatible local service is already running and has been reused.',
-    );
+    expect(
+      await screen.findByRole('heading', { name: 'Prepare o Aurora para a rodada 1' }),
+    ).toBeInstanceOf(HTMLHeadingElement);
+    expect(screen.getByTitle('Serviço local reutilizado')).toBeInstanceOf(HTMLElement);
   });
 
   it('keeps polling, diagnostics guards, token imports, and raw palette out of the shell', async () => {

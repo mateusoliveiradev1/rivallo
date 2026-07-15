@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { useEffect, useState } from 'react';
 
+import { MatchdayScreen } from './matchday/MatchdayScreen.js';
 import { Button } from './ui/primitives/actions.js';
 import { Skeleton, Status } from './ui/primitives/feedback.js';
 
@@ -39,11 +40,6 @@ const bridgeFailure = (): LifecycleStatus => ({
     diagnostic: 'lifecycle_command_unavailable',
   },
 });
-
-const ownershipMessage = (ownership: ServiceOwnership) =>
-  ownership === 'owned'
-    ? 'The local service started for this desktop session.'
-    : 'A compatible local service is already running and has been reused.';
 
 export function App() {
   const [status, setStatus] = useState<LifecycleStatus>(INITIAL_STATUS);
@@ -98,6 +94,10 @@ export function App() {
     }
   };
 
+  if (status.state === 'ready') {
+    return <MatchdayScreen serviceOwnership={status.ownership} />;
+  }
+
   return (
     <main className="operational-shell">
       <header className="shell-header">
@@ -119,17 +119,6 @@ export function App() {
           >
             <p>This should only take a few seconds.</p>
             <Skeleton className="lifecycle-skeleton" lines={2} />
-          </Status>
-        )}
-
-        {status.state === 'ready' && (
-          <Status
-            headingLevel={2}
-            label="Local service ready"
-            labelId="state-title"
-            variant="positive"
-          >
-            <p>{ownershipMessage(status.ownership)}</p>
           </Status>
         )}
 

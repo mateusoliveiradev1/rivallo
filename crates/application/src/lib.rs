@@ -1,8 +1,14 @@
 //! Use-case boundaries that operate only on domain-owned information.
 
+mod matchday;
 mod persistence;
 
+pub use matchday::{MatchdayRepository, MatchdayService, MatchdayServiceError};
 pub use persistence::{LocalPersistenceError, LocalPersistencePort};
+pub use rivallo_domain::{
+    Club, Formation, LineupSelection, MatchEvent, MatchResult, MatchdayState, Player, Position,
+    SeasonRecord, TacticalApproach,
+};
 
 use rivallo_domain::{ModuleId, PreparedContractInput};
 

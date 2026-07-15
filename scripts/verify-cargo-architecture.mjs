@@ -9,7 +9,17 @@ const PHASE_CRATES = new Map([
 ]);
 
 // Domain may use only deliberately neutral, framework-free support crates.
-const DOMAIN_ALLOWLIST = new Set(['rivallo-domain', 'serde', 'thiserror']);
+const DOMAIN_ALLOWLIST = new Set([
+  'rivallo-domain',
+  'serde',
+  'serde_core',
+  'serde_derive',
+  'proc-macro2',
+  'quote',
+  'syn',
+  'thiserror',
+  'unicode-ident',
+]);
 const DOMAIN_DENYLIST = new Set([
   'actix-web',
   'axum',

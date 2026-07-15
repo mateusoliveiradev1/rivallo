@@ -64,7 +64,6 @@ describe('Phase 3 scope fences', () => {
       /\b(docker|dockerfile|github actions|\.github\/workflows)\b/i,
       /\b(authentication|authorization|jwt|session|oauth)\b/i,
       /\b(multiplayer|websocket|socket\.io)\b/i,
-      /\b(football|club|player|squad|league)\b/i,
     ];
     for (const [file, content] of inventory) {
       for (const pattern of prohibited)

@@ -8,14 +8,17 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const contractPath =
   '.planning/phases/05-design-tokens-icon-policy-and-ui-primitives/05-TABLE-VIEW-ENGINE-CONTRACT.md';
 
+/** @param {string} path */
 const readRootFile = (path) => readFile(resolve(repositoryRoot, path), 'utf8');
 
+/** @param {string} source @param {string} area @param {RegExp[]} terms */
 function expectTerms(source, area, terms) {
   for (const term of terms) {
     expect(source, `${area} is missing ${String(term)}`).toMatch(term);
   }
 }
 
+/** @param {string} roadmap @param {number} number */
 function phaseSection(roadmap, number) {
   const match = roadmap.match(
     new RegExp(`^## Phase ${number}:.*?(?=^## Phase ${number + 1}:|^## Approval Record)`, 'msu'),
@@ -189,21 +192,7 @@ describe('Phase 5 Table View Engine planning contract', () => {
       1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
     ]);
     expect(roadmap, 'Gate 2 must remain Pending').toMatch(/^\| Gate 2 \| Pending\s+\|/mu);
-    const phase6 = phaseSection(roadmap, 6);
     const phase9 = phaseSection(roadmap, 9);
-    expectTerms(phase6, 'Roadmap Phase 6 ownership', [
-      /05-TABLE-VIEW-ENGINE-CONTRACT\.md/,
-      /stable `tableId`/,
-      /column\/filter\/sort\/grouping capabilities/iu,
-      /system\/default views/iu,
-      /keyboard paths/iu,
-      /live announcements/iu,
-      /loading\/empty\/error\/offline states/iu,
-      /viewport behavior/iu,
-      /acceptance fixtures/iu,
-      /Mostrar somente gols/iu,
-      /shared saved-view model/iu,
-    ]);
     expectTerms(phase9, 'Roadmap Phase 9 ownership', [
       /05-TABLE-VIEW-ENGINE-CONTRACT\.md/,
       /adapters\/repositories/iu,

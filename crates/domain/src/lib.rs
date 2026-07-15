@@ -1,5 +1,12 @@
 //! Framework-independent primitives shared by the modular-monolith core.
 
+mod matchday;
+
+pub use matchday::{
+    Club, Formation, LineupSelection, MatchEvent, MatchResult, MatchdayError, MatchdayState,
+    Player, Position, SeasonRecord, TacticalApproach,
+};
+
 /// A neutral identifier for a module participating in contract preparation.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct ModuleId(String);
