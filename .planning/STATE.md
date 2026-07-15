@@ -4,18 +4,18 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 5
 current_phase_name: Design Tokens, Icon Policy and UI Primitives
-current_plan: 7
+current_plan: 8
 status: Ready to execute
-stopped_at: Completed 05-06-PLAN.md
-last_updated: "2026-07-15T16:16:45.373Z"
+stopped_at: Completed 05-07-PLAN.md
+last_updated: "2026-07-15T16:31:51.876Z"
 last_activity: 2026-07-15
-last_activity_desc: Plan 05-06 completed; Plan 05-07 is next
+last_activity_desc: Plan 05-07 completed; Plan 05-08 is next
 progress:
   total_phases: 13
   completed_phases: 3
   total_plans: 29
-  completed_plans: 25
-  percent: 86
+  completed_plans: 26
+  percent: 90
 ---
 
 # State
@@ -35,11 +35,11 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 
 Current Phase: 5
 Current Phase Name: Design Tokens, Icon Policy and UI Primitives
-Current Plan: 7
+Current Plan: 8
 Total Plans in Phase: 10
 Status: Ready to execute
-Progress: 86%
-Last activity: 2026-07-15 — Plan 05-06 completed; Plan 05-07 is next
+Progress: 90%
+Last activity: 2026-07-15 — Plan 05-07 completed; Plan 05-08 is next
 
 ## Gate History
 
@@ -49,8 +49,8 @@ Last activity: 2026-07-15 — Plan 05-06 completed; Plan 05-07 is next
 
 ## Session
 
-**Last session:** 2026-07-15T16:16:45.369Z
-**Stopped at:** Completed 05-06-PLAN.md
+**Last session:** 2026-07-15T16:31:51.872Z
+**Stopped at:** Completed 05-07-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -76,9 +76,14 @@ Last activity: 2026-07-15 — Plan 05-06 completed; Plan 05-07 is next
 | Phase 05 P04 | 10 min | 2 tasks | 10 files |
 | Phase 05 P05 | 16 min | 3 tasks | 10 files |
 | Phase 05 P06 | 9 min | 3 tasks | 8 files |
+| Phase 05 P07 | 12 min | 3 tasks | 5 files |
 
 ## Decisions
 
+- [Phase 05]: Keep DenseTable on native table, input and button semantics; React state only supplies deterministic local enhancement. — Preserves document relationships and browser keyboard behavior without a div-grid or table framework.
+- [Phase 05]: Reduce columns through explicit priority and a local hidden set applied to headers, cells, loading geometry and state-row spans. — Prevents structural drift while deferring persistence, saved views and reordering.
+- [Phase 05]: Communicate selected rows through native control state, visible marker, announcement copy and full-row geometry in addition to colour. — Meets the no-colour-only policy in dense data.
+- [Phase 05]: Treat flag imagery as optional context while country code remains visible and full country name stays keyboard-discoverable. — Nationality meaning survives image failure and never depends on colour.
 - [Phase 05]: Require stable positioning and an independent accessible name before an icon-only action may expose a tooltip. — Tooltip text supplements the control label and never becomes the sole source of meaning.
 - [Phase 05]: Keep radio controls native while adding deterministic cyclic arrow navigation that skips disabled options. — Preserves browser semantics without introducing another selection implementation.
 - [Phase 05]: Use approved Radix packages only for difficult keyboard, focus and overlay behavior. — Rivallo continues to own every visual class, token and state treatment.
