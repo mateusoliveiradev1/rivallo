@@ -179,7 +179,7 @@ DenseTable remains semantic native HTML. Radios remain native. Toast remains a b
 
 To approve, change only the first three fields below to the exact approved values and a real ISO-8601 timestamp with timezone. Do not edit an inventory row or the digest while deciding. Any inventory change requires a new digest and a new human review.
 
-Decision: PENDING
-Approved by: —
-Approved at: —
+Decision: APPROVED
+Approved by: Mateus
+Approved at: 2026-07-15T12:04:13.5806508-03:00
 Inventory digest: sha256:56d9bfb036d3b3d42acc09faa968911cfc5aa760def3c991288dfe2e8fcf8b7f

@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   computeInventoryDigest,
-  parsePackageReview,
   verifyApprovedPackageReview,
   verifyInstalledInventory,
 } from '../scripts/verify-phase-5-package-approval.mjs';
@@ -45,7 +44,7 @@ function removeField(review, field) {
 }
 
 describe('Phase 5 package approval record', () => {
-  it('keeps the checked-in review structurally valid while its decision is pending', async () => {
+  it('keeps the checked-in review structurally valid after Mateus approval', async () => {
     const reviewText = await readFile(
       new URL(
         '../.planning/phases/05-design-tokens-icon-policy-and-ui-primitives/05-01-PACKAGE-REVIEW.md',
@@ -53,9 +52,10 @@ describe('Phase 5 package approval record', () => {
       ),
       'utf8',
     );
-    const review = parsePackageReview(reviewText);
+    const review = verifyApprovedPackageReview(reviewText);
 
-    expect(review.decision).toBe('PENDING');
+    expect(review.decision).toBe('APPROVED');
+    expect(review.approvedBy).toBe('Mateus');
     expect(review.inventory).toHaveLength(16);
     expect(review.inventoryDigest).toBe(
       'sha256:56d9bfb036d3b3d42acc09faa968911cfc5aa760def3c991288dfe2e8fcf8b7f',
