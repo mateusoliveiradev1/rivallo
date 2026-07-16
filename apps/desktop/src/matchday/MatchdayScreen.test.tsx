@@ -443,9 +443,7 @@ describe('MatchdayScreen', () => {
     ).toBeInstanceOf(HTMLButtonElement);
 
     fireEvent.click(screen.getByRole('button', { name: 'Configurar tabela' }));
-    expect(screen.getByRole('button', { name: 'Mostrar Idade' })).toBeInstanceOf(
-      HTMLButtonElement,
-    );
+    expect(screen.getByRole('button', { name: 'Mostrar Idade' })).toBeInstanceOf(HTMLButtonElement);
     await waitFor(() => expect(clientMock.importLegacyTablePreferences).toHaveBeenCalledOnce());
     expectOnlyNonTablePreferences('rivallo.squad-ui.v4');
   });

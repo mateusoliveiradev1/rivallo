@@ -123,9 +123,7 @@ export function TableViewCustomizer({
   const filteredSchemas =
     normalizedSearch.length === 0
       ? orderedSchemas
-      : orderedSchemas.filter((column) =>
-          normalizeSearch(column.label).includes(normalizedSearch),
-        );
+      : orderedSchemas.filter((column) => normalizeSearch(column.label).includes(normalizedSearch));
 
   const announce = (message: string) => {
     setAnnouncement((current) => (current === message ? current : message));
@@ -173,8 +171,7 @@ export function TableViewCustomizer({
       stateRef.current = result.state;
       announce(acceptedMessage ?? messageForAccepted(result, command));
     } else {
-      const column =
-        'columnId' in command ? schemaById.get(command.columnId) : undefined;
+      const column = 'columnId' in command ? schemaById.get(command.columnId) : undefined;
       announce(rejectionMessage(result.event.reason.code, column));
     }
     return result;
@@ -201,10 +198,7 @@ export function TableViewCustomizer({
     });
   };
 
-  const restoreSnapshot = (
-    snapshot: TableViewState,
-    message: string,
-  ): TableViewCommandResult =>
+  const restoreSnapshot = (snapshot: TableViewState, message: string): TableViewCommandResult =>
     emit(
       {
         type: 'view.reset',
@@ -255,13 +249,9 @@ export function TableViewCustomizer({
     emit({ type: 'column.reorder', columnId, toIndex });
   };
 
-  const handleMoveKeyDown = (
-    event: KeyboardEvent<HTMLButtonElement>,
-    columnId: string,
-  ) => {
+  const handleMoveKeyDown = (event: KeyboardEvent<HTMLButtonElement>, columnId: string) => {
     const active = operationRef.current;
-    const isActiveMove =
-      active?.kind === 'move' && active.columnId === columnId;
+    const isActiveMove = active?.kind === 'move' && active.columnId === columnId;
 
     if (!isActiveMove && (event.key === 'Enter' || event.key === ' ')) {
       event.preventDefault();
@@ -295,10 +285,7 @@ export function TableViewCustomizer({
     moveColumn(columnId, nextIndex);
   };
 
-  const handleMovePointerDown = (
-    event: PointerEvent<HTMLButtonElement>,
-    columnId: string,
-  ) => {
+  const handleMovePointerDown = (event: PointerEvent<HTMLButtonElement>, columnId: string) => {
     beginSession('move', 'pointer', columnId);
     event.currentTarget.focus();
   };
@@ -318,10 +305,7 @@ export function TableViewCustomizer({
     }
   };
 
-  const handleDragStart = (
-    event: DragEvent<HTMLButtonElement>,
-    columnId: string,
-  ) => {
+  const handleDragStart = (event: DragEvent<HTMLButtonElement>, columnId: string) => {
     beginSession('move', 'pointer', columnId);
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', columnId);
@@ -533,9 +517,7 @@ export function TableViewCustomizer({
                       onDragEnd={finishPointerMove}
                       onDragStart={(event) => handleDragStart(event, columnSchema.columnId)}
                       onKeyDown={(event) => handleMoveKeyDown(event, columnSchema.columnId)}
-                      onPointerDown={(event) =>
-                        handleMovePointerDown(event, columnSchema.columnId)
-                      }
+                      onPointerDown={(event) => handleMovePointerDown(event, columnSchema.columnId)}
                       onPointerUp={finishPointerMove}
                       type="button"
                     >
@@ -546,9 +528,7 @@ export function TableViewCustomizer({
                       <small>{columnState.width}px</small>
                     </span>
                     <button
-                      aria-describedby={
-                        columnSchema.required ? requiredReasonId : undefined
-                      }
+                      aria-describedby={columnSchema.required ? requiredReasonId : undefined}
                       aria-disabled={columnSchema.required || undefined}
                       aria-label={`${columnState.visible ? 'Ocultar' : 'Mostrar'} ${columnSchema.label}`}
                       aria-pressed={columnState.visible}
@@ -582,9 +562,7 @@ export function TableViewCustomizer({
                       className="table-view-customizer__resize"
                       data-control="resize"
                       onKeyDown={(event) => handleResizeKeyDown(event, columnSchema)}
-                      onPointerDown={(event) =>
-                        handleResizePointerDown(event, columnSchema)
-                      }
+                      onPointerDown={(event) => handleResizePointerDown(event, columnSchema)}
                       onPointerMove={handleResizePointerMove}
                       onPointerUp={finishPointerResize}
                       role="separator"
@@ -676,12 +654,7 @@ export function TableViewCustomizer({
           </Button>
         </div>
 
-        <p
-          aria-atomic="true"
-          aria-live="polite"
-          className="sr-only"
-          role="status"
-        >
+        <p aria-atomic="true" aria-live="polite" className="sr-only" role="status">
           {announcement}
         </p>
       </div>

@@ -1,11 +1,5 @@
 import { useState } from 'react';
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -79,7 +73,9 @@ describe('TableViewCustomizer', () => {
     expect(screen.queryByText(/Agrupar|Agrupamento/iu)).toBeNull();
 
     await user.click(screen.getByRole('button', { name: 'Fechar personalização' }));
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Configurar tabela' })).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Configurar tabela' })).toBeNull(),
+    );
     expect(document.activeElement).toBe(trigger);
   });
 
@@ -102,9 +98,9 @@ describe('TableViewCustomizer', () => {
     expect(screen.getByRole('heading', { name: 'Nenhuma coluna encontrada' })).toBeInstanceOf(
       HTMLElement,
     );
-    expect(screen.getByText('Tente outro nome; as colunas do elenco continuam disponíveis.')).toBeInstanceOf(
-      HTMLElement,
-    );
+    expect(
+      screen.getByText('Tente outro nome; as colunas do elenco continuam disponíveis.'),
+    ).toBeInstanceOf(HTMLElement);
 
     await user.click(screen.getByRole('button', { name: 'Limpar busca de colunas' }));
     expect((search as HTMLInputElement).value).toBe('');
@@ -121,7 +117,9 @@ describe('TableViewCustomizer', () => {
     expect(screen.getByRole('status').textContent).toContain('Idade oculta.');
 
     await user.click(screen.getByRole('button', { name: 'Descartar ajustes' }));
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Configurar tabela' })).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Configurar tabela' })).toBeNull(),
+    );
 
     expect(readState()).toEqual(SQUAD_SYSTEM_VIEW);
     expect(document.activeElement).toBe(trigger);
@@ -151,7 +149,9 @@ describe('TableViewCustomizer', () => {
 
     moveAge.focus();
     await user.keyboard('{Escape}');
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Configurar tabela' })).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Configurar tabela' })).toBeNull(),
+    );
   });
 
   it('uses the same finite engine bounds for keyboard and pointer resize and lets Escape restore width', async () => {
@@ -188,9 +188,7 @@ describe('TableViewCustomizer', () => {
     expect(screen.getByRole('status').textContent).toContain('Idade fixada no início.');
 
     const beforeRejectedPin = readState();
-    await user.click(
-      within(columnRow('NAT')).getByRole('button', { name: 'Fixar no início' }),
-    );
+    await user.click(within(columnRow('NAT')).getByRole('button', { name: 'Fixar no início' }));
     expect(readState()).toEqual(beforeRejectedPin);
     expect(screen.getByRole('status').textContent).toContain(
       'NAT: no máximo quatro colunas podem ficar fixadas.',
@@ -222,6 +220,42 @@ describe('TableViewCustomizer', () => {
 
     await user.click(screen.getByRole('button', { name: 'Salvar visualização' }));
     expect(onSave).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Configurar tabela' })).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Configurar tabela' })).toBeNull(),
+    );
+  });
+
+  it('enumerates token-surface selectors and semantic states for visual contrast sampling', async () => {
+    render(<Harness />);
+    await openCustomizer();
+
+    const dialog = screen.getByRole('dialog', { name: 'Configurar tabela' });
+    const requiredRow = columnRow('Jogador');
+    const optionalRow = columnRow('Idade');
+
+    expect(dialog.classList.contains('table-view-customizer')).toBe(true);
+    expect(dialog.querySelector('.table-view-customizer__content')).toBeInstanceOf(HTMLElement);
+    expect(dialog.querySelector('.table-view-customizer__summary')).toBeInstanceOf(HTMLElement);
+    expect(dialog.querySelector('.table-view-customizer__columns')).toBeInstanceOf(HTMLElement);
+    expect(requiredRow.querySelector('.table-view-customizer__required')).toBeInstanceOf(
+      HTMLElement,
+    );
+    expect(
+      within(requiredRow)
+        .getByRole('button', { name: 'Ocultar Jogador' })
+        .getAttribute('aria-disabled'),
+    ).toBe('true');
+    expect(within(optionalRow).getByRole('button', { name: 'Mover Idade' })).toBeInstanceOf(
+      HTMLButtonElement,
+    );
+    expect(
+      within(optionalRow).getByRole('separator', { name: 'Redimensionar Idade' }),
+    ).toBeInstanceOf(HTMLElement);
+    expect(within(optionalRow).getByRole('group', { name: 'Fixação de Idade' })).toBeInstanceOf(
+      HTMLElement,
+    );
+    expect(dialog.querySelector('.table-view-customizer__resets')).toBeInstanceOf(HTMLElement);
+    expect(dialog.querySelector('.table-view-customizer__actions')).toBeInstanceOf(HTMLElement);
+    expect(screen.getByRole('status').getAttribute('aria-live')).toBe('polite');
   });
 });

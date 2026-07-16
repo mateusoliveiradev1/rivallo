@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { useRef, useState } from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
@@ -13,9 +15,7 @@ import {
 } from '../table-view/table-view-engine.js';
 import {
   defaultSquadSort,
-  optionalColumns,
   type Density,
-  type OptionalColumn,
   type RoleFilter,
   type SquadFilter,
   type StatusFilter,
@@ -190,10 +190,6 @@ function WorkspaceHarness({
     view,
     { focusedPlayerId, selectedPlayerIds: selectedIds },
   );
-  const visibleOptionalColumns = optionalColumns.filter(
-    (column) => view.columns.find(({ columnId }) => columnId === column)?.visible,
-  );
-
   const setSingleSort = (sort: SquadSortState) => {
     dispatch({
       type: 'sort.set',
@@ -214,9 +210,6 @@ function WorkspaceHarness({
         onFocusPlayer={setFocusedPlayerId}
         onPositionFilterChange={vi.fn()}
         onPositionFilterVisibleChange={vi.fn()}
-        onResetView={() =>
-          dispatch({ type: 'view.reset', baseline: structuredClone(SQUAD_SYSTEM_VIEW) })
-        }
         onRoleFilterChange={vi.fn()}
         onSave={vi.fn()}
         onSaveTableView={() => true}
@@ -224,11 +217,6 @@ function WorkspaceHarness({
         onSquadFilterChange={vi.fn()}
         onStatusFilterChange={vi.fn()}
         onTableViewCommand={dispatch}
-        onToggleColumn={(column) => {
-          const visible =
-            viewRef.current.columns.find(({ columnId }) => columnId === column)?.visible ?? false;
-          dispatch({ type: 'column.visibility', columnId: column, visible: !visible });
-        }}
         onTogglePlayer={(player) =>
           setSelectedIds((current) =>
             current.includes(player.id)
@@ -258,7 +246,6 @@ function WorkspaceHarness({
           heading: 'Visualizações do elenco carregadas',
         }}
         tableViewState={view}
-        visibleColumns={visibleOptionalColumns as readonly OptionalColumn[]}
       />
       <pre aria-hidden="true" data-testid="workspace-view">
         {JSON.stringify(view)}
@@ -367,10 +354,10 @@ describe('SquadWorkspace normalized native table', () => {
     expect(document.activeElement).toBe(moveAge);
 
     fireEvent.pointerDown(moveAge, { pointerId: 1, clientX: 10 });
-    fireEvent.pointerEnter(
-      within(table()).getByRole('columnheader', { name: /Gols/u }),
-      { pointerId: 1, clientX: 40 },
-    );
+    fireEvent.pointerEnter(within(table()).getByRole('columnheader', { name: /Gols/u }), {
+      pointerId: 1,
+      clientX: 40,
+    });
     fireEvent.pointerUp(moveAge, { pointerId: 1, clientX: 40 });
     expect(readView().columns.findIndex(({ columnId }) => columnId === 'age')).toBe(15);
 
@@ -410,9 +397,9 @@ describe('SquadWorkspace normalized native table', () => {
       }),
     );
 
-    expect(screen.getByRole('button', { name: 'Retirar Ravi Monteiro' }).getAttribute('aria-pressed')).toBe(
-      'true',
-    );
+    expect(
+      screen.getByRole('button', { name: 'Retirar Ravi Monteiro' }).getAttribute('aria-pressed'),
+    ).toBe('true');
     expect(
       screen
         .getByRole('button', { name: 'Retirar Ravi Monteiro' })
@@ -424,11 +411,11 @@ describe('SquadWorkspace normalized native table', () => {
   it('renders Mostrar somente gols through ordinary columns, sort, and typed filter state', () => {
     const scorersView = stateWith(
       ...SQUAD_SYSTEM_VIEW.columns
-        .filter(({ columnId }) => !['shirtNumber', 'info', 'name', 'position', 'goals'].includes(columnId))
-        .map(
+        .filter(
           ({ columnId }) =>
-            ({ type: 'column.visibility', columnId, visible: false }) as const,
-        ),
+            !['shirtNumber', 'info', 'name', 'position', 'goals'].includes(columnId),
+        )
+        .map(({ columnId }) => ({ type: 'column.visibility', columnId, visible: false }) as const),
       {
         type: 'sort.set',
         sort: [
@@ -507,5 +494,42 @@ describe('SquadWorkspace normalized native table', () => {
       }),
     );
     await waitFor(() => expect(table().querySelectorAll('tbody tr')).toHaveLength(3));
+  });
+
+  it('exposes deterministic density, focus, state, and responsive CSS contracts', async () => {
+    const standardView = stateWith({ type: 'density.set', density: 'standard' });
+    const first = render(<WorkspaceHarness initialView={standardView} />);
+    const squadTable = table();
+
+    expect(squadTable.getAttribute('data-density')).toBe('standard');
+    expect(squadTable.style.getPropertyValue('--squad-row-height')).toBe('48px');
+    expect(squadTable.closest('.squad-table-wrap')).toBeInstanceOf(HTMLElement);
+    expect(squadTable.querySelector('[data-pinned="start"]')).toBeInstanceOf(HTMLElement);
+    expect(screen.getByText('Miguel Paes de Almeida com nome português extenso')).toBeInstanceOf(
+      HTMLElement,
+    );
+    first.unmount();
+
+    render(
+      <WorkspaceHarness
+        initialView={stateWith({ type: 'density.set', density: 'comfortable' })}
+        loading
+      />,
+    );
+    expect(table().getAttribute('data-density')).toBe('comfortable');
+    expect(table().style.getPropertyValue('--squad-row-height')).toBe('54px');
+    expect(table().getAttribute('aria-busy')).toBe('true');
+
+    const css = await readFile(resolve('apps/desktop/src/matchday/matchday.css'), 'utf8');
+    expect(css).toMatch(/\.squad-table-wrap\s*\{[^}]*overflow:\s*auto;/su);
+    expect(css).toContain('min(304px, calc(35% - var(--rv-space-3)))');
+    expect(css).toContain('@media (max-width: 1120px)');
+    expect(css).toContain(':has(> .table-view-customizer)');
+    expect(css).toContain("[data-pinned='start']");
+    expect(css).toContain('left: var(--squad-pin-offset)');
+    expect(css).toContain('right: var(--squad-pin-offset)');
+    expect(css).toContain('@media (prefers-reduced-motion: reduce)');
+    expect(css).toContain('.table-view-customizer__column');
+    expect(css).not.toMatch(/\.squad-table[^{,\n]*nth-child/iu);
   });
 });

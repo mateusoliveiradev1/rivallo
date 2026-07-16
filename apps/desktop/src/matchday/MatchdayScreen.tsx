@@ -9,10 +9,8 @@ import { Toast } from '../ui/primitives/toast.js';
 import { loadMatchday, playNextMatch, saveMatchdayLineup } from './client.js';
 import {
   defaultSquadSort,
-  optionalColumns,
   type ActiveScreen,
   type Density,
-  type OptionalColumn,
   type PitchMode,
   type RoleFilter,
   type SquadFilter,
@@ -346,11 +344,6 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
           direction: primarySort.direction,
         };
   const density = tableView.proposal.density as Density;
-  const visibleColumns = tableView.proposal.columns
-    .filter(
-      ({ visible, columnId }) => visible && optionalColumns.includes(columnId as OptionalColumn),
-    )
-    .map(({ columnId }) => columnId as OptionalColumn);
 
   useEffect(() => {
     if (
@@ -793,14 +786,6 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
       sort: [{ columnId: sort.key, direction: sort.direction, nulls: 'last' }],
     });
   };
-
-  const toggleColumn = (column: OptionalColumn) => {
-    const visible =
-      tableView.proposal.columns.find(({ columnId }) => columnId === column)?.visible ?? false;
-    tableView.dispatch({ type: 'column.visibility', columnId: column, visible: !visible });
-  };
-
-  const resetTableView = () => tableView.reset();
 
   const resetPreferences = () => setPreferences(defaultPreferences());
 
@@ -1344,13 +1329,11 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
                 onFocusPlayer={setFocusedPlayerId}
                 onPositionFilterChange={setPositionFilter}
                 onPositionFilterVisibleChange={setPositionFilterVisible}
-                onResetView={resetTableView}
                 onRoleFilterChange={setRoleFilter}
                 onSave={() => void saveLineup()}
                 onSortChange={setSquadSort}
                 onSquadFilterChange={setSquadFilter}
                 onStatusFilterChange={setStatusFilter}
-                onToggleColumn={toggleColumn}
                 onTogglePlayer={togglePlayer}
                 players={visiblePlayers}
                 positionFilter={positionFilter}
@@ -1364,17 +1347,16 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
                 squadFilter={squadFilter}
                 state={state}
                 statusFilter={statusFilter}
-            tableHeader={savedViewHeader}
-            tableViewBaseline={tableView.baseline}
-            tableViewDirty={tableView.dirty}
-            tableViewLoading={tableView.repositoryStatus.status === 'loading'}
-            tableViewPersistenceStatus={tableView.persistenceStatus}
-            tableViewRepositoryStatus={tableView.repositoryStatus}
-            tableViewState={tableView.proposal}
-            onSaveTableView={saveActiveView}
-            onTableViewCommand={tableView.dispatch}
-            visibleColumns={visibleColumns}
-          />
+                tableHeader={savedViewHeader}
+                tableViewBaseline={tableView.baseline}
+                tableViewDirty={tableView.dirty}
+                tableViewLoading={tableView.repositoryStatus.status === 'loading'}
+                tableViewPersistenceStatus={tableView.persistenceStatus}
+                tableViewRepositoryStatus={tableView.repositoryStatus}
+                tableViewState={tableView.proposal}
+                onSaveTableView={saveActiveView}
+                onTableViewCommand={tableView.dispatch}
+              />
             </>
           ) : (
             <TacticsWorkspace
