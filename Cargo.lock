@@ -2521,6 +2521,7 @@ name = "rivallo-application"
 version = "0.1.0"
 dependencies = [
  "rivallo-domain",
+ "serde",
 ]
 
 [[package]]

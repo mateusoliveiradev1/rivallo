@@ -10,6 +10,16 @@ pub use rivallo_domain::{
     Club, Formation, LineupSelection, MatchEvent, MatchResult, MatchdayState, Player, Position,
     PreferredFoot, SeasonRecord, SquadRole, TacticalApproach,
 };
+pub use table_view::{
+    CURRENT_ENVELOPE_VERSION, ColumnId, ColumnPinning, ColumnPinningSide, FilterGroupId,
+    FilterGroupLogic, FilterId, FilterOperator, FilterValue, LegacyImportReceipt, NullOrder,
+    OwnerScope, SQUAD_PRIMARY_SCHEMA_VERSION, SQUAD_PRIMARY_TABLE_ID, SavedTableView,
+    SortDirection, TableColumnState, TableDataWindow, TableDensity, TableFilterClause,
+    TableFilterGroup, TableFilterNode, TableId, TableSort, TableViewEnvelopeMetadata,
+    TableViewRecoveryReason, TableViewRepository, TableViewRepositoryError,
+    TableViewRepositoryLoad, TableViewRepositoryState, TableViewState, TableViewValidationCode,
+    TableViewValidationError, ViewId, ViewMutability, ViewProvenance,
+};
 
 use rivallo_domain::{ModuleId, PreparedContractInput};
 
