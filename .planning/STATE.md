@@ -7,7 +7,7 @@ current_phase_name: SM-2 Table View Engine and Durable Views
 current_plan: 1
 status: executing
 stopped_at: Phase 06.1 UI-SPEC approved
-last_updated: "2026-07-16T07:00:36.918Z"
+last_updated: "2026-07-16T09:00:50.922Z"
 last_activity: 2026-07-16
 last_activity_desc: Phase 06.1 execution started
 progress:
@@ -36,8 +36,8 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 Current Phase: 06.1
 Current Phase Name: SM-2 Table View Engine and Durable Views
 Current Plan: 1
-Total Plans in Phase: 0
-Status: Executing Phase 06.1
+Total Plans in Phase: 8
+Status: Ready to execute
 Progress: Phase 06.1 context gathered; UI specification and planning are next.
 Last activity: 2026-07-16 — Phase 06.1 execution started
 

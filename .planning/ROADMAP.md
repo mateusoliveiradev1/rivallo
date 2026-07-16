@@ -230,11 +230,37 @@ The sports-management evolution is detailed below as a bounded future sequence. 
 **Goal:** Turn table personalization into one controlled cross-product capability and prove it in Elenco with durable, versioned views instead of screen-specific state.
 **Requirements:** SM-02; DATA-01 preference-boundary portion; UI-02 dense-table portion.
 **Depends on:** Phase 6 and the canonical Phase 5 Table View Engine contract.
-**Plans:** 0 plans
+**Plans:** 0/8 plans executed
 
 Plans:
+**Wave 1**
 
-- [ ] TBD (run /gsd-plan-phase 06.1 to break down)
+- [ ] 06.1-01-PLAN.md — Pure controlled Table View Engine and `squad.primary` schema.
+- [ ] 06.1-02-PLAN.md — Rust application repository port and lifecycle service.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 06.1-03-PLAN.md — Durable file repository, migrations, quarantine and crash recovery.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 06.1-04-PLAN.md — Typed Tauri/client boundary and lossless legacy import.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 06.1-05-PLAN.md — Controlled React controller and preference-boundary migration.
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 06.1-06-PLAN.md — Complete accessible saved-view lifecycle UI.
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 06.1-07-PLAN.md — Accessible customizer and controlled Elenco table integration.
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [ ] 06.1-08-PLAN.md — Browser/restart/responsive evidence and full regression gate.
 
 **Success Criteria**:
 
