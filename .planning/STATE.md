@@ -4,17 +4,17 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 06.1
 current_phase_name: SM-2 Table View Engine and Durable Views
-current_plan: 1
+current_plan: 2
 status: executing
-stopped_at: Phase 06.1 UI-SPEC approved
-last_updated: "2026-07-16T09:00:50.922Z"
+stopped_at: Completed 06.1-01-PLAN.md
+last_updated: "2026-07-16T09:37:57.881Z"
 last_activity: 2026-07-16
 last_activity_desc: Phase 06.1 execution started
 progress:
   total_phases: 18
   completed_phases: 4
-  total_plans: 37
-  completed_plans: 34
+  total_plans: 45
+  completed_plans: 35
   percent: 22
 ---
 
@@ -35,7 +35,7 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 
 Current Phase: 06.1
 Current Phase Name: SM-2 Table View Engine and Durable Views
-Current Plan: 1
+Current Plan: 2
 Total Plans in Phase: 8
 Status: Ready to execute
 Progress: Phase 06.1 context gathered; UI specification and planning are next.
@@ -49,9 +49,9 @@ Last activity: 2026-07-16 — Phase 06.1 execution started
 
 ## Session
 
-**Last session:** 2026-07-16T07:00:36.914Z
-**Stopped at:** Phase 06.1 UI-SPEC approved
-**Resume file:** .planning/phases/06.1-sm-2-table-view-engine-and-durable-views/06.1-UI-SPEC.md
+**Last session:** 2026-07-16T09:37:57.877Z
+**Stopped at:** Completed 06.1-01-PLAN.md
+**Resume file:** None
 
 ## Accumulated Context
 
@@ -98,6 +98,7 @@ Last activity: 2026-07-16 — Phase 06.1 execution started
 | Phase 05 P12 | 15 min | 2 tasks  | 4 files  |
 | Phase 05 P13 | 10min  | 2 tasks  | 4 files  |
 | Phase 06 P01 | 35min  | 5 tasks  | 26 files |
+| Phase 06.1 P01 | 27min | 2 tasks | 5 files |
 
 ## Decisions
 
@@ -174,3 +175,6 @@ Last activity: 2026-07-16 — Phase 06.1 execution started
 - [Phase 05]: Model Mostrar somente gols as an ordinary saved view; Phase 6 resolves screen semantics and Phase 9 executes the general pipeline. — Prevents one-off flags, renderers, and query branches.
 - [Phase 06.1]: Move the real controlled Table View Engine and versioned local-fixed repository into Phase 06.1. — Phase 9 now owns migration to career identity and SQLite plus real-data query, cache, offline and synchronisation hardening, preventing duplicate engines while preserving later roadmap scope.
 - [Phase 06.1]: Execute the authorized SM-2 through SM-6 sequence as bounded fixed-club vertical slices, then stop. — The user's latest direct instruction expands the earlier SM-1-only fence but does not authorize general Phases 7 through 13 or multiplayer.
+- [Phase 06.1]: Keep the Table View Engine framework-independent and I/O-free. — Owning-screen schemas declare capabilities while the pure reducer validates complete proposals and never owns React, storage, query, or network authority.
+- [Phase 06.1]: Represent Mostrar somente gols through ordinary durable commands. — Required columns plus goals visibility, goals-descending and name tie-break sorts, and a typed goals greater-than-zero clause use the same pipeline as every other view.
+- [Phase 06.1]: Keep player-name search transient and encode existing squad filters durably. — Todos/Titulares/Reservas, Setor, Status, and optional Posicao normalize into typed filter groups while the global name query does not dirty or persist a saved view.
