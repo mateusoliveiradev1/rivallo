@@ -4,7 +4,7 @@ import type { CSSProperties } from 'react';
 
 import { Button } from '../ui/primitives/actions.js';
 import { Tooltip } from '../ui/primitives/disclosure.js';
-import { Skeleton } from '../ui/primitives/feedback.js';
+import { Skeleton, Status } from '../ui/primitives/feedback.js';
 import { loadMatchday, playNextMatch, saveMatchdayLineup } from './client.js';
 import {
   defaultSquadSort,
@@ -27,6 +27,13 @@ import {
   mergeSquadDurableFilter,
   readSquadDurableFilter,
 } from './squad-table-schema.js';
+import {
+  SavedViewDeleteDialog,
+  SavedViewDirtyDialog,
+  SavedViewNameDialog,
+  SavedViewSelector,
+  type SavedViewNameDialogMode,
+} from './SavedViewSelector.js';
 import { SquadWorkspace } from './SquadWorkspace.js';
 import {
   addPlayerToFirstOpenSlot,
@@ -54,6 +61,45 @@ interface NavigationItem {
   readonly icon: GenericIconName;
   readonly badge?: string;
   readonly available?: boolean;
+}
+
+type SavedViewTransitionTarget =
+  | {
+      readonly kind: 'view';
+      readonly viewId: string;
+      readonly name: string;
+    }
+  | {
+      readonly kind: 'screen';
+      readonly screen: 'tactics';
+      readonly name: 'Táticas';
+    }
+  | {
+      readonly kind: 'delete';
+      readonly viewId: string;
+      readonly viewName: string;
+      readonly fallbackViewId: string;
+      readonly name: string;
+    };
+
+interface SavedViewNameDialogState {
+  readonly mode: SavedViewNameDialogMode;
+  readonly viewId: string;
+  readonly previousName: string;
+  readonly initialValue: string;
+  readonly continuation?: SavedViewTransitionTarget;
+}
+
+interface SavedViewDeleteDialogState {
+  readonly viewId: string;
+  readonly viewName: string;
+  readonly fallbackViewId: string;
+  readonly fallbackName: string;
+}
+
+interface SavedViewRetryContext {
+  readonly successMessage: string;
+  readonly afterSave?: SavedViewTransitionTarget;
 }
 
 const UI_PREFERENCES_KEY = 'rivallo.squad-ui.v4';
@@ -178,6 +224,17 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
   const resultDialogRef = useRef<HTMLDialogElement>(null);
   const resultReturnFocusRef = useRef<HTMLButtonElement>(null);
   const tableView = useSquadTableView();
+  const [savedViewAnnouncement, setSavedViewAnnouncement] = useState('');
+  const [savedViewNameDialog, setSavedViewNameDialog] = useState<SavedViewNameDialogState | null>(
+    null,
+  );
+  const [savedViewDeleteDialog, setSavedViewDeleteDialog] =
+    useState<SavedViewDeleteDialogState | null>(null);
+  const [savedViewDirtyTarget, setSavedViewDirtyTarget] =
+    useState<SavedViewTransitionTarget | null>(null);
+  const [savedViewFailureVisible, setSavedViewFailureVisible] = useState(false);
+  const savedViewFailureHeadingRef = useRef<HTMLHeadingElement>(null);
+  const savedViewRetryRef = useRef<SavedViewRetryContext | null>(null);
 
   const selectedIds = useMemo(() => selectedIdsFromSlots(lineupSlots), [lineupSlots]);
   const durableFilters = useMemo(
@@ -213,6 +270,23 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
     }
     writePreferences(preferences);
   }, [preferences, tableView.legacyStatus.status]);
+
+  useEffect(() => {
+    if (tableView.persistenceStatus.status === 'failed') {
+      setSavedViewFailureVisible(true);
+      return;
+    }
+    if (
+      tableView.persistenceStatus.status === 'saving' ||
+      tableView.persistenceStatus.status === 'confirmed'
+    ) {
+      setSavedViewFailureVisible(false);
+    }
+  }, [tableView.persistenceStatus]);
+
+  useEffect(() => {
+    if (savedViewFailureVisible) savedViewFailureHeadingRef.current?.focus();
+  }, [savedViewFailureVisible]);
 
   const applyServerState = (
     nextState: MatchdayState,
@@ -281,9 +355,303 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
   const updatePreference = <Key extends keyof UiPreferences>(key: Key, value: UiPreferences[Key]) =>
     setPreferences((current) => ({ ...current, [key]: value }));
 
+  const activeSavedView =
+    tableView.views.find(({ state: viewState }) => viewState.viewId === tableView.activeViewId) ??
+    tableView.views[0]!;
+
+  const focusSavedViewSelector = () => {
+    const focus = () => {
+      document.querySelector<HTMLButtonElement>('.saved-view-selector__trigger')?.focus();
+    };
+    queueMicrotask(focus);
+    window.requestAnimationFrame(focus);
+  };
+
+  const focusNavigationItem = (screen: ActiveScreen) => {
+    const focus = () => {
+      document.querySelector<HTMLButtonElement>(`[data-navigation-id="${screen}"]`)?.focus();
+    };
+    queueMicrotask(focus);
+    window.requestAnimationFrame(focus);
+  };
+
+  const finishSavedViewAction = (announcement: string) => {
+    savedViewRetryRef.current = null;
+    setSavedViewFailureVisible(false);
+    setSavedViewAnnouncement(announcement);
+    focusSavedViewSelector();
+  };
+
+  const finishScreenTransition = (screen: ActiveScreen, announcement: string) => {
+    savedViewRetryRef.current = null;
+    setSavedViewFailureVisible(false);
+    setSavedViewAnnouncement(announcement);
+    updatePreference('activeScreen', screen);
+    focusNavigationItem(screen);
+  };
+
+  const performViewActivation = async (
+    viewId: string,
+    name: string,
+    decision?: 'save' | 'discard',
+    afterSave?: SavedViewTransitionTarget,
+  ) => {
+    const successMessage = `Visualização “${name}” aberta.`;
+    savedViewRetryRef.current = {
+      successMessage,
+      ...(afterSave === undefined ? {} : { afterSave }),
+    };
+    const result = await tableView.activate(viewId, decision);
+    if (result.status === 'confirmed') finishSavedViewAction(successMessage);
+    return result;
+  };
+
+  const performViewDeletion = async (
+    target: Extract<SavedViewTransitionTarget, { kind: 'delete' }>,
+  ) => {
+    const successMessage = `Visualização “${target.viewName}” excluída. “${target.name}” foi aberta.`;
+    savedViewRetryRef.current = { successMessage };
+    const result = await tableView.delete(target.viewId);
+    if (result.status === 'confirmed') finishSavedViewAction(successMessage);
+    return result;
+  };
+
+  const continueAfterSavedView = async (target: SavedViewTransitionTarget) => {
+    if (target.kind === 'view') {
+      await performViewActivation(target.viewId, target.name);
+      return;
+    }
+    if (target.kind === 'screen') {
+      finishScreenTransition(target.screen, `Alterações salvas. ${target.name} aberta.`);
+      return;
+    }
+    await performViewDeletion(target);
+  };
+
+  const retrySavedViewMutation = async () => {
+    const context = savedViewRetryRef.current;
+    const result = await tableView.retry();
+    if (result.status !== 'confirmed') return;
+
+    if (context?.afterSave !== undefined && result.intent === 'save') {
+      await continueAfterSavedView(context.afterSave);
+      return;
+    }
+    finishSavedViewAction(context?.successMessage ?? 'Visualização salva.');
+  };
+
+  const submitSavedViewName = async (name: string) => {
+    const dialog = savedViewNameDialog;
+    if (dialog === null) return;
+
+    let successMessage: string;
+    let action: ReturnType<typeof tableView.create>;
+    if (dialog.mode === 'create') {
+      successMessage = `Visualização “${name}” criada.`;
+      action = tableView.create(name);
+    } else if (dialog.mode === 'duplicate') {
+      successMessage = `Visualização “${name}” criada.`;
+      action = tableView.duplicate(dialog.viewId, name);
+    } else if (dialog.mode === 'rename') {
+      successMessage = `Visualização “${dialog.previousName}” renomeada para “${name}”.`;
+      action = tableView.rename(dialog.viewId, name);
+    } else {
+      successMessage = `Visualização “${name}” criada para edição.`;
+      action = tableView.save(name);
+    }
+
+    savedViewRetryRef.current = {
+      successMessage,
+      ...(dialog.continuation === undefined ? {} : { afterSave: dialog.continuation }),
+    };
+    const result = await action;
+    if (result.status === 'confirmed') {
+      setSavedViewNameDialog(null);
+      if (dialog.continuation !== undefined) {
+        await continueAfterSavedView(dialog.continuation);
+      } else {
+        finishSavedViewAction(successMessage);
+      }
+    } else if (result.status === 'failed') {
+      setSavedViewNameDialog(null);
+    }
+  };
+
+  const requestViewActivation = (viewId: string) => {
+    const target = tableView.views.find(({ state: viewState }) => viewState.viewId === viewId);
+    if (target === undefined) return;
+    if (tableView.dirty) {
+      setSavedViewDirtyTarget({ kind: 'view', viewId, name: target.state.label });
+      return;
+    }
+    void performViewActivation(viewId, target.state.label);
+  };
+
+  const requestCreateView = () => {
+    setSavedViewNameDialog({
+      mode: 'create',
+      viewId: activeSavedView.state.viewId,
+      previousName: activeSavedView.state.label,
+      initialValue: '',
+    });
+  };
+
+  const requestDuplicateView = (viewId: string) => {
+    const source = tableView.views.find(({ state: viewState }) => viewState.viewId === viewId);
+    if (source === undefined) return;
+    const saveDirtyImmutable =
+      tableView.dirty &&
+      (source.state.provenance !== 'user-owned' || source.mutability !== 'mutable');
+    setSavedViewNameDialog({
+      mode: saveDirtyImmutable ? 'save-as' : 'duplicate',
+      viewId,
+      previousName: source.state.label,
+      initialValue: saveDirtyImmutable ? '' : `${source.state.label} — cópia`,
+    });
+  };
+
+  const requestRenameView = (viewId: string) => {
+    const target = tableView.views.find(({ state: viewState }) => viewState.viewId === viewId);
+    if (target === undefined) return;
+    setSavedViewNameDialog({
+      mode: 'rename',
+      viewId,
+      previousName: target.state.label,
+      initialValue: target.state.label,
+    });
+  };
+
+  const deleteFallback = (viewId: string) =>
+    tableView.views.find(
+      ({ state: viewState }) =>
+        viewState.viewId === tableView.defaultViewId && viewState.viewId !== viewId,
+    ) ??
+    tableView.views.find(
+      ({ state: viewState }) =>
+        viewState.provenance === 'system-default' && viewState.viewId !== viewId,
+    ) ??
+    tableView.views.find(({ state: viewState }) => viewState.viewId !== viewId);
+
+  const requestDeleteView = (viewId: string) => {
+    const target = tableView.views.find(({ state: viewState }) => viewState.viewId === viewId);
+    const fallback = deleteFallback(viewId);
+    if (target === undefined || fallback === undefined) return;
+    setSavedViewDeleteDialog({
+      viewId,
+      viewName: target.state.label,
+      fallbackViewId: fallback.state.viewId,
+      fallbackName: fallback.state.label,
+    });
+  };
+
+  const confirmDeleteView = () => {
+    const dialog = savedViewDeleteDialog;
+    if (dialog === null) return;
+    setSavedViewDeleteDialog(null);
+    const target: Extract<SavedViewTransitionTarget, { kind: 'delete' }> = {
+      kind: 'delete',
+      viewId: dialog.viewId,
+      viewName: dialog.viewName,
+      fallbackViewId: dialog.fallbackViewId,
+      name: dialog.fallbackName,
+    };
+    if (tableView.dirty) {
+      setSavedViewDirtyTarget(target);
+      return;
+    }
+    void performViewDeletion(target);
+  };
+
+  const setDefaultView = async (viewId: string) => {
+    const target = tableView.views.find(({ state: viewState }) => viewState.viewId === viewId);
+    if (target === undefined) return;
+    const successMessage = `“${target.state.label}” definida como visualização padrão.`;
+    savedViewRetryRef.current = { successMessage };
+    const result = await tableView.setDefault(viewId);
+    if (result.status === 'confirmed') finishSavedViewAction(successMessage);
+  };
+
+  const saveActiveView = async () => {
+    const successMessage = `Visualização “${activeSavedView.state.label}” salva.`;
+    savedViewRetryRef.current = { successMessage };
+    const result = await tableView.save();
+    if (result.status === 'confirmed') finishSavedViewAction(successMessage);
+  };
+
+  const restoreActiveView = async () => {
+    const resetResult = tableView.reset();
+    if (!resetResult.accepted) return;
+    const successMessage = `Visualização “${activeSavedView.state.label}” restaurada.`;
+    savedViewRetryRef.current = { successMessage };
+    const result = await tableView.save();
+    if (result.status === 'confirmed') finishSavedViewAction(successMessage);
+  };
+
+  const continueCurrentView = () => {
+    const target = savedViewDirtyTarget;
+    setSavedViewDirtyTarget(null);
+    if (target?.kind === 'screen') focusNavigationItem(target.screen);
+    else focusSavedViewSelector();
+  };
+
+  const discardAndContinue = async () => {
+    const target = savedViewDirtyTarget;
+    if (target === null) return;
+    setSavedViewDirtyTarget(null);
+    if (target.kind === 'view') {
+      await performViewActivation(target.viewId, target.name, 'discard');
+      return;
+    }
+    if (target.kind === 'screen') {
+      const result = await tableView.guardTransition('discard');
+      if (result.status === 'discarded') {
+        finishScreenTransition(target.screen, `Ajustes descartados. ${target.name} aberta.`);
+      }
+      return;
+    }
+    tableView.discard();
+    await performViewDeletion(target);
+  };
+
+  const saveAndContinue = async () => {
+    const target = savedViewDirtyTarget;
+    if (target === null) return;
+
+    if (
+      activeSavedView.state.provenance !== 'user-owned' ||
+      activeSavedView.mutability !== 'mutable'
+    ) {
+      setSavedViewDirtyTarget(null);
+      setSavedViewNameDialog({
+        mode: 'save-as',
+        viewId: activeSavedView.state.viewId,
+        previousName: activeSavedView.state.label,
+        initialValue: '',
+        continuation: target,
+      });
+      return;
+    }
+
+    if (target.kind === 'view') {
+      const result = await performViewActivation(target.viewId, target.name, 'save', target);
+      if (result.status === 'confirmed') setSavedViewDirtyTarget(null);
+      return;
+    }
+
+    const successMessage =
+      target.kind === 'screen'
+        ? `Alterações salvas. ${target.name} aberta.`
+        : `Visualização “${target.viewName}” excluída. “${target.name}” foi aberta.`;
+    savedViewRetryRef.current = { successMessage, afterSave: target };
+    const result = await tableView.save();
+    if (result.status !== 'confirmed') return;
+    setSavedViewDirtyTarget(null);
+    await continueAfterSavedView(target);
+  };
+
   const setActiveScreen = (activeScreen: ActiveScreen) => {
     if (preferences.activeScreen === 'squad' && activeScreen !== 'squad' && tableView.dirty) {
-      void tableView.guardTransition();
+      setSavedViewDirtyTarget({ kind: 'screen', screen: 'tactics', name: 'Táticas' });
       return;
     }
     updatePreference('activeScreen', activeScreen);
@@ -482,6 +850,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
                     aria-current={active ? 'page' : undefined}
                     aria-label={preferences.sidebarCollapsed ? item.label : undefined}
                     className="manager-navigation__item"
+                    data-navigation-id={item.id}
                     disabled={!item.available}
                     key={item.id}
                     onClick={() => {
@@ -603,44 +972,98 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
 
         <main className="manager-main">
           {preferences.activeScreen === 'squad' ? (
-            <SquadWorkspace
-              density={density}
-              dirty={dirty}
-              error={error}
-              focusedPlayerId={focusedPlayerId}
-              message={message}
-              onClearFilters={clearFilters}
-              onDensityChange={(nextDensity) =>
-                tableView.dispatch({ type: 'density.set', density: nextDensity })
-              }
-              onFocusPlayer={setFocusedPlayerId}
-              onPositionFilterChange={setPositionFilter}
-              onPositionFilterVisibleChange={setPositionFilterVisible}
-              onResetView={resetTableView}
-              onRoleFilterChange={setRoleFilter}
-              onSave={() => void saveLineup()}
-              onSortChange={setSquadSort}
-              onSquadFilterChange={setSquadFilter}
-              onStatusFilterChange={setStatusFilter}
-              onToggleColumn={toggleColumn}
-              onTogglePlayer={togglePlayer}
-              players={visiblePlayers}
-              positionFilter={positionFilter}
-              positionFilterVisible={positionFilterVisible}
-              query={query}
-              roleFilter={roleFilter}
-              saving={busyAction === 'save'}
-              selectedIds={selectedIds}
-              showPlayerDetails={preferences.showPlayerDetails}
-              sortState={squadSort}
-              squadFilter={squadFilter}
-              state={state}
-              statusFilter={statusFilter}
-              tableViewCommandStatus={tableView.commandStatus}
-              tableViewPersistenceStatus={tableView.persistenceStatus}
-              tableViewRepositoryStatus={tableView.repositoryStatus}
-              visibleColumns={visibleColumns}
-            />
+            <>
+              <div className="saved-view-lifecycle-host">
+                <SavedViewSelector
+                  activeViewId={tableView.activeViewId}
+                  busy={tableView.persistenceStatus.status === 'saving'}
+                  defaultViewId={tableView.defaultViewId}
+                  dirty={tableView.dirty}
+                  disabled={tableView.repositoryStatus.status === 'loading'}
+                  onActivate={requestViewActivation}
+                  onCreate={requestCreateView}
+                  onDelete={requestDeleteView}
+                  onDuplicate={requestDuplicateView}
+                  onRename={requestRenameView}
+                  onReset={() => void restoreActiveView()}
+                  onSave={() => void saveActiveView()}
+                  onSetDefault={(viewId) => void setDefaultView(viewId)}
+                  views={tableView.views}
+                />
+                <p aria-atomic="true" className="sr-only" role="status">
+                  {savedViewAnnouncement}
+                </p>
+                {savedViewFailureVisible && tableView.persistenceStatus.status === 'failed' && (
+                  <section className="saved-view-failure">
+                    <Status label="Falha ao gravar visualização" variant="danger">
+                      <h3 ref={savedViewFailureHeadingRef} tabIndex={-1}>
+                        Não foi possível salvar visualização
+                      </h3>
+                      <p>
+                        Seus ajustes continuam nesta tela e ainda não foram gravados neste
+                        dispositivo.
+                      </p>
+                    </Status>
+                    <div className="saved-view-failure__actions">
+                      <Button
+                        leadingIcon="retry"
+                        onClick={() => void retrySavedViewMutation()}
+                        variant="secondary"
+                      >
+                        Tentar salvar visualização
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setSavedViewFailureVisible(false);
+                          focusSavedViewSelector();
+                        }}
+                        variant="secondary"
+                      >
+                        Continuar sem salvar
+                      </Button>
+                    </div>
+                  </section>
+                )}
+              </div>
+              <SquadWorkspace
+                density={density}
+                dirty={dirty}
+                error={error}
+                focusedPlayerId={focusedPlayerId}
+                message={message}
+                onClearFilters={clearFilters}
+                onDensityChange={(nextDensity) =>
+                  tableView.dispatch({ type: 'density.set', density: nextDensity })
+                }
+                onFocusPlayer={setFocusedPlayerId}
+                onPositionFilterChange={setPositionFilter}
+                onPositionFilterVisibleChange={setPositionFilterVisible}
+                onResetView={resetTableView}
+                onRoleFilterChange={setRoleFilter}
+                onSave={() => void saveLineup()}
+                onSortChange={setSquadSort}
+                onSquadFilterChange={setSquadFilter}
+                onStatusFilterChange={setStatusFilter}
+                onToggleColumn={toggleColumn}
+                onTogglePlayer={togglePlayer}
+                players={visiblePlayers}
+                positionFilter={positionFilter}
+                positionFilterVisible={positionFilterVisible}
+                query={query}
+                roleFilter={roleFilter}
+                saving={busyAction === 'save'}
+                selectedIds={selectedIds}
+                showPlayerDetails={preferences.showPlayerDetails}
+                sortState={squadSort}
+                squadFilter={squadFilter}
+                state={state}
+                statusFilter={statusFilter}
+                tableViewCommandStatus={tableView.commandStatus}
+                tableViewPersistenceStatus={tableView.persistenceStatus}
+                tableViewRepositoryStatus={tableView.repositoryStatus}
+                visibleColumns={visibleColumns}
+              />
+            </>
           ) : (
             <TacticsWorkspace
               activeTool={activeTacticalTool}
@@ -676,6 +1099,42 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
           )}
         </main>
       </div>
+
+      {savedViewNameDialog && (
+        <SavedViewNameDialog
+          busy={tableView.persistenceStatus.status === 'saving'}
+          initialValue={savedViewNameDialog.initialValue}
+          key={`${savedViewNameDialog.mode}:${savedViewNameDialog.viewId}`}
+          mode={savedViewNameDialog.mode}
+          onDismiss={() => {
+            setSavedViewNameDialog(null);
+            focusSavedViewSelector();
+          }}
+          onSubmit={(name) => void submitSavedViewName(name)}
+        />
+      )}
+
+      {savedViewDeleteDialog && (
+        <SavedViewDeleteDialog
+          busy={tableView.persistenceStatus.status === 'saving'}
+          onConfirm={confirmDeleteView}
+          onDismiss={() => {
+            setSavedViewDeleteDialog(null);
+            focusSavedViewSelector();
+          }}
+          viewName={savedViewDeleteDialog.viewName}
+        />
+      )}
+
+      {savedViewDirtyTarget && (
+        <SavedViewDirtyDialog
+          busy={tableView.persistenceStatus.status === 'saving'}
+          onContinue={continueCurrentView}
+          onDiscard={() => void discardAndContinue()}
+          onSave={() => void saveAndContinue()}
+          targetName={savedViewDirtyTarget.name}
+        />
+      )}
 
       {settingsOpen && (
         <dialog

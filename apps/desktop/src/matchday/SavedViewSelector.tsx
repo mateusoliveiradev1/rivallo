@@ -1,8 +1,9 @@
 import { Icon, type GenericIconName } from '@rivallo/icons';
-import { useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
-import { Button } from '../ui/primitives/actions.js';
+import { Button, IconButton } from '../ui/primitives/actions.js';
 import { Popover } from '../ui/primitives/disclosure.js';
+import { TextField } from '../ui/primitives/forms.js';
 import type { SavedTableView } from './client.js';
 
 const provenanceOrder = {
@@ -49,6 +50,7 @@ export interface SavedViewSelectorProps {
   readonly defaultViewId: string;
   readonly dirty: boolean;
   readonly busy?: boolean;
+  readonly disabled?: boolean;
   readonly onActivate: (viewId: string) => void;
   readonly onCreate: () => void;
   readonly onDuplicate: (viewId: string) => void;
@@ -65,6 +67,7 @@ export function SavedViewSelector({
   defaultViewId,
   dirty,
   busy = false,
+  disabled = false,
   onActivate,
   onCreate,
   onDuplicate,
@@ -78,20 +81,19 @@ export function SavedViewSelector({
   const orderedViews = useMemo(() => orderViews(views), [views]);
   const activeView =
     orderedViews.find(({ state }) => state.viewId === activeViewId) ?? orderedViews[0];
-  const hasUserOwnedViews = orderedViews.some(
-    ({ state }) => state.provenance === 'user-owned',
-  );
+  const hasUserOwnedViews = orderedViews.some(({ state }) => state.provenance === 'user-owned');
 
   if (activeView === undefined) {
     throw new Error('SavedViewSelector requires at least one validated saved view.');
   }
 
   const activeProvenance = activeView.state.provenance;
-  const canManageActive =
-    activeProvenance === 'user-owned' && activeView.mutability === 'mutable';
+  const canManageActive = activeProvenance === 'user-owned' && activeView.mutability === 'mutable';
   const canSetDefault =
     (activeProvenance === 'system-default' && activeView.mutability === 'immutable') ||
     canManageActive;
+  const immutableDirty = dirty && !canManageActive;
+  const interactionDisabled = busy || disabled;
 
   const selectAndClose = (callback: () => void) => {
     callback();
@@ -138,7 +140,7 @@ export function SavedViewSelector({
                   aria-label={`Abrir visualização ${view.state.label}. ${stateLabels.join('. ')}`}
                   className="saved-view-selector__option"
                   data-view-id={view.state.viewId}
-                  disabled={busy}
+                  disabled={interactionDisabled}
                   key={view.state.viewId}
                   onClick={() => selectAndClose(() => onActivate(view.state.viewId))}
                   title={view.state.label}
@@ -167,7 +169,7 @@ export function SavedViewSelector({
                 do elenco.
               </p>
               <Button
-                disabled={busy}
+                disabled={interactionDisabled || dirty}
                 leadingIcon="add"
                 onClick={() => selectAndClose(onCreate)}
                 variant="secondary"
@@ -177,25 +179,42 @@ export function SavedViewSelector({
             </section>
           )}
 
+          {immutableDirty && (
+            <section className="saved-view-selector__readonly">
+              <p>
+                Esta visualização não pode ser editada diretamente. Duplique-a para criar uma versão
+                própria.
+              </p>
+              <Button
+                disabled={interactionDisabled}
+                leadingIcon="copy"
+                onClick={() => selectAndClose(() => onDuplicate(activeView.state.viewId))}
+                variant="primary"
+              >
+                Duplicar para editar
+              </Button>
+            </section>
+          )}
+
           <section
             aria-label={`Ações para ${activeView.state.label}`}
             className="saved-view-selector__actions"
           >
-            <Button
-              disabled={busy}
-              leadingIcon="copy"
-              onClick={() =>
-                selectAndClose(() => onDuplicate(activeView.state.viewId))
-              }
-              variant="secondary"
-            >
-              Duplicar visualização
-            </Button>
+            {!immutableDirty && (
+              <Button
+                disabled={interactionDisabled || (dirty && canManageActive)}
+                leadingIcon="copy"
+                onClick={() => selectAndClose(() => onDuplicate(activeView.state.viewId))}
+                variant="secondary"
+              >
+                Duplicar visualização
+              </Button>
+            )}
 
             {canManageActive && (
               <>
                 <Button
-                  disabled={busy}
+                  disabled={interactionDisabled || dirty}
                   leadingIcon="edit"
                   onClick={() => selectAndClose(() => onRename(activeView.state.viewId))}
                   variant="secondary"
@@ -203,7 +222,7 @@ export function SavedViewSelector({
                   Renomear visualização
                 </Button>
                 <Button
-                  disabled={busy}
+                  disabled={interactionDisabled}
                   onClick={() => selectAndClose(() => onDelete(activeView.state.viewId))}
                   variant="secondary"
                 >
@@ -214,7 +233,7 @@ export function SavedViewSelector({
 
             {canSetDefault && (
               <Button
-                disabled={busy || activeView.state.viewId === defaultViewId}
+                disabled={interactionDisabled || dirty || activeView.state.viewId === defaultViewId}
                 leadingIcon="favorite"
                 onClick={() => selectAndClose(() => onSetDefault(activeView.state.viewId))}
                 variant="secondary"
@@ -226,7 +245,7 @@ export function SavedViewSelector({
             {canManageActive && (
               <>
                 <Button
-                  disabled={busy || !dirty}
+                  disabled={interactionDisabled || !dirty}
                   leadingIcon="retry"
                   onClick={() => selectAndClose(onReset)}
                   variant="secondary"
@@ -234,7 +253,7 @@ export function SavedViewSelector({
                   Restaurar visualização
                 </Button>
                 <Button
-                  disabled={busy || !dirty}
+                  disabled={interactionDisabled || !dirty}
                   leadingIcon="save"
                   onClick={() => selectAndClose(onSave)}
                   variant="primary"
@@ -246,7 +265,7 @@ export function SavedViewSelector({
 
             {hasUserOwnedViews && (
               <Button
-                disabled={busy}
+                disabled={interactionDisabled || dirty}
                 leadingIcon="add"
                 onClick={() => selectAndClose(onCreate)}
                 variant="secondary"
@@ -258,5 +277,271 @@ export function SavedViewSelector({
         </div>
       </Popover>
     </div>
+  );
+}
+
+export type SavedViewNameDialogMode = 'create' | 'duplicate' | 'rename' | 'save-as';
+
+const nameDialogCopy = {
+  create: {
+    title: 'Criar visualização',
+    description: 'Dê um nome para guardar esta configuração de colunas, filtros e ordenação.',
+    action: 'Criar visualização',
+  },
+  duplicate: {
+    title: 'Duplicar visualização',
+    description: 'Crie uma cópia própria sem alterar a visualização de origem.',
+    action: 'Duplicar visualização',
+  },
+  rename: {
+    title: 'Renomear visualização',
+    description: 'O identificador estável e os ajustes desta visualização serão preservados.',
+    action: 'Renomear visualização',
+  },
+  'save-as': {
+    title: 'Criar uma visualização editável',
+    description:
+      'A visualização de origem continuará protegida. Seus ajustes serão salvos em uma cópia própria.',
+    action: 'Duplicar para editar',
+  },
+} as const satisfies Record<
+  SavedViewNameDialogMode,
+  { readonly title: string; readonly description: string; readonly action: string }
+>;
+
+const openNativeDialog = (dialog: HTMLDialogElement | null, initialFocus: HTMLElement | null) => {
+  if (dialog === null) return;
+  if (!dialog.open) {
+    if (typeof dialog.showModal === 'function') dialog.showModal();
+    else dialog.setAttribute('open', '');
+  }
+  initialFocus?.focus();
+};
+
+export interface SavedViewNameDialogProps {
+  readonly mode: SavedViewNameDialogMode;
+  readonly initialValue: string;
+  readonly busy: boolean;
+  readonly onDismiss: () => void;
+  readonly onSubmit: (name: string) => void;
+}
+
+export function SavedViewNameDialog({
+  mode,
+  initialValue,
+  busy,
+  onDismiss,
+  onSubmit,
+}: SavedViewNameDialogProps) {
+  const copy = nameDialogCopy[mode];
+  const titleId = `saved-view-name-${useId()}`;
+  const descriptionId = `${titleId}-description`;
+  const inputId = `${titleId}-input`;
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const [name, setName] = useState(initialValue);
+  const [error, setError] = useState<string>();
+
+  useEffect(() => {
+    openNativeDialog(dialogRef.current, document.getElementById(inputId));
+  }, [inputId]);
+
+  const focusInput = () => {
+    document.getElementById(inputId)?.focus();
+  };
+
+  const submit = () => {
+    const normalizedName = name.trim();
+    if (normalizedName.length === 0) {
+      setError('Digite um nome para a visualização.');
+      focusInput();
+      return;
+    }
+    if (normalizedName.length > 80) {
+      setError('Use no máximo 80 caracteres para o nome da visualização.');
+      focusInput();
+      return;
+    }
+    setError(undefined);
+    onSubmit(normalizedName);
+  };
+
+  return (
+    <dialog
+      aria-describedby={descriptionId}
+      aria-labelledby={titleId}
+      className="saved-view-dialog"
+      onCancel={(event) => {
+        event.preventDefault();
+        onDismiss();
+      }}
+      ref={dialogRef}
+    >
+      <header className="saved-view-dialog__header">
+        <div>
+          <h2 id={titleId}>{copy.title}</h2>
+          <p id={descriptionId}>{copy.description}</p>
+        </div>
+        <IconButton
+          accessibleLabel="Fechar diálogo de visualização"
+          icon="close"
+          onClick={onDismiss}
+          stablePosition
+          tooltip="Fechar diálogo de visualização"
+        />
+      </header>
+      <form
+        className="saved-view-dialog__form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit();
+        }}
+      >
+        <TextField
+          autoFocus
+          disabled={busy}
+          error={error}
+          id={inputId}
+          label="Nome da visualização"
+          maxLength={80}
+          onChange={(event) => setName(event.currentTarget.value)}
+          value={name}
+        />
+        <div className="saved-view-dialog__actions">
+          <Button disabled={busy} onClick={onDismiss} variant="secondary">
+            Voltar para visualização
+          </Button>
+          <Button
+            loading={busy}
+            loadingLabel="Salvando visualização…"
+            type="submit"
+            variant="primary"
+          >
+            {copy.action}
+          </Button>
+        </div>
+      </form>
+    </dialog>
+  );
+}
+
+export interface SavedViewDeleteDialogProps {
+  readonly viewName: string;
+  readonly busy: boolean;
+  readonly onDismiss: () => void;
+  readonly onConfirm: () => void;
+}
+
+export function SavedViewDeleteDialog({
+  viewName,
+  busy,
+  onDismiss,
+  onConfirm,
+}: SavedViewDeleteDialogProps) {
+  const titleId = `saved-view-delete-${useId()}`;
+  const descriptionId = `${titleId}-description`;
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    openNativeDialog(
+      dialogRef.current,
+      dialogRef.current?.querySelector<HTMLElement>('[data-dialog-initial-focus]') ?? null,
+    );
+  }, []);
+
+  return (
+    <dialog
+      aria-describedby={descriptionId}
+      aria-labelledby={titleId}
+      className="saved-view-dialog"
+      onCancel={(event) => {
+        event.preventDefault();
+        onDismiss();
+      }}
+      ref={dialogRef}
+      role="alertdialog"
+    >
+      <h2 id={titleId}>Excluir visualização “{viewName}”?</h2>
+      <p id={descriptionId}>
+        Essa configuração será removida deste dispositivo. O elenco, os jogadores e a escalação não
+        serão alterados.
+      </p>
+      <div className="saved-view-dialog__actions">
+        <Button autoFocus data-dialog-initial-focus onClick={onDismiss} variant="primary">
+          Manter visualização
+        </Button>
+        <Button
+          disabled={busy}
+          loading={busy}
+          loadingLabel="Excluindo visualização…"
+          onClick={onConfirm}
+          variant="destructive-proof"
+        >
+          Excluir visualização
+        </Button>
+      </div>
+    </dialog>
+  );
+}
+
+export interface SavedViewDirtyDialogProps {
+  readonly targetName: string;
+  readonly busy: boolean;
+  readonly onContinue: () => void;
+  readonly onDiscard: () => void;
+  readonly onSave: () => void;
+}
+
+export function SavedViewDirtyDialog({
+  targetName,
+  busy,
+  onContinue,
+  onDiscard,
+  onSave,
+}: SavedViewDirtyDialogProps) {
+  const titleId = `saved-view-dirty-${useId()}`;
+  const descriptionId = `${titleId}-description`;
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    openNativeDialog(
+      dialogRef.current,
+      dialogRef.current?.querySelector<HTMLElement>('[data-dialog-initial-focus]') ?? null,
+    );
+  }, []);
+
+  return (
+    <dialog
+      aria-describedby={descriptionId}
+      aria-labelledby={titleId}
+      className="saved-view-dialog"
+      onCancel={(event) => {
+        event.preventDefault();
+        onContinue();
+      }}
+      ref={dialogRef}
+      role="alertdialog"
+    >
+      <h2 id={titleId}>Salvar alterações antes de abrir “{targetName}”?</h2>
+      <p id={descriptionId}>
+        A visualização atual possui ajustes ainda não gravados. Escolha o que fazer antes de trocar
+        de visualização.
+      </p>
+      <div className="saved-view-dialog__actions">
+        <Button autoFocus data-dialog-initial-focus onClick={onContinue} variant="secondary">
+          Continuar nesta visualização
+        </Button>
+        <Button disabled={busy} onClick={onDiscard} variant="secondary">
+          Descartar e abrir “{targetName}”
+        </Button>
+        <Button
+          loading={busy}
+          loadingLabel="Salvando visualização…"
+          onClick={onSave}
+          variant="primary"
+        >
+          Salvar e abrir “{targetName}”
+        </Button>
+      </div>
+    </dialog>
   );
 }
