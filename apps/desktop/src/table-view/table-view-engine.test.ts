@@ -106,7 +106,7 @@ const schemaFixture = (): TableViewSchema => ({
   constraints: {
     maxColumns: 4,
     maxPinnedColumns: 2,
-    maxPinnedWidthRatio: 0.6,
+    maxPinnedWidthRatio: 0.7,
     maxSortClauses: 2,
     maxFilterDepth: 2,
     maxFilterClauses: 3,
