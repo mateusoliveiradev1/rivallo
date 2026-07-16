@@ -2,6 +2,7 @@
 
 mod matchday;
 mod persistence;
+mod table_view;
 
 pub use matchday::{MatchdayRepository, MatchdayService, MatchdayServiceError};
 pub use persistence::{LocalPersistenceError, LocalPersistencePort};
