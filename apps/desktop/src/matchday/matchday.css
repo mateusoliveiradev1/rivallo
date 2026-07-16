@@ -1929,7 +1929,7 @@
 
 .pitch-workspace {
   display: grid;
-  grid-template-rows: 52px minmax(0, 1fr) 138px;
+  grid-template-rows: 52px auto minmax(0, 1fr) 138px;
   overflow: hidden;
 }
 
@@ -1982,6 +1982,63 @@
   padding: var(--rv-space-3);
   overflow: hidden;
   background: oklch(0.13 0.016 190);
+  grid-row: 3;
+}
+
+.custom-formation-bar {
+  min-width: 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: var(--rv-space-3);
+  padding: var(--rv-space-2) var(--rv-space-4);
+  border-bottom: var(--rv-stroke-border) solid var(--rv-color-border-subtle);
+  color: var(--rv-color-text-muted);
+  background: oklch(0.18 0.018 190);
+  font-size: var(--rv-type-12-size);
+  line-height: var(--rv-type-12-line-height);
+  grid-row: 2;
+}
+
+.custom-formation-bar label {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--rv-space-2);
+}
+
+.custom-formation-bar label > span {
+  flex: 0 0 auto;
+  color: var(--rv-color-text-strong);
+  font-weight: var(--rv-font-weight-semibold);
+}
+
+.custom-formation-bar input {
+  min-width: 140px;
+  max-width: 280px;
+  height: var(--rv-control-height);
+  flex: 1;
+  padding: 0 var(--rv-space-2);
+  border: var(--rv-stroke-border) solid var(--rv-color-border);
+  border-radius: var(--rv-radius-control);
+  color: var(--rv-color-text-strong);
+  background: var(--rv-color-surface);
+}
+
+.custom-formation-bar button {
+  min-height: var(--rv-control-height);
+  padding: 0 var(--rv-space-3);
+  border: var(--rv-stroke-border) solid var(--rv-color-border);
+  border-radius: var(--rv-radius-control);
+  cursor: pointer;
+  color: var(--rv-color-text);
+  background: transparent;
+}
+
+.custom-formation-bar button:hover:not(:disabled) {
+  border-color: var(--rv-color-action-primary);
+  color: var(--rv-color-text-strong);
 }
 
 .tactics-pitch {
@@ -2121,6 +2178,18 @@
 .tactics-pitch[data-dragging] .pitch-slot__position,
 .pitch-slot[data-drop-active] .pitch-slot__position {
   opacity: 1;
+}
+
+.pitch-slot[data-drag-source] .pitch-player-card,
+.bench-tray li[data-drag-source] .bench-player {
+  opacity: 0.42;
+}
+
+.pitch-slot[data-drop-active] .pitch-player-card,
+.bench-tray li[data-drop-active] .bench-player {
+  border-color: var(--rv-color-action-primary);
+  background: oklch(0.22 0.055 170);
+  transform: translateY(-2px);
 }
 
 .pitch-slot[data-drop-active] .pitch-slot__position {
@@ -2289,6 +2358,11 @@
   padding: var(--rv-space-2) var(--rv-space-3) var(--rv-space-3);
   border-top: var(--rv-stroke-border) solid var(--rv-color-border-subtle);
   background: oklch(0.18 0.018 190);
+  grid-row: 4;
+}
+
+.bench-tray[data-dragging] {
+  background: oklch(0.205 0.027 180);
 }
 
 .bench-tray > header {
@@ -2357,6 +2431,43 @@
   transition:
     border-color var(--rv-motion-control) var(--rv-motion-ease-out),
     background-color var(--rv-motion-control) var(--rv-motion-ease-out);
+}
+
+.bench-empty {
+  min-height: 58px;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  border: var(--rv-stroke-border) dashed var(--rv-color-border);
+  border-radius: var(--rv-radius-control);
+  color: var(--rv-color-text-muted);
+  font-size: var(--rv-type-12-size);
+  line-height: var(--rv-type-12-line-height);
+}
+
+.tactical-drag-overlay {
+  position: fixed;
+  z-index: var(--rv-layer-tooltip);
+  min-width: 160px;
+  display: grid;
+  gap: 2px;
+  padding: var(--rv-space-2) var(--rv-space-3);
+  border-radius: var(--rv-radius-control);
+  pointer-events: none;
+  translate: 14px 14px;
+  color: var(--rv-color-text-strong);
+  background: oklch(0.18 0.025 190 / 0.98);
+  box-shadow: 0 4px 8px oklch(0.08 0.01 190 / 0.48);
+}
+
+.tactical-drag-overlay strong,
+.tactical-drag-overlay span {
+  font-size: var(--rv-type-12-size);
+  line-height: var(--rv-type-12-line-height);
+}
+
+.tactical-drag-overlay span {
+  color: var(--rv-color-action-primary);
 }
 
 .bench-player:hover,
@@ -2461,6 +2572,47 @@
   padding: var(--rv-space-4);
   overflow: hidden auto;
   scrollbar-width: thin;
+}
+
+.tactics-focus-player {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--rv-space-3);
+  padding: var(--rv-space-3);
+  border-top: var(--rv-stroke-border) solid var(--rv-color-border-subtle);
+  background: oklch(0.18 0.018 190);
+}
+
+.tactics-focus-player > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.tactics-focus-player small,
+.tactics-focus-player strong,
+.tactics-focus-player b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--rv-type-12-size);
+  line-height: var(--rv-type-12-line-height);
+}
+
+.tactics-focus-player small,
+.tactics-focus-player b {
+  color: var(--rv-color-text-muted);
+  font-weight: var(--rv-font-weight-regular);
+}
+
+.tactics-focus-player strong {
+  color: var(--rv-color-text-strong);
+}
+
+.tactical-alert {
+  color: var(--rv-color-danger);
 }
 
 .inspector-heading {
@@ -3323,6 +3475,11 @@
   cursor: grabbing;
 }
 
+.table-view-customizer__column[data-moving] .table-view-customizer__move {
+  border-color: var(--rv-color-action-primary);
+  color: var(--rv-color-text-strong);
+}
+
 .table-view-customizer__visibility,
 .table-view-customizer__pinning button {
   padding-inline: var(--rv-space-2);
@@ -3705,6 +3862,10 @@
     grid-template-columns: minmax(0, 1fr) 292px;
   }
 
+  .tactics-readiness {
+    display: none;
+  }
+
   .tactics-tool-nav span {
     display: none;
   }
@@ -3770,8 +3931,38 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .tactics-view {
+    grid-template-rows: 64px auto minmax(0, 1fr);
+  }
+
+  .tactics-commandbar {
+    min-height: 92px;
+    flex-wrap: wrap;
+    align-content: center;
+    padding-block: var(--rv-space-2);
+  }
+
+  .tactics-select--formation {
+    min-width: min(360px, 48%);
+    flex: 1;
+  }
+
+  .tactics-commandbar__spacer {
+    display: none;
+  }
+
   .tactics-layout {
-    grid-template-columns: minmax(0, 1fr) 276px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(640px, 1fr) minmax(420px, auto);
+    overflow: hidden auto;
+  }
+
+  .pitch-workspace {
+    min-height: 640px;
+  }
+
+  .tactics-inspector {
+    min-height: 420px;
   }
 
   .tactics-inspector {
@@ -3798,11 +3989,11 @@
   }
 
   .tactics-view {
-    grid-template-rows: 64px 54px minmax(0, 1fr);
+    grid-template-rows: 64px auto minmax(0, 1fr);
   }
 
   .pitch-workspace {
-    grid-template-rows: 48px minmax(0, 1fr) 124px;
+    grid-template-rows: 48px auto minmax(0, 1fr) 124px;
   }
 
   .bench-tray {
@@ -3874,7 +4065,13 @@
   .saved-view-selector__trigger,
   .table-view-customizer__trigger,
   .table-view-customizer__column,
-  .squad-table--controlled tbody tr {
+  .squad-table--controlled tbody tr,
+  .pitch-player-card,
+  .bench-player {
     transition-duration: var(--rv-motion-reduced-duration);
+  }
+
+  .tactical-drag-overlay {
+    display: none;
   }
 }

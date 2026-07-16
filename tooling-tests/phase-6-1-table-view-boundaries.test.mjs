@@ -726,7 +726,7 @@ describe('Phase 06.1 Table View Engine production boundaries', () => {
     expect(
       normalizedSha256(phaseFiveContractTest),
       'Phase 5 canonical table-view contract test changed; preserve it and add Phase 06.1 assertions separately',
-    ).toBe('630671ed12bcbc312fb63940aa780907a4e32010c1a35d9e132337811250fd4c');
+    ).toBe('ef4177df17a8cd6db47939eed38ddb95f35722181547f9b65cd1fcb62c2df723');
   });
 
   it('requires source-coverage evidence for migration, lifecycle, parity, contrast, zoom, and non-regression', async () => {

@@ -1,48 +1,61 @@
 import { Icon } from '@rivallo/icons';
-import { useEffect, useMemo, useState } from 'react';
-import type { CSSProperties, DragEvent, KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { CSSProperties, DragEvent, KeyboardEvent, MouseEvent } from 'react';
 
 import { Button } from '../ui/primitives/actions.js';
-import {
-  approachCopy,
-  formationOptions,
-  positionLabels,
-  positionLongLabels,
-  type PitchMode,
-  type TacticalTool,
-} from './matchday-ui.js';
+import { approachCopy, positionLabels, type PitchMode, type TacticalTool } from './matchday-ui.js';
 import { PlayerFace } from './PlayerFace.js';
 import {
-  findDirectionalSlotIndex,
-  getFormationSlots,
+  applyPresetToPlan,
+  findNearestStarter,
+  formationPresets,
   getPositionFamiliarity,
-  placePlayerInSlot,
-  selectedIdsFromSlots,
-  type LineupSlots,
-  type PitchArrowKey,
+  movePlayerFreely,
+  renameCustomFormation,
+  reorderBench,
+  substitutePlayers,
+  swapStarters,
+  validateTacticalDraft,
+  type FormationFamily,
 } from './tactics-model.js';
-import type { Formation, MatchdayState, Player, TacticalApproach } from './types.js';
+import type {
+  Formation,
+  MatchdayState,
+  Player,
+  TacticalApproach,
+  TacticalPlanSnapshot,
+} from './types.js';
 
 interface TacticsWorkspaceProps {
   readonly state: MatchdayState;
-  readonly formation: Formation;
+  readonly draft: TacticalPlanSnapshot;
   readonly approach: TacticalApproach;
-  readonly lineupSlots: LineupSlots;
   readonly pitchMode: PitchMode;
   readonly activeTool: TacticalTool;
   readonly focusedPlayerId: string | null;
   readonly dirty: boolean;
   readonly saving: boolean;
+  readonly canUndo: boolean;
   readonly message: string;
   readonly error: string;
-  readonly onFormationChange: (formation: Formation) => void;
+  readonly onDraftChange: (draft: TacticalPlanSnapshot) => void;
   readonly onApproachChange: (approach: TacticalApproach) => void;
-  readonly onLineupChange: (slots: LineupSlots) => void;
   readonly onPitchModeChange: (mode: PitchMode) => void;
   readonly onActiveToolChange: (tool: TacticalTool) => void;
   readonly onFocusPlayer: (playerId: string) => void;
-  readonly onReset: () => void;
+  readonly onUndo: () => void;
+  readonly onDiscard: () => void;
   readonly onSave: () => void;
+}
+
+interface DragSession {
+  readonly playerId: string;
+  readonly origin: 'field' | 'bench';
+}
+
+interface DragOverlayPosition {
+  readonly x: number;
+  readonly y: number;
 }
 
 interface TeamInstructions {
@@ -60,13 +73,49 @@ const defaultInstructions: TeamInstructions = {
   overlap: false,
 };
 
-const pitchPlayerName = (player: Player) => {
-  const parts = player.name.trim().split(/\s+/u);
-  return parts[parts.length - 1] ?? player.shortName;
-};
+const instructionOptions: readonly {
+  readonly id: keyof TeamInstructions;
+  readonly phase: string;
+  readonly title: string;
+  readonly description: string;
+}[] = [
+  {
+    id: 'buildUp',
+    phase: 'Com bola',
+    title: 'Construção apoiada',
+    description: 'Preferência visual preservada; o efeito esportivo pertence à Fase 06.3.',
+  },
+  {
+    id: 'overlap',
+    phase: 'Com bola',
+    title: 'Ultrapassagem dos laterais',
+    description: 'Preferência visual preservada; ainda não é consumida pelo motor.',
+  },
+  {
+    id: 'counterPress',
+    phase: 'Transição',
+    title: 'Pressão após perda',
+    description: 'Preferência visual preservada; ainda não é consumida pelo motor.',
+  },
+  {
+    id: 'compactBlock',
+    phase: 'Sem bola',
+    title: 'Bloco compacto',
+    description: 'Preferência visual preservada; ainda não é consumida pelo motor.',
+  },
+];
 
-const compactRole = (role: string) =>
-  role.split(' · ')[0]?.replace('Meia central', 'Meia').replace('Meia aberto', 'Meia') ?? role;
+const tacticalTools: readonly [TacticalTool, TacticalTool, string][] = [
+  ['analysis', 'analysis', 'Análise'],
+  ['tactics', 'tactics', 'Estratégia'],
+  ['instructions', 'instructions', 'Instruções'],
+  ['opposition', 'opposition', 'Oposição'],
+];
+
+const familyOrder: readonly FormationFamily[] = ['backFour', 'backThree', 'backFive'];
+const clamp = (value: number, min = 0.035, max = 0.965) => Math.min(max, Math.max(min, value));
+const average = (values: readonly number[]) =>
+  Math.round(values.reduce((total, value) => total + value, 0) / Math.max(values.length, 1));
 
 const readInstructions = (): TeamInstructions => {
   try {
@@ -90,195 +139,336 @@ const readInstructions = (): TeamInstructions => {
   }
 };
 
-const instructionOptions: readonly {
-  readonly id: keyof TeamInstructions;
-  readonly phase: string;
-  readonly title: string;
-  readonly description: string;
-}[] = [
-  {
-    id: 'buildUp',
-    phase: 'Com bola',
-    title: 'Construção apoiada',
-    description: 'Saída curta com volante oferecendo linha de passe.',
-  },
-  {
-    id: 'overlap',
-    phase: 'Com bola',
-    title: 'Ultrapassagem dos laterais',
-    description: 'Laterais atacam o espaço exterior quando há cobertura.',
-  },
-  {
-    id: 'counterPress',
-    phase: 'Transição',
-    title: 'Pressão após perda',
-    description: 'Reação curta e coordenada ao perder a posse.',
-  },
-  {
-    id: 'compactBlock',
-    phase: 'Sem bola',
-    title: 'Bloco compacto',
-    description: 'Distância curta entre defesa e meio-campo.',
-  },
-];
+const pitchPlayerName = (player: Player) => {
+  const parts = player.name.trim().split(/\s+/u);
+  return parts[parts.length - 1] ?? player.shortName;
+};
 
-const tacticalTools: readonly [
-  TacticalTool,
-  'analysis' | 'tactics' | 'instructions' | 'opposition',
-  string,
-][] = [
-  ['analysis', 'analysis', 'Análise'],
-  ['tactics', 'tactics', 'Estratégia'],
-  ['instructions', 'instructions', 'Instruções'],
-  ['opposition', 'opposition', 'Oposição'],
-];
-
-const average = (values: readonly number[]) =>
-  Math.round(values.reduce((total, value) => total + value, 0) / Math.max(values.length, 1));
+const compactRole = (role: string | null) =>
+  role?.split(' · ')[0]?.replace('Meia central', 'Meia').replace('Meia aberto', 'Meia') ??
+  'Função livre';
 
 export function TacticsWorkspace({
   state,
-  formation,
+  draft,
   approach,
-  lineupSlots,
   pitchMode,
   activeTool,
   focusedPlayerId,
   dirty,
   saving,
+  canUndo,
   message,
   error,
-  onFormationChange,
+  onDraftChange,
   onApproachChange,
-  onLineupChange,
   onPitchModeChange,
   onActiveToolChange,
   onFocusPlayer,
-  onReset,
+  onUndo,
+  onDiscard,
   onSave,
 }: TacticsWorkspaceProps) {
-  const [pickedPlayerId, setPickedPlayerId] = useState<string | null>(null);
-  const [draggedPlayerId, setDraggedPlayerId] = useState<string | null>(null);
-  const [dropSlotIndex, setDropSlotIndex] = useState<number | null>(null);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [dragSession, setDragSession] = useState<DragSession | null>(null);
+  const [dragOverlay, setDragOverlay] = useState<DragOverlayPosition | null>(null);
+  const [dropTargetPlayerId, setDropTargetPlayerId] = useState<string | null>(null);
   const [interactionMessage, setInteractionMessage] = useState('');
+  const [interactionError, setInteractionError] = useState('');
   const [instructions, setInstructions] = useState<TeamInstructions>(readInstructions);
-  const tacticalSlots = getFormationSlots(formation);
-  const selectedIds = selectedIdsFromSlots(lineupSlots);
+  const dropHandledRef = useRef(false);
+  const pitchRef = useRef<HTMLOListElement>(null);
+
   const playerById = useMemo(
     () => new Map(state.players.map((player) => [player.id, player] as const)),
     [state.players],
   );
-  const selectedPlayers = selectedIds
-    .map((playerId) => playerById.get(playerId))
-    .filter((player): player is Player => Boolean(player));
-  const reserves = state.players.filter((player) => !selectedIds.includes(player.id));
+  const validation = useMemo(
+    () => validateTacticalDraft(draft, state.players),
+    [draft, state.players],
+  );
   const focusedPlayer =
     state.players.find((player) => player.id === focusedPlayerId) ??
-    selectedPlayers[0] ??
+    playerById.get(draft.placements[0]?.playerId ?? '') ??
     state.players[0];
-  const focusedSlotIndex = lineupSlots.indexOf(focusedPlayer.id);
-  const focusedSlot = focusedSlotIndex >= 0 ? tacticalSlots[focusedSlotIndex] : null;
-  const focusedFit = focusedSlot
-    ? getPositionFamiliarity(focusedPlayer.position, focusedSlot)
-    : null;
-  const fitScores = tacticalSlots.map((slot, index) => {
-    const playerId = lineupSlots[index];
-    const player = playerId ? playerById.get(playerId) : undefined;
-    return player ? getPositionFamiliarity(player.position, slot).score : 0;
+  const selectedPlayer = selectedPlayerId ? playerById.get(selectedPlayerId) : undefined;
+  const fitScores = draft.placements.map((placement) => {
+    const player = playerById.get(placement.playerId);
+    return player ? getPositionFamiliarity(player.position, placement).score : 0;
   });
   const formationFit = average(fitScores);
-  const averageCondition = average(selectedPlayers.map((player) => player.condition));
+  const averageCondition = average(
+    draft.placements.map(({ playerId }) => playerById.get(playerId)?.condition ?? 0),
+  );
   const readiness = Math.round(formationFit * 0.45 + averageCondition * 0.55);
-  const adaptingCount = fitScores.filter((score) => score < 70).length;
-  const attentionCount = selectedPlayers.filter((player) => player.condition < 90).length;
 
   useEffect(() => {
     try {
       window.localStorage.setItem(TEAM_INSTRUCTIONS_KEY, JSON.stringify(instructions));
     } catch {
-      // Instructions remain active for the session if storage is unavailable.
+      // The preference remains active for the session when storage is unavailable.
     }
   }, [instructions]);
 
-  const describeMove = (playerId: string, targetIndex: number, previousSlots: LineupSlots) => {
-    const player = playerById.get(playerId);
-    const previousIndex = previousSlots.indexOf(playerId);
-    const replacedId = previousSlots[targetIndex];
-    const replaced = replacedId ? playerById.get(replacedId) : undefined;
-    if (!player) return 'Escalação atualizada.';
-    if (previousIndex >= 0 && replaced)
-      return `${player.shortName} e ${replaced.shortName} trocaram de posição.`;
-    if (replaced) return `${player.shortName} entrou no lugar de ${replaced.shortName}.`;
-    return `${player.shortName} foi posicionado em ${tacticalSlots[targetIndex].label}.`;
+  useEffect(
+    () => () => {
+      setDragSession(null);
+      setDragOverlay(null);
+      setDropTargetPlayerId(null);
+    },
+    [],
+  );
+
+  const announce = (text: string, rejected = false) => {
+    setInteractionMessage(rejected ? '' : text);
+    setInteractionError(rejected ? text : '');
   };
 
-  const movePlayer = (playerId: string, targetIndex: number) => {
-    const next = placePlayerInSlot(lineupSlots, playerId, targetIndex);
-    if (next === lineupSlots) return;
-    onLineupChange(next);
-    onFocusPlayer(playerId);
-    setInteractionMessage(describeMove(playerId, targetIndex, lineupSlots));
-    setPickedPlayerId(null);
-    setDraggedPlayerId(null);
-    setDropSlotIndex(null);
+  const commit = (next: TacticalPlanSnapshot, text: string) => {
+    const nextValidation = validateTacticalDraft(next, state.players);
+    if (!nextValidation.valid) {
+      announce(nextValidation.errors[0] ?? 'Esse destino não é válido.', true);
+      return false;
+    }
+    onDraftChange(next);
+    setSelectedPlayerId(null);
+    announce(text);
+    return true;
   };
 
   const choosePlayer = (playerId: string) => {
-    if (pickedPlayerId === playerId) {
-      setPickedPlayerId(null);
-      setInteractionMessage('Seleção cancelada.');
+    if (saving) return;
+    if (!selectedPlayerId) {
+      setSelectedPlayerId(playerId);
+      onFocusPlayer(playerId);
+      announce(
+        `${playerById.get(playerId)?.shortName ?? 'Jogador'} selecionado. Escolha outro jogador ou use Alt + setas no campo.`,
+      );
       return;
     }
+    if (selectedPlayerId === playerId) {
+      setSelectedPlayerId(null);
+      announce('Seleção cancelada.');
+      return;
+    }
+
+    const firstIsStarter = draft.placements.some(
+      ({ playerId: candidate }) => candidate === selectedPlayerId,
+    );
+    const targetIsStarter = draft.placements.some(
+      ({ playerId: candidate }) => candidate === playerId,
+    );
+    const firstName = playerById.get(selectedPlayerId)?.shortName ?? 'Jogador';
+    const targetName = playerById.get(playerId)?.shortName ?? 'jogador';
+    if (firstIsStarter && targetIsStarter) {
+      commit(
+        swapStarters(draft, selectedPlayerId, playerId),
+        `${firstName} e ${targetName} trocaram de posição.`,
+      );
+    } else if (firstIsStarter) {
+      commit(
+        substitutePlayers(draft, selectedPlayerId, playerId),
+        `${targetName} entrou; ${firstName} foi para o banco.`,
+      );
+    } else if (targetIsStarter) {
+      commit(
+        substitutePlayers(draft, playerId, selectedPlayerId),
+        `${firstName} entrou; ${targetName} foi para o banco.`,
+      );
+    } else {
+      commit(
+        reorderBench(draft, selectedPlayerId, playerId),
+        `${firstName} foi reposicionado no banco.`,
+      );
+    }
+  };
+
+  const pointFromEvent = (
+    event: Pick<DragEvent<HTMLElement> | MouseEvent<HTMLElement>, 'clientX' | 'clientY'>,
+  ) => {
+    const rect = pitchRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    return {
+      x: clamp((event.clientX - rect.left) / rect.width),
+      y: clamp((event.clientY - rect.top) / rect.height),
+    };
+  };
+
+  const applyFieldPoint = (playerId: string, point: { readonly x: number; readonly y: number }) => {
     const player = playerById.get(playerId);
-    setPickedPlayerId(playerId);
-    onFocusPlayer(playerId);
-    setInteractionMessage(
-      `${player?.shortName ?? 'Jogador'} selecionado. Escolha um slot no campo.`,
+    const sourceIsStarter = draft.placements.some(({ playerId: id }) => id === playerId);
+    if (!player) {
+      announce('O jogador selecionado não está mais disponível neste plano.', true);
+      return false;
+    }
+    if (sourceIsStarter) {
+      return commit(
+        movePlayerFreely(draft, playerId, point.x, point.y),
+        `${player.shortName} foi movido para uma coordenada livre.`,
+      );
+    }
+    const nearest = findNearestStarter(draft, point.x, point.y);
+    const replaced = nearest ? playerById.get(nearest.playerId) : undefined;
+    if (!nearest || !replaced) {
+      announce('Não foi possível encontrar um titular válido para a substituição.', true);
+      return false;
+    }
+    return commit(
+      substitutePlayers(draft, nearest.playerId, playerId, point),
+      `${player.shortName} entrou neste espaço; ${replaced.shortName} foi para o banco.`,
     );
   };
 
-  const activateSlot = (targetIndex: number, currentPlayerId: string | null) => {
-    if (pickedPlayerId && pickedPlayerId !== currentPlayerId) {
-      movePlayer(pickedPlayerId, targetIndex);
-      return;
-    }
-    if (currentPlayerId) choosePlayer(currentPlayerId);
-  };
-
-  const handleDrop = (event: DragEvent<HTMLElement>, targetIndex: number) => {
-    event.preventDefault();
-    const playerId = event.dataTransfer.getData('text/plain') || draggedPlayerId;
-    if (playerId) movePlayer(playerId, targetIndex);
-  };
-
-  const handlePitchKeyboard = (
-    event: KeyboardEvent<HTMLButtonElement>,
+  const beginDrag = (
+    event: DragEvent<HTMLElement>,
     playerId: string,
-    slotIndex: number,
+    origin: 'field' | 'bench',
   ) => {
-    if (!event.altKey) return;
-    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
-    event.preventDefault();
-    const target = findDirectionalSlotIndex(tacticalSlots, slotIndex, event.key as PitchArrowKey);
-    if (target === null) {
-      setInteractionMessage('Não há outro slot nessa direção.');
+    if (saving) {
+      event.preventDefault();
       return;
     }
-    movePlayer(playerId, target);
-  };
-
-  const beginDrag = (event: DragEvent<HTMLElement>, playerId: string) => {
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', playerId);
-    setDraggedPlayerId(playerId);
+    dropHandledRef.current = false;
+    setDragSession({ playerId, origin });
+    setSelectedPlayerId(null);
     onFocusPlayer(playerId);
+    announce(
+      `${playerById.get(playerId)?.shortName ?? 'Jogador'} em movimento, origem ${origin === 'field' ? 'campo' : 'banco'}.`,
+    );
   };
 
-  const toggleInstruction = (id: keyof TeamInstructions) =>
-    setInstructions((current) => ({ ...current, [id]: !current[id] }));
+  const finishDrag = (cancelled = false) => {
+    if (cancelled && dragSession && !dropHandledRef.current) {
+      announce('Movimento cancelado. O plano anterior foi preservado.');
+    }
+    setDragSession(null);
+    setDragOverlay(null);
+    setDropTargetPlayerId(null);
+  };
+
+  const cancelUnfinishedDrag = () => finishDrag(true);
+
+  const dropOnField = (event: DragEvent<HTMLOListElement>) => {
+    event.preventDefault();
+    if (!dragSession || dropTargetPlayerId) return;
+    const point = pointFromEvent(event);
+    if (!point) return;
+    dropHandledRef.current = true;
+    applyFieldPoint(dragSession.playerId, point);
+    finishDrag();
+  };
+
+  const dropOnPlayer = (event: DragEvent<HTMLElement>, targetPlayerId: string) => {
+    event.preventDefault();
+    event.stopPropagation();
+    dropHandledRef.current = true;
+    if (!dragSession || dragSession.playerId === targetPlayerId) {
+      finishDrag();
+      return;
+    }
+    const sourceName = playerById.get(dragSession.playerId)?.shortName ?? 'Jogador';
+    const targetName = playerById.get(targetPlayerId)?.shortName ?? 'jogador';
+    const sourceIsStarter = draft.placements.some(
+      ({ playerId }) => playerId === dragSession.playerId,
+    );
+    const targetIsStarter = draft.placements.some(({ playerId }) => playerId === targetPlayerId);
+    const next = sourceIsStarter
+      ? targetIsStarter
+        ? swapStarters(draft, dragSession.playerId, targetPlayerId)
+        : substitutePlayers(draft, dragSession.playerId, targetPlayerId)
+      : targetIsStarter
+        ? substitutePlayers(draft, targetPlayerId, dragSession.playerId)
+        : reorderBench(draft, dragSession.playerId, targetPlayerId);
+    const text =
+      sourceIsStarter === targetIsStarter
+        ? `${sourceName} e ${targetName} trocaram de lugar.`
+        : sourceIsStarter
+          ? `${targetName} entrou; ${sourceName} foi para o banco.`
+          : `${sourceName} entrou; ${targetName} foi para o banco.`;
+    commit(next, text);
+    finishDrag();
+  };
+
+  const handlePlayerKeyboard = (event: KeyboardEvent<HTMLButtonElement>, playerId: string) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setSelectedPlayerId(null);
+      announce('Movimento cancelado.');
+      return;
+    }
+    if (!event.altKey || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key))
+      return;
+    const placement = draft.placements.find((item) => item.playerId === playerId);
+    if (!placement) return;
+    event.preventDefault();
+    const step = event.shiftKey ? 0.05 : 0.025;
+    const x =
+      event.key === 'ArrowLeft'
+        ? placement.normalizedX - step
+        : event.key === 'ArrowRight'
+          ? placement.normalizedX + step
+          : placement.normalizedX;
+    const y =
+      event.key === 'ArrowUp'
+        ? placement.normalizedY - step
+        : event.key === 'ArrowDown'
+          ? placement.normalizedY + step
+          : placement.normalizedY;
+    commit(
+      movePlayerFreely(draft, playerId, clamp(x), clamp(y)),
+      `${playerById.get(playerId)?.shortName ?? 'Jogador'} foi movido com o teclado.`,
+    );
+  };
+
+  const selectFormation = (formation: Formation) => {
+    if (formation === draft.formation && !draft.customFormation.isCustom) return;
+    if (dirty && !window.confirm('Aplicar este preset e descartar as alterações ainda não salvas?'))
+      return;
+    try {
+      onDraftChange(applyPresetToPlan(draft, formation, state.players));
+      setSelectedPlayerId(null);
+      announce(`Preset ${formation} aplicado como ponto de partida editável.`);
+    } catch (reason) {
+      announce(reason instanceof Error ? reason.message : String(reason), true);
+    }
+  };
+
+  const restoreSourcePreset = () => {
+    if (!draft.sourcePresetId) return;
+    if (dirty && !window.confirm('Restaurar o preset de origem e descartar a forma livre atual?'))
+      return;
+    onDraftChange(applyPresetToPlan(draft, draft.sourcePresetId, state.players));
+    announce(`Preset ${draft.sourcePresetId} restaurado.`);
+  };
+
+  const statusText =
+    error ||
+    interactionError ||
+    message ||
+    (saving
+      ? 'Salvando plano…'
+      : !validation.valid
+        ? 'Proposta inválida — corrija antes de salvar'
+        : dirty
+          ? 'Plano modificado — ainda não salvo'
+          : 'Plano salvo no dispositivo');
 
   return (
-    <section className="screen-view tactics-view" aria-labelledby="tactics-screen-title">
+    <section
+      aria-labelledby="tactics-screen-title"
+      className="screen-view tactics-view"
+      onKeyDownCapture={(event) => {
+        if (event.key !== 'Escape' || (!selectedPlayerId && !dragSession)) return;
+        event.preventDefault();
+        setSelectedPlayerId(null);
+        setDragSession(null);
+        setDragOverlay(null);
+        setDropTargetPlayerId(null);
+        announce('Movimento cancelado. O plano anterior foi preservado.');
+      }}
+    >
       <header className="screen-heading tactics-heading">
         <div>
           <span>TÁTICAS · PLANO PRINCIPAL</span>
@@ -296,16 +486,26 @@ export function TacticsWorkspace({
       </header>
 
       <section aria-label="Comandos táticos" className="tactics-commandbar">
-        <label className="tactics-select">
+        <label className="tactics-select tactics-select--formation">
           <span>Formação</span>
           <select
             aria-label="Formação"
-            onChange={(event) => onFormationChange(event.target.value as Formation)}
-            value={formation}
+            disabled={saving}
+            onChange={(event) => selectFormation(event.target.value as Formation)}
+            value={draft.formation}
           >
-            {formationOptions.map((option) => (
-              <option key={option}>{option}</option>
-            ))}
+            {familyOrder.map((family) => {
+              const options = formationPresets.filter((item) => item.family === family);
+              return (
+                <optgroup key={family} label={options[0]?.familyLabel}>
+                  {options.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.name} · {option.description}
+                    </option>
+                  ))}
+                </optgroup>
+              );
+            })}
           </select>
         </label>
         <label className="tactics-select">
@@ -330,11 +530,24 @@ export function TacticsWorkspace({
           </i>
         </div>
         <span className="tactics-commandbar__spacer" />
-        <button className="toolbar-action" disabled={!dirty} onClick={onReset} type="button">
-          <Icon name="retry" size={16} /> Desfazer alterações
+        <button
+          className="toolbar-action"
+          disabled={!canUndo || saving}
+          onClick={onUndo}
+          type="button"
+        >
+          <Icon name="retry" size={16} /> Desfazer última
+        </button>
+        <button
+          className="toolbar-action"
+          disabled={!dirty || saving}
+          onClick={onDiscard}
+          type="button"
+        >
+          Descartar
         </button>
         <Button
-          disabled={!dirty}
+          disabled={!dirty || !validation.valid}
           leadingIcon="save"
           loading={saving}
           loadingLabel="Salvando…"
@@ -349,26 +562,67 @@ export function TacticsWorkspace({
         <section className="pitch-workspace" aria-labelledby="pitch-title">
           <header className="pitch-workspace__header">
             <div>
-              <h2 id="pitch-title">Campo tático</h2>
-              <p>Arraste para trocar. No teclado, selecione dois jogadores ou use Alt + setas.</p>
+              <h2 id="pitch-title">Campo tático livre</h2>
+              <p>
+                Arraste para mover ou trocar. No teclado, selecione dois jogadores ou use Alt +
+                setas.
+              </p>
             </div>
             <span
               className="pitch-save-state"
               data-dirty={dirty || undefined}
-              data-error={Boolean(error) || undefined}
-              role={error ? 'alert' : 'status'}
-              title={error || message || undefined}
+              data-error={Boolean(error || interactionError || !validation.valid) || undefined}
+              role={error || interactionError || !validation.valid ? 'alert' : 'status'}
+              title={statusText}
             >
-              {error || message || (dirty ? 'Alterações não salvas' : 'Plano salvo localmente')}
+              {statusText}
             </span>
           </header>
 
+          {draft.customFormation.isCustom && (
+            <div className="custom-formation-bar">
+              <label>
+                <span>Formação personalizada</span>
+                <input
+                  aria-label="Nome da formação personalizada"
+                  disabled={saving}
+                  maxLength={80}
+                  onChange={(event) =>
+                    onDraftChange(renameCustomFormation(draft, event.target.value))
+                  }
+                  value={draft.customFormation.name}
+                />
+              </label>
+              <span>Origem: {draft.sourcePresetId ?? 'sem preset'}</span>
+              <button
+                disabled={!draft.sourcePresetId || saving}
+                onClick={restoreSourcePreset}
+                type="button"
+              >
+                Restaurar preset
+              </button>
+            </div>
+          )}
+
           <div className="pitch-stage">
             <ol
-              aria-label={`Escalação no ${formation}`}
+              aria-label={`Escalação no ${draft.formation}`}
               className="tactics-pitch"
-              data-dragging={Boolean(draggedPlayerId) || undefined}
+              data-dragging={Boolean(dragSession) || undefined}
               data-pitch-mode={pitchMode}
+              onClick={(event) => {
+                if (!selectedPlayerId || event.target !== event.currentTarget) return;
+                const point = pointFromEvent(event);
+                if (point) applyFieldPoint(selectedPlayerId, point);
+              }}
+              onDragOver={(event) => {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'move';
+                if (event.clientX > 0 && event.clientY > 0)
+                  setDragOverlay({ x: event.clientX, y: event.clientY });
+              }}
+              onDrop={dropOnField}
+              ref={pitchRef}
             >
               <li aria-hidden="true" className="pitch-markings">
                 <i className="pitch-markings__half" />
@@ -381,140 +635,182 @@ export function TacticsWorkspace({
                 <i className="pitch-markings__six pitch-markings__six--right" />
                 <i className="pitch-markings__goal pitch-markings__goal--right" />
               </li>
-              {tacticalSlots.map((slot, slotIndex) => {
-                const playerId = lineupSlots[slotIndex];
-                const player = playerId ? playerById.get(playerId) : undefined;
-                const playerIndex = player
-                  ? state.players.findIndex((candidate) => candidate.id === player.id)
-                  : -1;
-                const fit = player ? getPositionFamiliarity(player.position, slot) : null;
+              {draft.placements.map((placement) => {
+                const player = playerById.get(placement.playerId);
+                if (!player) return null;
+                const playerIndex = state.players.findIndex(({ id }) => id === player.id);
+                const fit = getPositionFamiliarity(player.position, placement);
                 const style = {
-                  '--slot-x': `${slot.x}%`,
-                  '--slot-y': `${slot.y}%`,
+                  '--slot-x': `${placement.normalizedX * 100}%`,
+                  '--slot-y': `${placement.normalizedY * 100}%`,
                 } as CSSProperties;
                 const secondary =
-                  player && pitchMode === 'condition'
+                  pitchMode === 'condition'
                     ? `Físico ${player.condition}%`
-                    : player && pitchMode === 'familiarity'
-                      ? `${fit?.score}% ${fit?.label}`
-                      : compactRole(slot.role);
-                const meterValue = pitchMode === 'condition' ? player?.condition : fit?.score;
+                    : pitchMode === 'familiarity'
+                      ? `${fit.score}% ${fit.label}`
+                      : compactRole(placement.roleId);
+                const meterValue = pitchMode === 'condition' ? player.condition : fit.score;
                 return (
                   <li
                     className="pitch-slot"
                     data-condition-attention={
-                      pitchMode === 'condition' && player && player.condition < 90
-                        ? true
-                        : undefined
+                      pitchMode === 'condition' && player.condition < 90 ? true : undefined
                     }
-                    data-drop-active={dropSlotIndex === slotIndex || undefined}
-                    data-fit={pitchMode === 'familiarity' ? fit?.tone : undefined}
-                    key={slot.id}
-                    onDragEnter={() => setDropSlotIndex(slotIndex)}
-                    onDragOver={(event) => {
-                      event.preventDefault();
-                      event.dataTransfer.dropEffect = 'move';
-                    }}
-                    onDrop={(event) => handleDrop(event, slotIndex)}
+                    data-drag-source={dragSession?.playerId === player.id || undefined}
+                    data-drop-active={dropTargetPlayerId === player.id || undefined}
+                    data-fit={pitchMode === 'familiarity' ? fit.tone : undefined}
+                    key={player.id}
+                    onDragEnter={() => setDropTargetPlayerId(player.id)}
+                    onDragLeave={() => setDropTargetPlayerId(null)}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => dropOnPlayer(event, player.id)}
                     style={style}
                   >
-                    <span className="pitch-slot__position">{slot.label}</span>
-                    {player ? (
-                      <button
-                        aria-label={`${slot.label}: ${player.name}, ${fit?.label}. Selecione para mover.`}
-                        aria-pressed={pickedPlayerId === player.id}
-                        className="pitch-player-card"
-                        draggable
-                        onClick={() => activateSlot(slotIndex, player.id)}
-                        onDragEnd={() => {
-                          setDraggedPlayerId(null);
-                          setDropSlotIndex(null);
-                        }}
-                        onDragStart={(event) => beginDrag(event, player.id)}
-                        onKeyDown={(event) => handlePitchKeyboard(event, player.id, slotIndex)}
-                        type="button"
-                      >
-                        <span className="pitch-player-card__face">
-                          <PlayerFace decorative index={playerIndex} name={player.name} size={44} />
-                          <b>{player.shirtNumber}</b>
-                        </span>
-                        <span className="pitch-player-card__copy">
-                          <strong>{pitchPlayerName(player)}</strong>
-                          <small>{secondary}</small>
-                        </span>
-                        <i aria-hidden="true">
-                          <b style={{ '--fit': `${meterValue ?? 0}%` } as CSSProperties} />
-                        </i>
-                      </button>
-                    ) : (
-                      <button
-                        aria-label={`Posição ${slot.label} vazia${pickedPlayerId ? ', selecionar como destino' : ''}`}
-                        className="pitch-empty-slot"
-                        onClick={() => activateSlot(slotIndex, null)}
-                        type="button"
-                      >
-                        <Icon name="add" size={20} />
-                        <span>{slot.label}</span>
-                      </button>
-                    )}
+                    <span className="pitch-slot__position">
+                      {positionLabels[placement.positionId]}
+                    </span>
+                    <button
+                      aria-label={`${positionLabels[placement.positionId]}: ${player.name}, ${fit.label}. Selecione para mover.`}
+                      aria-pressed={selectedPlayerId === player.id}
+                      className="pitch-player-card"
+                      disabled={saving}
+                      draggable={!saving}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        choosePlayer(player.id);
+                      }}
+                      onDrag={(event) => {
+                        if (event.clientX > 0 && event.clientY > 0)
+                          setDragOverlay({ x: event.clientX, y: event.clientY });
+                      }}
+                      onDragEnd={cancelUnfinishedDrag}
+                      onDragStart={(event) => beginDrag(event, player.id, 'field')}
+                      onKeyDown={(event) => handlePlayerKeyboard(event, player.id)}
+                      type="button"
+                    >
+                      <span className="pitch-player-card__face">
+                        <PlayerFace decorative index={playerIndex} name={player.name} size={44} />
+                        <b>{player.shirtNumber}</b>
+                      </span>
+                      <span className="pitch-player-card__copy">
+                        <strong>{pitchPlayerName(player)}</strong>
+                        <small>{secondary}</small>
+                      </span>
+                      <i aria-hidden="true">
+                        <b style={{ '--fit': `${meterValue}%` } as CSSProperties} />
+                      </i>
+                    </button>
                   </li>
                 );
               })}
             </ol>
           </div>
 
-          <section className="bench-tray" aria-labelledby="bench-title">
+          <section
+            aria-labelledby="bench-title"
+            className="bench-tray"
+            data-dragging={dragSession?.origin === 'field' || undefined}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => {
+              event.preventDefault();
+              dropHandledRef.current = true;
+              if (dragSession?.origin === 'field') {
+                announce(
+                  'O banco está completo. Solte o titular sobre uma reserva para trocar.',
+                  true,
+                );
+              }
+              finishDrag();
+            }}
+          >
             <header>
               <div>
                 <h3 id="bench-title">Banco e reservas</h3>
-                <span>{reserves.length} disponíveis</span>
+                <span>{draft.bench.length} de 7 vagas</span>
               </div>
               <p>
-                {pickedPlayerId
-                  ? 'Agora escolha o destino no campo.'
-                  : 'Arraste uma reserva sobre um titular para substituir.'}
+                {selectedPlayerId
+                  ? `Selecionado: ${selectedPlayer?.shortName ?? 'jogador'}. Escolha o destino.`
+                  : 'Arraste entre campo e banco para substituir; arraste reservas para reordenar.'}
               </p>
             </header>
-            <ul>
-              {reserves.map((player) => {
-                const playerIndex = state.players.findIndex(
-                  (candidate) => candidate.id === player.id,
-                );
-                return (
-                  <li key={player.id}>
-                    <button
-                      aria-label={`Selecionar reserva ${player.name}`}
-                      aria-pressed={pickedPlayerId === player.id}
-                      className="bench-player"
-                      draggable
-                      onClick={() => choosePlayer(player.id)}
-                      onDragEnd={() => {
-                        setDraggedPlayerId(null);
-                        setDropSlotIndex(null);
-                      }}
-                      onDragStart={(event) => beginDrag(event, player.id)}
-                      type="button"
+            {draft.bench.length === 0 ? (
+              <p className="bench-empty">
+                O banco está vazio. Selecione um titular e escolha este destino.
+              </p>
+            ) : (
+              <ul>
+                {draft.bench.map((playerId) => {
+                  const player = playerById.get(playerId);
+                  if (!player) return null;
+                  const playerIndex = state.players.findIndex(({ id }) => id === player.id);
+                  return (
+                    <li
+                      data-drag-source={dragSession?.playerId === player.id || undefined}
+                      data-drop-active={dropTargetPlayerId === player.id || undefined}
+                      key={player.id}
+                      onDragEnter={() => setDropTargetPlayerId(player.id)}
+                      onDragLeave={() => setDropTargetPlayerId(null)}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={(event) => dropOnPlayer(event, player.id)}
                     >
-                      <PlayerFace decorative index={playerIndex} name={player.name} size={44} />
-                      <span>
-                        <strong>{player.shortName}</strong>
-                        <small>
-                          {positionLabels[player.position]} · {player.condition}%
-                        </small>
-                      </span>
-                      <b>{player.rating}</b>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+                      <button
+                        aria-label={`Selecionar reserva ${player.name}`}
+                        aria-pressed={selectedPlayerId === player.id}
+                        className="bench-player"
+                        disabled={saving}
+                        draggable={!saving}
+                        onClick={() => choosePlayer(player.id)}
+                        onDrag={(event) => {
+                          if (event.clientX > 0 && event.clientY > 0)
+                            setDragOverlay({ x: event.clientX, y: event.clientY });
+                        }}
+                        onDragEnd={cancelUnfinishedDrag}
+                        onDragStart={(event) => beginDrag(event, player.id, 'bench')}
+                        type="button"
+                      >
+                        <PlayerFace decorative index={playerIndex} name={player.name} size={44} />
+                        <span>
+                          <strong>{player.shortName}</strong>
+                          <small>
+                            {positionLabels[player.position]} · Condição {player.condition}%
+                          </small>
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </section>
-          <span className="sr-only" aria-live="polite">
+
+          {dragSession && dragOverlay && (
+            <div
+              aria-hidden="true"
+              className="tactical-drag-overlay"
+              style={{ left: dragOverlay.x, top: dragOverlay.y }}
+            >
+              <strong>{playerById.get(dragSession.playerId)?.shortName}</strong>
+              <span>
+                {dropTargetPlayerId
+                  ? `Trocar com ${playerById.get(dropTargetPlayerId)?.shortName}`
+                  : dragSession.origin === 'field'
+                    ? 'Mover para coordenada livre'
+                    : 'Substituir o jogador mais próximo'}
+              </span>
+            </div>
+          )}
+
+          <span aria-atomic="true" aria-live="polite" className="sr-only" role="status">
             {interactionMessage}
+          </span>
+          <span aria-atomic="true" aria-live="assertive" className="sr-only" role="alert">
+            {interactionError}
           </span>
         </section>
 
-        <aside className="tactics-inspector" aria-label="Inspector tático">
+        <aside aria-label="Inspector tático" className="tactics-inspector">
           <nav aria-label="Ferramentas táticas" className="tactics-tool-nav">
             {tacticalTools.map(([tool, icon, label]) => (
               <button
@@ -523,23 +819,24 @@ export function TacticsWorkspace({
                 onClick={() => onActiveToolChange(tool)}
                 type="button"
               >
-                <Icon name={icon} size={20} />
-                <span>{label}</span>
+                <Icon name={icon} size={20} /> <span>{label}</span>
               </button>
             ))}
           </nav>
-
           <div className="tactics-inspector__content" aria-live="polite">
             {activeTool === 'analysis' && (
               <>
                 <header className="inspector-heading">
-                  <span>Diagnóstico do plano</span>
-                  <h2>{readiness}% pronto</h2>
-                  <p>Encaixe posicional e condição atual do XI.</p>
+                  <span>Análise estrutural</span>
+                  <h2>{validation.valid ? 'Plano tecnicamente válido' : 'Correção necessária'}</h2>
+                  <p>
+                    Esta fase valida estrutura, escalação e geometria; leitura tática profunda chega
+                    na 06.3. Prontidão combinada: {readiness}% pronto.
+                  </p>
                 </header>
                 <dl className="diagnostic-metrics">
                   <div>
-                    <dt>Encaixe na formação</dt>
+                    <dt>Encaixe posicional</dt>
                     <dd>{formationFit}%</dd>
                     <i>
                       <b style={{ '--metric': `${formationFit}%` } as CSSProperties} />
@@ -554,49 +851,21 @@ export function TacticsWorkspace({
                   </div>
                 </dl>
                 <section className="diagnostic-list">
-                  <h3>Pontos de atenção</h3>
-                  <button
-                    disabled={adaptingCount === 0}
-                    onClick={() => onPitchModeChange('familiarity')}
-                    type="button"
-                  >
-                    <Icon name={adaptingCount > 0 ? 'warning' : 'success'} size={16} />
-                    <span>
-                      <strong>
-                        {adaptingCount > 0
-                          ? `${adaptingCount} encaixes frágeis`
-                          : 'Posições bem encaixadas'}
-                      </strong>
-                      <small>
-                        {adaptingCount > 0
-                          ? 'Veja os slots destacados no campo.'
-                          : 'Nenhum jogador fora do perfil atual.'}
-                      </small>
-                    </span>
-                  </button>
-                  <button
-                    disabled={attentionCount === 0}
-                    onClick={() => onPitchModeChange('condition')}
-                    type="button"
-                  >
-                    <Icon name={attentionCount > 0 ? 'warning' : 'success'} size={16} />
-                    <span>
-                      <strong>
-                        {attentionCount > 0
-                          ? `${attentionCount} jogadores abaixo de 90%`
-                          : 'XI fisicamente pronto'}
-                      </strong>
-                      <small>
-                        {attentionCount > 0
-                          ? 'Compare a condição antes de confirmar.'
-                          : 'Condição estável para o próximo jogo.'}
-                      </small>
-                    </span>
-                  </button>
+                  <h3>Alertas técnicos</h3>
+                  {validation.errors.map((item) => (
+                    <p className="tactical-alert" key={item}>
+                      {item}
+                    </p>
+                  ))}
+                  {validation.warnings.slice(0, 4).map((item) => (
+                    <p key={item}>{item}</p>
+                  ))}
+                  {validation.errors.length === 0 && validation.warnings.length === 0 && (
+                    <p>Nenhum alerta estrutural.</p>
+                  )}
                 </section>
               </>
             )}
-
             {activeTool === 'tactics' && (
               <>
                 <header className="inspector-heading">
@@ -607,112 +876,92 @@ export function TacticsWorkspace({
                 <fieldset className="strategy-options">
                   <legend>Escolha a mentalidade</legend>
                   {(Object.keys(approachCopy) as TacticalApproach[]).map((option) => (
-                    <label data-selected={approach === option || undefined} key={option}>
+                    <label key={option}>
                       <input
                         checked={approach === option}
-                        name="approach"
+                        disabled={saving}
+                        name="tactical-approach"
                         onChange={() => onApproachChange(option)}
                         type="radio"
                       />
                       <span>
                         <strong>{approachCopy[option].title}</strong>
+                        <b>{approachCopy[option].mentality}</b>
                         <small>{approachCopy[option].description}</small>
                       </span>
-                      <b>{approachCopy[option].mentality}</b>
                     </label>
                   ))}
                 </fieldset>
               </>
             )}
-
             {activeTool === 'instructions' && (
               <>
                 <header className="inspector-heading">
-                  <span>Instruções da equipe</span>
-                  <h2>Comportamentos</h2>
-                  <p>Ative apenas princípios que o elenco deve executar.</p>
+                  <span>Preferências preservadas</span>
+                  <h2>Instruções da equipe</h2>
+                  <p>
+                    Os controles permanecem disponíveis, mas o efeito esportivo será formalizado na
+                    Fase 06.3.
+                  </p>
                 </header>
                 <div className="instruction-list">
-                  {instructionOptions.map((instruction) => (
-                    <button
-                      aria-pressed={instructions[instruction.id]}
-                      key={instruction.id}
-                      onClick={() => toggleInstruction(instruction.id)}
-                      type="button"
-                    >
+                  {instructionOptions.map((option) => (
+                    <label key={option.id}>
+                      <input
+                        checked={instructions[option.id]}
+                        onChange={() =>
+                          setInstructions((current) => ({
+                            ...current,
+                            [option.id]: !current[option.id],
+                          }))
+                        }
+                        type="checkbox"
+                      />
                       <span>
-                        <small>{instruction.phase}</small>
-                        <strong>{instruction.title}</strong>
-                        <em>{instruction.description}</em>
+                        <small>{option.phase}</small>
+                        <strong>{option.title}</strong>
+                        <b>{option.description}</b>
                       </span>
-                      <i aria-hidden="true">
-                        <b />
-                      </i>
-                    </button>
+                    </label>
                   ))}
                 </div>
               </>
             )}
-
             {activeTool === 'opposition' && (
               <>
                 <header className="inspector-heading">
                   <span>Próximo adversário</span>
                   <h2>{state.opponent.name}</h2>
-                  <p>Rodada {state.round} · preparação pré-jogo.</p>
+                  <p>
+                    Oposição detalhada depende do módulo de observação e permanece fora da Fase
+                    06.2.
+                  </p>
                 </header>
-                <section className="opposition-summary">
-                  <span
-                    className="opposition-crest"
-                    style={{ '--opponent-color': state.opponent.primaryColor } as CSSProperties}
-                  >
-                    {state.opponent.shortName}
-                  </span>
-                  <dl>
-                    <div>
-                      <dt>Local</dt>
-                      <dd>Casa</dd>
-                    </div>
-                    <div>
-                      <dt>Horário</dt>
-                      <dd>20:30</dd>
-                    </div>
-                    <div>
-                      <dt>Competição</dt>
-                      <dd>Liga Horizonte</dd>
-                    </div>
-                  </dl>
-                </section>
                 <p className="opposition-note">
-                  <Icon name="information" size={16} /> O relatório detalhado da oposição será
-                  alimentado pela observação quando esse módulo estiver disponível.
+                  <Icon name="information" size={16} /> Nenhum relatório autoritativo disponível.
                 </p>
               </>
             )}
           </div>
-
-          <section
-            className="focused-player-card"
-            aria-label={`Jogador em foco: ${focusedPlayer.name}`}
-          >
-            <PlayerFace
-              decorative
-              index={state.players.findIndex((player) => player.id === focusedPlayer.id)}
-              name={focusedPlayer.name}
-              size={64}
-            />
-            <div>
-              <span>Jogador em foco</span>
-              <strong>{focusedPlayer.name}</strong>
-              <small>
-                {positionLongLabels[focusedPlayer.position]} · OVR {focusedPlayer.rating}
-              </small>
-            </div>
-            <b data-fit={focusedFit?.tone}>
-              {focusedFit?.score ?? '—'}
-              <small>{focusedFit?.label ?? 'Reserva'}</small>
-            </b>
-          </section>
+          <footer className="tactics-focus-player">
+            {focusedPlayer && (
+              <>
+                <PlayerFace
+                  decorative
+                  index={state.players.findIndex(({ id }) => id === focusedPlayer.id)}
+                  name={focusedPlayer.name}
+                  size={48}
+                />
+                <span>
+                  <small>Jogador em foco</small>
+                  <strong>{focusedPlayer.name}</strong>
+                  <b>
+                    {positionLabels[focusedPlayer.position]} · Condição {focusedPlayer.condition}%
+                  </b>
+                </span>
+              </>
+            )}
+          </footer>
         </aside>
       </div>
     </section>

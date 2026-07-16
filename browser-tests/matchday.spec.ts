@@ -737,6 +737,56 @@ test.beforeEach(async ({ page }) => {
             persistState();
             return state;
           }
+          if (command === 'update_tactical_plan') {
+            const proposal = args.proposal as NonNullable<MatchdayState['tacticalPlan']> & {
+              expectedRevision: number;
+              approach: MatchdayState['approach'];
+            };
+            const actualRevision = state.tacticalPlan?.revision ?? 0;
+            if (proposal.expectedRevision !== actualRevision) {
+              throw new Error(
+                `tactical_plan_conflict:${proposal.expectedRevision}:${actualRevision}`,
+              );
+            }
+            const acceptedRevision = actualRevision + 1;
+            const selected = new Set(proposal.placements.map(({ playerId }) => playerId));
+            state = {
+              ...state,
+              formation: proposal.formation,
+              approach: proposal.approach,
+              tacticalPlan: {
+                schemaVersion: 2,
+                planId: proposal.planId,
+                name: proposal.name,
+                sourcePresetId: proposal.sourcePresetId,
+                formation: proposal.formation,
+                placements: proposal.placements.map((placement) => ({
+                  ...placement,
+                  revision: acceptedRevision,
+                })),
+                bench: proposal.bench,
+                customFormation: {
+                  ...proposal.customFormation,
+                  updatedAtRevision: acceptedRevision,
+                },
+                revision: acceptedRevision,
+              },
+              lastTacticalEvent: {
+                kind: 'planSaved',
+                planId: proposal.planId,
+                acceptedRevision,
+              },
+              players: state.players.map((player) => ({
+                ...player,
+                selected: selected.has(player.id),
+              })),
+            };
+            persistState();
+            return {
+              state,
+              event: state.lastTacticalEvent,
+            };
+          }
           if (command === 'play_next_match') {
             state = {
               ...state,
@@ -1064,6 +1114,7 @@ test('substitutes through the accessible field flow and persists the saved plan'
   await expect(page.getByRole('button', { name: /^GOL: Ícaro Reis/u })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Selecionar reserva Caio Brandão' })).toBeVisible();
 
+  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('combobox', { name: 'Formação' }).selectOption('4-2-3-1');
   await page.getByRole('radio', { name: /Protagonista/u }).check();
   await page.getByRole('button', { name: 'Salvar plano' }).click();
@@ -1086,6 +1137,80 @@ test('substitutes through the accessible field flow and persists the saved plan'
     'aria-pressed',
     'true',
   );
+});
+
+test('keeps field and bench in one drag session and persists a custom formation', async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== 'desktop-1366x768',
+    'The focused tactical interaction contract only needs one desktop project.',
+  );
+
+  await page.goto(developmentUrl);
+  await page.getByRole('button', { name: 'Táticas' }).click();
+  const pitch = page.getByLabel('Escalação no 4-3-3');
+
+  const goalkeeper = page.getByRole('button', { name: /^GOL: Caio Brandão/u });
+  const goalkeeperSlot = goalkeeper.locator('xpath=..');
+  const goalkeeperStyle = await goalkeeperSlot.getAttribute('style');
+  await goalkeeper.dragTo(pitch, { targetPosition: { x: 500, y: 260 } });
+  await expect(page.locator('.pitch-save-state')).toContainText(
+    'O goleiro precisa permanecer no setor defensivo permitido.',
+  );
+  await expect(goalkeeperSlot).toHaveAttribute('style', goalkeeperStyle ?? '');
+
+  await page
+    .getByRole('button', { name: /^LE: Davi Moura/u })
+    .dragTo(page.getByRole('button', { name: /^ZAG: Iago Serpa/u }));
+  await expect(page.getByRole('button', { name: /^ZAG: Davi Moura/u })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^LE: Iago Serpa/u })).toBeVisible();
+
+  await page
+    .getByRole('button', { name: 'Selecionar reserva Otávio Luz' })
+    .dragTo(page.getByRole('button', { name: /^ZAG: Davi Moura/u }));
+  await expect(page.getByRole('button', { name: /^ZAG: Otávio Luz/u })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Selecionar reserva Davi Moura' })).toBeVisible();
+
+  const midfielder = page.getByRole('button', { name: /^VOL: Luan Seixas/u });
+  await midfielder.focus();
+  await page.keyboard.press('Alt+ArrowUp');
+  const customName = page.getByLabel('Nome da formação personalizada');
+  await expect(customName).toBeVisible();
+  await customName.fill('Pressão assimétrica');
+
+  await page.getByRole('button', { name: 'Selecionar reserva Ícaro Reis' }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[role="status"].sr-only').last()).toContainText('Movimento cancelado');
+
+  await page.getByRole('button', { name: 'Salvar plano' }).click();
+  await expect(page.getByRole('button', { name: 'Salvar plano' })).toBeDisabled();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Plano de jogo' })).toBeVisible();
+  await expect(page.getByLabel('Nome da formação personalizada')).toHaveValue(
+    'Pressão assimétrica',
+  );
+  await expect(page.getByRole('button', { name: /^ZAG: Otávio Luz/u })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Selecionar reserva Davi Moura' })).toBeVisible();
+});
+
+test('honors reduced motion in the tactical interaction surface', async ({ page }, testInfo) => {
+  test.skip(
+    testInfo.project.name !== 'desktop-1366x768',
+    'The reduced-motion contract only needs one desktop project.',
+  );
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto(developmentUrl);
+  await page.getByRole('button', { name: 'Táticas' }).click();
+
+  const duration = await page
+    .getByRole('button', { name: /^GOL: Caio Brandão/u })
+    .evaluate((element) => getComputedStyle(element).transitionDuration);
+  const seconds = duration.endsWith('ms')
+    ? Number.parseFloat(duration) / 1000
+    : Number.parseFloat(duration);
+  expect(seconds).toBeLessThanOrEqual(0.00001);
+  await expect(page.locator('.tactical-drag-overlay')).toHaveCount(0);
 });
 
 test('captures Elenco and Táticas at 1024, 1366, 1440, 1920 and 2560 pixels', async ({
@@ -1140,6 +1265,13 @@ test('captures Elenco and Táticas at 1024, 1366, 1440, 1920 and 2560 pixels', a
       animations: 'disabled',
       path: testInfo.outputPath(`taticas-${viewport.width}x${viewport.height}.png`),
     });
+    if (viewport.width === 1024) {
+      const bench = page.getByRole('heading', { name: 'Banco e reservas' });
+      await bench.scrollIntoViewIfNeeded();
+      await expect(bench).toBeInViewport();
+      await expect(page.getByRole('button', { name: 'Salvar plano' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Descartar' })).toBeVisible();
+    }
   }
 });
 
@@ -1702,6 +1834,7 @@ test('computed WCAG contrast matrix covers operational and truthful table-view s
   await sample('disabled.customizer.save-action-boundary', disabledCustomizerSave);
   await customizerMove.focus();
   await page.keyboard.press('Enter');
+  await waitForStableFrame(page);
   await sample('active.customizer.move-action-boundary', customizerMove);
   await page.keyboard.press('Escape');
   await customizer

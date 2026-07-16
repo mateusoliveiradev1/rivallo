@@ -1,6 +1,6 @@
 import '@testing-library/dom';
 
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,11 +15,12 @@ import type {
 } from './client.js';
 import { SavedViewSelector } from './SavedViewSelector.js';
 import { createSquadDurableFilter, SQUAD_SYSTEM_VIEW } from './squad-table-schema.js';
-import type { MatchdayState, Player } from './types.js';
+import type { MatchdayState, Player, TacticalPlanUpdate } from './types.js';
 
 const clientMock = vi.hoisted(() => ({
   loadMatchday: vi.fn(),
   saveMatchdayLineup: vi.fn(),
+  saveTacticalPlan: vi.fn(),
   playNextMatch: vi.fn(),
   loadTableViews: vi.fn(),
   saveTableViews: vi.fn(),
@@ -263,6 +264,10 @@ describe('MatchdayScreen', () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1920 });
     clientMock.loadMatchday.mockReset().mockResolvedValue(state);
     clientMock.saveMatchdayLineup.mockReset().mockResolvedValue(state);
+    clientMock.saveTacticalPlan.mockReset().mockResolvedValue({
+      state,
+      event: { kind: 'planSaved', planId: 'tactical-plan.primary', acceptedRevision: 1 },
+    });
     clientMock.playNextMatch.mockReset().mockResolvedValue(playedState);
     clientMock.loadTableViews.mockReset().mockResolvedValue({
       status: 'loaded',
@@ -424,8 +429,11 @@ describe('MatchdayScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retirar Caio Brandão' }));
     fireEvent.click(screen.getByRole('button', { name: 'Escalar Ícaro Reis' }));
     fireEvent.click(screen.getByRole('button', { name: 'Salvar escalação' }));
-    await waitFor(() => expect(clientMock.saveMatchdayLineup).toHaveBeenCalledOnce());
-    const [selectedIds] = clientMock.saveMatchdayLineup.mock.calls[0] as [string[]];
+    await waitFor(() => expect(clientMock.saveTacticalPlan).toHaveBeenCalledOnce());
+    const [proposal] = clientMock.saveTacticalPlan.mock.calls[0] as [
+      { placements: { playerId: string }[] },
+    ];
+    const selectedIds = proposal.placements.map(({ playerId }) => playerId);
     expect(selectedIds).toHaveLength(11);
     expect(selectedIds).toContain('p12');
     expect(selectedIds).not.toContain('p1');
@@ -437,7 +445,7 @@ describe('MatchdayScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
     expect(await screen.findByRole('dialog', { name: '2 × 0' })).toBeInstanceOf(HTMLElement);
     expect(screen.getByText('Vitória · Rodada 1')).toBeInstanceOf(HTMLElement);
-    expect(clientMock.saveMatchdayLineup).toHaveBeenCalledOnce();
+    expect(clientMock.saveTacticalPlan).toHaveBeenCalledOnce();
     expect(clientMock.playNextMatch).toHaveBeenCalledOnce();
   });
 
@@ -597,10 +605,149 @@ describe('MatchdayScreen', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Salvar plano' }));
-    await waitFor(() => expect(clientMock.saveMatchdayLineup).toHaveBeenCalledOnce());
-    const [selectedIds] = clientMock.saveMatchdayLineup.mock.calls[0] as [string[]];
+    await waitFor(() => expect(clientMock.saveTacticalPlan).toHaveBeenCalledOnce());
+    const [proposal] = clientMock.saveTacticalPlan.mock.calls[0] as [
+      { placements: { playerId: string }[] },
+    ];
+    const selectedIds = proposal.placements.map(({ playerId }) => playerId);
     expect(selectedIds).toContain('p12');
     expect(selectedIds).not.toContain('p1');
+  });
+
+  it('moves freely by keyboard, announces cancellation, rejects an invalid goalkeeper drop and undoes', async () => {
+    const user = userEvent.setup();
+    render(<MatchdayScreen serviceOwnership="owned" />);
+    await screen.findByRole('heading', { name: 'Visão geral do elenco' });
+    await user.click(screen.getByRole('button', { name: 'Táticas' }));
+
+    const goalkeeper = screen.getByRole('button', { name: /^GOL: Caio Brandão/u });
+    const goalkeeperSlot = goalkeeper.closest('li');
+    const originalStyle = goalkeeperSlot?.getAttribute('style');
+    fireEvent.keyDown(goalkeeper, { altKey: true, key: 'ArrowRight' });
+    expect(screen.getByLabelText('Nome da formação personalizada')).toBeInstanceOf(
+      HTMLInputElement,
+    );
+    expect(goalkeeperSlot?.getAttribute('style')).not.toBe(originalStyle);
+    expect(screen.getByText(/foi movido com o teclado/u)).toBeInstanceOf(HTMLElement);
+
+    await user.click(screen.getByRole('button', { name: 'Desfazer última' }));
+    expect(goalkeeperSlot?.getAttribute('style')).toBe(originalStyle);
+
+    await user.click(screen.getByRole('button', { name: 'Selecionar reserva Ícaro Reis' }));
+    await user.keyboard('{Escape}');
+    expect(screen.getByText(/Movimento cancelado/u)).toBeInstanceOf(HTMLElement);
+
+    const pitch = screen.getByLabelText('Escalação no 4-3-3');
+    vi.spyOn(pitch, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      right: 1000,
+      bottom: 600,
+      width: 1000,
+      height: 600,
+      toJSON: () => ({}),
+    });
+    const dataTransfer = {
+      dropEffect: 'move',
+      effectAllowed: 'move',
+      getData: vi.fn(() => 'p1'),
+      setData: vi.fn(),
+    } as unknown as DataTransfer;
+    fireEvent.dragStart(goalkeeper, { dataTransfer });
+    await waitFor(() =>
+      expect(screen.getByText(/em movimento, origem campo/u)).toBeInstanceOf(HTMLElement),
+    );
+    const dropEvent = createEvent.drop(pitch, { dataTransfer });
+    Object.defineProperties(dropEvent, {
+      clientX: { value: 700 },
+      clientY: { value: 300 },
+    });
+    fireEvent(pitch, dropEvent);
+    expect(screen.getAllByRole('alert').map((element) => element.textContent)).toContainEqual(
+      expect.stringMatching(/goleiro precisa permanecer no setor defensivo/u),
+    );
+    expect(goalkeeperSlot?.getAttribute('style')).toBe(originalStyle);
+  });
+
+  it('protects sidebar navigation while the tactical plan is being saved', async () => {
+    const pendingSave = deferred<TacticalPlanUpdate>();
+    clientMock.saveTacticalPlan.mockReturnValueOnce(pendingSave.promise);
+    const user = userEvent.setup();
+    render(<MatchdayScreen serviceOwnership="owned" />);
+    await screen.findByRole('heading', { name: 'Visão geral do elenco' });
+    await user.click(screen.getByRole('button', { name: 'Táticas' }));
+
+    const midfielder = screen.getByRole('button', { name: /^VOL: Luan Seixas/u });
+    fireEvent.keyDown(midfielder, { altKey: true, key: 'ArrowUp' });
+    await user.click(screen.getByRole('button', { name: 'Salvar plano' }));
+    await waitFor(() => expect(clientMock.saveTacticalPlan).toHaveBeenCalledOnce());
+
+    const squadNavigation = screen.getByRole('button', { name: 'Elenco' }) as HTMLButtonElement;
+    expect(squadNavigation.disabled).toBe(true);
+    fireEvent.click(squadNavigation);
+    expect(screen.getByRole('heading', { name: 'Plano de jogo' })).toBeInstanceOf(
+      HTMLHeadingElement,
+    );
+
+    pendingSave.resolve({
+      state,
+      event: { kind: 'planSaved', planId: 'tactical-plan.primary', acceptedRevision: 1 },
+    });
+    await waitFor(() => expect(squadNavigation.disabled).toBe(false));
+  });
+
+  it('uses the same drag session to swap starters and reorder the bench atomically', async () => {
+    const user = userEvent.setup();
+    clientMock.loadMatchday.mockResolvedValue({
+      ...state,
+      players: [
+        ...state.players,
+        {
+          ...state.players[2],
+          id: 'p13',
+          name: 'Otávio Luz',
+          shortName: 'O. Luz',
+          shirtNumber: 13,
+          selected: false,
+        },
+      ],
+    });
+    render(<MatchdayScreen serviceOwnership="owned" />);
+    await screen.findByRole('heading', { name: 'Visão geral do elenco' });
+    await user.click(screen.getByRole('button', { name: 'Táticas' }));
+
+    const moura = screen.getByRole('button', { name: /^LE: Davi Moura/u });
+    const serpa = screen.getByRole('button', { name: /^ZAG.*Iago Serpa/u });
+    const mouraStyle = moura.closest('li')?.getAttribute('style');
+    const serpaStyle = serpa.closest('li')?.getAttribute('style');
+    const fieldTransfer = {
+      dropEffect: 'move',
+      effectAllowed: 'move',
+      getData: vi.fn(() => 'p2'),
+      setData: vi.fn(),
+    } as unknown as DataTransfer;
+    fireEvent.dragStart(moura, { dataTransfer: fieldTransfer });
+    fireEvent.dragEnter(serpa, { dataTransfer: fieldTransfer });
+    fireEvent.drop(serpa, { dataTransfer: fieldTransfer });
+    expect(moura.closest('li')?.getAttribute('style')).toBe(serpaStyle);
+    expect(serpa.closest('li')?.getAttribute('style')).toBe(mouraStyle);
+
+    const firstReserve = screen.getByRole('button', { name: 'Selecionar reserva Ícaro Reis' });
+    const secondReserve = screen.getByRole('button', { name: 'Selecionar reserva Otávio Luz' });
+    const benchTransfer = {
+      dropEffect: 'move',
+      effectAllowed: 'move',
+      getData: vi.fn(() => 'p12'),
+      setData: vi.fn(),
+    } as unknown as DataTransfer;
+    fireEvent.dragStart(firstReserve, { dataTransfer: benchTransfer });
+    fireEvent.dragEnter(secondReserve, { dataTransfer: benchTransfer });
+    fireEvent.drop(secondReserve, { dataTransfer: benchTransfer });
+    const reserveButtons = screen.getAllByRole('button', { name: /^Selecionar reserva/u });
+    expect(reserveButtons[0]?.getAttribute('aria-label')).toBe('Selecionar reserva Otávio Luz');
+    expect(reserveButtons[1]?.getAttribute('aria-label')).toBe('Selecionar reserva Ícaro Reis');
   });
 
   it('activates validated system, owned and read-only views with confirmed focus and announcements', async () => {

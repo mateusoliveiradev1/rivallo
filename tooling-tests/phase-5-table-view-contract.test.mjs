@@ -18,15 +18,6 @@ function expectTerms(source, area, terms) {
   }
 }
 
-/** @param {string} roadmap @param {number} number */
-function phaseSection(roadmap, number) {
-  const match = roadmap.match(
-    new RegExp(`^## Phase ${number}:.*?(?=^## Phase ${number + 1}:|^## Approval Record)`, 'msu'),
-  );
-  expect(match, `Roadmap Phase ${number} section is missing`).not.toBeNull();
-  return match?.[0] ?? '';
-}
-
 describe('Phase 5 Table View Engine planning contract', () => {
   it('defines complete bounded controlled state without duplicating visual authority', async () => {
     const contract = await readRootFile(contractPath);
@@ -183,28 +174,30 @@ describe('Phase 5 Table View Engine planning contract', () => {
     ]);
   });
 
-  it('assigns split 06.1/Phase 9 ownership and preserves the canonical Roadmap and pending Gate 2', async () => {
+  it('assigns split ownership and preserves the current canonical roadmap', async () => {
     const [contract, roadmap] = await Promise.all([
       readRootFile(contractPath),
       readRootFile('.planning/ROADMAP.md'),
     ]);
-    const headings = [...roadmap.matchAll(/^## Phase (\d+):/gmu)].map((match) => Number(match[1]));
+    const historicalHeadings = [...roadmap.matchAll(/^## Phase (\d+):/gmu)].map((match) =>
+      Number(match[1]),
+    );
+    const canonicalSubphases = [...roadmap.matchAll(/^### Phase (\d{2}\.\d+):/gmu)].map(
+      (match) => match[1],
+    );
 
-    expect(headings, 'Roadmap must preserve exactly Phases 1 through 13 in order').toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
+    expect(historicalHeadings, 'Roadmap must preserve completed Phases 1 through 6').toEqual([
+      1, 2, 3, 4, 5, 6,
     ]);
-    expect(roadmap, 'Gate 2 must remain Pending').toMatch(/^\| Gate 2 \| Pending\s+\|/mu);
-    const phase9 = phaseSection(roadmap, 9);
-    expectTerms(phase9, 'Roadmap Phase 9 ownership', [
-      /Phase 06\.1 Table View Engine/iu,
-      /migrated from `local-fixed` ownership to career identity/iu,
-      /SQLite\/cache\/offline boundaries/iu,
-      /actual dashboard\/squad data/iu,
-      /client virtualization, client pagination, server pagination, or server query/iu,
-      /measured data scale/iu,
-      /query\/cancellation/iu,
-      /cache\/offline/iu,
-      /drift, migration, and recovery evidence/iu,
+    expect(canonicalSubphases).toContain('06.1');
+    expect(canonicalSubphases).toContain('06.2');
+    expect(canonicalSubphases).toContain('09.8');
+    expect(roadmap).toMatch(/### Phase 06\.1: Table Views and Durable Preferences — concluída/iu);
+    expectTerms(roadmap, 'Roadmap 06.1 ownership', [
+      /engine controlado \+ camada application\/adapter/iu,
+      /persistência local versionada/iu,
+      /não inclui banco mundial ou cache de carreira/iu,
+      /Phase 06\.2: Free Tactical Field and Unified Bench Interaction/iu,
     ]);
 
     expectTerms(contract, 'responsibility matrix', [

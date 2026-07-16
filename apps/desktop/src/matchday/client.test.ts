@@ -8,11 +8,13 @@ import {
   loadTableViews,
   playNextMatch,
   saveMatchdayLineup,
+  saveTacticalPlan,
   saveTableViews,
   type ImportLegacyTablePreferencesRequest,
   type LegacyImportReceipt,
   type TableViewRepositoryState,
 } from './client.js';
+import type { TacticalPlanProposal } from './types.js';
 
 const invoke = vi.hoisted(() => vi.fn());
 
@@ -111,6 +113,43 @@ describe('existing matchday client commands', () => {
       ],
       ['play_next_match'],
     ]);
+  });
+
+  it('sends the complete versioned tactical proposal through one atomic command', async () => {
+    invoke.mockResolvedValue({ state: { round: 1 }, event: { kind: 'planSaved' } });
+    const proposal: TacticalPlanProposal = {
+      expectedRevision: 4,
+      planId: 'tactical-plan.primary',
+      name: 'Assimetria Aurora',
+      sourcePresetId: '4-3-3',
+      formation: '4-3-3',
+      placements: Array.from({ length: 11 }, (_, index) => ({
+        playerId: `player.${index + 1}`,
+        normalizedX: index === 0 ? 0.08 : 0.2 + index * 0.06,
+        normalizedY: 0.1 + (index % 5) * 0.18,
+        positionId: index === 0 ? ('GK' as const) : ('CM' as const),
+        roleId: null,
+        side: 'centre' as const,
+        line: index === 0 ? ('goal' as const) : ('midfield' as const),
+        zone: index === 0 ? ('goal' as const) : ('middleThird' as const),
+        sourcePresetSlotId: null,
+        revision: 4,
+      })),
+      bench: ['player.12'],
+      customFormation: {
+        id: 'formation.primary',
+        name: 'Assimetria Aurora',
+        isCustom: true,
+        origin: 'manager',
+        createdAtRevision: 0,
+        updatedAtRevision: 4,
+      },
+      approach: 'balanced',
+    };
+
+    await saveTacticalPlan(proposal);
+
+    expect(invoke).toHaveBeenCalledWith('update_tactical_plan', { proposal });
   });
 });
 

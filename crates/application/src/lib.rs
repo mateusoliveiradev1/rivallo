@@ -7,8 +7,11 @@ mod table_view;
 pub use matchday::{MatchdayRepository, MatchdayService, MatchdayServiceError};
 pub use persistence::{LocalPersistenceError, LocalPersistencePort};
 pub use rivallo_domain::{
-    Club, Formation, LineupSelection, MatchEvent, MatchResult, MatchdayState, Player, Position,
-    PreferredFoot, SeasonRecord, SquadRole, TacticalApproach,
+    Club, CustomFormationIdentity, Formation, LineupSelection, MatchEvent, MatchResult,
+    MatchdayState, Player, Position, PreferredFoot, SeasonRecord, SquadRole,
+    TACTICAL_PLAN_SCHEMA_VERSION, TacticalApproach, TacticalLine, TacticalPlanEvent,
+    TacticalPlanProposal, TacticalPlanSnapshot, TacticalPlanUpdate, TacticalPlayerPlacement,
+    TacticalSide, TacticalZone,
 };
 pub use table_view::{
     CURRENT_ENVELOPE_VERSION, ColumnId, ColumnPinning, ColumnPinningSide, CreateTableViewRequest,

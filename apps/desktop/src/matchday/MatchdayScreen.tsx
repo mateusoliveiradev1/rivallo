@@ -7,7 +7,7 @@ import { Button } from '../ui/primitives/actions.js';
 import { Tooltip } from '../ui/primitives/disclosure.js';
 import { Skeleton, Status } from '../ui/primitives/feedback.js';
 import { Toast } from '../ui/primitives/toast.js';
-import { loadMatchday, playNextMatch, saveMatchdayLineup } from './client.js';
+import { loadMatchday, playNextMatch, saveTacticalPlan } from './client.js';
 import {
   defaultSquadSort,
   type ActiveScreen,
@@ -39,14 +39,24 @@ import { SquadWorkspace } from './SquadWorkspace.js';
 import {
   addPlayerToFirstOpenSlot,
   createLineupSlots,
+  createTacticalPlan,
   hasSameSelectedPlayers,
   normalizeStoredSlots,
   removePlayerFromSlots,
   selectedIdsFromSlots,
+  syncPlanWithLineupSlots,
+  toTacticalPlanProposal,
+  validateTacticalDraft,
   type LineupSlots,
 } from './tactics-model.js';
 import { TacticsWorkspace } from './TacticsWorkspace.js';
-import type { MatchResult, MatchdayState, Player, TacticalApproach } from './types.js';
+import type {
+  MatchResult,
+  MatchdayState,
+  Player,
+  TacticalApproach,
+  TacticalPlanSnapshot,
+} from './types.js';
 import { useSquadTableView, type SquadTableViewCommandStatus } from './use-squad-table-view.js';
 import { WindowControls } from './WindowControls.js';
 
@@ -298,6 +308,9 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
   const [state, setState] = useState<MatchdayState | null>(null);
   const [lineupSlots, setLineupSlots] = useState<LineupSlots>(() => Array(11).fill(null));
   const [savedLineupSlots, setSavedLineupSlots] = useState<LineupSlots>(() => Array(11).fill(null));
+  const [tacticalDraft, setTacticalDraft] = useState<TacticalPlanSnapshot | null>(null);
+  const [savedTacticalPlan, setSavedTacticalPlan] = useState<TacticalPlanSnapshot | null>(null);
+  const [tacticalHistory, setTacticalHistory] = useState<readonly TacticalPlanSnapshot[]>([]);
   const [formation, setFormation] = useState<MatchdayState['formation']>('4-3-3');
   const [approach, setApproach] = useState<TacticalApproach>('balanced');
   const [busyAction, setBusyAction] = useState<'save' | 'play' | null>(null);
@@ -327,6 +340,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
   const savedViewFailureHeadingRef = useRef<HTMLHeadingElement>(null);
   const savedViewRetryRef = useRef<SavedViewRetryContext | null>(null);
   const savedViewContinuationRef = useRef(0);
+  const tacticalSaveOperationRef = useRef(0);
 
   const selectedIds = useMemo(() => selectedIdsFromSlots(lineupSlots), [lineupSlots]);
   const durableFilters = useMemo(
@@ -375,40 +389,50 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
     if (savedViewFailureVisible) savedViewFailureHeadingRef.current?.focus();
   }, [savedViewFailureVisible]);
 
-  const applyServerState = (
-    nextState: MatchdayState,
-    preferredSlots?: LineupSlots,
-    persistLayout = false,
-  ) => {
+  const applyServerState = (nextState: MatchdayState, preferredSlots?: LineupSlots) => {
     const serverSlots = createLineupSlots(nextState.players);
     const serverIds = selectedIdsFromSlots(serverSlots);
+    if (serverIds.length < 11) {
+      setState(nextState);
+      setLineupSlots(serverSlots);
+      setSavedLineupSlots(serverSlots);
+      setTacticalDraft(null);
+      setSavedTacticalPlan(null);
+      setTacticalHistory([]);
+      setFormation(nextState.formation);
+      setApproach(nextState.approach);
+      setFocusedPlayerId(null);
+      return;
+    }
     const normalizedPreferred = preferredSlots
       ? normalizeStoredSlots(preferredSlots, nextState.players)
       : null;
     const stored = readStoredLineup(nextState.players);
-    const layout =
+    const legacyLayout =
       normalizedPreferred && hasSameSelectedPlayers(normalizedPreferred, serverIds)
         ? normalizedPreferred
         : stored && hasSameSelectedPlayers(stored, serverIds)
           ? stored
           : serverSlots;
+    const basePlan =
+      nextState.tacticalPlan ?? createTacticalPlan(nextState.players, nextState.formation);
+    const plan = nextState.tacticalPlan
+      ? basePlan
+      : syncPlanWithLineupSlots(basePlan, legacyLayout, nextState.players);
+    const layout = plan.placements.map(({ playerId }) => playerId);
 
     setState(nextState);
     setLineupSlots(layout);
     setSavedLineupSlots(layout);
-    setFormation(nextState.formation);
+    setTacticalDraft(plan);
+    setSavedTacticalPlan(plan);
+    setTacticalHistory([]);
+    setFormation(plan.formation);
     setApproach(nextState.approach);
     setFocusedPlayerId(
       (current) =>
         current ?? nextState.players.find((player) => serverIds.includes(player.id))?.id ?? null,
     );
-    if (persistLayout) {
-      try {
-        window.localStorage.setItem(TACTICS_LAYOUT_KEY, JSON.stringify(layout));
-      } catch {
-        // The saved server selection remains authoritative if local layout storage is unavailable.
-      }
-    }
   };
 
   useEffect(() => {
@@ -771,6 +795,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
   };
 
   const setActiveScreen = (activeScreen: ActiveScreen) => {
+    if (busyAction !== null) return;
     if (preferences.activeScreen === 'squad' && activeScreen !== 'squad' && tableView.dirty) {
       setSavedViewDirtyTarget({ kind: 'screen', screen: 'tactics', name: 'Táticas' });
       return;
@@ -846,37 +871,65 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
   };
 
   const saveLineup = async () => {
+    if (!state || !tacticalDraft) return null;
+    const candidate = syncPlanWithLineupSlots(tacticalDraft, lineupSlots, state.players);
+    const validation = validateTacticalDraft(candidate, state.players);
+    if (!validation.valid) {
+      setError(validation.errors[0] ?? 'O plano tático é inválido.');
+      return null;
+    }
+    const operation = ++tacticalSaveOperationRef.current;
     setBusyAction('save');
     setMessage('');
     setError('');
     try {
-      const nextState = await saveMatchdayLineup(selectedIds, formation, approach);
-      applyServerState(nextState, lineupSlots, true);
-      setMessage('Plano de jogo salvo no dispositivo.');
-      return nextState;
+      const update = await saveTacticalPlan(toTacticalPlanProposal(candidate, approach));
+      if (operation !== tacticalSaveOperationRef.current) return null;
+      applyServerState(update.state);
+      setMessage(
+        `Plano salvo no dispositivo · revisão ${update.state.tacticalPlan?.revision ?? 0}.`,
+      );
+      return update.state;
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      if (operation !== tacticalSaveOperationRef.current) return null;
+      const detail = reason instanceof Error ? reason.message : String(reason);
+      setError(
+        detail.includes('tactical_plan_conflict')
+          ? 'Conflito de versão: o plano salvo é mais recente. Descarte ou recarregue antes de tentar novamente.'
+          : detail,
+      );
       return null;
     } finally {
-      setBusyAction(null);
+      if (operation === tacticalSaveOperationRef.current) setBusyAction(null);
     }
   };
 
   const playMatch = async () => {
+    if (!state || !tacticalDraft) return;
+    const candidate = syncPlanWithLineupSlots(tacticalDraft, lineupSlots, state.players);
+    const validation = validateTacticalDraft(candidate, state.players);
+    if (!validation.valid) {
+      setError(validation.errors[0] ?? 'O plano tático é inválido.');
+      return;
+    }
+    const operation = ++tacticalSaveOperationRef.current;
     setBusyAction('play');
     setMessage('');
     setError('');
     try {
-      const savedState = await saveMatchdayLineup(selectedIds, formation, approach);
-      applyServerState(savedState, lineupSlots, true);
+      const saved = await saveTacticalPlan(toTacticalPlanProposal(candidate, approach));
+      if (operation !== tacticalSaveOperationRef.current) return;
+      applyServerState(saved.state);
       const nextState = await playNextMatch();
-      applyServerState(nextState, lineupSlots, true);
+      if (operation !== tacticalSaveOperationRef.current) return;
+      applyServerState(nextState);
       setResultOpen(true);
       setMessage(`Rodada ${nextState.round - 1} concluída e salva.`);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      if (operation === tacticalSaveOperationRef.current)
+        setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
-      setBusyAction(null);
+      if (operation === tacticalSaveOperationRef.current) setBusyAction(null);
     }
   };
 
@@ -937,11 +990,23 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
   );
   const visiblePlayers = tableResult.rows;
 
+  const tacticalDirty =
+    tacticalDraft !== null &&
+    savedTacticalPlan !== null &&
+    JSON.stringify(tacticalDraft) !== JSON.stringify(savedTacticalPlan);
   const dirty =
     formation !== state.formation ||
     approach !== state.approach ||
+    tacticalDirty ||
     lineupSlots.join('|') !== savedLineupSlots.join('|');
-  const canPlay = selectedIds.length === 11 && busyAction === null;
+  const canPlay =
+    selectedIds.length === 11 &&
+    tacticalDraft !== null &&
+    validateTacticalDraft(
+      syncPlanWithLineupSlots(tacticalDraft, lineupSlots, state.players),
+      state.players,
+    ).valid &&
+    busyAction === null;
   const lastResult = state.lastResult;
   const systemSavedView = tableView.views.find(
     ({ state: viewState }) => viewState.provenance === 'system-default',
@@ -1195,7 +1260,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
                     aria-label={preferences.sidebarCollapsed ? item.label : undefined}
                     className="manager-navigation__item"
                     data-navigation-id={item.id}
-                    disabled={!item.available}
+                    disabled={!item.available || busyAction !== null}
                     key={item.id}
                     onClick={() => {
                       if (item.id === 'squad' || item.id === 'tactics') setActiveScreen(item.id);
@@ -1366,38 +1431,54 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
                 onTableViewCommand={tableView.dispatch}
               />
             </>
-          ) : (
+          ) : tacticalDraft && savedTacticalPlan ? (
             <TacticsWorkspace
               activeTool={activeTacticalTool}
               approach={approach}
+              canUndo={tacticalHistory.length > 0}
+              draft={tacticalDraft}
               dirty={dirty}
               error={error}
               focusedPlayerId={focusedPlayerId}
-              formation={formation}
-              lineupSlots={lineupSlots}
               message={message}
               onActiveToolChange={setActiveTacticalTool}
               onApproachChange={setApproach}
-              onFocusPlayer={setFocusedPlayerId}
-              onFormationChange={setFormation}
-              onLineupChange={(slots) => {
-                setLineupSlots(slots);
+              onDiscard={() => {
+                setTacticalDraft(savedTacticalPlan);
+                setLineupSlots(savedTacticalPlan.placements.map(({ playerId }) => playerId));
+                setFormation(savedTacticalPlan.formation);
+                setApproach(state.approach);
+                setTacticalHistory([]);
+                setMessage('Alterações descartadas; último plano salvo restaurado.');
+                setError('');
+              }}
+              onDraftChange={(nextDraft) => {
+                setTacticalHistory([tacticalDraft]);
+                setTacticalDraft(nextDraft);
+                setLineupSlots(nextDraft.placements.map(({ playerId }) => playerId));
+                setFormation(nextDraft.formation);
                 setError('');
                 setMessage('');
               }}
+              onFocusPlayer={setFocusedPlayerId}
               onPitchModeChange={(pitchMode) => updatePreference('pitchMode', pitchMode)}
-              onReset={() => {
-                setLineupSlots(savedLineupSlots);
-                setFormation(state.formation);
-                setApproach(state.approach);
-                setMessage('Alterações desfeitas.');
+              onSave={() => void saveLineup()}
+              onUndo={() => {
+                const previous = tacticalHistory.at(-1);
+                if (!previous) return;
+                setTacticalDraft(previous);
+                setLineupSlots(previous.placements.map(({ playerId }) => playerId));
+                setFormation(previous.formation);
+                setTacticalHistory([]);
+                setMessage('Última alteração desfeita.');
                 setError('');
               }}
-              onSave={() => void saveLineup()}
               pitchMode={preferences.pitchMode}
-              saving={busyAction === 'save'}
+              saving={busyAction !== null}
               state={state}
             />
+          ) : (
+            <Skeleton aria-label="Carregando plano tático" lines={8} />
           )}
         </main>
       </div>

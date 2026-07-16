@@ -2,14 +2,20 @@ import { describe, expect, it } from 'vitest';
 
 import type { Player } from './types.js';
 import {
+  applyPresetToPlan,
   createLineupSlots,
+  createTacticalPlan,
   findDirectionalSlotIndex,
+  formationPresets,
   getFormationSlots,
   getPositionFamiliarity,
   hasSameSelectedPlayers,
   normalizeStoredSlots,
   placePlayerInSlot,
   selectedIdsFromSlots,
+  substitutePlayers,
+  swapStarters,
+  validateTacticalDraft,
 } from './tactics-model.js';
 
 const players: Player[] = Array.from({ length: 12 }, (_, index): Player => ({
@@ -79,8 +85,47 @@ describe('tactics model', () => {
 
   it('moves by the geometric arrow direction instead of array order', () => {
     const slots = getFormationSlots('4-3-3');
-    expect(findDirectionalSlotIndex(slots, 5, 'ArrowUp')).toBe(7);
-    expect(findDirectionalSlotIndex(slots, 5, 'ArrowDown')).toBe(6);
-    expect(findDirectionalSlotIndex(slots, 9, 'ArrowRight')).toBeNull();
+    const up = findDirectionalSlotIndex(slots, 6, 'ArrowUp');
+    const down = findDirectionalSlotIndex(slots, 6, 'ArrowDown');
+    expect(up).not.toBeNull();
+    expect(down).not.toBeNull();
+    expect(slots[up ?? 0]?.y).toBeLessThan(slots[6]?.y ?? 0);
+    expect(slots[down ?? 0]?.y).toBeGreaterThan(slots[6]?.y ?? 0);
+    const rightmost = slots.reduce(
+      (best, slot, index) => (slot.x > (slots[best]?.x ?? 0) ? index : best),
+      0,
+    );
+    expect(findDirectionalSlotIndex(slots, rightmost, 'ArrowRight')).toBeNull();
+  });
+
+  it('ships twenty unique curated presets with normalized eleven-player geometry', () => {
+    expect(formationPresets).toHaveLength(20);
+    expect(new Set(formationPresets.map(({ id }) => id)).size).toBe(20);
+    expect(new Set(formationPresets.map(({ family }) => family))).toEqual(
+      new Set(['backFour', 'backThree', 'backFive']),
+    );
+    for (const preset of formationPresets) {
+      expect(preset.version).toBe(1);
+      expect(preset.slots).toHaveLength(11);
+      expect(new Set(preset.slots.map(({ id }) => id)).size).toBe(11);
+      expect(preset.slots.every(({ x, y }) => x >= 0 && x <= 1 && y >= 0 && y <= 1)).toBe(true);
+      expect(preset.slots.filter(({ position }) => position === 'GK')).toHaveLength(1);
+    }
+  });
+
+  it('treats presets as editable starts and keeps substitutions atomic across field and bench', () => {
+    const plan = createTacticalPlan(players, '4-3-3');
+    const changedPreset = applyPresetToPlan(plan, '3-4-2-1', players);
+    expect(changedPreset.sourcePresetId).toBe('3-4-2-1');
+    expect(changedPreset.placements).toHaveLength(11);
+
+    const swapped = swapStarters(changedPreset, 'p2', 'p3');
+    expect(new Set(swapped.placements.map(({ playerId }) => playerId))).toEqual(
+      new Set(changedPreset.placements.map(({ playerId }) => playerId)),
+    );
+    const substituted = substitutePlayers(swapped, 'p1', 'p12');
+    expect(substituted.placements.map(({ playerId }) => playerId)).toContain('p12');
+    expect(substituted.bench).toContain('p1');
+    expect(validateTacticalDraft(substituted, players).valid).toBe(true);
   });
 });

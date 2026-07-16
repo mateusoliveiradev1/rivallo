@@ -1,4 +1,18 @@
-import type { Formation, Player, Position } from './types.js';
+import type {
+  Formation,
+  Player,
+  Position,
+  TacticalLine,
+  TacticalPlanProposal,
+  TacticalPlanSnapshot,
+  TacticalPlayerPlacement,
+  TacticalSide,
+  TacticalZone,
+} from './types.js';
+
+export type FormationFamily = 'backFour' | 'backThree' | 'backFive';
+export type LineupSlots = readonly (string | null)[];
+export type PitchArrowKey = 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown';
 
 export interface TacticalSlot {
   readonly id: string;
@@ -6,8 +20,23 @@ export interface TacticalSlot {
   readonly role: string;
   readonly x: number;
   readonly y: number;
+  readonly position: Position;
   readonly naturalPositions: readonly Position[];
   readonly familiarPositions: readonly Position[];
+  readonly side: TacticalSide;
+  readonly line: TacticalLine;
+  readonly zone: TacticalZone;
+}
+
+export interface FormationPreset {
+  readonly id: Formation;
+  readonly name: string;
+  readonly family: FormationFamily;
+  readonly familyLabel: string;
+  readonly version: 1;
+  readonly description: string;
+  readonly tags: readonly string[];
+  readonly slots: readonly TacticalSlot[];
 }
 
 export interface PositionFamiliarity {
@@ -16,123 +45,733 @@ export interface PositionFamiliarity {
   readonly tone: 'natural' | 'familiar' | 'adapting';
 }
 
-export type LineupSlots = readonly (string | null)[];
-export type PitchArrowKey = 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown';
+export interface TacticalDraftValidation {
+  readonly valid: boolean;
+  readonly errors: readonly string[];
+  readonly warnings: readonly string[];
+}
 
 const defensiveFamiliarity: readonly Position[] = ['RB', 'CB', 'LB', 'DM'];
 const midfieldFamiliarity: readonly Position[] = ['DM', 'CM', 'AM'];
 const wideFamiliarity: readonly Position[] = ['RB', 'LB', 'AM', 'RW', 'LW'];
 const attackingFamiliarity: readonly Position[] = ['AM', 'RW', 'LW', 'ST'];
 
-const slot = (
-  id: string,
-  label: string,
-  role: string,
-  x: number,
-  y: number,
-  naturalPositions: readonly Position[],
-  familiarPositions: readonly Position[],
-): TacticalSlot => ({ id, label, role, x, y, naturalPositions, familiarPositions });
+const sideFromY = (y: number): TacticalSide => (y < 0.4 ? 'left' : y > 0.6 ? 'right' : 'centre');
+const lineFromX = (x: number): TacticalLine =>
+  x <= 0.18 ? 'goal' : x <= 0.38 ? 'defence' : x <= 0.7 ? 'midfield' : 'attack';
+const zoneFromX = (x: number): TacticalZone =>
+  x <= 0.18 ? 'goal' : x <= 0.38 ? 'defensiveThird' : x <= 0.7 ? 'middleThird' : 'finalThird';
 
-const formationSlots: Record<Formation, readonly TacticalSlot[]> = {
-  '4-3-3': [
-    slot('gk', 'GOL', 'Goleiro · Apoio', 9, 50, ['GK'], ['GK']),
-    slot('rb', 'LD', 'Lateral · Apoio', 30, 84, ['RB'], defensiveFamiliarity),
-    slot('rcb', 'ZAG D', 'Zagueiro · Defesa', 24, 62, ['CB'], defensiveFamiliarity),
-    slot('lcb', 'ZAG E', 'Zagueiro · Defesa', 24, 38, ['CB'], defensiveFamiliarity),
-    slot('lb', 'LE', 'Lateral · Apoio', 30, 16, ['LB'], defensiveFamiliarity),
-    slot('dm', 'VOL', 'Volante · Suporte', 48, 50, ['DM'], [...defensiveFamiliarity, 'CM']),
-    slot('rcm', 'MC D', 'Meia central · Suporte', 59, 69, ['CM'], midfieldFamiliarity),
-    slot('lcm', 'MC E', 'Meia central · Suporte', 59, 31, ['CM'], midfieldFamiliarity),
-    slot('rw', 'PD', 'Extremo · Ataque', 80, 78, ['RW'], wideFamiliarity),
-    slot('st', 'ATA', 'Atacante · Ataque', 88, 50, ['ST'], attackingFamiliarity),
-    slot('lw', 'PE', 'Extremo · Ataque', 80, 22, ['LW'], wideFamiliarity),
-  ],
-  '4-2-3-1': [
-    slot('gk', 'GOL', 'Goleiro · Apoio', 9, 50, ['GK'], ['GK']),
-    slot('rb', 'LD', 'Lateral · Apoio', 30, 84, ['RB'], defensiveFamiliarity),
-    slot('rcb', 'ZAG D', 'Zagueiro · Defesa', 24, 62, ['CB'], defensiveFamiliarity),
-    slot('lcb', 'ZAG E', 'Zagueiro · Defesa', 24, 38, ['CB'], defensiveFamiliarity),
-    slot('lb', 'LE', 'Lateral · Apoio', 30, 16, ['LB'], defensiveFamiliarity),
-    slot('rdm', 'VOL D', 'Volante · Suporte', 47, 66, ['DM', 'CM'], midfieldFamiliarity),
-    slot('ldm', 'VOL E', 'Volante · Suporte', 47, 34, ['DM', 'CM'], midfieldFamiliarity),
-    slot('am', 'MEI', 'Armador · Ataque', 66, 50, ['AM'], [...midfieldFamiliarity, 'RW', 'LW']),
-    slot('rw', 'PD', 'Extremo · Ataque', 73, 79, ['RW'], wideFamiliarity),
-    slot('st', 'ATA', 'Atacante · Ataque', 88, 50, ['ST'], attackingFamiliarity),
-    slot('lw', 'PE', 'Extremo · Ataque', 73, 21, ['LW'], wideFamiliarity),
-  ],
-  '4-4-2': [
-    slot('gk', 'GOL', 'Goleiro · Apoio', 9, 50, ['GK'], ['GK']),
-    slot('rb', 'LD', 'Lateral · Apoio', 30, 84, ['RB'], defensiveFamiliarity),
-    slot('rcb', 'ZAG D', 'Zagueiro · Defesa', 24, 62, ['CB'], defensiveFamiliarity),
-    slot('lcb', 'ZAG E', 'Zagueiro · Defesa', 24, 38, ['CB'], defensiveFamiliarity),
-    slot('lb', 'LE', 'Lateral · Apoio', 30, 16, ['LB'], defensiveFamiliarity),
-    slot('rcm', 'MC D', 'Meia central · Suporte', 52, 65, ['CM', 'DM'], midfieldFamiliarity),
-    slot('lcm', 'MC E', 'Meia central · Suporte', 52, 35, ['CM', 'DM'], midfieldFamiliarity),
-    slot('rm', 'MD', 'Meia aberto · Apoio', 62, 84, ['RW'], wideFamiliarity),
-    slot('rst', 'ATA D', 'Atacante · Ataque', 84, 65, ['ST'], attackingFamiliarity),
-    slot('lst', 'ATA E', 'Atacante · Ataque', 84, 35, ['ST'], attackingFamiliarity),
-    slot('lm', 'ME', 'Meia aberto · Apoio', 62, 16, ['LW'], wideFamiliarity),
-  ],
+const labels: Record<Position, string> = {
+  GK: 'GOL',
+  RB: 'LD',
+  CB: 'ZAG',
+  LB: 'LE',
+  DM: 'VOL',
+  CM: 'MC',
+  AM: 'MEI',
+  RW: 'PD',
+  LW: 'PE',
+  ST: 'ATA',
 };
 
-export const getFormationSlots = (formation: Formation) => formationSlots[formation];
+const roles: Record<Position, string> = {
+  GK: 'Goleiro · Apoio',
+  RB: 'Lateral · Apoio',
+  CB: 'Zagueiro · Defesa',
+  LB: 'Lateral · Apoio',
+  DM: 'Volante · Suporte',
+  CM: 'Meia central · Suporte',
+  AM: 'Armador · Ataque',
+  RW: 'Extremo · Ataque',
+  LW: 'Extremo · Ataque',
+  ST: 'Atacante · Ataque',
+};
+
+const familiarityFor = (position: Position): readonly Position[] => {
+  if (position === 'GK') return ['GK'];
+  if (['RB', 'CB', 'LB'].includes(position)) return defensiveFamiliarity;
+  if (position === 'DM' || position === 'CM') return midfieldFamiliarity;
+  if (position === 'RW' || position === 'LW') return wideFamiliarity;
+  return attackingFamiliarity;
+};
+
+type ShapeLine = {
+  readonly x: number;
+  readonly positions: readonly Position[];
+  readonly lane?: 'narrow' | 'wide';
+};
+
+const laneCoordinates = (count: number, lane: 'narrow' | 'wide' = 'wide') => {
+  if (count === 1) return [0.5];
+  const bounds = lane === 'narrow' ? [0.34, 0.66] : [0.14, 0.86];
+  return Array.from(
+    { length: count },
+    (_, index) => bounds[0] + ((bounds[1] - bounds[0]) * index) / (count - 1),
+  );
+};
+
+const buildSlots = (formation: Formation, lines: readonly ShapeLine[]): readonly TacticalSlot[] => {
+  const result: TacticalSlot[] = [
+    {
+      id: `${formation}.gk`,
+      label: 'GOL',
+      role: roles.GK,
+      x: 0.08,
+      y: 0.5,
+      position: 'GK',
+      naturalPositions: ['GK'],
+      familiarPositions: ['GK'],
+      side: 'centre',
+      line: 'goal',
+      zone: 'goal',
+    },
+  ];
+  for (const [lineIndex, shapeLine] of lines.entries()) {
+    const ys = laneCoordinates(shapeLine.positions.length, shapeLine.lane);
+    shapeLine.positions.forEach((position, index) => {
+      const x = shapeLine.x;
+      const y = ys[index] ?? 0.5;
+      result.push({
+        id: `${formation}.${lineIndex}.${index}.${position.toLowerCase()}`,
+        label: `${labels[position]}${shapeLine.positions.filter((item) => item === position).length > 1 ? ` ${index + 1}` : ''}`,
+        role: roles[position],
+        x,
+        y,
+        position,
+        naturalPositions: [position],
+        familiarPositions: familiarityFor(position),
+        side: sideFromY(y),
+        line: lineFromX(x),
+        zone: zoneFromX(x),
+      });
+    });
+  }
+  return result;
+};
+
+const familyLabels: Record<FormationFamily, string> = {
+  backFour: 'Linha de quatro',
+  backThree: 'Linha de três',
+  backFive: 'Linha de cinco',
+};
+
+const preset = (
+  id: Formation,
+  family: FormationFamily,
+  description: string,
+  lines: readonly ShapeLine[],
+  tags: readonly string[],
+): FormationPreset => ({
+  id,
+  name: id,
+  family,
+  familyLabel: familyLabels[family],
+  version: 1,
+  description,
+  tags,
+  slots: buildSlots(id, lines),
+});
+
+const backFour: readonly Position[] = ['LB', 'CB', 'CB', 'RB'];
+const backThree: readonly Position[] = ['CB', 'CB', 'CB'];
+const backFive: readonly Position[] = ['LB', 'CB', 'CB', 'CB', 'RB'];
+
+export const formationPresets: readonly FormationPreset[] = [
+  preset(
+    '4-4-2',
+    'backFour',
+    'Duas linhas claras e dupla de ataque.',
+    [
+      { x: 0.27, positions: backFour },
+      { x: 0.57, positions: ['LW', 'CM', 'CM', 'RW'] },
+      { x: 0.84, positions: ['ST', 'ST'], lane: 'narrow' },
+    ],
+    ['equilíbrio', 'dupla de ataque'],
+  ),
+  preset(
+    '4-4-1-1',
+    'backFour',
+    'Bloco estável com apoio entre as linhas.',
+    [
+      { x: 0.27, positions: backFour },
+      { x: 0.55, positions: ['LW', 'CM', 'CM', 'RW'] },
+      { x: 0.73, positions: ['AM'] },
+      { x: 0.88, positions: ['ST'] },
+    ],
+    ['apoio', 'bloco médio'],
+  ),
+  preset(
+    '4-3-3',
+    'backFour',
+    'Amplitude alta e meio-campo em triângulo.',
+    [
+      { x: 0.27, positions: backFour },
+      { x: 0.52, positions: ['CM', 'DM', 'CM'], lane: 'narrow' },
+      { x: 0.84, positions: ['LW', 'ST', 'RW'] },
+    ],
+    ['amplitude', 'pressão'],
+  ),
+  preset(
+    '4-2-3-1',
+    'backFour',
+    'Duplo volante e três apoios atrás do atacante.',
+    [
+      { x: 0.27, positions: backFour },
+      { x: 0.47, positions: ['DM', 'DM'], lane: 'narrow' },
+      { x: 0.69, positions: ['LW', 'AM', 'RW'] },
+      { x: 0.88, positions: ['ST'] },
+    ],
+    ['duplo volante', 'entrelinhas'],
+  ),
+  preset(
+    '4-1-4-1',
+    'backFour',
+    'Volante único protegendo uma linha ampla de meio.',
+    [
+      { x: 0.27, positions: backFour },
+      { x: 0.45, positions: ['DM'] },
+      { x: 0.64, positions: ['LW', 'CM', 'CM', 'RW'] },
+      { x: 0.88, positions: ['ST'] },
+    ],
+    ['controle', 'volante'],
+  ),
+  preset(
+    '4-3-1-2',
+    'backFour',
+    'Losango central com armador e dois atacantes.',
+    [
+      { x: 0.27, positions: backFour },
+      { x: 0.5, positions: ['CM', 'DM', 'CM'], lane: 'narrow' },
+      { x: 0.69, positions: ['AM'] },
+      { x: 0.86, positions: ['ST', 'ST'], lane: 'narrow' },
+    ],
+    ['losango', 'centro'],
+  ),
+  preset(
+    '4-2-2-2',
+    'backFour',
+    'Dois volantes, dois meias e dupla de referência.',
+    [
+      { x: 0.27, positions: backFour },
+      { x: 0.48, positions: ['DM', 'DM'], lane: 'narrow' },
+      { x: 0.67, positions: ['AM', 'AM'], lane: 'narrow' },
+      { x: 0.86, positions: ['ST', 'ST'], lane: 'narrow' },
+    ],
+    ['quadrado central', 'dupla de ataque'],
+  ),
+  preset(
+    '4-3-2-1',
+    'backFour',
+    'Árvore de Natal compacta por dentro.',
+    [
+      { x: 0.27, positions: backFour },
+      { x: 0.5, positions: ['CM', 'DM', 'CM'], lane: 'narrow' },
+      { x: 0.7, positions: ['AM', 'AM'], lane: 'narrow' },
+      { x: 0.88, positions: ['ST'] },
+    ],
+    ['compacto', 'entrelinhas'],
+  ),
+  preset(
+    '4-1-2-1-2',
+    'backFour',
+    'Losango clássico com largura dos laterais.',
+    [
+      { x: 0.27, positions: backFour },
+      { x: 0.44, positions: ['DM'] },
+      { x: 0.58, positions: ['CM', 'CM'], lane: 'narrow' },
+      { x: 0.72, positions: ['AM'] },
+      { x: 0.87, positions: ['ST', 'ST'], lane: 'narrow' },
+    ],
+    ['losango', 'laterais'],
+  ),
+  preset(
+    '4-2-4',
+    'backFour',
+    'Estrutura agressiva com quatro homens na última linha.',
+    [
+      { x: 0.27, positions: backFour },
+      { x: 0.52, positions: ['CM', 'CM'], lane: 'narrow' },
+      { x: 0.85, positions: ['LW', 'ST', 'ST', 'RW'] },
+    ],
+    ['agressiva', 'amplitude'],
+  ),
+  preset(
+    '3-5-2',
+    'backThree',
+    'Três zagueiros, alas e dupla de ataque.',
+    [
+      { x: 0.25, positions: backThree, lane: 'narrow' },
+      { x: 0.57, positions: ['LW', 'CM', 'DM', 'CM', 'RW'] },
+      { x: 0.86, positions: ['ST', 'ST'], lane: 'narrow' },
+    ],
+    ['alas', 'dupla de ataque'],
+  ),
+  preset(
+    '3-4-3',
+    'backThree',
+    'Saída com três e amplitude em duas alturas.',
+    [
+      { x: 0.25, positions: backThree, lane: 'narrow' },
+      { x: 0.56, positions: ['LW', 'CM', 'CM', 'RW'] },
+      { x: 0.84, positions: ['LW', 'ST', 'RW'] },
+    ],
+    ['amplitude', 'saída de três'],
+  ),
+  preset(
+    '3-4-2-1',
+    'backThree',
+    'Dois meias interiores apoiando uma referência.',
+    [
+      { x: 0.25, positions: backThree, lane: 'narrow' },
+      { x: 0.54, positions: ['LW', 'CM', 'CM', 'RW'] },
+      { x: 0.71, positions: ['AM', 'AM'], lane: 'narrow' },
+      { x: 0.88, positions: ['ST'] },
+    ],
+    ['entrelinhas', 'alas'],
+  ),
+  preset(
+    '3-1-4-2',
+    'backThree',
+    'Volante fixo, linha de quatro e dois atacantes.',
+    [
+      { x: 0.24, positions: backThree, lane: 'narrow' },
+      { x: 0.42, positions: ['DM'] },
+      { x: 0.62, positions: ['LW', 'CM', 'CM', 'RW'] },
+      { x: 0.87, positions: ['ST', 'ST'], lane: 'narrow' },
+    ],
+    ['volante', 'alas'],
+  ),
+  preset(
+    '3-2-4-1',
+    'backThree',
+    'Base de cinco na construção e quatro apoios altos.',
+    [
+      { x: 0.24, positions: backThree, lane: 'narrow' },
+      { x: 0.45, positions: ['DM', 'DM'], lane: 'narrow' },
+      { x: 0.69, positions: ['LW', 'AM', 'AM', 'RW'] },
+      { x: 0.88, positions: ['ST'] },
+    ],
+    ['construção', 'ocupação alta'],
+  ),
+  preset(
+    '3-4-1-2',
+    'backThree',
+    'Losango alto com alas e dupla ofensiva.',
+    [
+      { x: 0.24, positions: backThree, lane: 'narrow' },
+      { x: 0.54, positions: ['LW', 'CM', 'CM', 'RW'] },
+      { x: 0.7, positions: ['AM'] },
+      { x: 0.87, positions: ['ST', 'ST'], lane: 'narrow' },
+    ],
+    ['armador', 'dupla de ataque'],
+  ),
+  preset(
+    '5-3-2',
+    'backFive',
+    'Linha de cinco protegida por trio central.',
+    [
+      { x: 0.27, positions: backFive },
+      { x: 0.57, positions: ['CM', 'DM', 'CM'], lane: 'narrow' },
+      { x: 0.86, positions: ['ST', 'ST'], lane: 'narrow' },
+    ],
+    ['proteção', 'transição'],
+  ),
+  preset(
+    '5-2-3',
+    'backFive',
+    'Segurança atrás com três referências abertas.',
+    [
+      { x: 0.27, positions: backFive },
+      { x: 0.54, positions: ['CM', 'CM'], lane: 'narrow' },
+      { x: 0.84, positions: ['LW', 'ST', 'RW'] },
+    ],
+    ['amplitude', 'transição'],
+  ),
+  preset(
+    '5-4-1',
+    'backFive',
+    'Duas linhas compactas e uma referência.',
+    [
+      { x: 0.27, positions: backFive },
+      { x: 0.59, positions: ['LW', 'CM', 'CM', 'RW'] },
+      { x: 0.88, positions: ['ST'] },
+    ],
+    ['compacto', 'bloco baixo'],
+  ),
+  preset(
+    '5-2-1-2',
+    'backFive',
+    'Dois médios, um armador e dupla de saída.',
+    [
+      { x: 0.27, positions: backFive },
+      { x: 0.52, positions: ['CM', 'CM'], lane: 'narrow' },
+      { x: 0.69, positions: ['AM'] },
+      { x: 0.87, positions: ['ST', 'ST'], lane: 'narrow' },
+    ],
+    ['armador', 'dupla de ataque'],
+  ),
+];
+
+const presetById = new Map(formationPresets.map((item) => [item.id, item] as const));
+
+export const getFormationPreset = (formation: Formation) => {
+  const result = presetById.get(formation);
+  if (!result) throw new Error(`Preset tático ausente: ${formation}`);
+  return result;
+};
+
+export const getFormationSlots = (formation: Formation) => getFormationPreset(formation).slots;
+
+const placementFromSlot = (
+  player: Player,
+  slot: TacticalSlot,
+  revision: number,
+): TacticalPlayerPlacement => ({
+  playerId: player.id,
+  normalizedX: slot.x,
+  normalizedY: slot.y,
+  positionId: slot.position,
+  roleId: slot.role,
+  side: slot.side,
+  line: slot.line,
+  zone: slot.zone,
+  sourcePresetSlotId: slot.id,
+  revision,
+});
+
+export const createTacticalPlan = (
+  players: readonly Player[],
+  formation: Formation,
+): TacticalPlanSnapshot => {
+  const selected = players.filter((player) => player.selected).slice(0, 11);
+  const selectedIds = new Set(selected.map((player) => player.id));
+  const presetDefinition = getFormationPreset(formation);
+  return {
+    schemaVersion: 2,
+    planId: 'tactical-plan.primary',
+    name: formation,
+    sourcePresetId: formation,
+    formation,
+    placements: presetDefinition.slots.map((slot, index) =>
+      placementFromSlot(selected[index] ?? players[index], slot, 0),
+    ),
+    bench: players
+      .filter((player) => !selectedIds.has(player.id))
+      .slice(0, 7)
+      .map((player) => player.id),
+    customFormation: {
+      id: 'formation.primary',
+      name: formation,
+      isCustom: false,
+      origin: 'legacy-migration',
+      createdAtRevision: 0,
+      updatedAtRevision: 0,
+    },
+    revision: 0,
+  };
+};
+
+export const applyPresetToPlan = (
+  draft: TacticalPlanSnapshot,
+  formation: Formation,
+  players: readonly Player[],
+): TacticalPlanSnapshot => {
+  const playerById = new Map(players.map((player) => [player.id, player] as const));
+  const slots = getFormationSlots(formation);
+  const placements = slots.map((slot, index) => {
+    const current = draft.placements[index];
+    const player = current ? playerById.get(current.playerId) : undefined;
+    if (!player) throw new Error('O preset não pode ser aplicado sem onze jogadores válidos.');
+    return placementFromSlot(player, slot, draft.revision);
+  });
+  return {
+    ...draft,
+    name: formation,
+    sourcePresetId: formation,
+    formation,
+    placements,
+    customFormation: {
+      ...draft.customFormation,
+      name: formation,
+      isCustom: false,
+      origin: 'preset',
+    },
+  };
+};
+
+const customIdentity = (draft: TacticalPlanSnapshot) => ({
+  ...draft.customFormation,
+  name: draft.customFormation.isCustom
+    ? draft.customFormation.name
+    : `Minha ${draft.sourcePresetId ?? draft.formation}`,
+  isCustom: true,
+  origin: draft.customFormation.isCustom ? draft.customFormation.origin : 'manager',
+});
+
+export const movePlayerFreely = (
+  draft: TacticalPlanSnapshot,
+  playerId: string,
+  normalizedX: number,
+  normalizedY: number,
+): TacticalPlanSnapshot => ({
+  ...draft,
+  placements: draft.placements.map((placement) =>
+    placement.playerId === playerId
+      ? {
+          ...placement,
+          normalizedX,
+          normalizedY,
+          side: sideFromY(normalizedY),
+          line: lineFromX(normalizedX),
+          zone: zoneFromX(normalizedX),
+          sourcePresetSlotId: null,
+        }
+      : placement,
+  ),
+  customFormation: customIdentity(draft),
+});
+
+export const swapStarters = (
+  draft: TacticalPlanSnapshot,
+  sourcePlayerId: string,
+  targetPlayerId: string,
+): TacticalPlanSnapshot => {
+  const source = draft.placements.find((item) => item.playerId === sourcePlayerId);
+  const target = draft.placements.find((item) => item.playerId === targetPlayerId);
+  if (!source || !target || sourcePlayerId === targetPlayerId) return draft;
+  return {
+    ...draft,
+    placements: draft.placements.map((placement) => {
+      if (placement.playerId === sourcePlayerId) {
+        return { ...target, playerId: sourcePlayerId, positionId: target.positionId };
+      }
+      if (placement.playerId === targetPlayerId) {
+        return { ...source, playerId: targetPlayerId, positionId: source.positionId };
+      }
+      return placement;
+    }),
+    customFormation: customIdentity(draft),
+  };
+};
+
+export const substitutePlayers = (
+  draft: TacticalPlanSnapshot,
+  starterId: string,
+  reserveId: string,
+  dropCoordinate?: { readonly x: number; readonly y: number },
+): TacticalPlanSnapshot => {
+  const starter = draft.placements.find((item) => item.playerId === starterId);
+  const reserveIndex = draft.bench.indexOf(reserveId);
+  if (!starter || reserveIndex < 0) return draft;
+  const bench = [...draft.bench];
+  bench[reserveIndex] = starterId;
+  const x = dropCoordinate?.x ?? starter.normalizedX;
+  const y = dropCoordinate?.y ?? starter.normalizedY;
+  return {
+    ...draft,
+    placements: draft.placements.map((placement) =>
+      placement.playerId === starterId
+        ? {
+            ...placement,
+            playerId: reserveId,
+            normalizedX: x,
+            normalizedY: y,
+            side: sideFromY(y),
+            line: lineFromX(x),
+            zone: zoneFromX(x),
+            sourcePresetSlotId: null,
+          }
+        : placement,
+    ),
+    bench,
+    customFormation: customIdentity(draft),
+  };
+};
+
+export const reorderBench = (
+  draft: TacticalPlanSnapshot,
+  sourcePlayerId: string,
+  targetPlayerId: string,
+): TacticalPlanSnapshot => {
+  const sourceIndex = draft.bench.indexOf(sourcePlayerId);
+  const targetIndex = draft.bench.indexOf(targetPlayerId);
+  if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return draft;
+  const bench = [...draft.bench];
+  [bench[sourceIndex], bench[targetIndex]] = [bench[targetIndex], bench[sourceIndex]];
+  return { ...draft, bench };
+};
+
+export const renameCustomFormation = (
+  draft: TacticalPlanSnapshot,
+  name: string,
+): TacticalPlanSnapshot => ({
+  ...draft,
+  name,
+  customFormation: { ...customIdentity(draft), name },
+});
+
+export const selectedIdsFromPlan = (draft: TacticalPlanSnapshot) =>
+  draft.placements.map((placement) => placement.playerId);
+
+export const syncPlanWithLineupSlots = (
+  draft: TacticalPlanSnapshot,
+  slots: LineupSlots,
+  players: readonly Player[],
+): TacticalPlanSnapshot => {
+  const desired = selectedIdsFromSlots(slots);
+  if (desired.length !== 11 || new Set(desired).size !== 11) return draft;
+  const desiredSet = new Set(desired);
+  const previousBench = draft.bench.filter((playerId) => !desiredSet.has(playerId));
+  const removedStarters = draft.placements
+    .map(({ playerId }) => playerId)
+    .filter((playerId) => !desiredSet.has(playerId));
+  const remainingPlayers = players
+    .map(({ id }) => id)
+    .filter((playerId) => !desiredSet.has(playerId));
+  const bench = [...new Set([...previousBench, ...removedStarters, ...remainingPlayers])].slice(
+    0,
+    7,
+  );
+  return {
+    ...draft,
+    placements: draft.placements.map((placement, index) => ({
+      ...placement,
+      playerId: desired[index] ?? placement.playerId,
+    })),
+    bench,
+  };
+};
+
+export const validateTacticalDraft = (
+  draft: TacticalPlanSnapshot,
+  players: readonly Player[],
+): TacticalDraftValidation => {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const playerById = new Map(players.map((player) => [player.id, player] as const));
+  const allIds = [...selectedIdsFromPlan(draft), ...draft.bench];
+  if (draft.schemaVersion !== 2) errors.push('Versão do plano incompatível.');
+  if (draft.placements.length !== 11) errors.push('O campo precisa de exatamente 11 titulares.');
+  if (draft.bench.length > 7) errors.push('O banco excede o limite de 7 jogadores.');
+  if (new Set(allIds).size !== allIds.length)
+    errors.push('Um jogador aparece mais de uma vez no plano.');
+  if (allIds.some((playerId) => !playerById.has(playerId)))
+    errors.push('O plano referencia um jogador inexistente.');
+  if (
+    draft.placements.some(
+      ({ normalizedX, normalizedY }) =>
+        !Number.isFinite(normalizedX) ||
+        !Number.isFinite(normalizedY) ||
+        normalizedX < 0 ||
+        normalizedX > 1 ||
+        normalizedY < 0 ||
+        normalizedY > 1,
+    )
+  )
+    errors.push('Há jogador fora dos limites do campo.');
+  const goalkeepers = draft.placements.filter(
+    ({ playerId }) => playerById.get(playerId)?.position === 'GK',
+  );
+  if (goalkeepers.length !== 1) errors.push('A escalação precisa de exatamente um goleiro.');
+  else if ((goalkeepers[0]?.normalizedX ?? 1) > 0.25)
+    errors.push('O goleiro precisa permanecer no setor defensivo permitido.');
+  for (const [index, placement] of draft.placements.entries()) {
+    for (const other of draft.placements.slice(index + 1)) {
+      if (
+        Math.hypot(
+          placement.normalizedX - other.normalizedX,
+          placement.normalizedY - other.normalizedY,
+        ) < 0.01
+      )
+        errors.push('Dois jogadores estão sobrepostos e não podem ser operados.');
+    }
+    const player = playerById.get(placement.playerId);
+    if (player && getPositionFamiliarity(player.position, placement).score < 70)
+      warnings.push(`${player.shortName} atua fora da posição habitual.`);
+  }
+  return { valid: errors.length === 0, errors: [...new Set(errors)], warnings };
+};
+
+export const toTacticalPlanProposal = (
+  draft: TacticalPlanSnapshot,
+  approach: TacticalPlanProposal['approach'],
+): TacticalPlanProposal => ({
+  expectedRevision: draft.revision,
+  planId: draft.planId,
+  name: draft.name,
+  sourcePresetId: draft.sourcePresetId,
+  formation: draft.formation,
+  placements: draft.placements,
+  bench: draft.bench,
+  customFormation: draft.customFormation,
+  approach,
+});
+
+export const findNearestStarter = (
+  draft: TacticalPlanSnapshot,
+  normalizedX: number,
+  normalizedY: number,
+) =>
+  draft.placements.reduce<TacticalPlayerPlacement | null>((nearest, placement) => {
+    if (!nearest) return placement;
+    const candidateDistance = Math.hypot(
+      placement.normalizedX - normalizedX,
+      placement.normalizedY - normalizedY,
+    );
+    const nearestDistance = Math.hypot(
+      nearest.normalizedX - normalizedX,
+      nearest.normalizedY - normalizedY,
+    );
+    return candidateDistance < nearestDistance ? placement : nearest;
+  }, null);
 
 export const findDirectionalSlotIndex = (
-  slots: readonly TacticalSlot[],
+  slots: readonly Pick<TacticalSlot, 'x' | 'y'>[],
   sourceIndex: number,
   key: PitchArrowKey,
 ): number | null => {
   const source = slots[sourceIndex];
   if (!source) return null;
-
   const horizontal = key === 'ArrowLeft' || key === 'ArrowRight';
   const positive = key === 'ArrowRight' || key === 'ArrowDown';
   let best: { readonly index: number; readonly score: number } | null = null;
-
   for (const [index, candidate] of slots.entries()) {
     if (index === sourceIndex) continue;
     const deltaX = candidate.x - source.x;
     const deltaY = candidate.y - source.y;
     const primaryDelta = horizontal ? deltaX : deltaY;
     if ((positive && primaryDelta <= 0) || (!positive && primaryDelta >= 0)) continue;
-
     const perpendicularDelta = horizontal ? Math.abs(deltaY) : Math.abs(deltaX);
     const score = Math.hypot(deltaX, deltaY) + perpendicularDelta * 0.5;
     if (!best || score < best.score) best = { index, score };
   }
-
   return best?.index ?? null;
 };
 
-export const createLineupSlots = (players: readonly Player[]): LineupSlots => {
-  const selected = players.filter((player) => player.selected).map((player) => player.id);
-  return Array.from({ length: 11 }, (_, index) => selected[index] ?? null);
-};
+export const createLineupSlots = (players: readonly Player[]): LineupSlots =>
+  Array.from(
+    { length: 11 },
+    (_, index) => players.filter((player) => player.selected)[index]?.id ?? null,
+  );
 
 export const selectedIdsFromSlots = (slots: LineupSlots) =>
   slots.filter((playerId): playerId is string => playerId !== null);
 
-export const hasSameSelectedPlayers = (
-  slots: LineupSlots,
-  selectedPlayerIds: readonly string[],
-) => {
-  const fromSlots = selectedIdsFromSlots(slots);
-  if (fromSlots.length !== selectedPlayerIds.length) return false;
-  const selected = new Set(selectedPlayerIds);
-  return fromSlots.every((playerId) => selected.has(playerId));
-};
+export const hasSameSelectedPlayers = (slots: LineupSlots, selectedPlayerIds: readonly string[]) =>
+  selectedIdsFromSlots(slots).length === selectedPlayerIds.length &&
+  selectedIdsFromSlots(slots).every((playerId) => selectedPlayerIds.includes(playerId));
 
 export const normalizeStoredSlots = (
   candidate: unknown,
   players: readonly Player[],
 ): LineupSlots | null => {
   if (!Array.isArray(candidate) || candidate.length !== 11) return null;
-  const playerIds = new Set(players.map((player) => player.id));
+  const validIds = new Set(players.map((player) => player.id));
   const seen = new Set<string>();
   const normalized = candidate.map((value) => {
     if (value === null) return null;
-    if (typeof value !== 'string' || !playerIds.has(value) || seen.has(value)) return undefined;
+    if (typeof value !== 'string' || !validIds.has(value) || seen.has(value)) return undefined;
     seen.add(value);
     return value;
   });
@@ -150,14 +789,8 @@ export const placePlayerInSlot = (
   const next = [...slots];
   const sourceIndex = next.indexOf(playerId);
   const targetPlayer = next[targetIndex] ?? null;
-
   if (sourceIndex === targetIndex) return slots;
-  if (sourceIndex >= 0) {
-    next[sourceIndex] = targetPlayer;
-    next[targetIndex] = playerId;
-    return next;
-  }
-
+  if (sourceIndex >= 0) next[sourceIndex] = targetPlayer;
   next[targetIndex] = playerId;
   return next;
 };
@@ -168,19 +801,22 @@ export const removePlayerFromSlots = (slots: LineupSlots, playerId: string): Lin
 export const addPlayerToFirstOpenSlot = (slots: LineupSlots, playerId: string): LineupSlots => {
   if (slots.includes(playerId)) return slots;
   const openIndex = slots.indexOf(null);
-  if (openIndex < 0) return slots;
-  return placePlayerInSlot(slots, playerId, openIndex);
+  return openIndex < 0 ? slots : placePlayerInSlot(slots, playerId, openIndex);
 };
 
 export const getPositionFamiliarity = (
   position: Position,
-  tacticalSlot: TacticalSlot,
+  tacticalSlot:
+    Pick<TacticalSlot, 'naturalPositions' | 'familiarPositions'> | TacticalPlayerPlacement,
 ): PositionFamiliarity => {
-  if (tacticalSlot.naturalPositions.includes(position)) {
-    return { label: 'Natural', score: 100, tone: 'natural' };
-  }
-  if (tacticalSlot.familiarPositions.includes(position)) {
+  const naturalPositions =
+    'naturalPositions' in tacticalSlot ? tacticalSlot.naturalPositions : [tacticalSlot.positionId];
+  const familiarPositions =
+    'familiarPositions' in tacticalSlot
+      ? tacticalSlot.familiarPositions
+      : familiarityFor(tacticalSlot.positionId);
+  if (naturalPositions.includes(position)) return { label: 'Natural', score: 100, tone: 'natural' };
+  if (familiarPositions.includes(position))
     return { label: 'Familiar', score: 76, tone: 'familiar' };
-  }
   return { label: 'Em adaptação', score: 42, tone: 'adapting' };
 };

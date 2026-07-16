@@ -8,14 +8,16 @@ mod table_view;
 pub use matchday::{FileMatchdayRepository, MatchdayCoordinator};
 pub use persistence::{LocalDataDirectoryResolver, SqlitePersistenceAdapter};
 pub use rivallo_application::{
-    ColumnId, ColumnPinning, ColumnPinningSide, FilterGroupId, FilterGroupLogic, FilterId,
-    FilterOperator, FilterValue, Formation, LegacyImportOutcome, LegacyImportReceipt,
-    LegacyTableViewImport, LineupSelection, MatchdayState, NullOrder, OwnerScope, SavedTableView,
-    SortDirection, TableColumnState, TableDataWindow, TableDensity, TableFilterClause,
-    TableFilterGroup, TableFilterNode, TableId, TableSort, TableViewEnvelopeMetadata,
-    TableViewLoadOutcome, TableViewPolicyError, TableViewRecoveryReason, TableViewRepositoryError,
-    TableViewRepositoryState, TableViewServiceError, TableViewState, TableViewValidationError,
-    TacticalApproach, ViewId, ViewMutability, ViewProvenance, WindowId,
+    ColumnId, ColumnPinning, ColumnPinningSide, CustomFormationIdentity, FilterGroupId,
+    FilterGroupLogic, FilterId, FilterOperator, FilterValue, Formation, LegacyImportOutcome,
+    LegacyImportReceipt, LegacyTableViewImport, LineupSelection, MatchdayState, NullOrder,
+    OwnerScope, SavedTableView, SortDirection, TableColumnState, TableDataWindow, TableDensity,
+    TableFilterClause, TableFilterGroup, TableFilterNode, TableId, TableSort,
+    TableViewEnvelopeMetadata, TableViewLoadOutcome, TableViewPolicyError, TableViewRecoveryReason,
+    TableViewRepositoryError, TableViewRepositoryState, TableViewServiceError, TableViewState,
+    TableViewValidationError, TacticalApproach, TacticalLine, TacticalPlanEvent,
+    TacticalPlanProposal, TacticalPlanSnapshot, TacticalPlanUpdate, TacticalPlayerPlacement,
+    TacticalSide, TacticalZone, ViewId, ViewMutability, ViewProvenance, WindowId,
     squad_system_default_repository_state,
 };
 pub use table_view::{FileTableViewRepository, TableViewCoordinator};

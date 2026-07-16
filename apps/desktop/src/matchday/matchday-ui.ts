@@ -1,4 +1,5 @@
 import type { SortKey, SquadSortState } from './squad-sort.js';
+import { formationPresets } from './tactics-model.js';
 import type { Formation, Player, PreferredFoot, SquadRole, TacticalApproach } from './types.js';
 
 export type Density = 'compact' | 'standard' | 'comfortable';
@@ -187,7 +188,7 @@ export const approachCopy: Record<
   },
 };
 
-export const formationOptions: readonly Formation[] = ['4-3-3', '4-2-3-1', '4-4-2'];
+export const formationOptions: readonly Formation[] = formationPresets.map(({ id }) => id);
 
 export const rolePositions: Record<Exclude<RoleFilter, 'all'>, readonly Player['position'][]> = {
   goalkeepers: ['GK'],

@@ -11,7 +11,13 @@ import {
   type TableViewState,
 } from '../table-view/table-view-engine.js';
 import { SQUAD_TABLE_SCHEMA } from './squad-table-schema.js';
-import type { Formation, MatchdayState, TacticalApproach } from './types.js';
+import type {
+  Formation,
+  MatchdayState,
+  TacticalApproach,
+  TacticalPlanProposal,
+  TacticalPlanUpdate,
+} from './types.js';
 
 export const loadMatchday = () => invoke<MatchdayState>('matchday_state');
 
@@ -25,6 +31,9 @@ export const saveMatchdayLineup = (
     formation,
     approach,
   });
+
+export const saveTacticalPlan = (proposal: TacticalPlanProposal) =>
+  invoke<TacticalPlanUpdate>('update_tactical_plan', { proposal });
 
 export const playNextMatch = () => invoke<MatchdayState>('play_next_match');
 

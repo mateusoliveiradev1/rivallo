@@ -46,6 +46,40 @@ pub enum Formation {
     FourTwoThreeOne,
     #[serde(rename = "4-4-2")]
     FourFourTwo,
+    #[serde(rename = "4-4-1-1")]
+    FourFourOneOne,
+    #[serde(rename = "4-1-4-1")]
+    FourOneFourOne,
+    #[serde(rename = "4-3-1-2")]
+    FourThreeOneTwo,
+    #[serde(rename = "4-2-2-2")]
+    FourTwoTwoTwo,
+    #[serde(rename = "4-3-2-1")]
+    FourThreeTwoOne,
+    #[serde(rename = "4-1-2-1-2")]
+    FourOneTwoOneTwo,
+    #[serde(rename = "4-2-4")]
+    FourTwoFour,
+    #[serde(rename = "3-5-2")]
+    ThreeFiveTwo,
+    #[serde(rename = "3-4-3")]
+    ThreeFourThree,
+    #[serde(rename = "3-4-2-1")]
+    ThreeFourTwoOne,
+    #[serde(rename = "3-1-4-2")]
+    ThreeOneFourTwo,
+    #[serde(rename = "3-2-4-1")]
+    ThreeTwoFourOne,
+    #[serde(rename = "3-4-1-2")]
+    ThreeFourOneTwo,
+    #[serde(rename = "5-3-2")]
+    FiveThreeTwo,
+    #[serde(rename = "5-2-3")]
+    FiveTwoThree,
+    #[serde(rename = "5-4-1")]
+    FiveFourOne,
+    #[serde(rename = "5-2-1-2")]
+    FiveTwoOneTwo,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -111,6 +145,110 @@ pub struct LineupSelection {
     pub approach: TacticalApproach,
 }
 
+pub const TACTICAL_PLAN_SCHEMA_VERSION: u16 = 2;
+pub const MAX_BENCH_SIZE: usize = 7;
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TacticalSide {
+    Left,
+    Centre,
+    Right,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TacticalLine {
+    Goal,
+    Defence,
+    Midfield,
+    Attack,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TacticalZone {
+    Goal,
+    DefensiveThird,
+    MiddleThird,
+    FinalThird,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TacticalPlayerPlacement {
+    pub player_id: String,
+    pub normalized_x: f64,
+    pub normalized_y: f64,
+    pub position_id: Position,
+    pub role_id: Option<String>,
+    pub side: TacticalSide,
+    pub line: TacticalLine,
+    pub zone: TacticalZone,
+    pub source_preset_slot_id: Option<String>,
+    pub revision: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomFormationIdentity {
+    pub id: String,
+    pub name: String,
+    pub is_custom: bool,
+    pub origin: String,
+    pub created_at_revision: u64,
+    pub updated_at_revision: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TacticalPlanSnapshot {
+    pub schema_version: u16,
+    pub plan_id: String,
+    pub name: String,
+    pub source_preset_id: Option<String>,
+    pub formation: Formation,
+    pub placements: Vec<TacticalPlayerPlacement>,
+    pub bench: Vec<String>,
+    pub custom_formation: CustomFormationIdentity,
+    pub revision: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TacticalPlanProposal {
+    pub expected_revision: u64,
+    pub plan_id: String,
+    pub name: String,
+    pub source_preset_id: Option<String>,
+    pub formation: Formation,
+    pub placements: Vec<TacticalPlayerPlacement>,
+    pub bench: Vec<String>,
+    pub custom_formation: CustomFormationIdentity,
+    pub approach: TacticalApproach,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", tag = "kind")]
+pub enum TacticalPlanEvent {
+    PlanSaved {
+        plan_id: String,
+        accepted_revision: u64,
+    },
+    ConflictDetected {
+        plan_id: String,
+        expected_revision: u64,
+        actual_revision: u64,
+    },
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TacticalPlanUpdate {
+    pub state: MatchdayState,
+    pub event: TacticalPlanEvent,
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MatchEvent {
@@ -155,6 +293,10 @@ pub struct MatchdayState {
     pub players: Vec<Player>,
     pub formation: Formation,
     pub approach: TacticalApproach,
+    #[serde(default)]
+    pub tactical_plan: Option<TacticalPlanSnapshot>,
+    #[serde(default)]
+    pub last_tactical_event: Option<TacticalPlanEvent>,
     pub record: SeasonRecord,
     pub last_result: Option<MatchResult>,
 }
@@ -162,12 +304,26 @@ pub struct MatchdayState {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MatchdayError {
     InvalidLineup(String),
+    InvalidTacticalPlan(String),
+    TacticalPlanConflict {
+        expected_revision: u64,
+        actual_revision: u64,
+    },
 }
 
 impl std::fmt::Display for MatchdayError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::InvalidLineup(message) => formatter.write_str(message),
+            Self::InvalidLineup(message) | Self::InvalidTacticalPlan(message) => {
+                formatter.write_str(message)
+            }
+            Self::TacticalPlanConflict {
+                expected_revision,
+                actual_revision,
+            } => write!(
+                formatter,
+                "O plano foi alterado em outra operação (esperada {expected_revision}, atual {actual_revision}). Recarregue antes de salvar."
+            ),
         }
     }
 }
@@ -480,7 +636,7 @@ impl Default for MatchdayState {
             }
         };
 
-        Self {
+        let mut state = Self {
             club: Club {
                 id: "aurora-fc".to_owned(),
                 name: "Aurora Futebol Clube".to_owned(),
@@ -590,9 +746,143 @@ impl Default for MatchdayState {
             ],
             formation: Formation::FourThreeThree,
             approach: TacticalApproach::Balanced,
+            tactical_plan: None,
+            last_tactical_event: None,
             record: SeasonRecord::default(),
             last_result: None,
+        };
+        state.tactical_plan = Some(TacticalPlanSnapshot::from_legacy(&state));
+        state
+    }
+}
+
+impl TacticalPlanSnapshot {
+    fn from_legacy(state: &MatchdayState) -> Self {
+        let coordinates = [
+            (0.09, 0.50),
+            (0.30, 0.84),
+            (0.24, 0.62),
+            (0.24, 0.38),
+            (0.30, 0.16),
+            (0.48, 0.50),
+            (0.59, 0.69),
+            (0.59, 0.31),
+            (0.80, 0.78),
+            (0.88, 0.50),
+            (0.80, 0.22),
+        ];
+        let starters: Vec<_> = state
+            .players
+            .iter()
+            .filter(|player| player.selected)
+            .collect();
+        let placements = starters
+            .iter()
+            .enumerate()
+            .map(|(index, player)| {
+                let (normalized_x, normalized_y) = coordinates[index];
+                TacticalPlayerPlacement {
+                    player_id: player.id.clone(),
+                    normalized_x,
+                    normalized_y,
+                    position_id: player.position,
+                    role_id: None,
+                    side: side_from_coordinate(normalized_y),
+                    line: line_from_coordinate(normalized_x),
+                    zone: zone_from_coordinate(normalized_x),
+                    source_preset_slot_id: Some(format!("legacy.{index}")),
+                    revision: 0,
+                }
+            })
+            .collect();
+        let selected_ids: HashSet<_> = starters.iter().map(|player| player.id.as_str()).collect();
+        let bench = state
+            .players
+            .iter()
+            .filter(|player| !selected_ids.contains(player.id.as_str()))
+            .take(MAX_BENCH_SIZE)
+            .map(|player| player.id.clone())
+            .collect();
+
+        Self {
+            schema_version: TACTICAL_PLAN_SCHEMA_VERSION,
+            plan_id: "tactical-plan.primary".to_owned(),
+            name: state.formation.to_string(),
+            source_preset_id: Some(state.formation.to_string()),
+            formation: state.formation,
+            placements,
+            bench,
+            custom_formation: CustomFormationIdentity {
+                id: "formation.primary".to_owned(),
+                name: state.formation.to_string(),
+                is_custom: false,
+                origin: "legacy-migration".to_owned(),
+                created_at_revision: 0,
+                updated_at_revision: 0,
+            },
+            revision: 0,
         }
+    }
+}
+
+impl std::fmt::Display for Formation {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::FourThreeThree => "4-3-3",
+            Self::FourTwoThreeOne => "4-2-3-1",
+            Self::FourFourTwo => "4-4-2",
+            Self::FourFourOneOne => "4-4-1-1",
+            Self::FourOneFourOne => "4-1-4-1",
+            Self::FourThreeOneTwo => "4-3-1-2",
+            Self::FourTwoTwoTwo => "4-2-2-2",
+            Self::FourThreeTwoOne => "4-3-2-1",
+            Self::FourOneTwoOneTwo => "4-1-2-1-2",
+            Self::FourTwoFour => "4-2-4",
+            Self::ThreeFiveTwo => "3-5-2",
+            Self::ThreeFourThree => "3-4-3",
+            Self::ThreeFourTwoOne => "3-4-2-1",
+            Self::ThreeOneFourTwo => "3-1-4-2",
+            Self::ThreeTwoFourOne => "3-2-4-1",
+            Self::ThreeFourOneTwo => "3-4-1-2",
+            Self::FiveThreeTwo => "5-3-2",
+            Self::FiveTwoThree => "5-2-3",
+            Self::FiveFourOne => "5-4-1",
+            Self::FiveTwoOneTwo => "5-2-1-2",
+        })
+    }
+}
+
+fn side_from_coordinate(normalized_y: f64) -> TacticalSide {
+    if normalized_y < 0.4 {
+        TacticalSide::Left
+    } else if normalized_y > 0.6 {
+        TacticalSide::Right
+    } else {
+        TacticalSide::Centre
+    }
+}
+
+fn line_from_coordinate(normalized_x: f64) -> TacticalLine {
+    if normalized_x <= 0.18 {
+        TacticalLine::Goal
+    } else if normalized_x <= 0.38 {
+        TacticalLine::Defence
+    } else if normalized_x <= 0.70 {
+        TacticalLine::Midfield
+    } else {
+        TacticalLine::Attack
+    }
+}
+
+fn zone_from_coordinate(normalized_x: f64) -> TacticalZone {
+    if normalized_x <= 0.18 {
+        TacticalZone::Goal
+    } else if normalized_x <= 0.38 {
+        TacticalZone::DefensiveThird
+    } else if normalized_x <= 0.70 {
+        TacticalZone::MiddleThird
+    } else {
+        TacticalZone::FinalThird
     }
 }
 
@@ -632,6 +922,182 @@ impl MatchdayState {
         }
 
         changed
+    }
+
+    /// Migrates pre-06.2 careers without allowing an invalid tactical record to
+    /// make the rest of the career unreadable.
+    pub fn backfill_tactical_plan(&mut self) -> Result<bool, MatchdayError> {
+        if let Some(plan) = &self.tactical_plan {
+            if plan.schema_version > TACTICAL_PLAN_SCHEMA_VERSION {
+                return Err(MatchdayError::InvalidTacticalPlan(
+                    "O plano tático pertence a uma versão mais nova do Rivallo.".to_owned(),
+                ));
+            }
+            if plan.schema_version == TACTICAL_PLAN_SCHEMA_VERSION
+                && self.validate_tactical_plan(plan).is_ok()
+            {
+                return Ok(false);
+            }
+        }
+
+        self.tactical_plan = Some(TacticalPlanSnapshot::from_legacy(self));
+        self.last_tactical_event = None;
+        Ok(true)
+    }
+
+    pub fn validate_tactical_plan(&self, plan: &TacticalPlanSnapshot) -> Result<(), MatchdayError> {
+        if plan.schema_version != TACTICAL_PLAN_SCHEMA_VERSION {
+            return Err(MatchdayError::InvalidTacticalPlan(
+                "A versão do plano tático é incompatível.".to_owned(),
+            ));
+        }
+        if plan.plan_id.trim().is_empty() || plan.name.trim().is_empty() || plan.name.len() > 80 {
+            return Err(MatchdayError::InvalidTacticalPlan(
+                "O plano precisa de identidade e nome válidos.".to_owned(),
+            ));
+        }
+        if plan.placements.len() != STARTING_XI_SIZE {
+            return Err(MatchdayError::InvalidTacticalPlan(
+                "O campo precisa conter exatamente 11 titulares.".to_owned(),
+            ));
+        }
+        if plan.bench.len() > MAX_BENCH_SIZE {
+            return Err(MatchdayError::InvalidTacticalPlan(format!(
+                "O banco aceita no máximo {MAX_BENCH_SIZE} jogadores."
+            )));
+        }
+
+        let known_players: HashSet<_> = self
+            .players
+            .iter()
+            .map(|player| player.id.as_str())
+            .collect();
+        let mut all_players = HashSet::new();
+        for placement in &plan.placements {
+            if !known_players.contains(placement.player_id.as_str()) {
+                return Err(MatchdayError::InvalidTacticalPlan(
+                    "O plano referencia um jogador inexistente.".to_owned(),
+                ));
+            }
+            if !all_players.insert(placement.player_id.as_str()) {
+                return Err(MatchdayError::InvalidTacticalPlan(
+                    "O mesmo jogador não pode ocupar dois lugares.".to_owned(),
+                ));
+            }
+            if !placement.normalized_x.is_finite()
+                || !placement.normalized_y.is_finite()
+                || !(0.0..=1.0).contains(&placement.normalized_x)
+                || !(0.0..=1.0).contains(&placement.normalized_y)
+            {
+                return Err(MatchdayError::InvalidTacticalPlan(
+                    "Há uma coordenada fora dos limites do campo.".to_owned(),
+                ));
+            }
+        }
+        for player_id in &plan.bench {
+            if !known_players.contains(player_id.as_str()) {
+                return Err(MatchdayError::InvalidTacticalPlan(
+                    "O banco referencia um jogador inexistente.".to_owned(),
+                ));
+            }
+            if !all_players.insert(player_id.as_str()) {
+                return Err(MatchdayError::InvalidTacticalPlan(
+                    "Um jogador não pode estar no campo e no banco ao mesmo tempo.".to_owned(),
+                ));
+            }
+        }
+
+        for (index, placement) in plan.placements.iter().enumerate() {
+            for other in plan.placements.iter().skip(index + 1) {
+                let distance = (placement.normalized_x - other.normalized_x)
+                    .hypot(placement.normalized_y - other.normalized_y);
+                if distance < 0.01 {
+                    return Err(MatchdayError::InvalidTacticalPlan(
+                        "Dois jogadores estão sobrepostos e não podem ser operados.".to_owned(),
+                    ));
+                }
+            }
+        }
+
+        let goalkeepers: Vec<_> = plan
+            .placements
+            .iter()
+            .filter(|placement| {
+                self.players.iter().any(|player| {
+                    player.id == placement.player_id && player.position == Position::Gk
+                })
+            })
+            .collect();
+        if goalkeepers.len() != 1 {
+            return Err(MatchdayError::InvalidTacticalPlan(
+                "A escalação precisa de exatamente um goleiro.".to_owned(),
+            ));
+        }
+        if goalkeepers[0].normalized_x > 0.25 {
+            return Err(MatchdayError::InvalidTacticalPlan(
+                "O goleiro precisa permanecer no setor defensivo permitido.".to_owned(),
+            ));
+        }
+
+        Ok(())
+    }
+
+    pub fn apply_tactical_plan(
+        &mut self,
+        proposal: TacticalPlanProposal,
+    ) -> Result<TacticalPlanEvent, MatchdayError> {
+        let actual_revision = self.tactical_plan.as_ref().map_or(0, |plan| plan.revision);
+        if proposal.expected_revision != actual_revision {
+            return Err(MatchdayError::TacticalPlanConflict {
+                expected_revision: proposal.expected_revision,
+                actual_revision,
+            });
+        }
+
+        let accepted_revision = actual_revision + 1;
+        let plan = TacticalPlanSnapshot {
+            schema_version: TACTICAL_PLAN_SCHEMA_VERSION,
+            plan_id: proposal.plan_id,
+            name: proposal.name,
+            source_preset_id: proposal.source_preset_id,
+            formation: proposal.formation,
+            placements: proposal
+                .placements
+                .into_iter()
+                .map(|placement| TacticalPlayerPlacement {
+                    revision: accepted_revision,
+                    side: side_from_coordinate(placement.normalized_y),
+                    line: line_from_coordinate(placement.normalized_x),
+                    zone: zone_from_coordinate(placement.normalized_x),
+                    ..placement
+                })
+                .collect(),
+            bench: proposal.bench,
+            custom_formation: CustomFormationIdentity {
+                updated_at_revision: accepted_revision,
+                ..proposal.custom_formation
+            },
+            revision: accepted_revision,
+        };
+        self.validate_tactical_plan(&plan)?;
+
+        let selected: HashSet<_> = plan
+            .placements
+            .iter()
+            .map(|placement| placement.player_id.as_str())
+            .collect();
+        for player in &mut self.players {
+            player.selected = selected.contains(player.id.as_str());
+        }
+        self.formation = plan.formation;
+        self.approach = proposal.approach;
+        let event = TacticalPlanEvent::PlanSaved {
+            plan_id: plan.plan_id.clone(),
+            accepted_revision,
+        };
+        self.tactical_plan = Some(plan);
+        self.last_tactical_event = Some(event.clone());
+        Ok(event)
     }
 
     pub fn selection(&self) -> LineupSelection {
@@ -706,9 +1172,26 @@ impl MatchdayState {
             TacticalApproach::Compact => 0,
         };
         let formation_bias = match self.formation {
-            Formation::FourThreeThree => 2,
-            Formation::FourTwoThreeOne => 1,
-            Formation::FourFourTwo => 0,
+            Formation::FourThreeThree
+            | Formation::FourTwoFour
+            | Formation::ThreeFourThree
+            | Formation::ThreeTwoFourOne
+            | Formation::FiveTwoThree => 2,
+            Formation::FourTwoThreeOne
+            | Formation::FourThreeOneTwo
+            | Formation::FourTwoTwoTwo
+            | Formation::FourThreeTwoOne
+            | Formation::FourOneTwoOneTwo
+            | Formation::ThreeFiveTwo
+            | Formation::ThreeFourTwoOne
+            | Formation::ThreeOneFourTwo
+            | Formation::ThreeFourOneTwo
+            | Formation::FiveThreeTwo
+            | Formation::FiveTwoOneTwo => 1,
+            Formation::FourFourTwo
+            | Formation::FourFourOneOne
+            | Formation::FourOneFourOne
+            | Formation::FiveFourOne => 0,
         };
         let seed = selected
             .iter()
@@ -860,6 +1343,21 @@ impl MatchdayState {
 mod tests {
     use super::*;
 
+    fn proposal_from(state: &MatchdayState) -> TacticalPlanProposal {
+        let plan = state.tactical_plan.clone().expect("default tactical plan");
+        TacticalPlanProposal {
+            expected_revision: plan.revision,
+            plan_id: plan.plan_id,
+            name: plan.name,
+            source_preset_id: plan.source_preset_id,
+            formation: plan.formation,
+            placements: plan.placements,
+            bench: plan.bench,
+            custom_formation: plan.custom_formation,
+            approach: state.approach,
+        }
+    }
+
     #[test]
     fn default_matchday_has_a_valid_eighteen_player_squad_and_xi() {
         let state = MatchdayState::default();
@@ -900,6 +1398,84 @@ mod tests {
             state.apply_selection(selection),
             Err(MatchdayError::InvalidLineup(_))
         ));
+    }
+
+    #[test]
+    fn tactical_plan_accepts_normalized_free_coordinates_atomically() {
+        let mut state = MatchdayState::default();
+        let mut proposal = proposal_from(&state);
+        proposal.placements[5].normalized_x = 0.537;
+        proposal.placements[5].normalized_y = 0.463;
+        proposal.custom_formation.is_custom = true;
+        proposal.custom_formation.name = "Assimetria Aurora".to_owned();
+
+        let event = state
+            .apply_tactical_plan(proposal)
+            .expect("valid free tactical plan");
+        let saved = state.tactical_plan.as_ref().expect("saved plan");
+        assert_eq!(saved.revision, 1);
+        assert_eq!(saved.placements[5].normalized_x, 0.537);
+        assert_eq!(saved.placements[5].side, TacticalSide::Centre);
+        assert_eq!(saved.placements[5].line, TacticalLine::Midfield);
+        assert!(matches!(
+            event,
+            TacticalPlanEvent::PlanSaved {
+                accepted_revision: 1,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn tactical_plan_rejects_duplicate_overlap_invalid_goalkeeper_and_unknown_players() {
+        type ProposalMutation = Box<dyn Fn(&mut TacticalPlanProposal)>;
+        let cases: Vec<ProposalMutation> = vec![
+            Box::new(|proposal| {
+                proposal.placements[1].player_id = proposal.placements[0].player_id.clone();
+            }),
+            Box::new(|proposal| {
+                proposal.placements[1].normalized_x = proposal.placements[0].normalized_x;
+                proposal.placements[1].normalized_y = proposal.placements[0].normalized_y;
+            }),
+            Box::new(|proposal| proposal.placements[0].normalized_x = 0.6),
+            Box::new(|proposal| proposal.placements[2].player_id = "player.unknown".to_owned()),
+        ];
+
+        for mutate in cases {
+            let mut state = MatchdayState::default();
+            let before = state.clone();
+            let mut proposal = proposal_from(&state);
+            mutate(&mut proposal);
+            assert!(matches!(
+                state.apply_tactical_plan(proposal),
+                Err(MatchdayError::InvalidTacticalPlan(_))
+            ));
+            assert_eq!(
+                state, before,
+                "invalid proposal must not partially mutate state"
+            );
+        }
+    }
+
+    #[test]
+    fn tactical_plan_rejects_stale_revision_without_mutating_state() {
+        let mut state = MatchdayState::default();
+        let mut first = proposal_from(&state);
+        first.placements[5].normalized_x = 0.52;
+        state.apply_tactical_plan(first).expect("first save");
+        let accepted = state.clone();
+
+        let mut stale = proposal_from(&state);
+        stale.expected_revision = 0;
+        stale.placements[5].normalized_x = 0.7;
+        assert_eq!(
+            state.apply_tactical_plan(stale),
+            Err(MatchdayError::TacticalPlanConflict {
+                expected_revision: 0,
+                actual_revision: 1,
+            })
+        );
+        assert_eq!(state, accepted);
     }
 
     #[test]
