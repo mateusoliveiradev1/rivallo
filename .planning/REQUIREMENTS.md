@@ -31,12 +31,12 @@
 ### Design quality
 
 - [x] **UI-01**: UI Lab documents tokens, component states, dense tables, and responsive examples.
-- [ ] **UI-02**: Initial desktop screens meet WCAG AA, keyboard, reduced-motion, and visual-regression checks.
+- [x] **UI-02**: Initial desktop screens meet WCAG AA, keyboard, reduced-motion, and visual-regression checks.
 
 ### Sports-management product review
 
 - [x] **SM-01**: In the real Elenco product surface, density and its adjacent disclosure remain stable across repeated close/Escape/outside-click cycles; supplemental tooltips and accessible local nationality flags work with fallbacks; relevant console errors fail regression tests; and the established AppShell, navigation, table, inspector, tactics, persistence, tokens and domain behavior do not regress.
-- [ ] **SM-02**: Dense product tables use one controlled Table View Engine with stable table/column/view IDs, declared capabilities, complete saved-view lifecycle, versioned adapter-owned persistence, sequential migrations and safe corruption/future-schema recovery; Elenco proves visibility, order, finite width, pinning, density, sorting and supported filtering across navigation and restart.
+- [x] **SM-02**: Dense product tables use one controlled Table View Engine with stable table/column/view IDs, declared capabilities, complete saved-view lifecycle, versioned adapter-owned persistence, sequential migrations and safe corruption/future-schema recovery; Elenco proves visibility, order, finite width, pinning, density, sorting and supported filtering across navigation and restart.
 - [ ] **SM-03**: Tactics use a Rust-authoritative normalized free-position model and one persisted move/swap command path for field and bench; presets remain starting points, custom shapes survive restart, invalid goalkeeper/count/overlap/duplicate states are rejected clearly, and essential operations work by pointer and keyboard without player duplication.
 - [ ] **SM-04**: Analysis, Strategy, Instructions and Opposition edit or derive from one persisted tactical aggregate with named validation, conflict and precedence rules; familiarity is multidimensional, explainable and event-driven, while unavailable scouting and simulation effects remain explicitly truthful rather than invented.
 - [ ] **SM-05**: Elenco keeps its table workspace and contextual player inspector while stable player and coach profile navigation exposes real adapter-fed data; contextual player/team/coach ratings are deterministic Rust-domain projections with documented scale, components, context, uncertainty and tests rather than opaque or decorative numbers.
@@ -60,7 +60,7 @@ Advanced match simulation breadth, market, injuries, academy, full scouting, pub
 | FOUND                |   2–4 | Pending                                 |
 | UI                   |   5–6 | Pending                                 |
 | SM-01 stabilization  |  6/02 | Complete; human product review deferred |
-| SM-02 table views    |  06.1 | Planned                                 |
+| SM-02 table views    |  06.1 | Complete                                |
 | SM-03 tactical field |  06.2 | Planned                                 |
 | SM-04 tactical model |  06.3 | Planned                                 |
 | SM-05 profiles       |  06.4 | Planned                                 |

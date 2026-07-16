@@ -5,17 +5,17 @@ milestone_name: milestone
 current_phase: 06.1
 current_phase_name: SM-2 Table View Engine and Durable Views
 current_plan: 8
-status: executing
-stopped_at: Completed 06.1-07-PLAN.md
-last_updated: "2026-07-16T15:04:54.085Z"
+status: verifying
+stopped_at: Completed 06.1-08-PLAN.md
+last_updated: "2026-07-16T17:25:34.417Z"
 last_activity: 2026-07-16
-last_activity_desc: Completed provenance-safe saved-view lifecycle and repository-state Elenco header integration
+last_activity_desc: Completed Phase 06.1 browser, restart, accessibility, scope, and full regression gate
 progress:
   total_phases: 18
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 45
-  completed_plans: 41
-  percent: 22
+  completed_plans: 42
+  percent: 28
 ---
 
 # State
@@ -29,7 +29,7 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 **Current phase name:** SM-2 Table View Engine and Durable Views
 **Current gate:** SM-2 durable table views.
 **Gate 0:** APPROVED by Mateus.
-**Next action:** Execute Phase 06.1 Plan 07 column customizer and advanced table interactions.
+**Next action:** Verify the Phase 06.1 goal, then advance to authorized Phase 06.2.
 
 ## Current Position
 
@@ -37,9 +37,9 @@ Current Phase: 06.1
 Current Phase Name: SM-2 Table View Engine and Durable Views
 Current Plan: 8
 Total Plans in Phase: 8
-Status: Ready to execute
-Progress: 6/8 Phase 06.1 plans complete; Plan 07 next.
-Last activity: 2026-07-16 — Completed provenance-safe saved-view lifecycle and repository-state Elenco header integration
+Status: Phase complete — ready for verification
+Progress: 8/8 Phase 06.1 plans complete; ready for verification.
+Last activity: 2026-07-16 — Completed browser, restart, accessibility, scope, and full regression gate
 
 ## Gate History
 
@@ -49,8 +49,8 @@ Last activity: 2026-07-16 — Completed provenance-safe saved-view lifecycle and
 
 ## Session
 
-**Last session:** 2026-07-16T15:04:54.081Z
-**Stopped at:** Completed 06.1-07-PLAN.md
+**Last session:** 2026-07-16T17:25:06.308Z
+**Stopped at:** Completed 06.1-08-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -105,6 +105,7 @@ Last activity: 2026-07-16 — Completed provenance-safe saved-view lifecycle and
 | Phase 06.1 P05 | 48min | 2 tasks | 7 files |
 | Phase 06.1 P06 | 1h 2m | 3 tasks | 7 files |
 | Phase 06.1 P07 | 50min | 3 tasks | 8 files |
+| Phase 06.1 P08 | 1h 59m | 2 tasks | 13 files |
 
 ## Decisions
 
@@ -201,3 +202,5 @@ Last activity: 2026-07-16 — Completed provenance-safe saved-view lifecycle and
 - [Phase 06.1]: Translate table-command rejection codes into bounded Portuguese product copy and expose one canonical live outcome per repository event. — Internal paths, codes, details, and duplicate screen-reader announcements stay outside the UI.
 - [Phase 06.1]: Use one engine-dispatch boundary for customizer and live headers. — Pointer and keyboard paths now share finite normalization, rejection atomicity, and controller-owned proposal state.
 - [Phase 06.1]: Derive every rendered Elenco column, finite width, pinned offset, and state span from normalized stable column IDs. — Native table semantics remain intact while CSS child positions and labels cease to own geometry or identity.
+- [Phase 06.1]: Observe import feedback before navigation completes and prove durable receipt separately. — Keeps textual accessibility evidence strict without making a transient toast persistence authority.
+- [Phase 06.1]: Freeze exact dependency inventories, canonical Phase 5 test hash, and four reviewed browser baselines. — Later scope, package, or generated-artifact drift now fails actionably instead of silently expanding Phase 06.1.
