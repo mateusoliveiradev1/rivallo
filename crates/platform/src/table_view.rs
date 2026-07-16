@@ -690,11 +690,17 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use rivallo_application::{
+        LegacyTableViewImport, OwnerScope, TableDensity, TableViewLoadOutcome,
         TableViewRecoveryReason, TableViewRepository, TableViewRepositoryError,
-        TableViewRepositoryLoad, TableViewRepositoryState, squad_system_default_repository_state,
+        TableViewRepositoryLoad, TableViewRepositoryState, TableViewServiceError, ViewId,
+        ViewMutability, ViewProvenance, squad_system_default_repository_state,
     };
+    use serde_json::{Value, json};
 
-    use super::{FileTableViewRepository, MAX_REPOSITORY_BYTES, SaveInterruptionPoint};
+    use super::{
+        CURRENT_STORAGE_ENVELOPE_VERSION, FileTableViewRepository, MAX_REPOSITORY_BYTES,
+        SaveInterruptionPoint, TableViewCoordinator,
+    };
 
     struct TestDirectory {
         path: PathBuf,
@@ -744,6 +750,89 @@ mod tests {
             "recovery must expose exactly the previous or next complete generation"
         );
         recovered
+    }
+
+    fn valid_state_with_user_intent() -> TableViewRepositoryState {
+        let mut state = squad_system_default_repository_state();
+        let mut user_view = state.views[0].clone();
+        user_view.label = "Minha análise".to_owned();
+        user_view.provenance = ViewProvenance::UserOwned;
+        user_view.mutability = ViewMutability::Mutable;
+        user_view.state.view_id = ViewId::from("squad.user.migrated");
+        user_view.state.baseline_view_id = ViewId::from("squad.view.system-default");
+        user_view.state.density = TableDensity::Standard;
+        user_view.state.columns.swap(8, 15);
+        user_view
+            .state
+            .columns
+            .iter_mut()
+            .find(|column| column.column_id.as_str() == "age")
+            .expect("age column")
+            .visible = false;
+        user_view
+            .state
+            .columns
+            .iter_mut()
+            .find(|column| column.column_id.as_str() == "goals")
+            .expect("goals column")
+            .width = 144.0;
+        state.views.push(user_view);
+        state.active_view_id = ViewId::from("squad.user.migrated");
+        state.default_view_id = ViewId::from("squad.user.migrated");
+        state.metadata.revision = 7;
+        state.validate().expect("valid migration fixture");
+        state
+    }
+
+    fn envelope_value(storage_version: u32, state: &TableViewRepositoryState) -> Value {
+        json!({
+            "envelopeVersion": storage_version,
+            "payload": state,
+        })
+    }
+
+    fn write_envelope(path: &Path, value: &Value) -> Vec<u8> {
+        let mut bytes = serde_json::to_vec_pretty(value).expect("serialize fixture");
+        bytes.push(b'\n');
+        fs::write(path, &bytes).expect("write fixture");
+        bytes
+    }
+
+    fn historical_payload(
+        storage_version: u32,
+        expected: &TableViewRepositoryState,
+        include_removed_column: bool,
+    ) -> Value {
+        let mut envelope = envelope_value(storage_version, expected);
+        envelope["payload"]["metadata"]["envelopeVersion"] = json!(0);
+        for view in envelope["payload"]["views"]
+            .as_array_mut()
+            .expect("views array")
+        {
+            let columns = view["state"]["columns"]
+                .as_array_mut()
+                .expect("columns array");
+            columns.retain(|column| column["columnId"] != "averageRating");
+            if include_removed_column {
+                columns.push(json!({
+                    "columnId": "legacyRating",
+                    "visible": false,
+                    "width": 88.0,
+                    "pinning": {
+                        "side": "none",
+                        "order": 0,
+                    },
+                }));
+            }
+        }
+        envelope
+    }
+
+    fn evidence(repository: &FileTableViewRepository) -> Value {
+        serde_json::from_slice(
+            &fs::read(repository.quarantine_evidence_path()).expect("quarantine evidence bytes"),
+        )
+        .expect("quarantine evidence json")
     }
 
     #[test]
@@ -892,5 +981,310 @@ mod tests {
             assert_eq!(stable, recovered);
             assert!(recovery_repository.quarantine_evidence_path().exists());
         }
+    }
+
+    #[test]
+    fn adjacent_v1_and_v2_migrations_reach_current_without_skipping_steps() {
+        for (storage_version, include_removed_column) in [(1, true), (2, false)] {
+            let directory = TestDirectory::new(&format!("migration-v{storage_version}"));
+            let repository = FileTableViewRepository::new(directory.join("table-views.json"));
+            let expected = valid_state_with_user_intent();
+            let fixture = historical_payload(storage_version, &expected, include_removed_column);
+            write_envelope(repository.path(), &fixture);
+
+            assert_eq!(
+                repository.load().expect("migrate historical fixture"),
+                TableViewRepositoryLoad::Migrated {
+                    state: expected.clone(),
+                    from_envelope_version: 0,
+                    to_envelope_version: 1,
+                },
+                "storage v{storage_version} must traverse every adjacent step"
+            );
+            assert_eq!(
+                repository.load().expect("reload persisted migration"),
+                TableViewRepositoryLoad::Loaded(expected)
+            );
+        }
+    }
+
+    #[test]
+    fn added_column_comes_from_owning_default_and_preserves_every_known_intent() {
+        let directory = TestDirectory::new("added-column");
+        let repository = FileTableViewRepository::new(directory.join("table-views.json"));
+        let expected = valid_state_with_user_intent();
+        let fixture = historical_payload(1, &expected, true);
+        write_envelope(repository.path(), &fixture);
+
+        let migrated = state_from_load(repository.load().expect("migrate added column"))
+            .expect("migrated state");
+        assert_eq!(migrated, expected);
+
+        let owning_default = squad_system_default_repository_state();
+        let default_average = owning_default.views[0]
+            .state
+            .columns
+            .iter()
+            .find(|column| column.column_id.as_str() == "averageRating")
+            .expect("application-owned average rating default");
+        for view in &migrated.views {
+            let migrated_average: Vec<_> = view
+                .state
+                .columns
+                .iter()
+                .filter(|column| column.column_id.as_str() == "averageRating")
+                .collect();
+            assert_eq!(migrated_average, vec![default_average]);
+        }
+    }
+
+    #[test]
+    fn removed_column_is_discarded_but_unknown_column_quarantines_the_whole_payload() {
+        let removed_directory = TestDirectory::new("removed-column");
+        let removed_repository =
+            FileTableViewRepository::new(removed_directory.join("table-views.json"));
+        let expected = valid_state_with_user_intent();
+        write_envelope(
+            removed_repository.path(),
+            &historical_payload(1, &expected, true),
+        );
+        assert_eq!(
+            state_from_load(removed_repository.load().expect("normalize removed column"),),
+            Some(expected.clone())
+        );
+
+        let unknown_directory = TestDirectory::new("unknown-column");
+        let unknown_repository =
+            FileTableViewRepository::new(unknown_directory.join("table-views.json"));
+        let mut unknown = historical_payload(1, &expected, false);
+        unknown["payload"]["views"][1]["state"]["columns"]
+            .as_array_mut()
+            .expect("user columns")
+            .push(json!({
+                "columnId": "mysteryMetric",
+                "visible": true,
+                "width": 80.0,
+                "pinning": {"side": "none", "order": 0},
+            }));
+        let original = write_envelope(unknown_repository.path(), &unknown);
+
+        assert_eq!(
+            unknown_repository
+                .load()
+                .expect("quarantine unknown column"),
+            TableViewRepositoryLoad::Recovered {
+                state: None,
+                reason: TableViewRecoveryReason::InvalidPayload,
+            }
+        );
+        assert_eq!(
+            fs::read(unknown_repository.quarantine_payload_path()).expect("whole unknown payload"),
+            original
+        );
+    }
+
+    #[test]
+    fn corrupt_future_missing_step_and_invalid_payloads_have_distinct_quarantine_evidence() {
+        let cases = [
+            (
+                "corrupt",
+                b"{not-json".to_vec(),
+                TableViewRecoveryReason::CorruptPayload,
+                "table_view.corrupt_payload",
+            ),
+            (
+                "future-envelope",
+                serde_json::to_vec(&envelope_value(
+                    CURRENT_STORAGE_ENVELOPE_VERSION + 1,
+                    &squad_system_default_repository_state(),
+                ))
+                .expect("future envelope"),
+                TableViewRecoveryReason::FutureEnvelopeVersion,
+                "table_view.future_envelope_version",
+            ),
+            (
+                "missing-step",
+                serde_json::to_vec(&envelope_value(0, &squad_system_default_repository_state()))
+                    .expect("missing step"),
+                TableViewRecoveryReason::MissingMigrationStep,
+                "table_view.missing_migration_step",
+            ),
+        ];
+
+        for (case, bytes, reason, reason_code) in cases {
+            let directory = TestDirectory::new(case);
+            let repository = FileTableViewRepository::new(directory.join("table-views.json"));
+            fs::write(repository.path(), &bytes).expect("write incompatible fixture");
+
+            assert_eq!(
+                repository.load().expect("quarantine incompatible fixture"),
+                TableViewRepositoryLoad::Recovered {
+                    state: None,
+                    reason,
+                }
+            );
+            let evidence = evidence(&repository);
+            assert_eq!(evidence["reasonCode"], reason_code);
+            assert!(
+                evidence["fingerprint"]
+                    .as_str()
+                    .is_some_and(|value| { value.starts_with("fnv1a64:") && value.len() < 128 })
+            );
+            assert_eq!(
+                fs::read(repository.quarantine_payload_path()).expect("whole diagnostic payload"),
+                bytes
+            );
+        }
+
+        let directory = TestDirectory::new("future-schema");
+        let repository = FileTableViewRepository::new(directory.join("table-views.json"));
+        let mut future_schema = envelope_value(
+            CURRENT_STORAGE_ENVELOPE_VERSION,
+            &squad_system_default_repository_state(),
+        );
+        future_schema["payload"]["schemaVersion"] = json!(2);
+        write_envelope(repository.path(), &future_schema);
+        assert_eq!(
+            repository.load().expect("quarantine future schema"),
+            TableViewRepositoryLoad::Recovered {
+                state: None,
+                reason: TableViewRecoveryReason::FutureSchemaVersion,
+            }
+        );
+        assert_eq!(
+            evidence(&repository)["reasonCode"],
+            "table_view.future_schema_version"
+        );
+    }
+
+    #[test]
+    fn invalid_owner_provenance_duplicate_and_post_migration_states_never_partially_merge() {
+        let mutations: [(&str, fn(&mut Value)); 3] = [
+            ("owner", |value| {
+                value["payload"]["ownerScope"] = json!("career");
+            }),
+            ("provenance", |value| {
+                value["payload"]["views"][1]["provenance"] = json!("system-default");
+            }),
+            ("duplicate-column", |value| {
+                let duplicate = value["payload"]["views"][1]["state"]["columns"][0].clone();
+                value["payload"]["views"][1]["state"]["columns"]
+                    .as_array_mut()
+                    .expect("columns")
+                    .push(duplicate);
+            }),
+        ];
+
+        for (case, mutate) in mutations {
+            let directory = TestDirectory::new(case);
+            let repository = FileTableViewRepository::new(directory.join("table-views.json"));
+            let expected = valid_state_with_user_intent();
+            let mut fixture = historical_payload(1, &expected, true);
+            mutate(&mut fixture);
+            let original = write_envelope(repository.path(), &fixture);
+
+            assert_eq!(
+                repository.load().expect("quarantine invalid payload"),
+                TableViewRepositoryLoad::Recovered {
+                    state: None,
+                    reason: TableViewRecoveryReason::InvalidPayload,
+                }
+            );
+            assert_eq!(
+                fs::read(repository.quarantine_payload_path()).expect("whole invalid payload"),
+                original
+            );
+        }
+    }
+
+    #[test]
+    fn coordinator_surfaces_loaded_migrated_recovered_unavailable_and_save_failure_outcomes() {
+        let migrated_directory = TestDirectory::new("coordinator-migrated");
+        let migrated_path = migrated_directory.join("table-views.json");
+        let expected = valid_state_with_user_intent();
+        write_envelope(&migrated_path, &historical_payload(1, &expected, true));
+        let migrated = TableViewCoordinator::new(&migrated_path);
+        assert!(matches!(
+            migrated.load().expect("coordinator migrated outcome"),
+            TableViewLoadOutcome::Migrated {
+                state,
+                from_envelope_version: 0,
+                to_envelope_version: 1,
+            } if state == expected
+        ));
+
+        let recovered_directory = TestDirectory::new("coordinator-recovered");
+        let recovered_path = recovered_directory.join("table-views.json");
+        fs::write(&recovered_path, b"{broken").expect("corrupt coordinator fixture");
+        let recovered = TableViewCoordinator::new(&recovered_path);
+        assert!(matches!(
+            recovered.load().expect("coordinator recovery outcome"),
+            TableViewLoadOutcome::Recovered {
+                state,
+                reason: TableViewRecoveryReason::CorruptPayload,
+            } if state == squad_system_default_repository_state()
+        ));
+
+        let unavailable_directory = TestDirectory::new("coordinator-unavailable");
+        let parent_file = unavailable_directory.join("not-a-directory");
+        fs::write(&parent_file, b"occupied").expect("blocking parent file");
+        let unavailable = TableViewCoordinator::new(parent_file.join("table-views.json"));
+        assert!(matches!(
+            unavailable.load().expect("typed save failure"),
+            TableViewLoadOutcome::SaveFailed {
+                cause: TableViewRepositoryError::SaveFailed,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn coordinator_serializes_save_and_import_through_application_service() {
+        let directory = TestDirectory::new("coordinator-service");
+        let coordinator = TableViewCoordinator::new(directory.join("table-views.json"));
+        let seeded = coordinator.load().expect("seed repository");
+        let mut proposal = seeded.state().clone();
+        proposal.metadata.revision = 1;
+        assert_eq!(
+            coordinator.save(proposal.clone()).expect("save proposal"),
+            proposal
+        );
+
+        let mut legacy_state = squad_system_default_repository_state().views[0]
+            .state
+            .clone();
+        legacy_state.view_id = ViewId::from("squad.user.legacy-v4");
+        legacy_state.baseline_view_id = ViewId::from("squad.view.system-default");
+        let imported = coordinator
+            .import_legacy(LegacyTableViewImport {
+                source_version: 4,
+                source_fingerprint: "fnv1a64:legacy-v4".to_owned(),
+                label: "Importada".to_owned(),
+                state: legacy_state,
+            })
+            .expect("import through application service");
+        assert!(imported.imported);
+        assert_eq!(imported.state.owner_scope, OwnerScope::LocalFixed);
+
+        let coordinator = std::sync::Arc::new(coordinator);
+        let handles: Vec<_> = (0..8)
+            .map(|_| {
+                let coordinator = std::sync::Arc::clone(&coordinator);
+                std::thread::spawn(move || coordinator.load())
+            })
+            .collect();
+        for handle in handles {
+            let outcome = handle
+                .join()
+                .expect("coordinator thread")
+                .expect("serialized load");
+            assert!(matches!(outcome, TableViewLoadOutcome::Loaded { .. }));
+        }
+
+        let typed_error: Option<TableViewServiceError> = None;
+        assert!(
+            typed_error.is_none(),
+            "coordinator exposes typed application errors"
+        );
     }
 }

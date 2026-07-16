@@ -8,7 +8,7 @@ mod table_view;
 pub use matchday::{FileMatchdayRepository, MatchdayCoordinator};
 pub use persistence::{LocalDataDirectoryResolver, SqlitePersistenceAdapter};
 pub use rivallo_application::{Formation, LineupSelection, MatchdayState, TacticalApproach};
-pub use table_view::FileTableViewRepository;
+pub use table_view::{FileTableViewRepository, TableViewCoordinator};
 
 pub use runtime::{
     CancellationToken, LOCAL_API_ADDRESS, LOCAL_API_PORT, LOCAL_API_SERVICE_ID,
