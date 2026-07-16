@@ -131,6 +131,61 @@ const tableRepositoryState = (
   legacyImportReceipts: [],
 });
 
+const lifecycleSystemView = (): SavedTableView => ({
+  mutability: 'immutable',
+  state: {
+    ...structuredClone(SQUAD_SYSTEM_VIEW),
+    label: 'Padrão do elenco',
+  },
+});
+
+const lifecycleUserView = (
+  viewId: string,
+  label: string,
+  density: SavedTableView['state']['density'] = 'standard',
+): SavedTableView => ({
+  mutability: 'mutable',
+  state: {
+    ...structuredClone(SQUAD_SYSTEM_VIEW),
+    viewId,
+    baselineViewId: SQUAD_SYSTEM_VIEW.viewId,
+    provenance: 'user-owned',
+    label,
+    density,
+  },
+});
+
+const lifecycleSharedView = (): SavedTableView => ({
+  mutability: 'read-only',
+  state: {
+    ...structuredClone(SQUAD_SYSTEM_VIEW),
+    viewId: 'squad.shared.staff',
+    baselineViewId: SQUAD_SYSTEM_VIEW.viewId,
+    provenance: 'shared-read-only',
+    label: 'Leitura da comissão',
+    density: 'comfortable',
+  },
+});
+
+const lifecycleRepositoryState = (
+  activeViewId = 'squad.user.analysis',
+  defaultViewId = SQUAD_SYSTEM_VIEW.viewId,
+): TableViewRepositoryState => ({
+  metadata: { envelopeVersion: 1, revision: 0 },
+  tableId: 'squad.primary',
+  schemaVersion: 1,
+  ownerScope: 'local-fixed',
+  activeViewId,
+  defaultViewId,
+  views: [
+    lifecycleSystemView(),
+    lifecycleUserView('squad.user.analysis', 'Minha análise'),
+    lifecycleUserView('squad.user.rotation', 'Rotação do elenco', 'compact'),
+    lifecycleSharedView(),
+  ],
+  legacyImportReceipts: [],
+});
+
 const expectOnlyNonTablePreferences = (storageKey: string): void => {
   const raw = window.localStorage.getItem(storageKey);
   expect(raw).not.toBeNull();
@@ -144,6 +199,28 @@ const expectOnlyNonTablePreferences = (storageKey: string): void => {
   });
   expect(stored).not.toHaveProperty('density');
   expect(stored).not.toHaveProperty('visibleColumns');
+};
+
+const renderMatchdayWithViews = async (repository: TableViewRepositoryState) => {
+  const user = userEvent.setup();
+  clientMock.loadTableViews.mockResolvedValue({ status: 'loaded', state: repository });
+  render(<MatchdayScreen serviceOwnership="owned" />);
+  await screen.findByRole('heading', { name: 'Visão geral do elenco' });
+  await screen.findByRole('button', { name: /Visualização da tabela:/u });
+  return user;
+};
+
+const openSavedViewSelector = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(screen.getByRole('button', { name: /Visualização da tabela:/u }));
+  return screen.getByRole('dialog', { name: 'Visualização da tabela' });
+};
+
+const changeDensity = async (
+  user: ReturnType<typeof userEvent.setup>,
+  density: 'compacta' | 'padrão' | 'confortável',
+) => {
+  await user.click(screen.getByRole('button', { name: /Alterar densidade da tabela/u }));
+  await user.click(screen.getByRole('button', { name: `Densidade ${density}` }));
 };
 
 describe('MatchdayScreen', () => {
@@ -492,6 +569,396 @@ describe('MatchdayScreen', () => {
     const [selectedIds] = clientMock.saveMatchdayLineup.mock.calls[0] as [string[]];
     expect(selectedIds).toContain('p12');
     expect(selectedIds).not.toContain('p1');
+  });
+
+  it('activates validated system, owned and read-only views with confirmed focus and announcements', async () => {
+    const repository = lifecycleRepositoryState(SQUAD_SYSTEM_VIEW.viewId);
+    const user = await renderMatchdayWithViews(repository);
+
+    let selector = await openSavedViewSelector(user);
+    expect(within(selector).queryByRole('button', { name: 'Renomear visualização' })).toBeNull();
+    expect(within(selector).queryByRole('button', { name: 'Excluir visualização' })).toBeNull();
+    await user.click(
+      within(selector).getByRole('button', { name: /Abrir visualização Minha análise/u }),
+    );
+
+    await waitFor(() => expect(clientMock.saveTableViews).toHaveBeenCalledOnce());
+    expect(
+      screen.getByRole('button', { name: 'Visualização da tabela: Minha análise' }),
+    ).toBeInstanceOf(HTMLButtonElement);
+    expect(screen.getByText('Visualização “Minha análise” aberta.')).toBeInstanceOf(HTMLElement);
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Visualização da tabela: Minha análise' }),
+    );
+
+    selector = await openSavedViewSelector(user);
+    expect(within(selector).getByRole('button', { name: 'Renomear visualização' })).toBeInstanceOf(
+      HTMLButtonElement,
+    );
+    await user.click(
+      within(selector).getByRole('button', { name: /Abrir visualização Leitura da comissão/u }),
+    );
+    await waitFor(() => expect(clientMock.saveTableViews).toHaveBeenCalledTimes(2));
+
+    selector = await openSavedViewSelector(user);
+    expect(within(selector).getByText('Somente leitura')).toBeInstanceOf(HTMLElement);
+    expect(within(selector).getByRole('button', { name: 'Duplicar visualização' })).toBeInstanceOf(
+      HTMLButtonElement,
+    );
+    expect(within(selector).queryByRole('button', { name: 'Renomear visualização' })).toBeNull();
+    expect(within(selector).queryByRole('button', { name: 'Excluir visualização' })).toBeNull();
+    expect(within(selector).queryByRole('button', { name: 'Salvar visualização' })).toBeNull();
+  });
+
+  it('creates, renames and sets a stable owned view as default through bounded name dialogs', async () => {
+    const user = await renderMatchdayWithViews(lifecycleRepositoryState());
+
+    let selector = await openSavedViewSelector(user);
+    await user.click(within(selector).getByRole('button', { name: 'Criar visualização' }));
+    let dialog = screen.getByRole('dialog', { name: 'Criar visualização' });
+    const createInput = within(dialog).getByRole('textbox', { name: 'Nome da visualização' });
+    expect(document.activeElement).toBe(createInput);
+
+    await user.type(createInput, '   ');
+    await user.click(within(dialog).getByRole('button', { name: 'Criar visualização' }));
+    expect(within(dialog).getByText('Digite um nome para a visualização.')).toBeInstanceOf(
+      HTMLElement,
+    );
+    expect(clientMock.saveTableViews).not.toHaveBeenCalled();
+
+    await user.clear(createInput);
+    await user.type(createInput, 'Observação da rodada');
+    await user.click(within(dialog).getByRole('button', { name: 'Criar visualização' }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', {
+          name: 'Visualização da tabela: Observação da rodada',
+        }),
+      ).toBeInstanceOf(HTMLButtonElement),
+    );
+
+    const createdCandidate = (
+      clientMock.saveTableViews.mock.calls.at(-1)?.[0] as SaveTableViewsRequest
+    ).state;
+    const createdView = createdCandidate.views.find(
+      ({ state: viewState }) => viewState.label === 'Observação da rodada',
+    );
+    expect(createdView?.state.provenance).toBe('user-owned');
+    expect(createdView?.mutability).toBe('mutable');
+    const createdViewId = createdView?.state.viewId;
+    expect(createdViewId).toMatch(/^squad\.user\./u);
+
+    selector = await openSavedViewSelector(user);
+    await user.click(within(selector).getByRole('button', { name: 'Renomear visualização' }));
+    dialog = screen.getByRole('dialog', { name: 'Renomear visualização' });
+    const renameInput = within(dialog).getByRole('textbox', { name: 'Nome da visualização' });
+    expect((renameInput as HTMLInputElement).value).toBe('Observação da rodada');
+    await user.clear(renameInput);
+    await user.type(renameInput, 'Plano da rodada');
+    await user.click(within(dialog).getByRole('button', { name: 'Renomear visualização' }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Visualização da tabela: Plano da rodada' }),
+      ).toBeInstanceOf(HTMLButtonElement),
+    );
+    const renamedCandidate = (
+      clientMock.saveTableViews.mock.calls.at(-1)?.[0] as SaveTableViewsRequest
+    ).state;
+    expect(
+      renamedCandidate.views.find(({ state: viewState }) => viewState.label === 'Plano da rodada')
+        ?.state.viewId,
+    ).toBe(createdViewId);
+
+    selector = await openSavedViewSelector(user);
+    await user.click(
+      within(selector).getByRole('button', { name: 'Definir como visualização padrão' }),
+    );
+    await waitFor(() =>
+      expect(
+        (
+          clientMock.saveTableViews.mock.calls.at(-1)?.[0] as SaveTableViewsRequest
+        ).state.defaultViewId,
+      ).toBe(createdViewId),
+    );
+    expect(screen.getByText('“Plano da rodada” definida como visualização padrão.')).toBeInstanceOf(
+      HTMLElement,
+    );
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Visualização da tabela: Plano da rodada' }),
+    );
+  });
+
+  it('duplicates and safely deletes an owned view after a keep-first confirmation', async () => {
+    const user = await renderMatchdayWithViews(lifecycleRepositoryState());
+
+    let selector = await openSavedViewSelector(user);
+    await user.click(within(selector).getByRole('button', { name: 'Duplicar visualização' }));
+    let dialog = screen.getByRole('dialog', { name: 'Duplicar visualização' });
+    const duplicateInput = within(dialog).getByRole('textbox', { name: 'Nome da visualização' });
+    expect((duplicateInput as HTMLInputElement).value).toBe('Minha análise — cópia');
+    await user.clear(duplicateInput);
+    await user.type(duplicateInput, 'Análise duplicada');
+    await user.click(within(dialog).getByRole('button', { name: 'Duplicar visualização' }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Visualização da tabela: Análise duplicada' }),
+      ).toBeInstanceOf(HTMLButtonElement),
+    );
+    expect(screen.getByText('Visualização “Análise duplicada” criada.')).toBeInstanceOf(
+      HTMLElement,
+    );
+
+    selector = await openSavedViewSelector(user);
+    await user.click(within(selector).getByRole('button', { name: 'Excluir visualização' }));
+    dialog = screen.getByRole('alertdialog', { name: 'Excluir visualização “Análise duplicada”?' });
+    const keepButton = within(dialog).getByRole('button', { name: 'Manter visualização' });
+    expect(document.activeElement).toBe(keepButton);
+    await user.click(keepButton);
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('alertdialog', {
+          name: 'Excluir visualização “Análise duplicada”?',
+        }),
+      ).toBeNull(),
+    );
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Visualização da tabela: Análise duplicada' }),
+    );
+
+    selector = await openSavedViewSelector(user);
+    await user.click(within(selector).getByRole('button', { name: 'Excluir visualização' }));
+    dialog = screen.getByRole('alertdialog', { name: 'Excluir visualização “Análise duplicada”?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Excluir visualização' }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Visualização da tabela: Padrão do elenco' }),
+      ).toBeInstanceOf(HTMLButtonElement),
+    );
+    const deletedCandidate = (
+      clientMock.saveTableViews.mock.calls.at(-1)?.[0] as SaveTableViewsRequest
+    ).state;
+    expect(
+      deletedCandidate.views.some(({ state: viewState }) => viewState.label === 'Análise duplicada'),
+    ).toBe(false);
+    expect(
+      screen.getByText(
+        'Visualização “Análise duplicada” excluída. “Padrão do elenco” foi aberta.',
+      ),
+    ).toBeInstanceOf(HTMLElement);
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Visualização da tabela: Padrão do elenco' }),
+    );
+  });
+
+  it('saves and restores owned proposals only after repository confirmation', async () => {
+    const user = await renderMatchdayWithViews(lifecycleRepositoryState());
+
+    await changeDensity(user, 'confortável');
+    let selector = await openSavedViewSelector(user);
+    expect(within(selector).getByText('Alterações não salvas')).toBeInstanceOf(HTMLElement);
+    await user.click(within(selector).getByRole('button', { name: 'Salvar visualização' }));
+    await waitFor(() => expect(clientMock.saveTableViews).toHaveBeenCalledOnce());
+    expect(screen.getByText('Visualização “Minha análise” salva.')).toBeInstanceOf(HTMLElement);
+
+    selector = await openSavedViewSelector(user);
+    expect(within(selector).queryByText('Alterações não salvas')).toBeNull();
+    await user.keyboard('{Escape}');
+
+    await changeDensity(user, 'compacta');
+    selector = await openSavedViewSelector(user);
+    await user.click(within(selector).getByRole('button', { name: 'Restaurar visualização' }));
+    await waitFor(() => expect(clientMock.saveTableViews).toHaveBeenCalledTimes(2));
+
+    const restoredCandidate = (
+      clientMock.saveTableViews.mock.calls.at(-1)?.[0] as SaveTableViewsRequest
+    ).state;
+    const restoredActive = restoredCandidate.views.find(
+      ({ state: viewState }) => viewState.viewId === restoredCandidate.activeViewId,
+    );
+    expect(restoredActive?.state.density).toBe(SQUAD_SYSTEM_VIEW.density);
+    selector = await openSavedViewSelector(user);
+    expect(within(selector).queryByText('Alterações não salvas')).toBeNull();
+    expect(screen.getByText('Visualização “Minha análise” restaurada.')).toBeInstanceOf(
+      HTMLElement,
+    );
+  });
+
+  it('guards dirty view switches with save, discard and continue-current decisions', async () => {
+    const user = await renderMatchdayWithViews(lifecycleRepositoryState());
+
+    await changeDensity(user, 'confortável');
+    let selector = await openSavedViewSelector(user);
+    await user.click(
+      within(selector).getByRole('button', { name: /Abrir visualização Rotação do elenco/u }),
+    );
+    let dialog = screen.getByRole('alertdialog', {
+      name: 'Salvar alterações antes de abrir “Rotação do elenco”?',
+    });
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Continuar nesta visualização' }),
+    );
+    expect(
+      screen.getByRole('button', { name: 'Visualização da tabela: Minha análise' }),
+    ).toBeInstanceOf(HTMLButtonElement);
+    expect(clientMock.saveTableViews).not.toHaveBeenCalled();
+
+    selector = await openSavedViewSelector(user);
+    await user.click(
+      within(selector).getByRole('button', { name: /Abrir visualização Rotação do elenco/u }),
+    );
+    dialog = screen.getByRole('alertdialog', {
+      name: 'Salvar alterações antes de abrir “Rotação do elenco”?',
+    });
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Descartar e abrir “Rotação do elenco”' }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Visualização da tabela: Rotação do elenco' }),
+      ).toBeInstanceOf(HTMLButtonElement),
+    );
+
+    await changeDensity(user, 'confortável');
+    selector = await openSavedViewSelector(user);
+    await user.click(
+      within(selector).getByRole('button', { name: /Abrir visualização Minha análise/u }),
+    );
+    dialog = screen.getByRole('alertdialog', {
+      name: 'Salvar alterações antes de abrir “Minha análise”?',
+    });
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Salvar e abrir “Minha análise”' }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Visualização da tabela: Minha análise' }),
+      ).toBeInstanceOf(HTMLButtonElement),
+    );
+    expect(clientMock.saveTableViews).toHaveBeenCalledTimes(3);
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Visualização da tabela: Minha análise' }),
+    );
+  });
+
+  it('guards dirty deletion and Elenco navigation without implicit save or discard', async () => {
+    const user = await renderMatchdayWithViews(
+      lifecycleRepositoryState('squad.user.analysis', 'squad.user.rotation'),
+    );
+
+    await changeDensity(user, 'confortável');
+    const tacticsButton = screen.getByRole('button', { name: 'Táticas' });
+    await user.click(tacticsButton);
+    let dialog = screen.getByRole('alertdialog', {
+      name: 'Salvar alterações antes de abrir “Táticas”?',
+    });
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Continuar nesta visualização' }),
+    );
+    expect(screen.getByRole('heading', { name: 'Visão geral do elenco' })).toBeInstanceOf(
+      HTMLElement,
+    );
+    expect(clientMock.saveTableViews).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(tacticsButton);
+
+    let selector = await openSavedViewSelector(user);
+    await user.click(within(selector).getByRole('button', { name: 'Excluir visualização' }));
+    dialog = screen.getByRole('alertdialog', { name: 'Excluir visualização “Minha análise”?' });
+    expect(document.activeElement).toBe(
+      within(dialog).getByRole('button', { name: 'Manter visualização' }),
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Excluir visualização' }));
+
+    dialog = screen.getByRole('alertdialog', {
+      name: 'Salvar alterações antes de abrir “Rotação do elenco”?',
+    });
+    await user.click(
+      within(dialog).getByRole('button', {
+        name: 'Descartar e abrir “Rotação do elenco”',
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Visualização da tabela: Rotação do elenco' }),
+      ).toBeInstanceOf(HTMLButtonElement),
+    );
+    const deletedCandidate = (
+      clientMock.saveTableViews.mock.calls.at(-1)?.[0] as SaveTableViewsRequest
+    ).state;
+    expect(
+      deletedCandidate.views.some(
+        ({ state: viewState }) => viewState.viewId === 'squad.user.analysis',
+      ),
+    ).toBe(false);
+
+    await changeDensity(user, 'confortável');
+    await user.click(screen.getByRole('button', { name: 'Táticas' }));
+    dialog = screen.getByRole('alertdialog', {
+      name: 'Salvar alterações antes de abrir “Táticas”?',
+    });
+    await user.click(within(dialog).getByRole('button', { name: 'Salvar e abrir “Táticas”' }));
+    expect(await screen.findByRole('heading', { name: 'Plano de jogo' })).toBeInstanceOf(
+      HTMLElement,
+    );
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Táticas' }));
+  });
+
+  it('duplicates immutable dirty proposals and retains dirty state through save failure and retry', async () => {
+    const user = await renderMatchdayWithViews(
+      lifecycleRepositoryState(lifecycleSharedView().state.viewId),
+    );
+
+    await changeDensity(user, 'compacta');
+    let selector = await openSavedViewSelector(user);
+    expect(
+      within(selector).getByText(
+        'Esta visualização não pode ser editada diretamente. Duplique-a para criar uma versão própria.',
+      ),
+    ).toBeInstanceOf(HTMLElement);
+    await user.click(within(selector).getByRole('button', { name: 'Duplicar para editar' }));
+    let dialog = screen.getByRole('dialog', { name: 'Criar uma visualização editável' });
+    const saveAsInput = within(dialog).getByRole('textbox', { name: 'Nome da visualização' });
+    await user.type(saveAsInput, 'Leitura editável');
+    await user.click(within(dialog).getByRole('button', { name: 'Duplicar para editar' }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Visualização da tabela: Leitura editável' }),
+      ).toBeInstanceOf(HTMLButtonElement),
+    );
+    const editableCandidate = (
+      clientMock.saveTableViews.mock.calls.at(-1)?.[0] as SaveTableViewsRequest
+    ).state;
+    const editableView = editableCandidate.views.find(
+      ({ state: viewState }) => viewState.label === 'Leitura editável',
+    );
+    expect(editableView?.state.provenance).toBe('user-owned');
+    expect(editableView?.state.density).toBe('compact');
+
+    await changeDensity(user, 'confortável');
+    clientMock.saveTableViews.mockResolvedValueOnce({ status: 'saveFailed' });
+    selector = await openSavedViewSelector(user);
+    await user.click(within(selector).getByRole('button', { name: 'Salvar visualização' }));
+
+    const failureHeading = await screen.findByRole('heading', {
+      name: 'Não foi possível salvar visualização',
+    });
+    expect(document.activeElement).toBe(failureHeading);
+    selector = await openSavedViewSelector(user);
+    expect(within(selector).getByText('Alterações não salvas')).toBeInstanceOf(HTMLElement);
+    await user.keyboard('{Escape}');
+
+    await user.click(screen.getByRole('button', { name: 'Tentar salvar visualização' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('heading', { name: 'Não foi possível salvar visualização' })).toBeNull(),
+    );
+    selector = await openSavedViewSelector(user);
+    expect(within(selector).queryByText('Alterações não salvas')).toBeNull();
+    expect(screen.getByText('Visualização “Leitura editável” salva.')).toBeInstanceOf(HTMLElement);
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Visualização da tabela: Leitura editável' }),
+    );
   });
 });
 
