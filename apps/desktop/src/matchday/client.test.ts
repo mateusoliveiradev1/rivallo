@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { TableViewState } from '../table-view/table-view-engine.js';
 import { SQUAD_SYSTEM_VIEW } from './squad-table-schema.js';
 import {
   importLegacyTablePreferences,
@@ -8,6 +9,9 @@ import {
   playNextMatch,
   saveMatchdayLineup,
   saveTableViews,
+  type ImportLegacyTablePreferencesRequest,
+  type LegacyImportReceipt,
+  type TableViewRepositoryState,
 } from './client.js';
 
 const invoke = vi.hoisted(() => vi.fn());
@@ -17,9 +21,16 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke }));
 const clone = <Value>(value: Value): Value =>
   JSON.parse(JSON.stringify(value)) as Value;
 
-const systemView = () => clone(SQUAD_SYSTEM_VIEW);
+type DeepMutable<Value> = Value extends readonly (infer Entry)[]
+  ? DeepMutable<Entry>[]
+  : Value extends object
+    ? { -readonly [Key in keyof Value]: DeepMutable<Value[Key]> }
+    : Value;
 
-const repositoryState = () => ({
+const systemView = (): DeepMutable<TableViewState> =>
+  clone(SQUAD_SYSTEM_VIEW) as DeepMutable<TableViewState>;
+
+const repositoryState = (): DeepMutable<TableViewRepositoryState> => ({
   metadata: {
     envelopeVersion: 1,
     revision: 0,
@@ -38,7 +49,7 @@ const repositoryState = () => ({
   legacyImportReceipts: [],
 });
 
-const importedView = () => ({
+const importedView = (): DeepMutable<TableViewState> => ({
   ...systemView(),
   viewId: 'squad.user.legacy-v3',
   baselineViewId: 'squad.view.system-default',
@@ -49,7 +60,7 @@ const importedView = () => ({
 
 const importedRepositoryState = () => {
   const state = repositoryState();
-  const receipt = {
+  const receipt: DeepMutable<LegacyImportReceipt> = {
     sourceVersion: 3,
     sourceFingerprint: 'fnv1a64:legacy-v3',
     tableId: 'squad.primary',
@@ -127,19 +138,23 @@ describe('table-view client commands', () => {
     [
       'provenance',
       (value: ReturnType<typeof repositoryState>) => {
-        value.views[0]!.state.provenance = 'administrator';
+        Reflect.set(value.views[0]!.state, 'provenance', 'administrator');
       },
     ],
     [
       'column bound',
       (value: ReturnType<typeof repositoryState>) => {
-        value.views[0]!.state.columns[0]!.width = Number.POSITIVE_INFINITY;
+        Reflect.set(
+          value.views[0]!.state.columns[0]!,
+          'width',
+          Number.POSITIVE_INFINITY,
+        );
       },
     ],
     [
       'typed filter value',
       (value: ReturnType<typeof repositoryState>) => {
-        value.views[0]!.state.filter.children = [
+        Reflect.set(value.views[0]!.state.filter, 'children', [
           {
             kind: 'clause',
             filterId: 'filter.goals',
@@ -148,7 +163,7 @@ describe('table-view client commands', () => {
             value: { kind: 'number', value: 'many' },
             enabled: true,
           },
-        ];
+        ]);
       },
     ],
     [
@@ -217,7 +232,7 @@ describe('table-view client commands', () => {
   });
 
   it('imports copied legacy intent and validates the confirmed durable receipt', async () => {
-    const request = {
+    const request: ImportLegacyTablePreferencesRequest = {
       sourceVersion: 3,
       sourceFingerprint: 'fnv1a64:legacy-v3',
       state: importedView(),
