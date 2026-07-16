@@ -137,6 +137,49 @@ describe('readLegacySquadTablePreferences', () => {
     expect(visibleIds(result)).toEqual(['shirtNumber', 'info', 'name', 'position', 'assists']);
   });
 
+  it('skips current non-table preferences without hiding an older table payload', () => {
+    const storage = new MemoryStorage({
+      'rivallo.squad-ui.v3': encoded({
+        density: 'compact',
+        visibleColumns: ['goals'],
+      }),
+      'rivallo.squad-ui.v4': encoded({
+        activeScreen: 'squad',
+        pitchMode: 'roles',
+        showPlayerDetails: true,
+        sidebarCollapsed: false,
+      }),
+    });
+
+    const result = readReady(storage);
+
+    expect(result.request.sourceVersion).toBe(3);
+    expect(result.request.state.density).toBe('compact');
+    expect(visibleIds(result)).toEqual([
+      'shirtNumber',
+      'info',
+      'name',
+      'position',
+      'goals',
+      'averageRating',
+    ]);
+  });
+
+  it('does not import a current preference payload that contains no table intent', () => {
+    const result = readLegacySquadTablePreferences(
+      new MemoryStorage({
+        'rivallo.squad-ui.v4': encoded({
+          activeScreen: 'squad',
+          pitchMode: 'roles',
+          showPlayerDetails: true,
+          sidebarCollapsed: false,
+        }),
+      }),
+    );
+
+    expect(result).toMatchObject({ status: 'none', fallback: SQUAD_SYSTEM_VIEW });
+  });
+
   it('materializes averageRating once at its owning-schema default for a pre-column v3 payload', () => {
     const storage = new MemoryStorage({
       'rivallo.squad-ui.v3': encoded({
@@ -326,6 +369,36 @@ describe('retireConfirmedLegacyTablePreferences', () => {
       showPlayerDetails: false,
       pitchMode: 'condition',
       tableShare: 61,
+    });
+  });
+
+  it('merges an older confirmed table payload into current non-table v4 preferences', () => {
+    const storage = new MemoryStorage({
+      'rivallo.squad-ui.v3': encoded({
+        density: 'comfortable',
+        visibleColumns: ['goals', 'age'],
+        customNonTable: 'preservar',
+        sidebarCollapsed: true,
+      }),
+      'rivallo.squad-ui.v4': encoded({
+        activeScreen: 'squad',
+        pitchMode: 'roles',
+        showPlayerDetails: true,
+        sidebarCollapsed: false,
+      }),
+    });
+    const result = readReady(storage);
+
+    expect(retireConfirmedLegacyTablePreferences(storage, result, confirmedReceipt(result))).toBe(
+      true,
+    );
+    expect(storage.values.has('rivallo.squad-ui.v3')).toBe(false);
+    expect(JSON.parse(storage.values.get('rivallo.squad-ui.v4') ?? '{}')).toEqual({
+      customNonTable: 'preservar',
+      sidebarCollapsed: false,
+      activeScreen: 'squad',
+      pitchMode: 'roles',
+      showPlayerDetails: true,
     });
   });
 

@@ -2,7 +2,7 @@
   --manager-sidebar-width: 208px;
   --manager-topbar-height: 56px;
   width: 100vw;
-  min-width: 1024px;
+  min-width: 0;
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
@@ -1548,10 +1548,11 @@
 }
 
 .condition-cell {
-  min-width: 108px;
+  width: 100%;
+  min-width: 0;
   display: inline-flex;
   align-items: center;
-  gap: var(--rv-space-2);
+  gap: var(--rv-space-1);
 }
 
 .condition-cell > i,
@@ -1562,6 +1563,12 @@
   overflow: hidden;
   border-radius: 999px;
   background: var(--rv-color-border-subtle);
+}
+
+.condition-cell > i {
+  width: auto;
+  min-width: 24px;
+  flex: 1 1 auto;
 }
 
 .condition-cell > i > b,
@@ -3185,7 +3192,9 @@
 
 .table-view-customizer__content {
   grid-template-rows: auto auto minmax(8rem, 1fr) auto auto auto;
-  max-height: min(38rem, calc(100vh - var(--rv-space-16)));
+  max-height: min(24rem, calc(100vh - var(--rv-space-16)));
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .table-view-customizer__summary {
@@ -3583,6 +3592,25 @@
 @media (max-width: 1480px) {
   .manager-shell:not([data-sidebar-collapsed]) {
     --manager-sidebar-width: 192px;
+  }
+
+  .squad-panel__header {
+    grid-template-columns: minmax(120px, auto) minmax(0, 1fr);
+  }
+
+  .squad-panel__title {
+    grid-row: 1 / span 2;
+  }
+
+  .saved-view-lifecycle-host {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .table-controls {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: end;
   }
 
   .manager-topbar__club > span:last-child {

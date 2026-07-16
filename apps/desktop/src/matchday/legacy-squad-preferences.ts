@@ -174,7 +174,20 @@ const readNewestSource = (
   for (const source of LEGACY_SOURCES) {
     try {
       const raw = storage.getItem(source.key);
-      if (raw !== null) return { ...source, raw };
+      if (raw !== null) {
+        try {
+          const parsed = JSON.parse(raw) as unknown;
+          if (
+            isRecord(parsed) &&
+            ![...TABLE_FIELDS].some((field) => Object.prototype.hasOwnProperty.call(parsed, field))
+          ) {
+            continue;
+          }
+        } catch {
+          // The newest malformed table payload must remain visible to recovery.
+        }
+        return { ...source, raw };
+      }
     } catch {
       return { unavailableVersion: source.version };
     }
@@ -378,11 +391,24 @@ export const retireConfirmedLegacyTablePreferences = (
   }
   if (!isRecord(parsed)) return false;
 
-  const remaining = withoutTableFields(parsed);
+  let remaining = withoutTableFields(parsed);
   const currentKey = LEGACY_SOURCES[0].key;
   try {
-    if (preferences.sourceKey !== currentKey && storage.getItem(currentKey) !== null) {
-      return false;
+    if (preferences.sourceKey !== currentKey) {
+      const currentRaw = storage.getItem(currentKey);
+      if (currentRaw !== null) {
+        if (encoder.encode(currentRaw).length > MAX_RAW_BYTES) return false;
+        const currentParsed = JSON.parse(currentRaw) as unknown;
+        if (
+          !isRecord(currentParsed) ||
+          [...TABLE_FIELDS].some((field) =>
+            Object.prototype.hasOwnProperty.call(currentParsed, field),
+          )
+        ) {
+          return false;
+        }
+        remaining = { ...remaining, ...withoutTableFields(currentParsed) };
+      }
     }
 
     if (Object.keys(remaining).length > 0) {

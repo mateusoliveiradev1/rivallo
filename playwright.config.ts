@@ -18,6 +18,7 @@ const productionServer = {
 export default defineConfig({
   testDir: './browser-tests',
   outputDir: 'test-results',
+  snapshotPathTemplate: '{testDir}/__screenshots__/matchday/{arg}{ext}',
   fullyParallel: false,
   workers: 1,
   retries: process.env.CI ? 1 : 0,

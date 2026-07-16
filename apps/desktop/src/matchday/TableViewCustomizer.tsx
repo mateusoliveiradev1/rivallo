@@ -112,6 +112,22 @@ export function TableViewCustomizer({
     stateRef.current = state;
   }, [state]);
 
+  useEffect(() => {
+    if (operation?.input !== 'pointer') return;
+
+    const finishPointerOperation = () => {
+      operationRef.current = null;
+      setOperation(null);
+    };
+
+    window.addEventListener('pointerup', finishPointerOperation);
+    window.addEventListener('pointercancel', finishPointerOperation);
+    return () => {
+      window.removeEventListener('pointerup', finishPointerOperation);
+      window.removeEventListener('pointercancel', finishPointerOperation);
+    };
+  }, [operation?.input]);
+
   const schemaById = useMemo(
     () => new Map(schema.columns.map((column) => [column.columnId, column])),
     [schema.columns],
@@ -421,6 +437,9 @@ export function TableViewCustomizer({
       const saved = await onSave();
       if (saved === false) {
         announce('Não foi possível salvar a visualização. Os ajustes continuam disponíveis.');
+        acceptedCloseRef.current = true;
+        openingSnapshotRef.current = stateRef.current;
+        setOpen(false);
         return;
       }
       acceptedCloseRef.current = true;

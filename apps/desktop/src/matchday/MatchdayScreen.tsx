@@ -198,7 +198,7 @@ const TACTICS_LAYOUT_KEY = 'rivallo.tactics-layout.v1';
 const defaultPreferences = (): UiPreferences => ({
   sidebarCollapsed: typeof window !== 'undefined' && window.innerWidth < 1240,
   activeScreen: 'squad',
-  showPlayerDetails: typeof window === 'undefined' || window.innerWidth >= 1120,
+  showPlayerDetails: true,
   pitchMode: 'roles',
 });
 

@@ -190,11 +190,16 @@ const initialState: MatchdayState = {
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(
-    ({ seed, storageKey }) => {
+    ({ seed, storageKey, tableSeed, tableStorageKey, tableControlKey }) => {
       let state: MatchdayState = structuredClone(seed);
+      let tableState: TableViewRepositoryState = structuredClone(tableSeed);
       try {
         const persisted = window.localStorage.getItem(storageKey);
         if (persisted) state = JSON.parse(persisted) as MatchdayState;
+        const persistedTableState = window.localStorage.getItem(tableStorageKey);
+        if (persistedTableState) {
+          tableState = JSON.parse(persistedTableState) as TableViewRepositoryState;
+        }
       } catch {
         // The in-memory bridge remains usable when browser storage is unavailable.
       }
@@ -207,10 +212,155 @@ test.beforeEach(async ({ page }) => {
         }
       };
 
+      const persistTableState = () => {
+        try {
+          window.localStorage.setItem(tableStorageKey, JSON.stringify(tableState));
+        } catch {
+          // The in-memory bridge remains authoritative for the current document.
+        }
+      };
+
+      const readTableControl = (): Record<string, unknown> => {
+        try {
+          const persisted = window.localStorage.getItem(tableControlKey);
+          if (persisted) return JSON.parse(persisted) as Record<string, unknown>;
+        } catch {
+          // An invalid test control is treated as the normal loaded state.
+        }
+        return {};
+      };
+
+      const writeTableControl = (control: Record<string, unknown>) => {
+        try {
+          if (Object.keys(control).length === 0) {
+            window.localStorage.removeItem(tableControlKey);
+          } else {
+            window.localStorage.setItem(tableControlKey, JSON.stringify(control));
+          }
+        } catch {
+          // The control is test-only and may remain in memory when storage is unavailable.
+        }
+      };
+
+      const consumeTableControl = (key: string): unknown => {
+        const control = readTableControl();
+        const value = control[key];
+        delete control[key];
+        writeTableControl(control);
+        return value;
+      };
+
+      persistTableState();
+
       const bridge = {
         invoke: async (command: string, args: Record<string, unknown> = {}) => {
           if (command === 'lifecycle_status' || command === 'retry_lifecycle') {
             return { state: 'ready', ownership: 'owned' };
+          }
+          if (command === 'load_table_views') {
+            const nextLoad = readTableControl().nextLoad;
+            if (nextLoad === 'loading') {
+              return new Promise<never>(() => undefined);
+            }
+            if (nextLoad !== undefined) consumeTableControl('nextLoad');
+            if (nextLoad === 'unavailable') {
+              return { status: 'unavailable', fallback: structuredClone(tableSeed) };
+            }
+            if (nextLoad === 'invalid') {
+              return {
+                status: 'invalid',
+                fallback: structuredClone(tableSeed),
+                reason: 'table_view.invalid_payload',
+              };
+            }
+            if (nextLoad === 'migrated') {
+              return {
+                status: 'migrated',
+                state: structuredClone(tableState),
+                fromEnvelopeVersion: 2,
+                toEnvelopeVersion: 3,
+              };
+            }
+            if (nextLoad === 'corrupt' || nextLoad === 'future-schema') {
+              return {
+                status: 'recovered',
+                state: structuredClone(tableSeed),
+                reason: nextLoad === 'future-schema' ? 'future_schema_version' : 'corrupt_payload',
+              };
+            }
+            return { status: 'loaded', state: structuredClone(tableState) };
+          }
+          if (command === 'save_table_views') {
+            const failNextSave = consumeTableControl('failNextSave');
+            if (failNextSave === true) return { status: 'saveFailed' };
+            const request = args.request as { state: TableViewRepositoryState };
+            tableState = {
+              ...structuredClone(request.state),
+              metadata: {
+                envelopeVersion: 1,
+                revision: tableState.metadata.revision + 1,
+              },
+            };
+            persistTableState();
+            return {
+              status: 'confirmed',
+              state: structuredClone(tableState),
+              receipt: {
+                tableId: 'squad.primary',
+                schemaVersion: 1,
+                ownerScope: 'local-fixed',
+                acceptedRevision: tableState.metadata.revision,
+              },
+            };
+          }
+          if (command === 'import_legacy_table_preferences') {
+            const request = args.request as {
+              sourceVersion: 2 | 3 | 4;
+              sourceFingerprint: string;
+              state: TableViewRepositoryState['views'][number]['state'];
+            };
+            const existingReceipt = tableState.legacyImportReceipts.find(
+              (receipt) =>
+                receipt.sourceVersion === request.sourceVersion &&
+                receipt.sourceFingerprint === request.sourceFingerprint,
+            );
+            if (existingReceipt !== undefined) {
+              return {
+                status: 'confirmed',
+                state: structuredClone(tableState),
+                receipt: structuredClone(existingReceipt),
+                imported: false,
+              };
+            }
+            const revision = tableState.metadata.revision + 1;
+            const receipt = {
+              sourceVersion: request.sourceVersion,
+              sourceFingerprint: request.sourceFingerprint,
+              tableId: 'squad.primary' as const,
+              schemaVersion: 1 as const,
+              ownerScope: 'local-fixed' as const,
+              importedViewId: request.state.viewId,
+              acceptedRevision: revision,
+            };
+            tableState = {
+              ...tableState,
+              metadata: { envelopeVersion: 1, revision },
+              activeViewId: request.state.viewId,
+              views: [
+                ...tableState.views.filter(
+                  ({ state: view }) => view.viewId !== request.state.viewId,
+                ),
+                { mutability: 'mutable', state: structuredClone(request.state) },
+              ],
+              legacyImportReceipts: [...tableState.legacyImportReceipts, receipt],
+            };
+            persistTableState();
+            return {
+              status: 'confirmed',
+              state: structuredClone(tableState),
+              receipt,
+              imported: true,
+            };
           }
           if (command === 'matchday_state') return state;
           if (command === 'update_matchday_lineup') {
@@ -296,7 +446,13 @@ test.beforeEach(async ({ page }) => {
       };
       (window as unknown as { __TAURI_INTERNALS__: typeof bridge }).__TAURI_INTERNALS__ = bridge;
     },
-    { seed: initialState, storageKey: bridgeStateKey },
+    {
+      seed: initialState,
+      storageKey: bridgeStateKey,
+      tableSeed: tableViewSeed,
+      tableStorageKey: tableViewBridgeStateKey,
+      tableControlKey: tableViewBridgeControlKey,
+    },
   );
 });
 
@@ -634,7 +790,9 @@ test('durable lifecycle persists an ordinary Mostrar somente gols view across re
   await expect(
     page.getByRole('heading', { name: 'Não foi possível salvar a visualização' }),
   ).toBeFocused();
-  await expect(page.getByText('Alterações não salvas')).toBeVisible();
+  await expect(
+    page.locator('.saved-view-lifecycle-host').getByText('Alterações não salvas'),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Tentar salvar visualização' }).click();
   await expect(
     page.getByRole('heading', { name: 'Não foi possível salvar a visualização' }),
@@ -695,6 +853,48 @@ test('durable lifecycle persists an ordinary Mostrar somente gols view across re
   expect(visibleGoals.every((value) => Number(value.trim()) > 0)).toBe(true);
   expect(visibleGoals.map(Number)).toEqual([...visibleGoals.map(Number)].sort((a, b) => b - a));
 
+  const makeDensityDirty = async () => {
+    await page.getByRole('button', { name: /Alterar densidade da tabela:/u }).click();
+    await page.getByRole('button', { name: 'Densidade padrão' }).click();
+    await expect(
+      page.locator('.saved-view-lifecycle-host').getByText('Alterações não salvas'),
+    ).toBeVisible();
+  };
+  const requestSystemView = async () => {
+    const lifecycleSelector = await openSavedViewSelector(page);
+    await lifecycleSelector.getByRole('button', { name: /^Abrir visualização Padrão\./u }).click();
+    return page.getByRole('alertdialog', {
+      name: 'Salvar alterações antes de abrir “Padrão”?',
+    });
+  };
+
+  await makeDensityDirty();
+  let dirtyDialog = await requestSystemView();
+  await expect(
+    dirtyDialog.getByRole('button', { name: 'Continuar nesta visualização' }),
+  ).toBeFocused();
+  await dirtyDialog.getByRole('button', { name: 'Continuar nesta visualização' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Visualização da tabela: Mostrar somente gols' }),
+  ).toBeVisible();
+
+  dirtyDialog = await requestSystemView();
+  await dirtyDialog.getByRole('button', { name: 'Descartar e abrir “Padrão”' }).click();
+  await expect(page.getByRole('button', { name: 'Visualização da tabela: Padrão' })).toBeVisible();
+  let lifecycleSelector = await openSavedViewSelector(page);
+  await lifecycleSelector
+    .getByRole('button', { name: /^Abrir visualização Mostrar somente gols\./u })
+    .click();
+
+  await makeDensityDirty();
+  dirtyDialog = await requestSystemView();
+  await dirtyDialog.getByRole('button', { name: 'Salvar e abrir “Padrão”' }).click();
+  await expect(page.getByRole('button', { name: 'Visualização da tabela: Padrão' })).toBeVisible();
+  lifecycleSelector = await openSavedViewSelector(page);
+  await lifecycleSelector
+    .getByRole('button', { name: /^Abrir visualização Mostrar somente gols\./u })
+    .click();
+
   await page.getByRole('button', { name: 'Configurar tabela' }).click();
   const reopenedCustomizer = page.getByRole('dialog', { name: 'Configurar tabela' });
   await reopenedCustomizer.getByRole('searchbox', { name: 'Buscar colunas' }).fill('Idade');
@@ -745,6 +945,80 @@ test('durable lifecycle persists an ordinary Mostrar somente gols view across re
     ),
   ).toBe(true);
   expect(persisted.legacyImportReceipts).toEqual([]);
+
+  await page.evaluate(() => {
+    window.localStorage.setItem(
+      'rivallo.squad-ui.v3',
+      JSON.stringify({
+        density: 'comfortable',
+        visibleColumns: ['goals', 'age'],
+        showPlayerDetails: true,
+        sidebarCollapsed: false,
+        customNonTable: 'preservar',
+      }),
+    );
+  });
+  await page.reload();
+  await expect(page.getByRole('status', { name: 'Preferências antigas importadas' })).toBeVisible();
+  const afterLegacyImport = await readTableViewRepository(page);
+  expect(afterLegacyImport.legacyImportReceipts).toHaveLength(1);
+  expect(
+    afterLegacyImport.views.find(({ state }) => state.viewId === afterLegacyImport.activeViewId)
+      ?.state.label,
+  ).toBe('Preferências anteriores');
+  await expect
+    .poll(() => page.evaluate(() => window.localStorage.getItem('rivallo.squad-ui.v3')))
+    .toBeNull();
+  const retiredLegacy = await page.evaluate(() => ({
+    old: window.localStorage.getItem('rivallo.squad-ui.v3'),
+    current: JSON.parse(window.localStorage.getItem('rivallo.squad-ui.v4') ?? '{}') as Record<
+      string,
+      unknown
+    >,
+  }));
+  expect(retiredLegacy.old).toBeNull();
+  expect(retiredLegacy.current).toMatchObject({ customNonTable: 'preservar' });
+  expect(retiredLegacy.current).not.toHaveProperty('density');
+  expect(retiredLegacy.current).not.toHaveProperty('visibleColumns');
+
+  await page.evaluate(() => {
+    window.localStorage.setItem(
+      'rivallo.squad-ui.v3',
+      JSON.stringify({ visibleColumns: ['removedInternalColumn'] }),
+    );
+  });
+  await page.reload();
+  await expect(
+    page.getByRole('heading', { name: 'Preferências antigas não puderam ser importadas' }),
+  ).toBeVisible();
+  expect(await page.evaluate(() => window.localStorage.getItem('rivallo.squad-ui.v3'))).toContain(
+    'removedInternalColumn',
+  );
+
+  await page.evaluate(() => window.localStorage.removeItem('rivallo.squad-ui.v3'));
+  const sharedRepository = await readTableViewRepository(page);
+  const sharedState = {
+    ...structuredClone(SQUAD_SYSTEM_VIEW),
+    viewId: 'squad.shared.staff-analysis',
+    baselineViewId: SQUAD_SYSTEM_VIEW.viewId,
+    provenance: 'shared-read-only',
+    label: 'Análise da comissão',
+  } as const;
+  await writeTableViewRepository(page, {
+    ...sharedRepository,
+    metadata: {
+      ...sharedRepository.metadata,
+      revision: sharedRepository.metadata.revision + 1,
+    },
+    activeViewId: sharedState.viewId,
+    views: [...sharedRepository.views, { mutability: 'read-only', state: sharedState }],
+  });
+  await page.reload();
+  selector = await openSavedViewSelector(page);
+  await expect(selector.getByText('Somente leitura')).toBeVisible();
+  await expect(selector.getByRole('button', { name: 'Duplicar visualização' })).toBeVisible();
+  await expect(selector.getByRole('button', { name: 'Renomear visualização' })).toHaveCount(0);
+  await expect(selector.getByRole('button', { name: 'Excluir visualização' })).toHaveCount(0);
 });
 
 test('live header parity keeps pointer and keyboard reorder resize rollback focus and announcements', async ({
@@ -756,6 +1030,15 @@ test('live header parity keeps pointer and keyboard reorder resize rollback focu
       .evaluateAll((headers) => headers.map((header) => header.getAttribute('data-column-id')));
 
   await page.goto(developmentUrl);
+  await expect(page.locator('.squad-table thead th')).toHaveCount(18);
+  const focusedPlayerRow = page.getByRole('row', { name: /Caio Brandão/u });
+  await focusedPlayerRow.click();
+  await expect(focusedPlayerRow).toHaveAttribute('data-focused', 'true');
+  await page.getByRole('button', { name: 'Ordenar por Jogador' }).click();
+  await expect(focusedPlayerRow).toHaveAttribute('data-focused', 'true');
+  await expect(
+    focusedPlayerRow.getByRole('button', { name: 'Retirar Caio Brandão' }),
+  ).toHaveAttribute('aria-pressed', 'true');
   const initialOrder = await columnOrder();
   const keyboardMove = page.getByRole('button', { name: 'Mover coluna Jogador' });
   await keyboardMove.focus();
@@ -769,9 +1052,7 @@ test('live header parity keeps pointer and keyboard reorder resize rollback focu
 
   await page.reload();
   const pointerMove = page.getByRole('button', { name: 'Mover coluna Jogador' });
-  await pointerMove.dispatchEvent('pointerdown', { pointerId: 1, button: 0 });
-  await page.locator('th[data-column="position"]').dispatchEvent('pointerenter', { pointerId: 1 });
-  await pointerMove.dispatchEvent('pointerup', { pointerId: 1, button: 0 });
+  await pointerMove.dragTo(page.locator('th[data-column="position"]'));
   expect(await columnOrder()).toEqual(keyboardOrder);
   await expect(pointerMove).toBeFocused();
 
@@ -796,9 +1077,14 @@ test('live header parity keeps pointer and keyboard reorder resize rollback focu
 
   await page.reload();
   const pointerResize = page.getByRole('separator', { name: 'Redimensionar coluna Jogador' });
-  await pointerResize.dispatchEvent('pointerdown', { pointerId: 2, button: 0, clientX: 100 });
-  await pointerResize.dispatchEvent('pointermove', { pointerId: 2, clientX: 108 });
-  await pointerResize.dispatchEvent('pointerup', { pointerId: 2, button: 0, clientX: 108 });
+  const resizeBox = await pointerResize.boundingBox();
+  if (resizeBox === null) throw new Error('The live Jogador resize handle is not measurable.');
+  const resizeX = resizeBox.x + resizeBox.width / 2;
+  const resizeY = resizeBox.y + resizeBox.height / 2;
+  await page.mouse.move(resizeX, resizeY);
+  await page.mouse.down();
+  await page.mouse.move(resizeX + 8, resizeY);
+  await page.mouse.up();
   expect(Number(await pointerResize.getAttribute('aria-valuenow'))).toBe(initialWidth + 8);
 
   await page.reload();
@@ -808,6 +1094,86 @@ test('live header parity keeps pointer and keyboard reorder resize rollback focu
   await page.keyboard.press('Escape');
   expect(Number(await rollbackResize.getAttribute('aria-valuenow'))).toBe(initialWidth);
   await expect(rollbackResize).toBeFocused();
+
+  const customizerTrigger = page.getByRole('button', { name: 'Configurar tabela' });
+  await customizerTrigger.focus();
+  await page.keyboard.press('Enter');
+  const customizer = page.getByRole('dialog', { name: 'Configurar tabela' });
+  const search = customizer.getByRole('searchbox', { name: 'Buscar colunas' });
+  await expect(search).toBeFocused();
+  await search.fill('Idade');
+  const customizerMove = customizer.getByRole('button', { name: 'Mover Idade' });
+  await customizerMove.focus();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(customizer.getByText(/^Idade, posição \d+ de 18\.$/u)).toBeVisible();
+  await expect(customizerMove).toBeFocused();
+
+  const customizerResize = customizer.getByRole('separator', { name: 'Redimensionar Idade' });
+  const customizerInitialWidth = Number(await customizerResize.getAttribute('aria-valuenow'));
+  await customizerResize.focus();
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Escape');
+  expect(Number(await customizerResize.getAttribute('aria-valuenow'))).toBe(customizerInitialWidth);
+  await expect(customizerResize).toBeFocused();
+
+  const pinStart = customizer.getByRole('button', { name: 'Fixar no início' });
+  await pinStart.focus();
+  await page.keyboard.press('Enter');
+  await expect(customizer.getByText('Idade fixada no início.')).toBeVisible();
+  const unpin = customizer.getByRole('button', { name: 'Desafixar coluna' });
+  await unpin.focus();
+  await page.keyboard.press('Enter');
+  await expect(customizer.getByText('Idade desafixada.')).toBeVisible();
+  const hideAge = customizer.getByRole('button', { name: 'Ocultar Idade' });
+  await hideAge.focus();
+  await page.keyboard.press('Enter');
+  await expect(customizer.getByText('Idade oculta.')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(customizer).toBeHidden();
+  await expect(customizerTrigger).toBeFocused();
+
+  await customizerTrigger.click();
+  const pointerCustomizer = page.getByRole('dialog', { name: 'Configurar tabela' });
+  await pointerCustomizer.getByRole('searchbox', { name: 'Buscar colunas' }).fill('');
+  const pointerMoveAge = pointerCustomizer.getByRole('button', { name: 'Mover Idade' });
+  await pointerMoveAge.dragTo(pointerCustomizer.getByRole('group', { name: 'Coluna NAT' }));
+  await expect(pointerCustomizer.getByText(/^Idade, posição \d+ de 18\.$/u)).toBeVisible();
+  const pointerResizeAge = pointerCustomizer.getByRole('separator', {
+    name: 'Redimensionar Idade',
+  });
+  await pointerResizeAge.scrollIntoViewIfNeeded();
+  await expect(pointerResizeAge).toBeVisible();
+  const pointerResizeBox = await pointerResizeAge.boundingBox();
+  if (pointerResizeBox === null)
+    throw new Error('The customizer Idade resize handle is not measurable.');
+  const pointerResizeX = pointerResizeBox.x + pointerResizeBox.width / 2;
+  const pointerResizeY = pointerResizeBox.y + pointerResizeBox.height / 2;
+  await page.mouse.move(pointerResizeX, pointerResizeY);
+  await page.mouse.down();
+  await page.mouse.move(pointerResizeX + 8, pointerResizeY);
+  await page.mouse.up();
+  expect(Number(await pointerResizeAge.getAttribute('aria-valuenow'))).toBe(
+    customizerInitialWidth + 8,
+  );
+  const discardAdjustments = pointerCustomizer.getByRole('button', { name: 'Descartar ajustes' });
+  const discardGeometry = await discardAdjustments.evaluate((button) => {
+    const rect = button.getBoundingClientRect();
+    const content = button.closest<HTMLElement>('.table-view-customizer__content');
+    return {
+      bottom: rect.bottom,
+      top: rect.top,
+      viewportHeight: window.innerHeight,
+      contentClientHeight: content?.clientHeight ?? 0,
+      contentScrollHeight: content?.scrollHeight ?? 0,
+    };
+  });
+  expect(discardGeometry.bottom, JSON.stringify(discardGeometry)).toBeLessThanOrEqual(
+    discardGeometry.viewportHeight,
+  );
+  await discardAdjustments.click();
+  await expect(customizerTrigger).toBeFocused();
 });
 
 test('computed WCAG contrast matrix covers operational and truthful table-view states', async ({
@@ -864,7 +1230,7 @@ test('computed WCAG contrast matrix covers operational and truthful table-view s
   await sample(
     'disabled required visibility explanation',
     'text',
-    customizer.getByText(/identidade principal/u).first(),
+    customizer.getByText('Obrigatória para identificar cada jogador.'),
   );
   await customizer
     .getByRole('searchbox', { name: 'Buscar colunas' })
@@ -888,7 +1254,11 @@ test('computed WCAG contrast matrix covers operational and truthful table-view s
   ] as const) {
     await setTableViewBridgeControl(page, { nextLoad: mode });
     await page.reload();
-    await sample(`${mode} product state`, 'text', page.getByRole('heading', { name: heading }));
+    const stateLocator =
+      mode === 'migrated'
+        ? page.getByRole('status', { name: heading })
+        : page.getByRole('heading', { name: heading });
+    await sample(`${mode} product state`, 'text', stateLocator);
   }
 
   await setTableViewBridgeControl(page, { nextLoad: 'loaded' });
@@ -941,17 +1311,21 @@ test('200% zoom reflow keeps long Portuguese controls, table overflow and focus 
   const focusRect = await customizerTrigger.boundingBox();
   expect(focusRect).not.toBeNull();
   expect(focusRect?.x).toBeGreaterThanOrEqual(0);
-  expect((focusRect?.x ?? 0) + (focusRect?.width ?? 0)).toBeLessThanOrEqual(960);
+  const layoutWidth = await page.evaluate(() => window.innerWidth);
+  expect((focusRect?.x ?? 0) + (focusRect?.width ?? 0)).toBeLessThanOrEqual(layoutWidth);
   await customizerTrigger.click();
   const customizer = page.getByRole('dialog', { name: 'Configurar tabela' });
   await expect(customizer.getByRole('searchbox', { name: 'Buscar colunas' })).toBeFocused();
   await customizer.getByRole('searchbox', { name: 'Buscar colunas' }).fill('Jogador');
-  await expect(customizer.getByText(/identidade principal/u)).toBeVisible();
+  await expect(customizer.getByText('Obrigatória para identificar cada jogador.')).toBeVisible();
 
   const reducedDuration = await customizer.evaluate(
     (element) => getComputedStyle(element).transitionDuration,
   );
-  expect(reducedDuration).toMatch(/(?:0s|0\.00001s|0\.01ms)/u);
+  const reducedDurationSeconds = reducedDuration.endsWith('ms')
+    ? Number.parseFloat(reducedDuration) / 1000
+    : Number.parseFloat(reducedDuration);
+  expect(reducedDurationSeconds).toBeLessThanOrEqual(0.00001);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
@@ -987,7 +1361,32 @@ test('visual baseline and four-viewport geometry preserve the dense table and in
   for (const viewport of viewports) {
     await page.setViewportSize(viewport);
     await page.goto(developmentUrl);
+    await Promise.all([
+      page.waitForNavigation(),
+      page.evaluate(() => {
+        window.localStorage.clear();
+        window.location.reload();
+      }),
+    ]);
     await expect(page.getByRole('table')).toBeVisible();
+    await expect(page.locator('.player-dossier')).toBeVisible();
+    const shell = page.locator('.manager-shell');
+    const shouldCollapseSidebar = viewport.width < 1280;
+    const sidebarIsCollapsed = await shell.evaluate((element) =>
+      element.hasAttribute('data-sidebar-collapsed'),
+    );
+    if (sidebarIsCollapsed !== shouldCollapseSidebar) {
+      await page
+        .getByRole('button', {
+          name: sidebarIsCollapsed ? 'Expandir navegação' : 'Recolher navegação',
+        })
+        .click();
+    }
+    if (shouldCollapseSidebar) {
+      await expect(shell).toHaveAttribute('data-sidebar-collapsed', 'true');
+    } else {
+      await expect(shell).not.toHaveAttribute('data-sidebar-collapsed');
+    }
 
     const geometry = await page.evaluate(() => {
       const layout = document.querySelector<HTMLElement>('.squad-layout');
@@ -1000,15 +1399,45 @@ test('visual baseline and four-viewport geometry preserve the dense table and in
       const layoutRect = layout.getBoundingClientRect();
       const tableRect = tablePanel.getBoundingClientRect();
       const inspectorRect = inspector.getBoundingClientRect();
+      const firstHeader = tableOverflow.querySelector<HTMLElement>('thead th:first-child');
+      const lastHeader = tableOverflow.querySelector<HTMLElement>('thead th:last-child');
+      const overflowRect = tableOverflow.getBoundingClientRect();
+      const maximumScrollLeft = tableOverflow.scrollWidth - tableOverflow.clientWidth;
+      tableOverflow.scrollLeft = 0;
+      const firstEdgeReachable =
+        firstHeader !== null && firstHeader.getBoundingClientRect().left >= overflowRect.left - 1;
+      tableOverflow.scrollLeft = maximumScrollLeft;
+      const lastEdgeReachable =
+        lastHeader !== null && lastHeader.getBoundingClientRect().right <= overflowRect.right + 1;
+      tableOverflow.scrollLeft = 0;
+      const horizontalScrollOwners = [...document.querySelectorAll<HTMLElement>('*')]
+        .filter((element) => {
+          const overflowX = getComputedStyle(element).overflowX;
+          return (
+            (overflowX === 'auto' || overflowX === 'scroll') &&
+            element.scrollWidth > element.clientWidth + 1
+          );
+        })
+        .map((element) => element.className);
       return {
         documentOverflow: document.documentElement.scrollWidth > window.innerWidth,
         tableRatio: tableRect.width / layoutRect.width,
-        tableLocalOverflow: tableOverflow.scrollWidth > tableOverflow.clientWidth,
+        tableLocalOverflow: maximumScrollLeft > 0,
+        firstEdgeReachable,
+        lastEdgeReachable,
+        horizontalScrollOwners,
         inspectorReflowed: inspectorRect.top >= tableRect.bottom - 1,
       };
     });
     expect(geometry.documentOverflow).toBe(false);
-    expect(geometry.tableLocalOverflow).toBe(true);
+    expect(geometry.firstEdgeReachable).toBe(true);
+    expect(geometry.lastEdgeReachable).toBe(true);
+    expect(
+      geometry.horizontalScrollOwners.every((className) =>
+        String(className).includes('squad-table-wrap'),
+      ),
+    ).toBe(true);
+    if (viewport.width < 2560) expect(geometry.tableLocalOverflow).toBe(true);
     if (viewport.width >= 1280) {
       expect(geometry.tableRatio).toBeGreaterThanOrEqual(0.65);
     } else {
