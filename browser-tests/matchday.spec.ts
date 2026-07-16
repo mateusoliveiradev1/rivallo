@@ -503,6 +503,7 @@ test('changes the dedicated tactical plan, plays the match, and reveals the resu
 
 test('personalizes the squad workspace and persists the choices', async ({ page }) => {
   await page.goto(developmentUrl);
+  await createSavedView(page, 'Preferências pessoais');
 
   const personalizationButton = page.getByRole('button', { name: 'Personalizar' });
   await personalizationButton.click();
@@ -521,7 +522,7 @@ test('personalizes the squad workspace and persists the choices', async ({ page 
   await expect(page.locator('.manager-shell')).toHaveAttribute('data-sidebar-collapsed', 'true');
 
   const densityTrigger = page.getByRole('button', { name: /Alterar densidade da tabela/u });
-  const columnsTrigger = page.getByRole('button', { name: 'Configurar colunas' });
+  const columnsTrigger = page.getByRole('button', { name: 'Configurar tabela' });
   await densityTrigger.focus();
   await expect(page.getByRole('tooltip')).toHaveText('Alterar espaçamento das linhas');
   await page.keyboard.press('Enter');
@@ -549,14 +550,14 @@ test('personalizes the squad workspace and persists the choices', async ({ page 
   await densityTrigger.click();
   await columnsTrigger.click();
   await expect(page.getByRole('dialog', { name: 'Densidade do elenco' })).toBeHidden();
-  await expect(page.getByRole('dialog', { name: 'Colunas visíveis' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Configurar tabela' })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(columnsTrigger).toBeFocused();
 
   await columnsTrigger.click();
-  await expect(page.getByRole('dialog', { name: 'Colunas visíveis' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Configurar tabela' })).toBeVisible();
   await densityTrigger.click();
-  await expect(page.getByRole('dialog', { name: 'Colunas visíveis' })).toBeHidden();
+  await expect(page.getByRole('dialog', { name: 'Configurar tabela' })).toBeHidden();
   await expect(page.getByRole('dialog', { name: 'Densidade do elenco' })).toBeVisible();
   await page.getByRole('button', { name: 'Densidade padrão' }).click();
   await expect(page.getByRole('dialog', { name: 'Densidade do elenco' })).toBeHidden();
@@ -598,7 +599,7 @@ test('personalizes the squad workspace and persists the choices', async ({ page 
   await expect(densityTrigger).toBeFocused();
 
   await columnsTrigger.click();
-  await expect(page.getByRole('dialog', { name: 'Colunas visíveis' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Configurar tabela' })).toBeVisible();
   await page.keyboard.press('Tab');
   const focusedPopoverControl = page.locator('.rv-popover button:focus-visible');
   await expect(focusedPopoverControl).toHaveCount(1);
@@ -613,16 +614,17 @@ test('personalizes the squad workspace and persists the choices', async ({ page 
   });
   expect(focusStyle.outlineColor).toBe(focusStyle.focusColor);
   expect(focusStyle.outlineWidth).toBeGreaterThanOrEqual(2);
-  await page.getByRole('button', { name: /Idade.*Visível/u }).click();
-  await expect(page.getByRole('dialog', { name: 'Colunas visíveis' })).toBeVisible();
+  await page.getByRole('button', { name: 'Ocultar Idade' }).click();
+  await expect(page.getByRole('dialog', { name: 'Configurar tabela' })).toBeVisible();
   await expect(page.locator('th[data-column="age"]')).toBeHidden();
-  await page.getByRole('button', { name: 'Fechar contexto' }).click();
-  await expect(page.getByRole('dialog', { name: 'Colunas visíveis' })).toBeHidden();
+  await page.getByRole('button', { name: 'Salvar visualização' }).click();
+  await expect(page.getByRole('dialog', { name: 'Configurar tabela' })).toBeHidden();
+  await columnsTrigger.focus();
   await expect(columnsTrigger).toBeFocused();
 
   await columnsTrigger.click();
   await page.getByRole('heading', { name: /jogadores$/u }).click();
-  await expect(page.getByRole('dialog', { name: 'Colunas visíveis' })).toBeHidden();
+  await expect(page.getByRole('dialog', { name: 'Configurar tabela' })).toBeHidden();
   await expect(columnsTrigger).toBeFocused();
   await expect(page.locator('.rv-popover')).toHaveCount(0);
   await expect(page.locator('body')).not.toHaveAttribute('style', /(?:overflow|pointer-events)/u);
@@ -653,7 +655,7 @@ test('uses real squad filters and navigates between the separate workspaces', as
 
   await page.getByRole('button', { name: 'Limpar' }).click();
   const playerRows = page.locator('.squad-table tbody tr');
-  const positionHeader = page.locator('th[data-column="position"] button');
+  const positionHeader = page.getByRole('button', { name: 'Ordenar por POS' });
   await expect(playerRows.first()).toContainText('Caio Brandão');
   await positionHeader.click();
   await expect(playerRows.first()).toContainText('Murilo Braga');
@@ -668,6 +670,10 @@ test('uses real squad filters and navigates between the separate workspaces', as
   await expect(page.getByRole('row', { name: /Davi Moura/u })).toBeHidden();
 
   await page.getByRole('button', { name: 'Táticas' }).click();
+  const dirtyNavigation = page.getByRole('alertdialog', {
+    name: 'Salvar alterações antes de abrir “Táticas”?',
+  });
+  await dirtyNavigation.getByRole('button', { name: 'Descartar e abrir “Táticas”' }).click();
   await expect(page.getByRole('heading', { name: 'Plano de jogo' })).toBeVisible();
   await expect(page.getByRole('table')).toHaveCount(0);
   await expect(page.getByLabel('Escalação no 4-3-3')).toBeVisible();
@@ -958,8 +964,13 @@ test('durable lifecycle persists an ordinary Mostrar somente gols view across re
       }),
     );
   });
-  await page.reload();
-  await expect(page.getByRole('status', { name: 'Preferências antigas importadas' })).toBeVisible();
+  const importedPreferencesStatus = page.getByRole('status', {
+    name: 'Preferências antigas importadas',
+  });
+  await Promise.all([
+    importedPreferencesStatus.waitFor({ state: 'visible' }),
+    page.reload({ waitUntil: 'domcontentloaded' }),
+  ]);
   const afterLegacyImport = await readTableViewRepository(page);
   expect(afterLegacyImport.legacyImportReceipts).toHaveLength(1);
   expect(
