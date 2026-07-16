@@ -2,11 +2,14 @@ use std::ffi::OsString;
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard};
 
 use rivallo_application::{
-    CURRENT_ENVELOPE_VERSION, SQUAD_PRIMARY_SCHEMA_VERSION, TableViewRecoveryReason,
+    CURRENT_ENVELOPE_VERSION, LegacyImportOutcome, LegacyTableViewImport,
+    SQUAD_PRIMARY_SCHEMA_VERSION, TableViewLoadOutcome, TableViewRecoveryReason,
     TableViewRepository, TableViewRepositoryError, TableViewRepositoryLoad,
-    TableViewRepositoryState,
+    TableViewRepositoryState, TableViewService, TableViewServiceError,
+    squad_system_default_repository_state,
 };
 use serde_json::{Value, json};
 
@@ -58,12 +61,39 @@ struct CandidateFailure {
 #[derive(Debug)]
 struct DecodedCandidate {
     state: TableViewRepositoryState,
+    needs_persist: bool,
+    migration: Option<MigrationOutcome>,
 }
 
 enum Candidate {
     Valid(DecodedCandidate),
     Invalid(CandidateFailure),
 }
+
+#[derive(Clone, Copy, Debug)]
+struct MigrationOutcome {
+    from_envelope_version: u32,
+    to_envelope_version: u32,
+}
+
+struct MigrationStep {
+    from: u32,
+    to: u32,
+    migrate: fn(&mut Value) -> Result<(), ()>,
+}
+
+const STORAGE_MIGRATIONS: [MigrationStep; 2] = [
+    MigrationStep {
+        from: 1,
+        to: 2,
+        migrate: migrate_storage_v1_to_v2,
+    },
+    MigrationStep {
+        from: 2,
+        to: 3,
+        migrate: migrate_storage_v2_to_v3,
+    },
+];
 
 /// Platform-owned, fixed-path JSON adapter for durable table-view preferences.
 ///
@@ -232,6 +262,17 @@ impl FileTableViewRepository {
             match decode_candidate(&active_bytes.bytes) {
                 Candidate::Valid(active_candidate) => {
                     if temporary.is_none() && backup.is_none() {
+                        if active_candidate.needs_persist {
+                            let bytes = self.encode_current(&active_candidate.state)?;
+                            self.save_bytes(&bytes)?;
+                            if let Some(migration) = active_candidate.migration {
+                                return Ok(TableViewRepositoryLoad::Migrated {
+                                    state: active_candidate.state,
+                                    from_envelope_version: migration.from_envelope_version,
+                                    to_envelope_version: migration.to_envelope_version,
+                                });
+                            }
+                        }
                         return Ok(TableViewRepositoryLoad::Loaded(active_candidate.state));
                     }
 
@@ -426,6 +467,47 @@ impl TableViewRepository for FileTableViewRepository {
     }
 }
 
+/// Serializes table-view repository access and delegates all lifecycle policy
+/// to the application-owned service.
+pub struct TableViewCoordinator {
+    service: Mutex<TableViewService<FileTableViewRepository>>,
+}
+
+impl TableViewCoordinator {
+    pub fn new(path: impl Into<PathBuf>) -> Self {
+        let repository = FileTableViewRepository::new(path);
+        let service = TableViewService::new(repository, squad_system_default_repository_state())
+            .expect("application-owned squad table default must remain valid");
+        Self {
+            service: Mutex::new(service),
+        }
+    }
+
+    pub fn load(&self) -> Result<TableViewLoadOutcome, TableViewServiceError> {
+        self.service().load_or_seed()
+    }
+
+    pub fn save(
+        &self,
+        proposal: TableViewRepositoryState,
+    ) -> Result<TableViewRepositoryState, TableViewServiceError> {
+        self.service().validate_and_save(proposal)
+    }
+
+    pub fn import_legacy(
+        &self,
+        legacy: LegacyTableViewImport,
+    ) -> Result<LegacyImportOutcome, TableViewServiceError> {
+        self.service().import_legacy(legacy)
+    }
+
+    fn service(&self) -> MutexGuard<'_, TableViewService<FileTableViewRepository>> {
+        self.service
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum SaveInterruptionBoundary {
     AfterStageCreate,
@@ -534,7 +616,7 @@ fn read_candidate_bytes(path: &Path) -> std::io::Result<CandidateBytes> {
     })
 }
 
-fn decode_candidate(bytes: &[u8]) -> Candidate {
+fn decode_current_candidate(bytes: &[u8]) -> Candidate {
     if bytes.len() > MAX_REPOSITORY_BYTES {
         return Candidate::Invalid(CandidateFailure {
             reason: TableViewRecoveryReason::InvalidPayload,
@@ -629,7 +711,242 @@ fn decode_candidate(bytes: &[u8]) -> Candidate {
             source_schema_version,
         });
     }
-    Candidate::Valid(DecodedCandidate { state })
+    Candidate::Valid(DecodedCandidate {
+        state,
+        needs_persist: false,
+        migration: None,
+    })
+}
+
+fn decode_candidate(bytes: &[u8]) -> Candidate {
+    if bytes.len() > MAX_REPOSITORY_BYTES {
+        return Candidate::Invalid(CandidateFailure {
+            reason: TableViewRecoveryReason::InvalidPayload,
+            source_envelope_version: None,
+            source_schema_version: None,
+        });
+    }
+    let mut value: Value = match serde_json::from_slice(bytes) {
+        Ok(value) => value,
+        Err(_) => return decode_current_candidate(bytes),
+    };
+    let source_envelope_version = value_u32(&value, &["envelopeVersion"]);
+    let source_schema_version = value_u32(&value, &["payload", "schemaVersion"]);
+    let source_application_envelope_version =
+        value_u32(&value, &["payload", "metadata", "envelopeVersion"]);
+    let Some(storage_version) = source_envelope_version else {
+        return decode_current_candidate(bytes);
+    };
+    let Some(schema_version) = source_schema_version else {
+        return decode_current_candidate(bytes);
+    };
+    let Some(application_envelope_version) = source_application_envelope_version else {
+        return decode_current_candidate(bytes);
+    };
+
+    if storage_version > CURRENT_STORAGE_ENVELOPE_VERSION
+        || schema_version > SQUAD_PRIMARY_SCHEMA_VERSION
+        || application_envelope_version > CURRENT_ENVELOPE_VERSION
+    {
+        return decode_current_candidate(bytes);
+    }
+    if storage_version == CURRENT_STORAGE_ENVELOPE_VERSION {
+        if application_envelope_version < CURRENT_ENVELOPE_VERSION
+            || schema_version < SQUAD_PRIMARY_SCHEMA_VERSION
+        {
+            return Candidate::Invalid(CandidateFailure {
+                reason: TableViewRecoveryReason::MissingMigrationStep,
+                source_envelope_version,
+                source_schema_version,
+            });
+        }
+        return decode_current_candidate(bytes);
+    }
+
+    match migrate_storage_envelope(&mut value, storage_version) {
+        Ok(()) => {}
+        Err(StorageMigrationError::MissingStep) => {
+            return Candidate::Invalid(CandidateFailure {
+                reason: TableViewRecoveryReason::MissingMigrationStep,
+                source_envelope_version,
+                source_schema_version,
+            });
+        }
+        Err(StorageMigrationError::InvalidPayload) => {
+            return Candidate::Invalid(CandidateFailure {
+                reason: TableViewRecoveryReason::InvalidPayload,
+                source_envelope_version,
+                source_schema_version,
+            });
+        }
+    }
+
+    let migrated_bytes = match serde_json::to_vec(&value) {
+        Ok(bytes) => bytes,
+        Err(_) => {
+            return Candidate::Invalid(CandidateFailure {
+                reason: TableViewRecoveryReason::InvalidPayload,
+                source_envelope_version,
+                source_schema_version,
+            });
+        }
+    };
+    match decode_current_candidate(&migrated_bytes) {
+        Candidate::Valid(mut candidate) => {
+            candidate.needs_persist = true;
+            candidate.migration = (application_envelope_version < CURRENT_ENVELOPE_VERSION)
+                .then_some(MigrationOutcome {
+                    from_envelope_version: application_envelope_version,
+                    to_envelope_version: CURRENT_ENVELOPE_VERSION,
+                });
+            Candidate::Valid(candidate)
+        }
+        Candidate::Invalid(_) => Candidate::Invalid(CandidateFailure {
+            reason: TableViewRecoveryReason::InvalidPayload,
+            source_envelope_version,
+            source_schema_version,
+        }),
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum StorageMigrationError {
+    MissingStep,
+    InvalidPayload,
+}
+
+fn migrate_storage_envelope(
+    envelope: &mut Value,
+    source_version: u32,
+) -> Result<(), StorageMigrationError> {
+    let mut version = source_version;
+    let mut traversed = 0_usize;
+    while version < CURRENT_STORAGE_ENVELOPE_VERSION {
+        let step = STORAGE_MIGRATIONS
+            .iter()
+            .find(|step| step.from == version)
+            .ok_or(StorageMigrationError::MissingStep)?;
+        if step.to != version + 1 {
+            return Err(StorageMigrationError::MissingStep);
+        }
+        (step.migrate)(envelope).map_err(|()| StorageMigrationError::InvalidPayload)?;
+        envelope["envelopeVersion"] = json!(step.to);
+        version = step.to;
+        traversed += 1;
+        if traversed > STORAGE_MIGRATIONS.len() {
+            return Err(StorageMigrationError::MissingStep);
+        }
+    }
+    Ok(())
+}
+
+fn migrate_storage_v1_to_v2(envelope: &mut Value) -> Result<(), ()> {
+    let views = envelope
+        .pointer_mut("/payload/views")
+        .and_then(Value::as_array_mut)
+        .ok_or(())?;
+    for view in views {
+        let state = view.get_mut("state").ok_or(())?;
+        state
+            .get_mut("columns")
+            .and_then(Value::as_array_mut)
+            .ok_or(())?
+            .retain(|column| {
+                column.get("columnId").and_then(Value::as_str) != Some("removedColumn")
+            });
+        state
+            .get_mut("sort")
+            .and_then(Value::as_array_mut)
+            .ok_or(())?
+            .retain(|sort| sort.get("columnId").and_then(Value::as_str) != Some("removedColumn"));
+        let filter = state.get_mut("filter").ok_or(())?;
+        if !filter.is_null() {
+            let (has_children, removed) = remove_obsolete_filter_clauses(filter)?;
+            if removed && !has_children {
+                *filter = Value::Null;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn remove_obsolete_filter_clauses(group: &mut Value) -> Result<(bool, bool), ()> {
+    let children = group
+        .get_mut("children")
+        .and_then(Value::as_array_mut)
+        .ok_or(())?;
+    let mut index = 0;
+    let mut removed = false;
+    while index < children.len() {
+        let kind = children[index]
+            .get("kind")
+            .and_then(Value::as_str)
+            .ok_or(())?;
+        let (keep, removed_nested) = match kind {
+            "clause" => (
+                children[index]
+                    .pointer("/value/columnId")
+                    .and_then(Value::as_str)
+                    != Some("removedColumn"),
+                false,
+            ),
+            "group" => {
+                let nested = children[index].get_mut("value").ok_or(())?;
+                let (has_children, removed_nested) = remove_obsolete_filter_clauses(nested)?;
+                (has_children || !removed_nested, removed_nested)
+            }
+            _ => return Err(()),
+        };
+        removed |= removed_nested;
+        if keep {
+            index += 1;
+        } else {
+            children.remove(index);
+            removed = true;
+        }
+    }
+    Ok((!children.is_empty(), removed))
+}
+
+fn migrate_storage_v2_to_v3(envelope: &mut Value) -> Result<(), ()> {
+    let owning_default = squad_system_default_repository_state();
+    let average_rating = owning_default
+        .views
+        .first()
+        .and_then(|view| {
+            view.state
+                .columns
+                .iter()
+                .find(|column| column.column_id.as_str() == "averageRating")
+        })
+        .ok_or(())?;
+    let average_rating = serde_json::to_value(average_rating).map_err(|_| ())?;
+    let views = envelope
+        .pointer_mut("/payload/views")
+        .and_then(Value::as_array_mut)
+        .ok_or(())?;
+    for view in views {
+        let columns = view
+            .pointer_mut("/state/columns")
+            .and_then(Value::as_array_mut)
+            .ok_or(())?;
+        if !columns
+            .iter()
+            .any(|column| column.get("columnId").and_then(Value::as_str) == Some("averageRating"))
+        {
+            columns.push(average_rating.clone());
+        }
+    }
+    envelope["payload"]["metadata"]["envelopeVersion"] = json!(CURRENT_ENVELOPE_VERSION);
+    Ok(())
+}
+
+fn value_u32(value: &Value, path: &[&str]) -> Option<u32> {
+    let mut value = value;
+    for segment in path {
+        value = value.get(*segment)?;
+    }
+    value.as_u64().and_then(|number| u32::try_from(number).ok())
 }
 
 fn first_valid_candidate<'a>(
@@ -701,6 +1018,8 @@ mod tests {
         CURRENT_STORAGE_ENVELOPE_VERSION, FileTableViewRepository, MAX_REPOSITORY_BYTES,
         SaveInterruptionPoint, TableViewCoordinator,
     };
+
+    type PayloadMutation = (&'static str, fn(&mut Value));
 
     struct TestDirectory {
         path: PathBuf,
@@ -775,7 +1094,7 @@ mod tests {
             .iter_mut()
             .find(|column| column.column_id.as_str() == "goals")
             .expect("goals column")
-            .width = 144.0;
+            .width = 72.0;
         state.views.push(user_view);
         state.active_view_id = ViewId::from("squad.user.migrated");
         state.default_view_id = ViewId::from("squad.user.migrated");
@@ -815,7 +1134,7 @@ mod tests {
             columns.retain(|column| column["columnId"] != "averageRating");
             if include_removed_column {
                 columns.push(json!({
-                    "columnId": "legacyRating",
+                    "columnId": "removedColumn",
                     "visible": false,
                     "width": 88.0,
                     "pinning": {
@@ -1159,7 +1478,7 @@ mod tests {
 
     #[test]
     fn invalid_owner_provenance_duplicate_and_post_migration_states_never_partially_merge() {
-        let mutations: [(&str, fn(&mut Value)); 3] = [
+        let mutations: [PayloadMutation; 3] = [
             ("owner", |value| {
                 value["payload"]["ownerScope"] = json!("career");
             }),
@@ -1226,7 +1545,14 @@ mod tests {
         ));
 
         let unavailable_directory = TestDirectory::new("coordinator-unavailable");
-        let parent_file = unavailable_directory.join("not-a-directory");
+        let unavailable = TableViewCoordinator::new(&unavailable_directory.path);
+        assert!(matches!(
+            unavailable.load().expect("typed unavailable outcome"),
+            TableViewLoadOutcome::Unavailable { .. }
+        ));
+
+        let save_failure_directory = TestDirectory::new("coordinator-save-failure");
+        let parent_file = save_failure_directory.join("not-a-directory");
         fs::write(&parent_file, b"occupied").expect("blocking parent file");
         let unavailable = TableViewCoordinator::new(parent_file.join("table-views.json"));
         assert!(matches!(
