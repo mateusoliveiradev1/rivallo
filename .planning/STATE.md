@@ -4,17 +4,17 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 06.1
 current_phase_name: SM-2 Table View Engine and Durable Views
-current_plan: 3
+current_plan: 4
 status: executing
-stopped_at: Completed 06.1-02-PLAN.md
-last_updated: "2026-07-16T10:39:34.417Z"
+stopped_at: Completed 06.1-03-PLAN.md
+last_updated: "2026-07-16T11:09:30.930Z"
 last_activity: 2026-07-16
-last_activity_desc: Phase 06.1 execution started
+last_activity_desc: Completed Phase 06.1 Plan 03 durable table-view repository
 progress:
   total_phases: 18
   completed_phases: 4
   total_plans: 45
-  completed_plans: 36
+  completed_plans: 37
   percent: 22
 ---
 
@@ -29,17 +29,17 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 **Current phase name:** SM-2 Table View Engine and Durable Views
 **Current gate:** SM-2 durable table views.
 **Gate 0:** APPROVED by Mateus.
-**Next action:** Generate the Phase 06.1 UI contract and implementation plan from the accepted autonomous context.
+**Next action:** Execute Phase 06.1 Plan 04 typed Tauri/client boundary and lossless legacy import.
 
 ## Current Position
 
 Current Phase: 06.1
 Current Phase Name: SM-2 Table View Engine and Durable Views
-Current Plan: 3
+Current Plan: 4
 Total Plans in Phase: 8
 Status: Ready to execute
-Progress: Phase 06.1 context gathered; UI specification and planning are next.
-Last activity: 2026-07-16 — Phase 06.1 execution started
+Progress: 3/8 Phase 06.1 plans complete; Plan 04 is next.
+Last activity: 2026-07-16 — Completed durable table-view repository, migrations, quarantine, and crash recovery
 
 ## Gate History
 
@@ -49,8 +49,8 @@ Last activity: 2026-07-16 — Phase 06.1 execution started
 
 ## Session
 
-**Last session:** 2026-07-16T10:39:34.413Z
-**Stopped at:** Completed 06.1-02-PLAN.md
+**Last session:** 2026-07-16T11:09:30.926Z
+**Stopped at:** Completed 06.1-03-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -100,6 +100,7 @@ Last activity: 2026-07-16 — Phase 06.1 execution started
 | Phase 06 P01 | 35min  | 5 tasks  | 26 files |
 | Phase 06.1 P01 | 27min | 2 tasks | 5 files |
 | Phase 06.1 P02 | 52 min | 2 tasks | 4 files |
+| Phase 06.1 P03 | 18min | 2 tasks | 2 files |
 
 ## Decisions
 
@@ -182,3 +183,7 @@ Last activity: 2026-07-16 — Phase 06.1 execution started
 - [Phase 06.1]: Application owns the exact squad.primary system baseline. — Repository state cannot spoof system provenance or mutate immutable defaults.
 - [Phase 06.1]: Legacy import receipts are confirmed only after atomic save succeeds. — Failed imports retain prior durable state and expose no receipt while remaining retryable by source version and fingerprint.
 - [Phase 06.1]: Lifecycle transitions preserve system and read-only views byte-for-byte. — Only user-owned mutable views can be renamed, saved, reset, or deleted; safe fallback references persist in one candidate.
+- [Phase 06.1]: Keep platform storage envelope version 3 separate from application repository metadata version 1. — Allows adjacent file-format migrations without changing table-view semantics or the application port.
+- [Phase 06.1]: Remove only documented removedColumn during v1 to v2 and add averageRating from the application-owned squad.primary default during v2 to v3. — Preserves recognized durable intent while unknown IDs remain failure-oriented and cannot be partially merged.
+- [Phase 06.1]: Reconcile interrupted table-view writes by preferring a valid active generation, then staged, then backup, while retaining bounded quarantine evidence. — Every interruption exposes exactly a previous or new complete valid envelope without deleting the sole valid generation.
+- [Phase 06.1]: Serialize platform table-view access through one Mutex-wrapped application service. — Keeps filesystem coordination in platform while lifecycle and import policy remain application-owned and typed.
