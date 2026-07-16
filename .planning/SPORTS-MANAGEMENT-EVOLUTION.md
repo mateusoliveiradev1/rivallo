@@ -1,8 +1,8 @@
 # Sports Management Evolution — Prospective Product Plan
 
 **Created:** 2026-07-15  
-**Planning status:** SM-1 complete; SM-2 through SM-6 detailed as inserted Phases 06.1 through 06.5 and not authorized in the current execution
-**Numbering rule:** SM-1 through SM-6 are product slices, not replacements for Roadmap Phases 1–13
+**Planning status:** SM-1 and SM-2 complete; SM-3 through SM-6 remain planned. SM-6 is canonically renumbered from Phase 06.5 to Phase 06.8.
+**Numbering rule:** SM-1 through SM-6 are preserved product-slice identities; the canonical phase sequence is defined by `ROADMAP.md` through MVP2.
 
 ## Purpose and non-regression rule
 
@@ -10,18 +10,18 @@ This document routes the requested evolution of Elenco, Táticas, player/coach e
 
 The attached screens and the FootSim interactive-pitch roadmap are functional references only. Their visual identity, layouts and components are not Rivallo specifications. The useful FootSim boundary is the separation between a visual pitch/slot interaction and the underlying tactical model: field, slots, starters/reserves, drag/drop and invalid feedback can be staged without pretending to deliver pixel-level control, 3D or advanced visual simulation.
 
-> **Execution fence:** SM-2 through SM-6 are planning only in the current execution. They must not be implemented or scaffolded behind decorative controls without fresh explicit authorization. Their ordered homes are Phases 06.1 through 06.5; general Phases 7 through 13, multiplayer and milestone lifecycle work remain outside this product-review slice. No phase may be reported complete without its own plan, executable implementation and verification evidence.
+> **Execution fence:** This checkpoint is planning-only. Phase 06.2 and every later phase must not be implemented or scaffolded without fresh explicit authorization. SM-6 retains its original content under Phase 06.8. No phase may be reported complete without its own plan, executable implementation and verification evidence.
 
 ## Slice map
 
-| Slice | Outcome                                                                              | Current roadmap relationship                                                                       | Current execution  |
-| ----- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- | ------------------ |
-| SM-1  | Stabilize density/disclosure, tooltips, flags and console quality                    | Additional product-review remediation Plan 06-02 in Phase 6                                        | **Complete**   |
-| SM-2  | Reusable Table View Engine and versioned preference persistence                      | Inserted Phase 06.1; canonical Phase 5 contract remains authoritative                              | **Planning only** |
-| SM-3  | Domain-ready free tactical field and unified starters/reserves interaction           | Inserted Phase 06.2; preserves later Phase 8 season/matchday ownership                              | **Planning only** |
-| SM-4  | Analysis, Strategy, Instructions, Opposition and familiarity over one tactical model | Inserted Phase 06.3; effects remain honest until consumed by simulation                            | **Planning only** |
-| SM-5  | Contextual player inspector, full player/coach entities and explainable ratings      | Inserted Phase 06.4; later Phase 9 still owns broader cache/offline hardening                       | **Planning only** |
-| SM-6  | Squad dynamics, training calendar, individual development and dynamic potential      | Inserted Phase 06.5; does not repurpose general Phases 7–13                                        | **Planning only** |
+| Slice | Outcome                                                                              | Current roadmap relationship                                                  | Current execution |
+| ----- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- | ----------------- |
+| SM-1  | Stabilize density/disclosure, tooltips, flags and console quality                    | Additional product-review remediation Plan 06-02 in Phase 6                   | **Complete**      |
+| SM-2  | Reusable Table View Engine and versioned preference persistence                      | Inserted Phase 06.1; canonical Phase 5 contract remains authoritative         | **Complete**      |
+| SM-3  | Domain-ready free tactical field and unified starters/reserves interaction           | Inserted Phase 06.2; preserves later Phase 8 season/matchday ownership        | **Planning only** |
+| SM-4  | Analysis, Strategy, Instructions, Opposition and familiarity over one tactical model | Inserted Phase 06.3; effects remain honest until consumed by simulation       | **Planning only** |
+| SM-5  | Contextual player inspector, full player/coach entities and explainable ratings      | Inserted Phase 06.4; later Phase 9 still owns broader cache/offline hardening | **Planning only** |
+| SM-6  | Squad dynamics, training calendar, individual development and dynamic potential      | Phase 06.8; renumbered from the former 06.5 without scope/history loss        | **Planning only** |
 
 ## Shared architectural invariants
 
@@ -254,7 +254,7 @@ Keep the squad table as the workspace, use the right panel as a concise inspecto
 
 Phase 06.4 may add stable profile navigation, projections and tested Rust ratings after Phase 06.3. It must reuse the existing inspector/table relationship, avoid unapproved dependency transactions and keep unknown/partial data truthful.
 
-## SM-6 — Dynamics, training and dynamic potential (Phase 06.5)
+## SM-6 — Dynamics, training and dynamic potential (Phase 06.8; formerly 06.5)
 
 ### Outcome
 
@@ -262,7 +262,7 @@ Establish squad dynamics and a calendar-based collective/individual training sys
 
 ### Dependencies
 
-- explicit Phase 06.5 allocation and a bounded deterministic week anchored to the current matchday; later season/travel breadth remains Phase 8 work;
+- explicit Phase 06.8 allocation and a calendar-driven deterministic week; the authoritative season/calendar foundation is Phase 06.7;
 - calendar/time, match, travel and availability contracts;
 - coach/staff capabilities from SM-5;
 - workload, fatigue, injury-risk, morale, familiarity and development aggregates;
@@ -297,7 +297,7 @@ Establish squad dynamics and a calendar-based collective/individual training sys
 
 ### Execution boundary
 
-Phase 06.5 is the explicit inserted owner for this bounded slice after Phase 06.4. It does not authorize unrelated later systems, general Phases 7–13 or invented sporting formulas; every shipped consequence must be deterministic, domain-owned and tested.
+Phase 06.8 is the canonical owner for this preserved slice after Phases 06.3, 06.4 and 06.7. The former 06.5 identity is historical only. It does not authorize unrelated later systems or invented sporting formulas; every shipped consequence must be deterministic, domain-owned and tested.
 
 ## Cross-slice dependency chain
 
@@ -310,24 +310,23 @@ SM-1 stability
   -> SM-6 training/dynamics/development
 ```
 
-This is both the risk/dependency order and the authorized execution order for inserted Phases 06.1 through 06.5. Each arrow still requires its own context/spec/plan, verification and an executable non-regression baseline; autonomous execution is not permission to bypass a failed gate.
+This preserved SM chain describes product-risk order, not current execution authorization. Canonical phase dependencies, including the new database/menu/calendar phases between SM-5 and SM-6, live in `PHASE-DEPENDENCY-GRAPH.md`.
 
-The inserted sequence resolves the earlier ownership mismatch by moving the bounded product capability forward while preserving later roadmap responsibilities. Phase 06.1 owns the reusable view engine and current durable adapter boundary; Phase 9 continues to own broader squad data, SQLite/cache/offline and synchronisation hardening. Phases 06.2/06.3 own the bounded tactical product/domain model; Phase 8 continues to own later season-calendar and matchday-simulation depth. No inserted phase may claim those later responsibilities without implementing them explicitly.
+The preserved sequence resolves the earlier ownership mismatch without overriding the canonical roadmap. Phase 06.1 owns the reusable view engine and current durable adapter boundary; Phases 06.2/06.3 own the tactical product/domain model; Phase 06.4 owns profiles/ratings; Phase 06.8 retains SM-6 after the new database, career and calendar foundations in 06.5–06.7. Blocks 07–09 own Match Day, MVP1 Operations and MVP2 Sustainable Career. No phase may claim another owner's responsibility without implementing and verifying it explicitly.
 
 ## Relationship to existing Roadmap Phases
 
-| Roadmap phase   | Preserved relationship                                                                                          |
-| --------------- | --------------------------------------------------------------------------------------------------------------- |
-| Phase 5         | Owns tokens, primitives and the sole Table View Engine contract. It is not reopened or rewritten.               |
-| Phase 6         | Keeps 06-01 and 06-02 as closed first-playable/SM-1 history; inserted phases build on that baseline.          |
-| Phase 7         | Starts after 06.5 and migrates the fixed local owner into selectable career identity without rewriting SM work. |
-| Phase 8         | Consumes bounded tactic/training contracts and owns later season-calendar, travel, opponent and matchday depth. |
-| Phase 9         | Migrates/integrates existing table/profile capabilities with SQLite, real data, cache, offline and sync.        |
-| Phase 10        | Must verify whatever V0.1 subset has actually shipped; prospective items are not release evidence.              |
-| Phases 11–13    | Multiplayer sequence remains intact; none is repurposed for training or profiles.                               |
-| Later milestone | Owns only additional profile/training/dynamics breadth explicitly deferred by the bounded 06.4/06.5 plans.      |
+| Roadmap phase    | Preserved relationship                                                                               |
+| ---------------- | ---------------------------------------------------------------------------------------------------- |
+| Phase 5          | Owns tokens, primitives and the sole Table View Engine contract. It is not reopened or rewritten.    |
+| Phase 6          | Keeps 06-01 and 06-02 as closed first-playable/SM-1 history; inserted phases build on that baseline. |
+| Phase 06.5       | Owns world database, editor and modding foundation; it does not replace SM-6.                        |
+| Phases 06.6–06.7 | Own main menu/career/coach and authoritative competition/calendar before SM-6 consumes them.         |
+| Phase 06.8       | Preserves the former 06.5 SM-6 dynamics/training/dynamic-potential scope.                            |
+| Blocks 07–09     | Own Match Day, MVP1 Operations and MVP2 Sustainable Career as defined by the canonical roadmap.      |
+| Post-MVP2        | Preserves the former multiplayer sequence without authorization in this horizon.                     |
 
-## Decisions to resolve inside the authorized phases
+## Decisions to resolve inside future authorised phase executions
 
 - exact router/entity-route adoption and migration path;
 - Table View repository/storage owner and migration envelope implementation;
@@ -344,4 +343,4 @@ Each responsible phase must record and verify its decision before dependent impl
 
 ## Current handoff
 
-SM-1 and Plan 06-02 are complete with automated evidence; human product review was explicitly deferred rather than recorded as visual approval. Continue autonomously from Phase 06.1 through Phase 06.5 in dependency order, using the existing contract and preservation rules. Stop after 06.5: general Phases 7 through 13 and milestone lifecycle are outside the current authorization.
+SM-1 and SM-2 are complete with their historical evidence; human product review remains explicitly deferred rather than recorded as visual approval. This document is retained as the prompt base for SM-3 through SM-6. The current checkpoint ends after canonical planning and does not initiate Phase 06.2.

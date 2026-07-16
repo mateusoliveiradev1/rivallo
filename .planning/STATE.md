@@ -1,206 +1,85 @@
----
 gsd_state_version: 1.0
 milestone: v1.0
-milestone_name: milestone
+milestone_name: MVP1 and MVP2 canonical planning
 current_phase: 06.1
-current_phase_name: SM-2 Table View Engine and Durable Views
+current_phase_name: Table Views and Durable Preferences
 current_plan: 8
 status: complete
-stopped_at: Phase 06.1 stable checkpoint; execution stopped before Phase 06.2
-last_updated: "2026-07-16T19:55:51.113Z"
+stopped_at: Stable checkpoint; execution stopped before Phase 06.2
+last_updated: "2026-07-16T00:00:00-03:00"
 last_activity: 2026-07-16
-last_activity_desc: Stabilized and verified Phase 06.1; built desktop release and stopped before Phase 06.2
+last_activity_desc: Canonical roadmap and future architecture documented through MVP2; no implementation started
 progress:
-  total_phases: 18
-  completed_phases: 6
-  total_plans: 45
-  completed_plans: 42
-  percent: 33
+total_phases: 33
+completed_phases: 7
+total_plans: 45
+completed_plans: 42
+percent: 21
 ---
 
 # State
 
-## Project Reference
+## Current checkpoint
 
-See `.planning/PROJECT.md` (updated 2026-07-13).
+- **Stable implementation baseline:** `b813f0a5523f0d473ca33bac36369dda43b2015e`.
+- **Current execution type:** documentation and future architecture only.
+- **Implementation pointer:** Phase 06.2 is next, planned and **not started**.
+- **Planning horizon:** the complete MVP1 and MVP2 sequence defined by `ROADMAP.md`.
 
-**Core value:** dependable deep management in local and shared online competition.
-**Current phase:** 06.1
-**Current phase name:** SM-2 Table View Engine and Durable Views
-**Current gate:** SM-2 durable table views.
-**Gate 0:** APPROVED by Mateus.
-**Next action:** None in this execution. Phase 06.1 is closed at a stable checkpoint; Phase 06.2 was not started.
+## Historical status — preserved
 
-## Current Position
+| Phase                                                            | Status                                                                           |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| 1 — Gate 0 Foundation                                            | Complete                                                                         |
+| 2 — Workspace, Toolchains and Quality Scripts                    | Complete                                                                         |
+| 3 — Rust Modular Monolith and API Contract Pipeline              | Complete                                                                         |
+| 4 — Desktop Shell, Local Persistence Boundary, Containers and CI | Complete                                                                         |
+| 5 — Design Tokens, Icon Policy and UI Primitives                 | Complete — provisional technical foundation                                      |
+| 6 — First Playable Matchday / SM-1                               | Complete; human product review remains deferred, not recorded as visual approval |
+| 06.1 — Table Views and Durable Preferences                       | Complete — 8/8 plans executed                                                    |
+| All canonical phases after 06.1                                  | Planned                                                                          |
 
-Current Phase: 06.1
-Current Phase Name: SM-2 Table View Engine and Durable Views
-Current Plan: 8
-Total Plans in Phase: 8
-Status: Complete — verified and stabilized; execution stopped before Phase 06.2
-Progress: 8/8 Phase 06.1 plans complete; scoped verification and desktop release passed.
-Last activity: 2026-07-16 — Stabilized async lifecycle, persistence, quarantine, responsive customizer, and truthful accessibility evidence
+This planning checkpoint does not alter any historical completion claim or evidence.
 
-## Gate History
+## Canonical decisions introduced by this checkpoint
 
-- Gate 0 was approved after review of documentation, architecture, product, data, testing, design, and ADRs.
-- Phase 2 is complete: reproducible pnpm/Turborepo/Cargo roots, toolchain validation, real JavaScript and Rust quality commands, Vitest infrastructure smoke coverage, narrow cache ignores, and clean-checkout documentation are in place.
-- Every Rust/Cargo child process uses a Node adapter with `RUSTUP_AUTO_INSTALL=0`. The zero-member workspace explicitly validates components and metadata; Phase 3 must switch to source-level `rustfmt` checks and warnings-denied Clippy once it adds real members.
+1. MVP1 means a complete 20-club Série A 2026 season with 38 rounds, champion, save/load and real utility on every principal route.
+2. MVP2 means safe sustainable multi-season play with rollover/history, world renewal, advanced domains, complete mods/editors and long-save migrations.
+3. The old SM-6 Phase 06.5 is renumbered to 06.8; its content/history remain the basis for Dynamics/Training/Dynamic Potential.
+4. Phase 06.5 now owns World Database, Editors and Modding Foundation; 06.6 menu/career/coach; 06.7 calendar/competition.
+5. Competition/Calendar Engine is separate from Match Engine. Training consumes Calendar; Match consumes fixtures.
+6. Runtime flow is domain → events → projections → routes → actions → commands → domain.
+7. Active saves pin database/mod versions/hashes/load order/world snapshot and never change content silently.
+8. Private package `dev.brasileirao-serie-a-2026` is isolated/unpublished and starts with every current-season result/statistic zero.
+9. Multiplayer phases formerly numbered 11–13 remain preserved as post-MVP2 backlog and are not authorised.
 
-## Session
+## Phase migration
 
-**Last session:** 2026-07-16T19:55:51.113Z
-**Stopped at:** Phase 06.1 stable checkpoint; Phase 06.2 not started
-**Resume file:** None
+| Old                                                       | New                                                       | State                               |
+| --------------------------------------------------------- | --------------------------------------------------------- | ----------------------------------- |
+| `06.5-sm-6-squad-dynamics-training-and-dynamic-potential` | `06.8-sm-6-squad-dynamics-training-and-dynamic-potential` | Renumbered; scope/history preserved |
 
-## Accumulated Context
+The new directory contains a migration note and preserved prompt-base summary. Historical commits retain the old path.
 
-### Pending Todos
+## Canonical document set
 
-- 1 pending — [Design initial menu and football icon system](todos/pending/2026-07-15-design-initial-menu-and-football-icon-system.md)
+- Roadmap/phase order: `ROADMAP.md`.
+- Product/outcomes: root `PRODUCT.md`, `MVP-1-DEFINITION.md`, `MVP-2-DEFINITION.md`.
+- Routes/navigation/daily surfaces: `ROUTE-READINESS-MATRIX.md`, `SIDEBAR-AND-MAIN-MENU-CONTRACT.md`, `HOME-COMMAND-CENTER.md`, `INBOX-EVENT-CONTRACT.md`.
+- Architecture/lifecycle: `PHASE-DEPENDENCY-GRAPH.md`, `DATABASE-AND-MODDING-FOUNDATION.md`, `PRIVATE-DEV-DATABASE-POLICY.md`, `CAREER-LIFECYCLE.md`, `COACH-CREATOR-CONTRACT.md`, `COMPETITION-CALENDAR-ARCHITECTURE.md`, `MATCH-ENGINE-BOUNDARIES.md`.
+- Gates: `MVP-GATE-CHECKLIST.md`.
 
-### Roadmap Evolution
+## Risks and pending decisions
 
-- Phase 06.1 inserted after Phase 6: SM-2 Table View Engine and Durable Views (COMPLETE; stable checkpoint)
-- Phase 06.2 inserted after Phase 6: SM-3 Free Tactical Field and Unified Bench Interaction (AUTHORIZED BUT NOT STARTED; depends on 06.1)
-- Phase 06.3 inserted after Phase 6: SM-4 Tactical Analysis Strategy Instructions Opposition and Familiarity (AUTHORIZED; depends on 06.2)
-- Phase 06.4 inserted after Phase 6: SM-5 Player Coach Profiles and Explainable Ratings (AUTHORIZED; depends on 06.3)
-- Phase 06.5 inserted after Phase 6: SM-6 Squad Dynamics Training and Dynamic Potential (AUTHORIZED; depends on 06.4)
+- Real-world private data/assets require rights/provenance controls before any collection.
+- Calendar scheduling, match event granularity, rating scale, mod patch serialisation/security and youth/retirement calibration need phase-owned ADRs.
+- Long-save performance/save-size budgets require measurement before gate approval.
+- The breadth is large; gates must enforce vertical utility and resist decorative placeholder routes.
 
-## Performance Metrics
+## Next allowed action
 
-| Phase        | Plan   | Duration | Notes    |
-| ------------ | ------ | -------- | -------- |
-| Phase 03 P01 | 15min  | 1 tasks  | 10 files |
-| Phase 03 P02 | 10min  | 1 tasks  | 3 files  |
-| Phase 03 P04 | 12min  | 2 tasks  | 6 files  |
-| Phase 03 P05 | 10min  | 2 tasks  | 5 files  |
-| Phase 03 P06 | 20min  | 2 tasks  | 25 files |
-| Phase 03 P08 | 10min  | 2 tasks  | 4 files  |
-| Phase 03 P09 | 28min  | 3 tasks  | 15 files |
-| Phase 04 P01 | 2min   | 2 tasks  | 2 files  |
-| Phase 04 P02 | 8min   | 2 tasks  | 7 files  |
-| Phase 04 P03 | 18min  | 2 tasks  | 71 files |
-| Phase 04 P05 | 10min  | 2 tasks  | 7 files  |
-| Phase 04 P04 | 17min  | 2 tasks  | 15 files |
-| Phase 04 P06 | 10min  | 2 tasks  | 7 files  |
-| Phase 05 P01 | 1h 4m  | 2 tasks  | 3 files  |
-| Phase 05 P02 | 9 min  | 2 tasks  | 10 files |
-| Phase 05 P03 | 11 min | 3 tasks  | 8 files  |
-| Phase 05 P04 | 10 min | 2 tasks  | 10 files |
-| Phase 05 P05 | 16 min | 3 tasks  | 10 files |
-| Phase 05 P06 | 9 min  | 3 tasks  | 8 files  |
-| Phase 05 P07 | 12 min | 3 tasks  | 5 files  |
-| Phase 05 P08 | 17 min | 3 tasks  | 6 files  |
-| Phase 05 P09 | 13 min | 3 tasks  | 11 files |
-| Phase 05 P11 | 20 min | 2 tasks  | 11 files |
-| Phase 05 P10 | 12 min | 2 tasks  | 6 files  |
-| Phase 05 P12 | 15 min | 2 tasks  | 4 files  |
-| Phase 05 P13 | 10min  | 2 tasks  | 4 files  |
-| Phase 06 P01 | 35min  | 5 tasks  | 26 files |
-| Phase 06.1 P01 | 27min | 2 tasks | 5 files |
-| Phase 06.1 P02 | 52 min | 2 tasks | 4 files |
-| Phase 06.1 P03 | 18min | 2 tasks | 2 files |
-| Phase 06.1 P04 | 33min | 3 tasks | 6 files |
-| Phase 06.1 P05 | 48min | 2 tasks | 7 files |
-| Phase 06.1 P06 | 1h 2m | 3 tasks | 7 files |
-| Phase 06.1 P07 | 50min | 3 tasks | 8 files |
-| Phase 06.1 P08 | 1h 59m | 2 tasks | 13 files |
+End this documentation checkpoint after one commit. Do not discuss, plan in detail or implement Phase 06.2 unless a later explicit request authorises it.
 
-## Decisions
+---
 
-- [Phase 06]: Make the normal Tauri ready state open the real matchday workspace; keep the UI Lab development-only at `/__ui-lab`. — Product validation now happens on a playable surface rather than a component inventory.
-- [Phase 06]: Keep lineup validation, deterministic simulation, record progression, and match events in Rust domain code. — React selects intent and renders outcomes but never owns competitive rules.
-- [Phase 06]: Persist the complete first-playable state as adapter-owned JSON under the Tauri application-data directory. — The smallest restart-safe loop ships without prematurely introducing the later SQLite career schema.
-- [Phase 06]: Gate the real matchday in component tests and three deterministic browser viewports, including native modal focus return. — Visual and keyboard regressions now cover the product surface in the normal quality aggregate.
-
-- [Phase 05]: Run Chromium against independent development and production Vite servers. — UI Lab evidence remains independent of Tauri, sidecar, API and Docker state while production exclusion is tested in a real browser.
-- [Phase 05]: Keep `pnpm quality` writer-free and make `pnpm quality:clean` run the aggregate plus desktop build twice against exact porcelain. — Checks are repeatable, fail-fast and preserve both clean and pre-existing dirty baselines.
-- [Phase 05]: Install the approved Playwright Chromium binary explicitly in CI and never inside test commands. — Environment setup is visible and actionable without hidden downloads during verification.
-- [Phase 05]: Keep hierarchy, originality, non-imitation and terminal visual approval human-owned. — Automation proves structure and behavior but does not pretend to replace design judgment.
-- [Phase 05]: Keep `/__ui-lab` behind an exact compile-time DEV predicate and select App/UI Lab through dynamic imports. — Production retains the operational shell without exposing inspection behavior, navigation or bundle copy.
-- [Phase 05]: Treat 1366×768, 1920×1080 and 2560×1080 as labelled deterministic layout frames, not device emulation. — The Lab makes bounds inspectable without overstating browser-level evidence.
-- [Phase 05]: Keep viewport, DenseTable and shell configuration local to each mount. — Persistence, preferences, lifecycle, API, network and Tauri authority remain outside the Lab.
-- [Phase 05]: Apply shell width changes instantly while limiting optional feedback to label opacity. — Preserves focus and workspace expansion without animating a layout property.
-- [Phase 05]: Keep DenseTable on native table, input and button semantics; React state only supplies deterministic local enhancement. — Preserves document relationships and browser keyboard behavior without a div-grid or table framework.
-- [Phase 05]: Reduce columns through explicit priority and a local hidden set applied to headers, cells, loading geometry and state-row spans. — Prevents structural drift while deferring persistence, saved views and reordering.
-- [Phase 05]: Communicate selected rows through native control state, visible marker, announcement copy and full-row geometry in addition to colour. — Meets the no-colour-only policy in dense data.
-- [Phase 05]: Treat flag imagery as optional context while country code remains visible and full country name stays keyboard-discoverable. — Nationality meaning survives image failure and never depends on colour.
-- [Phase 05]: Require stable positioning and an independent accessible name before an icon-only action may expose a tooltip. — Tooltip text supplements the control label and never becomes the sole source of meaning.
-- [Phase 05]: Keep radio controls native while adding deterministic cyclic arrow navigation that skips disabled options. — Preserves browser semantics without introducing another selection implementation.
-- [Phase 05]: Use approved Radix packages only for difficult keyboard, focus and overlay behavior. — Rivallo continues to own every visual class, token and state treatment.
-- [Phase 05]: Restrict Toast to brief neutral or positive feedback; persistent danger, offline and error conditions remain Status content. — Ephemeral announcements must not hide durable product state.
-- [Phase 05]: Keep action, form, choice, pagination, and overflow behavior native while Rivallo owns typed APIs and token-based appearance. — Preserves standard keyboard and disabled semantics without custom-control reinvention.
-- [Phase 05]: Let Status own polite/assertive live semantics and optionally render its label as a real heading. — Host lifecycle structure remains semantic without nested or duplicated live regions.
-- [Phase 05]: Export generated.css explicitly from @rivallo/design-tokens and retain Tauri invoke/poll/retry authority outside primitives. — Makes the visual boundary consumable without moving process authority into UI components.
-- [Phase 05]: Mateus approved exactly 16 reviewed direct packages under digest `sha256:56d9bfb036d3b3d42acc09faa968911cfc5aa760def3c991288dfe2e8fcf8b7f`. — No dependency transaction may exceed the reviewed names, versions, scopes, or integrity records.
-- [Phase 05]: Use `lucide-react@1.24.0` as the sole generic icon family and seven narrow Radix packages only for accessible behavior. — Rivallo owns all appearance; native HTML remains preferred where suitable.
-- [Phase 05]: Use `colorjs.io@0.6.1` for deterministic OKLCH, gamut mapping, and contrast calculations. — Avoids an unreviewed local color-science implementation and the less-observed 0.7.0 release.
-- [Phase 05]: Use `jsdom@27.0.1` for component-test infrastructure. — Preserves the project-wide Node 22.0.0+ minimum that later jsdom releases would raise.
-
-- [Phase 03]: Platform composes generic application output with contracts metadata without directly depending on domain. — Preserves the locked platform-to-application-and-contracts-only dependency graph.
-- [Phase 03]: D-01 is enforced from Cargo resolved metadata with a small domain core allowlist and a full framework, network, frontend, persistence, and database denylist. — Resolved graph traversal prevents direct and transitive manifest bypasses.
-- [Phase 03]: Contracts owns ContractManifest, CONTRACT_VERSION, and the ToSchema derivation. — Canonical schemas and semantic version stay outside application and platform composition.
-- [Phase 03]: Platform composes only schema metadata and exposes the explicit export-openapi output-path binary. — The exporter remains schema-only without a listener, endpoint, fixture, or runtime registration.
-- [Phase 03]: OpenAPI drift verification exports to a unique temporary path and byte-compares it without mutating the tracked contract. — Drift failures retain evidence and print the explicit writer repair command.
-- [Phase 03]: Generated TypeScript contract models are isolated in packages/contracts-client and derive only from committed contracts/openapi.json. — The package remains application-independent and generated-only.
-- [Phase 03]: Retain the approved bundled generator and expose only selected generated Fetch symbols at the package root. — No runtime dependency, generator version, or generated output change is permitted.
-- [Phase 03]: Treat the bundled generator core as an exact private inventory allowance enforced by public-boundary and drift tests. — The D-10 exception permits dormant generator-owned support only when it is not public or configured.
-- [Phase 03]: Replace the superseded Hey API exception with exact approved orval@8.21.0 direct Fetch output. — Removes public auth/SSE/retry/backoff reachability while preserving generated-only ownership.
-- [Phase 03]: Use one unregistered neutral contract-introspection operation only because Orval Fetch is operation-scoped. — The fixture returns ContractManifest with no parameters, security, runtime registration, or product behavior.
-- [Phase 04]: Mateus approved exactly @tauri-apps/cli@2.11.4, @tauri-apps/api@2.11.1, vite@8.1.4, and @vitejs/plugin-react@6.0.3 on 2026-07-14; no other package or version is covered. — Registry provenance, exact-version integrity, trusted-publisher evidence, and absence of consumer install hooks were accepted before any dependency transaction.
-- [Phase 04]: The approved Axum/Tokio runtime remains exclusively in the outer platform crate; domain, application, and contracts stay runtime-framework independent.
-- [Phase 04]: The sidecar accepts only the fixed private stdin shutdown message and shares its cancellation token with Axum graceful shutdown; no HTTP management route or runtime address argument exists.
-- [Phase 04]: Use Tauri --no-bundle for build-only verification instead of --bundles none.
-- [Phase 04]: Derive the sidecar target triple from rustc -vV for host-correct packaging.
-- [Phase 04]: Track Tauri icon sources while ignoring copied sidecars, generated schemas, and build output.
-- [Phase ?]: Expose only Unavailable and InvalidData from the application persistence boundary; adapter-specific causes stay outside the public contract. — Keeps database and OS detail out of UI-facing recovery semantics.
-- [Phase ?]: Represent the Phase 4 SQLite boundary as a disconnected adapter with injected per-user location resolution and no driver or filesystem side effects. — Preserves D-05 through D-08 until later storage phases.
-- [Phase 04]: Lifecycle status remains a host-owned typed union — React can only read status and request retry, never select process authority.
-- [Phase 04]: Copyable lifecycle diagnostics are compiled out of production — Technical detail stays inside a development-only disclosure.
-- [Phase 04]: Use postgres:17-alpine with loopback-only publishing, overrideable non-secret local defaults, and a named volume.
-- [Phase 04]: Keep CI at exactly three Ubuntu jobs and cache only the pnpm dependency store; publish no artifacts.
-- [Phase 04]: Run Vitest files serially because generated-contract writer tests and drift readers share tracked artifacts and must never overlap.
-- [Phase 05]: Freeze the pre-transaction direct dependency baseline inside the Phase 5 verifier. — Keeps installed validation authoritative after HEAD advances.
-- [Phase 05]: Allow exactly the @rivallo/icons and @rivallo/design-tokens desktop workspace links at workspace:* — Maintains narrow ownership and rejects speculative package wiring.
-- [Phase 05]: Run Vitest files serially across the aggregate while separating Node and DOM projects. — Tracked contract writers and drift readers share artifacts and must never race.
-- [Phase 05]: Use official React 19 types and retain only CSS and ImportMeta project declarations. — Eliminates the obsolete ambient React shim without weakening type safety.
-- [Phase 05]: Raise color-border to oklch(0.52 0.022 190) while retaining a quiet subtle separator. — The provisional control border failed 3:1; the adjusted role passes against raised graphite without brightening ordinary dividers.
-- [Phase 05]: Compile the import-free canonical TypeScript token module in memory with the existing compiler. — Preserves Node 22.0 compatibility and avoids an unapproved loader or duplicated token source.
-- [Phase 05]: Keep generated CSS authored in OKLCH and export separately resolved sRGB contrast evidence. — Modern WebViews retain the intended palette while WCAG checks measure actual target values.
-- [Phase 05]: Expose semantic icon names through one curated Lucide boundary with fixed sizes and 1.75px stroke. — Prevents arbitrary paths, visual props, mixed families, and implementation-name leakage.
-- [Phase 05]: Declare React 19.2.7 as one exact pre-existing peer of @rivallo/icons. — A reusable React package must not rely on aliases or hoisting; no new registry package was installed.
-- [Phase 05]: Limit the football SVG proof set to ball, goal frame, and training cone. — Proves original versioned icon capability without introducing a pitch, crest, mascot, or product identity.
-- [Phase 05]: Bound the Rivallo football grammar to a 24-unit grid, 2-unit optical padding, four geometry elements, and fourteen commands per path. — Keeps current and future football symbols coherent, safe, and reviewable at 16, 20, and 24px.
-- [Phase 05]: Require owning screen contracts, unambiguous meaning, and visible-label fallbacks before future domain icon geometry is created. — Proves extension discipline for training, tactics, scouting, and medicine without speculative assets or product screens.
-- [Phase 05]: Mateus rejected the current Phase 5 visual foundation. — Phase 5 and Gate 2 remain open while bounded table and icon gaps are corrected.
-- [Phase 05]: Preserve the strong, sober, premium and highly legible graphite-first direction. — The rejection targets table usability and icon context/16px quality, not the approved visual direction.
-- [Phase 05]: Specify the complete Table View Engine now but implement it only in the responsible product phases. — Phase 5 fixes primitive width and icon evidence; Phase 6 owns screen contracts and Phase 9 owns real data integration.
-- [Phase 05]: Keep DenseTable finite through fixed colgroup widths and a non-amplifying percentage fill. — Removes the million-pixel intrinsic chain while preserving semantic table geometry and the operational type floor.
-- [Phase 05]: Keep the labelled ScrollArea as the only native overflow owner. — Width, min-width, max-width and border-box constraints prevent parent layout amplification without introducing a second scroll layer.
-- [Phase 05]: Keep Table View State language-neutral and controlled while commands, events, persistence, queries, and React rendering remain separate authorities. — Prevents screen-specific engines and direct storage or query authority in React.
-- [Phase 05]: Model Mostrar somente gols as an ordinary saved view; Phase 6 resolves screen semantics and Phase 9 executes the general pipeline. — Prevents one-off flags, renderers, and query branches.
-- [Phase 06.1]: Move the real controlled Table View Engine and versioned local-fixed repository into Phase 06.1. — Phase 9 now owns migration to career identity and SQLite plus real-data query, cache, offline and synchronisation hardening, preventing duplicate engines while preserving later roadmap scope.
-- [Phase 06.1]: Execute the authorized SM-2 through SM-6 sequence as bounded fixed-club vertical slices, then stop. — The user's latest direct instruction expands the earlier SM-1-only fence but does not authorize general Phases 7 through 13 or multiplayer.
-- [Phase 06.1]: Keep the Table View Engine framework-independent and I/O-free. — Owning-screen schemas declare capabilities while the pure reducer validates complete proposals and never owns React, storage, query, or network authority.
-- [Phase 06.1]: Represent Mostrar somente gols through ordinary durable commands. — Required columns plus goals visibility, goals-descending and name tie-break sorts, and a typed goals greater-than-zero clause use the same pipeline as every other view.
-- [Phase 06.1]: Keep player-name search transient and encode existing squad filters durably. — Todos/Titulares/Reservas, Setor, Status, and optional Posicao normalize into typed filter groups while the global name query does not dirty or persist a saved view.
-- [Phase 06.1]: Application owns the exact squad.primary system baseline. — Repository state cannot spoof system provenance or mutate immutable defaults.
-- [Phase 06.1]: Legacy import receipts are confirmed only after atomic save succeeds. — Failed imports retain prior durable state and expose no receipt while remaining retryable by source version and fingerprint.
-- [Phase 06.1]: Lifecycle transitions preserve system and read-only views byte-for-byte. — Only user-owned mutable views can be renamed, saved, reset, or deleted; safe fallback references persist in one candidate.
-- [Phase 06.1]: Keep platform storage envelope version 3 separate from application repository metadata version 1. — Allows adjacent file-format migrations without changing table-view semantics or the application port.
-- [Phase 06.1]: Remove only documented removedColumn during v1 to v2 and add averageRating from the application-owned squad.primary default during v2 to v3. — Preserves recognized durable intent while unknown IDs remain failure-oriented and cannot be partially merged.
-- [Phase 06.1]: Reconcile interrupted table-view writes by preferring a valid active generation, then staged, then backup, while retaining bounded quarantine evidence. — Every interruption exposes exactly a previous or new complete valid envelope without deleting the sole valid generation.
-- [Phase 06.1]: Serialize platform table-view access through one Mutex-wrapped application service. — Keeps filesystem coordination in platform while lifecycle and import policy remain application-owned and typed.
-- [Phase 06.1]: Expose engine-shaped runtime-decoded desktop DTOs through Tauri. — The next controller consumes one validated engine vocabulary while the host preserves application-owned repository authority.
-- [Phase 06.1]: Treat v2 and v3 legacy vocabularies as pre-averageRating while v4 owns current visibility. — Schema-owned defaults add averageRating without overwriting recognized legacy order, density, or intentional v4 visibility.
-- [Phase 06.1]: Require an exact durable source-version and fingerprint receipt before retiring legacy table fields. — Failed, replayed, changed, corrupt, and unknown-only imports keep diagnostic data and all non-table preferences intact.
-- [Phase 06.1]: Mount one squad table-view controller for the full MatchdayScreen lifetime. — Elenco and Táticas navigation must not remount repository coordination or duplicate StrictMode legacy import work.
-- [Phase 06.1]: Keep only non-table fields in UiPreferences while receipt-gated legacy retirement owns historical table fields. — Preserves DATA-01 compatibility without letting the screen preference effect reacquire density, columns, migration, or repository authority.
-- [Phase 06.1]: Keep player-name search transient and map existing squad controls onto ordinary durable filter clauses. — Stable football semantics stay in the squad schema while unrelated durable clauses survive screen-control edits and global search never dirties a saved view.
-- [Phase 06.1]: Derive saved-view lifecycle authority solely from validated provenance, mutability, controller capabilities, and confirmed repository outcomes. — Immutable system and read-only views never acquire rename, delete, or direct-save controls.
-- [Phase 06.1]: Translate table-command rejection codes into bounded Portuguese product copy and expose one canonical live outcome per repository event. — Internal paths, codes, details, and duplicate screen-reader announcements stay outside the UI.
-- [Phase 06.1]: Use one engine-dispatch boundary for customizer and live headers. — Pointer and keyboard paths now share finite normalization, rejection atomicity, and controller-owned proposal state.
-- [Phase 06.1]: Derive every rendered Elenco column, finite width, pinned offset, and state span from normalized stable column IDs. — Native table semantics remain intact while CSS child positions and labels cease to own geometry or identity.
-- [Phase 06.1]: Observe import feedback before navigation completes and prove durable receipt separately. — Keeps textual accessibility evidence strict without making a transient toast persistence authority.
-- [Phase 06.1]: Freeze exact dependency inventories, canonical Phase 5 test hash, and four reviewed browser baselines. — Later scope, package, or generated-artifact drift now fails actionably instead of silently expanding Phase 06.1.
+Last updated: 2026-07-16.

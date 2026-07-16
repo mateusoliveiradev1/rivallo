@@ -1,46 +1,46 @@
-# Rivallo (working title)
+# Rivallo
 
 ## What This Is
 
-A premium, desktop-first football management platform for local careers and small private online leagues. It combines a fast, accessible React/Tauri interface with a Rust domain core and explicit authority boundaries.
+A premium desktop-first football-management simulator for a complete season (MVP1) and a sustainable multi-season career (MVP2), built around explicit authority, progressive disclosure, editable data and long-save safety.
 
 ## Core Value
 
-Make consequential football-management decisions feel deep and dependable, including when friends share the same online competition.
+Make consequential football-management decisions deep, dependable and explainable: the player always knows what changed, why, what caused it, what follows and how to react.
+
+## Current stable baseline
+
+- Checkpoint: `b813f0a5523f0d473ca33bac36369dda43b2015e`.
+- Completed history remains completed: Phases 1–6 and 06.1.
+- Current executable product: deterministic fictional matchday plus durable table views.
+- Next phase: 06.2, **planned and not started by this documentation checkpoint**.
 
 ## Requirements
 
-### Validated
+- Complete-season MVP1 across every principal career route.
+- Sustainable multi-season MVP2 with safe content/save evolution.
+- Explicit domain authority, explainability, accessibility and long-save integrity.
+- Detailed traceability lives in `REQUIREMENTS.md` and the canonical contracts listed below.
 
-- Phase 2 — workspace pnpm/Turborepo/Cargo, validação de toolchains e scripts de qualidade reproduzíveis, sem componentes de produto.
-- Phase 3 — monólito modular Rust com fronteiras auditadas, contratos Rust → OpenAPI → TypeScript determinísticos e checks de drift não mutáveis, sem runtime de produto.
+## Active planning horizon
 
-### Active
-
-- [ ] Build the Gate 0–3 foundation and V0.1 vertical slice.
-- [ ] Preserve local-first usability without making the desktop authoritative online.
-- [ ] Prepare a server-authoritative V0.2 private multiplayer proof.
-
-### Out of Scope
-
-- Real clubs, likenesses, and official datasets — rights have not been cleared.
-- Full simulation, transfer market, academies, and public mods — deferred beyond the initial slices.
-- Public launch, payments, chat, or public uploads — private alpha is invitation-only and 18+.
+- MVP1: Blocks 06, 07 and 08, ending at 08.6.
+- MVP2: Block 09, ending at 09.8.
+- Multiplayer: preserved as post-MVP2 backlog; not part of these gates.
 
 ## Constraints
 
-- **Stack**: Tauri 2, React/TypeScript/Vite, Rust/axum/SQLx, SQLite and PostgreSQL/Neon.
-- **Authority**: online server and PostgreSQL are canonical; local mode and SQLite are canonical only for a local career.
-- **Process**: sequential, fine-grained GSD roadmap; every gate requires Mateus’s approval.
-- **Identity**: Rivallo is provisional; naming cannot be made irreversible.
+- Tauri 2, React/TypeScript/Vite and Rust modular-monolith boundaries remain intact.
+- Rust owns competitive rules; React owns interaction and explanation.
+- Calendar/competition, match simulation and the other sporting domains are separate modules.
+- Saves pin database/mod versions and hashes; change requires explicit migration with backup and impact report.
+- Public content is fictional by default. Private real-world development data remains isolated and unpublished.
+- Every main career route has real utility, authoritative data, persistence and honest empty/error states by MVP1.
 
-## Key Decisions
+## Canonical documents
 
-| Decision | Rationale | Outcome |
-|---|---|---|
-| Modular monolith | Keep boundaries strong without premature distributed systems | — Pending |
-| Commands/events/projections sync | Prevent client-led competitive conflicts | — Pending |
-| Dev identity in V0.1 | Defer provider selection while preserving AuthPort | — Pending |
+`ROADMAP.md` owns sequence; `MVP-1-DEFINITION.md` and `MVP-2-DEFINITION.md` own outcome scope; `ROUTE-READINESS-MATRIX.md` owns route responsibility; `PHASE-DEPENDENCY-GRAPH.md` owns dependencies; specialised contracts own navigation, lifecycle, data/mods, coach creation, calendar, match boundaries, Home, Inbox and gates.
 
 ---
-*Last updated: 2026-07-14 after Phase 3 completion*
+
+Last updated: 2026-07-16 for the planning-only MVP1/MVP2 checkpoint.

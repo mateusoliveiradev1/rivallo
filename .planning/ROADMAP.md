@@ -1,493 +1,322 @@
-# Roadmap: Rivallo
+# Roadmap canônico: Rivallo até o MVP2
 
-## Overview
+## Regra de leitura
 
-Delivery is sequential. A gate may advance only after the named approval and its verifiable success criteria are satisfied.
+Este documento é a autoridade para ordem, estado, dependências, gates e checkpoints. Os contratos especializados detalham comportamento sem alterar a sequência. Planejamento não é autorização de implementação: a próxima fase continua sendo 06.2 e permanece **não iniciada** neste checkpoint.
+
+## Checkpoint de partida e histórico imutável
+
+**Baseline:** `b813f0a5523f0d473ca33bac36369dda43b2015e`.
+
+| Fase                                                             | Estado preservado | Entrega histórica                                                                     |
+| ---------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------- |
+| 1 — Gate 0 Foundation                                            | Concluída         | Fundação de produto, arquitetura, autoridade, dados, testes, design, operações e ADRs |
+| 2 — Workspace, Toolchains and Quality Scripts                    | Concluída         | Workspace pnpm/Turborepo/Cargo e scripts reproduzíveis                                |
+| 3 — Rust Modular Monolith and API Contract Pipeline              | Concluída         | Fronteiras Rust e pipeline Rust → OpenAPI → TypeScript                                |
+| 4 — Desktop Shell, Local Persistence Boundary, Containers and CI | Concluída         | Shell desktop/API, limites de persistência e CI                                       |
+| 5 — Design Tokens, Icon Policy and UI Primitives                 | Concluída         | Tokens, ícones, primitives, DenseTable e UI Lab técnico                               |
+| 6 — First Playable Matchday / SM-1                               | Concluída         | XI → tática → partida determinística → resultado persistido e estabilização           |
+| 06.1 — Table Views and Durable Preferences                       | Concluída         | Table View Engine controlado, views versionadas e persistência durável                |
+
+Nenhum status concluído é reaberto ou reclassificado por este roadmap.
 
 ## Phase 1: Gate 0 Foundation
 
-**Status:** Complete — Gate 0 approved  
-**Gate:** 0  
-**Directory:** `.planning/phases/01-gate-0-foundation/`
-
-**Objective:** Establish the product, architecture, authority, data, test, design, infrastructure, and ADR foundation without production implementation.
-
-**Requirements:** Gate 0 documentation baseline; architecture and product decisions supporting FOUND-01 through FOUND-03.
-
-**Dependencies:** None.
-
-**Success criteria:**
-
-- Product, architecture, data, testing, design, operations, and the 12 required ADRs are documented.
-- DESIGN FOUNDATION V0 is approved as provisional and `PRODUCT.md` remains preserved.
-- No scaffold, production code, dependency installation, or infrastructure provisioning occurs.
+**Status:** Complete — historical gate preserved.
 
 ## Phase 2: Workspace, Toolchains and Quality Scripts
 
-**Status:** Complete — ready for Phase 3  
-**Gate:** 1  
-**Directory:** `.planning/phases/02-workspace-toolchains-quality-scripts/`
-
-**Objective:** Create the smallest reproducible workspace and quality-tool baseline for a Tauri/React/Rust modular monolith.
-
-**Requirements:** FOUND-01; the quality-script portion of FOUND-02.
-
-**Dependencies:** Phase 1.
-
-**Success criteria:**
-
-- pnpm workspace, Turborepo, Cargo workspace, TypeScript, ESLint, Prettier, rustfmt, Clippy, cargo-nextest, and Vitest are reproducibly configured.
-- No dashboard, squad, authentication, simulation, multiplayer, editor, mod, or production infrastructure feature is implemented.
-- Local-development documentation explains the installed toolchain and quality commands.
+**Status:** Complete — historical gate preserved.
 
 ## Phase 3: Rust Modular Monolith and API Contract Pipeline
 
-**Status:** Planned
-**Gate:** 1  
-**Directory slug:** `03-rust-modular-monolith-api-contracts`
+**Status:** Complete — historical gate preserved.
 
-**Objective:** Establish only the Rust crate boundaries with real responsibilities and the backend-owned API contract pipeline.
+## Phase 4: Desktop Shell, Local Persistence Boundary, Containers and CI
 
-**Requirements:** FOUND-03; DATA-02 contract foundation.
-
-**Dependencies:** Phase 2.
-
-**Plans:** 9/9 plans complete
-
-Plans:
-
-- [x] 03-09-PLAN.md
-
-**Wave 1**
-
-- [x] 03-01-PLAN.md — Establish D-01 crate topology with application → domain only.
-
-**Wave 2** _(blocked on Wave 1 completion)_
-
-- [x] 03-02-PLAN.md — Enforce resolved Cargo metadata dependency policy.
-- [x] 03-03-PLAN.md — Record human approval for the pinned TypeScript generator.
-
-**Wave 3** _(blocked on Wave 2 completion)_
-
-- [x] 03-04-PLAN.md — Implement canonical Rust contracts and the schema-only platform exporter.
-
-**Wave 4** _(blocked on Wave 3 completion)_
-
-- [x] 03-05-PLAN.md — Materialize committed OpenAPI and prove deterministic non-mutating verification.
-
-**Wave 5** _(blocked on Wave 4 completion)_
-
-- [x] 03-06-PLAN.md — Generate and verify the TypeScript contract client.
-
-**Wave 6** _(blocked on Wave 5 completion)_
-
-- [x] 03-07-PLAN.md — Integrate quality checks, proof, scope fences, and documentation.
-
-**Wave 7** _(blocked on Wave 6 completion)_
-
-- [x] 03-08-PLAN.md — Close generated-client public export and enforce the approved bounded D-10 bundled-core exception.
-
-**Success criteria:**
-
-- Domain/application boundaries compile without React, Tauri, axum, SQLite, or PostgreSQL dependencies.
-- Schema-only Rust contracts/exporter and generated OpenAPI/client drift workflow are established without runtime API endpoints.
-- No competitive domain rule is placed in TypeScript.
-
-## Phase 4: Desktop Shell, Local Persistence Boundary, Containers and CI Skeleton
-
-**Status:** Planned
-**Gate:** 1  
-**Directory slug:** `04-desktop-shell-local-persistence`
-
-**Objective:** Produce the minimal executable desktop/API shell, local persistence boundary, Docker PostgreSQL, and CI skeleton.
-
-**Requirements:** FOUND-01; remaining FOUND-02; SQLite preparation; local PostgreSQL compatibility preparation.
-
-**Dependencies:** Phase 3.
-
-**Success criteria:**
-
-- Minimal Tauri desktop build and local axum service start successfully.
-- Health/readiness check responds locally; Docker PostgreSQL starts without Neon.
-- SQLite is reached only through a prepared adapter boundary; CI jobs run their scoped minimum checks.
+**Status:** Complete — historical gate preserved.
 
 ## Phase 5: Design Tokens, Icon Policy and UI Primitives
 
-**Status:** Complete — provisional technical foundation  
-**Gate:** 2  
-**Directory slug:** `05-design-tokens-icon-policy-and-ui-primitives`
-
-**Objective:** Implement the approved token source, icon policy, accessible primitives, and UI Lab foundation.
-
-**Requirements:** UI-01.
-
-**Dependencies:** Phase 4; approved DESIGN FOUNDATION V0.
-
-**Plans:** 13/13 plans executed
-
-Plans:
-
-**Wave 1**
-
-- [x] 05-01-PLAN.md — Establish the mandatory human supply-chain approval gate.
-
-**Wave 2** _(blocked on Wave 1 completion)_
-
-- [x] 05-02-PLAN.md — Apply the approved dependency transaction and real DOM test environment.
-
-**Wave 3** _(blocked on Wave 2 completion)_
-
-- [x] 05-03-PLAN.md — Implement deterministic semantic tokens and contrast evidence.
-
-**Wave 4** _(blocked on Wave 3 completion)_
-
-- [x] 05-04-PLAN.md — Implement the constrained generic-icon and original football-SVG boundaries.
-
-**Wave 5** _(blocked on Wave 4 completion)_
-
-- [x] 05-05-PLAN.md — Build native-first primitives and migrate the lifecycle shell.
-
-**Wave 6** _(blocked on Wave 5 completion)_
-
-- [x] 05-06-PLAN.md — Complete accessible composite primitives and keyboard/focus behavior.
-
-**Wave 7** _(blocked on Wave 6 completion)_
-
-- [x] 05-07-PLAN.md — Implement and prove the semantic DenseTable foundation.
-
-**Wave 8** _(blocked on Wave 7 completion)_
-
-- [x] 05-08-PLAN.md — Assemble the development-only UI Lab.
-
-**Wave 9** _(blocked on Wave 8 completion)_
-
-- [x] 05-09-PLAN.md — Integrate Playwright, quality, CI, and clean-worktree evidence.
-
-**Wave 10** _(blocked on Wave 9 completion)_
-
-- [x] 05-11-PLAN.md — Close the diagnosed premium icon-foundation gap with enforced grammar and optical evidence.
-
-**Wave 11** _(blocked on Wave 10 completion)_
-
-- [x] 05-10-PLAN.md — Close with evidence-backed human visual and interaction review.
-
-**Wave 12** _(blocked on Wave 11 completion)_
-
-- [x] 05-12-PLAN.md — Repair DenseTable/ScrollArea width ownership and prove finite, reachable geometry in all target viewports.
-
-**Wave 13** _(blocked on Wave 12 completion)_
-
-- [x] 05-13-PLAN.md — Specify and structurally verify the complete cross-phase Table View Engine contract without implementing it.
-
-**Superseded gap plans:** 05-14 through 05-16 are retired. Visual approval moves to a real product surface in Phase 6 instead of another UI Lab review cycle.
-
-**Success criteria:**
-
-- UI Lab exposes tokens, typography, icons, primitive states, dense table examples, and target viewports.
-- Generic icon-family choice and football SVG policy are implemented consistently.
-- DenseTable remains finite and intentionally scrollable at 1366×768, 1920×1080, and 2560×1080.
-- Football icon refinement is evaluated only inside a real product context.
-- The complete Table View Engine is specified once for Phase 06.1 implementation and Phase 9 career-data/cache/offline integration, without engine code in Phase 5.
-- The foundation remains provisional until Mateus reviews the real first-playable surface.
-
-**Human review result:** The UI Lab was rejected as a proxy for the product experience. Its technical primitives remain available, but the visual direction is not approved and must be proven in Phase 6 through the real application.
+**Status:** Complete — provisional technical foundation preserved.
 
 ## Phase 6: First Playable Matchday
 
-**Status:** Complete — first playable and SM-1 automated stabilization delivered; human product review deferred
-**Gate:** First Playable  
-**Directory slug:** `06-first-playable-matchday`
+**Status:** Complete — first playable and SM-1 history preserved.
 
-**Goal:** As a football manager, I want to complete one matchday, so that I can test Rivallo's core gameplay loop.
-**Mode:** mvp
+## Sequência oficial
 
-**Requirements:** GAME-01; UI-02 first-playable portion; DATA-03.
+| Bloco                                        | Fases     | Gate                          |
+| -------------------------------------------- | --------- | ----------------------------- |
+| 06 — Fundação de Gestão Esportiva e Carreira | 06.1–06.8 | Pronto para Match Day         |
+| 07 — Match Day                               | 07.1–07.5 | Partida completa e explicável |
+| 08 — MVP1 Operations                         | 08.1–08.6 | MVP1 — Temporada Completa     |
+| 09 — MVP2 Sustainable Career                 | 09.1–09.8 | MVP2 — Carreira Sustentável   |
 
-**Dependencies:** Phase 5 technical assets. UI Lab visual approval is not a dependency.
+## Índice de contratos canônicos
 
-**Plans:** 2/2 complete
+- Escopo e gates: [MVP1](MVP-1-DEFINITION.md), [MVP2](MVP-2-DEFINITION.md) e [checklist](MVP-GATE-CHECKLIST.md).
+- Rotas e shell: [matriz de prontidão](ROUTE-READINESS-MATRIX.md), [sidebar/menu](SIDEBAR-AND-MAIN-MENU-CONTRACT.md), [Home](HOME-COMMAND-CENTER.md) e [Inbox](INBOX-EVENT-CONTRACT.md).
+- Carreira e conteúdo: [lifecycle](CAREER-LIFECYCLE.md), [coach creator](COACH-CREATOR-CONTRACT.md), [database/mods](DATABASE-AND-MODDING-FOUNDATION.md) e [base privada](PRIVATE-DEV-DATABASE-POLICY.md).
+- Arquitetura: [grafo de dependências](PHASE-DEPENDENCY-GRAPH.md), [calendário/competições](COMPETITION-CALENDAR-ARCHITECTURE.md) e [limites do motor de partidas](MATCH-ENGINE-BOUNDARIES.md).
 
-- [x] 06-01-PLAN.md — Ship the persisted XI → tactics → deterministic match → result loop.
-- [x] 06-02-PLAN.md — Stabilize density/disclosure, product tooltips, nationality flags and console regressions without redesigning or advancing SM-2 through SM-6.
+## Contrato comum de fase
 
-The additional 06-02 plan records product-review remediation against baseline `38c2bff`. Automated gates passed on 2026-07-16; Mateus's fullscreen product review remains explicitly deferred and is not represented as visual approval.
+Cada fase abaixo registra objetivo, problema, dependências, entradas, saídas, contratos, consumidores, rotas, interfaces, domínio autoritativo, persistência, testes, aceite, fora de escopo, riscos, gate e checkpoint. “Checkpoint” significa um commit estável próprio da futura execução da fase; não é criado por este planejamento.
 
-**Success criteria:**
+## Bloco 06 — Fundação de Gestão Esportiva e Carreira
 
-- The normal Tauri application opens a real AppShell and matchday workspace rather than the UI Lab.
-- A fixed fictional club exposes an adapter-fed squad; the user can select a valid XI, formation, and tactical approach.
-- A deterministic Rust domain simulation produces match events and a result from the saved lineup.
-- The selected lineup, match result, round, and season record survive a desktop restart.
-- The full path is keyboard-operable, tested, buildable from a clean checkout, and visually reviewable at 1366×768 and 1920×1080.
+### Phase 06.1: Table Views and Durable Preferences — concluída
 
-The sports-management evolution is detailed below as a bounded future sequence. The current execution authorization ends with SM-1 / Plan 06-02; Phases 06.1 through 06.5 require fresh explicit authorization before discussion, planning or implementation. Each inserted phase must preserve the executable baseline, use the established adapters and design system, and keep competitive rules in Rust.
+- **Objetivo/problema:** entregar personalização controlada e durável de tabelas; elimina estado de tabela específico por tela e não versionado.
+- **Dependências/entradas/saídas:** depende da Fase 6 e do contrato da Fase 5; recebe schemas/capabilities estáveis e entrega views, migrations, quarantine/recovery e integração Elenco.
+- **Contratos/consumidores/rotas/interfaces:** produz envelopes de preferência e comandos de view consumidos por tabelas futuras; afeta Elenco e Personalizar por controles React tipados sobre repositório de aplicação.
+- **Autoridade/persistência/testes:** engine controlado + camada application/adapter; persistência local versionada; testes Rust, componente, browser, migração, restart e responsividade concluídos.
+- **Aceite/fora/riscos/gate/checkpoint:** aceite histórico preservado; não inclui banco mundial ou cache de carreira; risco de duplicar contrato contido; gate aprovado; checkpoint final já está no histórico anterior ao baseline.
 
-### Phase 06.1: SM-2 Table View Engine and Durable Views (INSERTED)
+### Phase 06.2: Free Tactical Field and Unified Bench Interaction
 
-**Status:** Complete — 8/8 plans executed; full quality and desktop build green
-**Directory slug:** `06.1-sm-2-table-view-engine-and-durable-views`
+- **Objetivo/problema:** permitir campo tático normalizado e um único modelo de movimento/troca entre titulares e reservas; remove slots visuais rígidos e caminhos divergentes.
+- **Dependências/entradas/saídas:** depende de 06.1; recebe XI/formation persistidos, IDs estáveis e presets; entrega aggregate tático, coordenadas/zonas, comandos e migração sem perda.
+- **Contratos/consumidores/rotas/interfaces:** produz snapshot de formação e comandos move/swap consumidos por 06.3, 06.8 e Match Engine; afeta Táticas por Rust commands, projections e preview React.
+- **Autoridade/persistência/testes:** Rust valida onze, goleiro, duplicidade, sobreposição e exclusividade; repositório persiste layouts; testes de domínio, migração, componente, browser, teclado e reduced motion.
+- **Aceite/fora/riscos/gate/checkpoint:** custom shape sobrevive restart, invalid actions não mutam estado e não há duplicação; não inclui semântica tática avançada; risco WebView/drag; gate de tática estrutural; checkpoint `06.2` futuro. **Não iniciada.**
 
-**Goal:** Turn table personalization into one controlled cross-product capability and prove it in Elenco with durable, versioned views instead of screen-specific state.
-**Requirements:** SM-02; DATA-01 preference-boundary portion; UI-02 dense-table portion.
-**Depends on:** Phase 6 and the canonical Phase 5 Table View Engine contract.
-**Plans:** 8/8 plans complete
+### Phase 06.3: Tactical Model and Familiarity
 
-Plans:
-**Wave 1**
+- **Objetivo/problema:** unificar análise, estratégia, instruções, oposição e familiaridade; elimina toggles locais e efeitos prometidos sem consumo real.
+- **Dependências/entradas/saídas:** depende de 06.2; recebe layout/snapshot e contexto adversário; entrega aggregate tático versionado, regras de conflito/precedência e eventos de familiaridade.
+- **Contratos/consumidores/rotas/interfaces:** consumido por 06.8, 07.1 e 07.2; afeta Táticas, Home e Relatórios por editors/projections tipados e explicações.
+- **Autoridade/persistência/testes:** Rust possui validação, precedência, análise e familiaridade; persistence por tactic repository/event history; testes de regra, conflito, migração, restore e honest empty states.
+- **Aceite/fora/riscos/gate/checkpoint:** modelos restauram exatamente e cada efeito declara se é consumido; scouting amplo e IA adversária ficam fora; risco de explosão combinatória; gate semântico; checkpoint `06.3`.
 
-- [x] 06.1-01-PLAN.md — Pure controlled Table View Engine and `squad.primary` schema.
-- [x] 06.1-02-PLAN.md — Rust application repository port and lifecycle service.
+### Phase 06.4: Player/Coach Profiles and Explainable Ratings
 
-**Wave 2** *(blocked on Wave 1 completion)*
+- **Objetivo/problema:** criar perfis estáveis e avaliações contextuais explicáveis; substitui números opacos e duplicação entre inspector/página.
+- **Dependências/entradas/saídas:** depende de 06.3; recebe entidades adapter-fed e contexto tático; entrega read models de jogador/treinador, escala ADR, rating components, confiança e histórico.
+- **Contratos/consumidores/rotas/interfaces:** consumido por Elenco, Clube, Comissão, Observação, 06.6, 06.8 e mercado; interfaces por entity routes, inspector e queries tipadas.
+- **Autoridade/persistência/testes:** Rust possui fórmulas e incerteza; projeções persistem versões/histórico; testes determinísticos de fórmula, navegação, partial/unknown, acessibilidade e non-regression.
+- **Aceite/fora/riscos/gate/checkpoint:** origem/componentes/contexto/confiança visíveis; scouting global e ratings decorativos fora; risco de falsa precisão; gate de entidades; checkpoint `06.4`.
 
-- [x] 06.1-03-PLAN.md — Durable file repository, migrations, quarantine and crash recovery.
+### Phase 06.5: World Database, Editors and Modding Foundation
 
-**Wave 3** *(blocked on Wave 2 completion)*
+- **Objetivo/problema:** tornar o mundo esportivo editável e independente de hardcode; separa conteúdo, regras e avaliações do código.
+- **Dependências/entradas/saídas:** depende de 06.4 para schemas de pessoas/ratings; recebe requisitos de entidades, assets e validação; entrega schemaVersion, IDs estáveis, base resolver, manifesto mod, shared editor primitives e pacote fictício seed.
+- **Contratos/consumidores/rotas/interfaces:** fornece base/mods a 06.6 e 06.7 e a todos os domínios; afeta menu Editor de dados/Mods por tables, forms, import/export e validators compartilhados.
+- **Autoridade/persistência/testes:** database/mod resolver é autoridade de conteúdo; packages versionados fora do código; contract/schema, referential integrity, load order, conflict, asset e migration tests.
+- **Aceite/fora/riscos/gate/checkpoint:** nenhum clube/jogador/competição hardcoded; avaliações versionadas/explicáveis; editor completo e publicação pública ficam para 09.7; risco de schema/load-order; gate de base carregável; checkpoint `06.5`.
 
-- [x] 06.1-04-PLAN.md — Typed Tauri/client boundary and lossless legacy import.
+### Phase 06.6: Main Menu, New Career and Coach Creator
 
-**Wave 4** *(blocked on Wave 3 completion)*
+- **Objetivo/problema:** substituir entrada fixa por menu, criação/carregamento de carreira e treinador robusto; resolve ausência de identidade/slot/base selecionáveis.
+- **Dependências/entradas/saídas:** depende de 06.5; recebe base/mod resolver e schemas de treinador; entrega menu, wizard, coach creator, automações/dificuldade/preferências, slot metadata e world-generation command.
+- **Contratos/consumidores/rotas/interfaces:** consumido por 06.7, Career Lifecycle e AppShell; afeta menu, Personalizar e identidade da carreira por wizard, validation summary e progress states.
+- **Autoridade/persistência/testes:** Career application service cria slot/snapshot; coach domain valida orçamento/arquétipo; persistence atômica com backup; testes de wizard, compatibilidade, crash/failure, accessibility e resume.
+- **Aceite/fora/riscos/gate/checkpoint:** Continue abre último save válido, criação suporta clube/treinador e nunca troca base silenciosamente; editor de mundo completo fora; risco de save parcial; gate de carreira criada; checkpoint `06.6`.
 
-- [x] 06.1-05-PLAN.md — Controlled React controller and preference-boundary migration.
+### Phase 06.7: Competition, Season and Calendar Engine
 
-**Wave 5** *(blocked on Wave 4 completion)*
+- **Objetivo/problema:** criar agenda gregoriana e temporada autoritativas; impede que Training ou Match gerem fixtures/standings.
+- **Dependências/entradas/saídas:** depende de 06.5 e 06.6; recebe competição/regras/participantes/temporada; entrega fixtures, rodadas, datas, conflitos, standings, registrations windows e season clock.
+- **Contratos/consumidores/rotas/interfaces:** consumido por 06.8, 07._, 08._ e 09.*; afeta Calendário, Competições, Home e Inbox por queries/commands/event stream.
+- **Autoridade/persistência/testes:** Competition/Calendar domain possui schedule, regras e classificação; snapshots/event history persistem; property/determinism, 20-club/38-round, timezone, conflict, tie-break e migration tests.
+- **Aceite/fora/riscos/gate/checkpoint:** Série A 2026 começa zerada e todos os 380 jogos futuros; motor de partidas não incluído; risco de conflitos/remarcações; gate de temporada válida; checkpoint `06.7`.
 
-- [x] 06.1-06-PLAN.md — Complete accessible saved-view lifecycle UI.
+### Phase 06.8: Squad Dynamics, Training and Dynamic Potential
 
-**Wave 6** *(blocked on Wave 5 completion)*
+- **Objetivo/problema:** separar Dinâmica e Treinamento e gerar consequências explicáveis; preserva o antigo SM-6 renumerado de 06.5.
+- **Dependências/entradas/saídas:** depende de 06.3, 06.4 e 06.7; recebe tactic familiarity, profiles/ratings e calendário; entrega morale/cohesion/hierarchy, microcycles, individual plans, workload/fatigue/development e perceived potential history.
+- **Contratos/consumidores/rotas/interfaces:** consumido por 07.1/07.2, Home, Inbox, Elenco e Relatórios; afeta Dinâmica/Treinamento por calendar editor, group/player selectors e explainable projections.
+- **Autoridade/persistência/testes:** Rust possui validation/consequences; event histories e plans persistem; tests de conflicts, eligibility, determinism 52 semanas, migration/restart, component/browser/accessibility.
+- **Aceite/fora/riscos/gate/checkpoint:** treino coletivo e individual produzem efeitos reais; calendar é consumido, não gerado; world renewal fica em 09.4; risco combinatório/falsa precisão; gate Block 06; checkpoint `06.8`.
 
-- [x] 06.1-07-PLAN.md — Accessible customizer and controlled Elenco table integration.
+## Bloco 07 — Match Day
 
-**Wave 7** *(blocked on Wave 6 completion)*
+### Phase 07.1: Club AI and Match Preparation
 
-- [x] 06.1-08-PLAN.md — Browser/restart/responsive evidence and full regression gate.
+- **Objetivo/problema:** preparar escalação/plano adversários e recomendações do clube; evita oponente estático.
+- **Dependências/entradas/saídas:** depende dos sistemas esportivos 06.2–06.8 e da base; recebe fixture, availability, squad/tactic/training; entrega AI lineup, plan, preparation report e decisions.
+- **Contratos/consumidores/rotas/interfaces:** consumido por 07.2 e pré-jogo; afeta Home, Táticas, Observação, Relatórios; Club AI commands/queries.
+- **Autoridade/persistência/testes:** Rust AI policy versionada; decisões/seed persistem; scenario, determinism, invalid-roster e explanation tests.
+- **Aceite/fora/riscos/gate/checkpoint:** plano legal e explicável para ambos clubes; mercado avançado fora; risco de heurística previsível; gate ready-to-simulate; checkpoint `07.1`.
 
-**Success Criteria**:
+### Phase 07.2: Headless Match Simulation Engine
 
-1. Elenco declares a stable table ID, schema version, stable column IDs, required columns, supported capabilities and default views without duplicating the canonical contract.
-2. Visibility, order, finite width, pinning, density, sorting and supported filters are controlled through engine commands; unsupported controls are not rendered.
-3. System, user and read-only view provenance plus create, duplicate, rename, delete, default, reset, save and dirty behavior are complete and keyboard accessible.
-4. A repository outside React persists `local-fixed` owner/table/schema/view envelopes across navigation and desktop restart, declares the future identity migration seam, and uses sequential migrations plus quarantine/recovery for the current preference v4, removed/added columns, corrupt payloads and incompatible future schemas.
-5. The working squad table, inspector, tactics, XI, match simulation, AppShell, routes, tokens and existing preference migration continue to pass component, browser, Rust and desktop-build regression gates.
+- **Objetivo/problema:** simular partida sem UI e produzir estado/eventos completos; separa simulação de calendário e apresentação.
+- **Dependências/entradas/saídas:** depende de 06.2–06.8 e 07.1; recebe fixture e immutable pre-match snapshots; entrega event log, score, statistics, ratings, wear, injuries/cards candidates e result.
+- **Contratos/consumidores/rotas/interfaces:** consumido por 07.3–07.5, competition, training e analytics; interface headless command/result/event stream.
+- **Autoridade/persistência/testes:** Match domain Rust; snapshot + append-only event log + deterministic seed; golden, invariant, property, replay, performance e save/load tests.
+- **Aceite/fora/riscos/gate/checkpoint:** replay determinístico e invariantes de futebol; fixtures nunca gerados; visualização/in-match UI fora; risco de modelo monolítico; gate engine headless; checkpoint `07.2`.
+
+### Phase 07.3: Match Center
 
-### Phase 06.2: SM-3 Free Tactical Field and Unified Bench Interaction (INSERTED)
+- **Objetivo/problema:** apresentar partida, timeline e contexto ao vivo; substitui resultado instantâneo opaco.
+- **Dependências/entradas/saídas:** depende de 07.2; recebe event stream/projections; entrega clock, pitch/timeline, score, stats, commentary e accessible summaries.
+- **Contratos/consumidores/rotas/interfaces:** consumido por 07.4 e usuário; afeta rota de partida e Reports; projection subscription + navigation state.
+- **Autoridade/persistência/testes:** somente Match Engine é autoridade; UI guarda preferências, não resultado; component/browser/a11y/performance/reconnect-to-local-stream tests.
+- **Aceite/fora/riscos/gate/checkpoint:** eventos e placar coerentes e navegáveis; decisões ficam em 07.4; risco de render overload; gate observable match; checkpoint `07.3`.
+
+### Phase 07.4: In-Match Decisions
 
-**Status:** Planned
-**Directory slug:** `06.2-sm-3-free-tactical-field-and-unified-bench-interaction`
+- **Objetivo/problema:** permitir substituições, ajustes e instruções validadas durante a partida; evita mutação direta pela UI.
+- **Dependências/entradas/saídas:** depende de 07.2 e 07.3; recebe current match state e tactic commands; entrega accepted/rejected decisions e new engine snapshots.
+- **Contratos/consumidores/rotas/interfaces:** consumido pelo engine e pós-jogo; afeta Match Center/Táticas; typed command queue, confirmation e feedback.
+- **Autoridade/persistência/testes:** Match domain valida timing/eligibility/limits; decisions no event log; boundary, replay, keyboard, latency e invalid-action tests.
+- **Aceite/fora/riscos/gate/checkpoint:** toda decisão explica efeito/recusa e reproduz no replay; multiplayer fora; risco race/order; gate interactive match; checkpoint `07.4`.
+
+### Phase 07.5: Post-Match Analysis
 
-**Goal:** Evolve the fixed visual slots into a Rust-authoritative normalized tactical layout and one working interaction model for starters and reserves, while preserving presets as useful starting points.
-**Requirements:** SM-03; GAME-01 non-regression.
-**Depends on:** Phase 06.1.
-**Plans:** 0 plans
+- **Objetivo/problema:** consolidar consequência e aprendizado pós-jogo; impede dashboards desconectados.
+- **Dependências/entradas/saídas:** depende de 07.2 e estado completo da partida; recebe result/events/stats/ratings; entrega reports, analytics projections e domain events downstream.
+- **Contratos/consumidores/rotas/interfaces:** competition, Home, Inbox, Reports, Data Centre, Training, Squad, Finances; report documents + projection events.
+- **Autoridade/persistência/testes:** source event log immutable; derived projections/versioned reports persistem; reconciliation, idempotency, cross-route e explanation tests.
+- **Aceite/fora/riscos/gate/checkpoint:** resultado atualiza todos consumidores uma vez; season gate fora; risco double-processing; gate Match Day; checkpoint `07.5`.
+
+## Bloco 08 — MVP1 Operations
 
-Plans:
+### Phase 08.1: Injuries, Discipline and Registration
 
-- [ ] TBD (run /gsd-plan-phase 06.2 to break down)
+- **Objetivo/problema:** tornar availability e inscrição reais; elimina elegibilidade implícita.
+- **Dependências/entradas/saídas:** depende de 06.7, 06.8 e 07.2/07.5; entrega injuries, suspensions, medical estimates, registration lists/deadlines e eligibility projection.
+- **Contratos/consumidores/rotas/interfaces:** Elenco, Home, Inbox, Calendar, Competitions, Tactics e Match; commands médico/inscrição e alerts.
+- **Autoridade/persistência/testes:** Availability/Registration domains; event history persistente; boundary/date, recovery, suspension, registration e replay tests.
+- **Aceite/fora/riscos/gate/checkpoint:** jogadores inelegíveis não jogam e causa/retorno são visíveis; medicina avançada fora; risco timezone/rule; gate operations-1; checkpoint `08.1`.
 
-**Success Criteria**:
+### Phase 08.2: Transfers and Contracts MVP
 
-1. The tactic aggregate uses stable player/slot IDs, normalized coordinates, zones, nominal position, role, side and line; custom shapes are not reduced to the nearest preset.
-2. Field-to-field, reserve-to-field and field-to-reserve moves/swaps use one typed Rust command path with duplicate, XI-count, goalkeeper-bound, overlap and exclusivity validation.
-3. Pointer drag has a stable preview, valid/invalid feedback, snap/revert behavior and no pitch reflow; essential moves also work through keyboard or a contextual menu.
-4. Accepted changes persist through restart and migrate the existing saved XI/formation without losing slot identity or ordering; cancelled/rejected moves never mutate persisted state.
-5. Domain, component and browser tests prove valid custom formations, starter/reserve exchange, invalid feedback and zero player duplication at target desktop viewports and reduced motion.
+- **Objetivo/problema:** mercado básico funcional; substitui listas sem negociação/consequência.
+- **Dependências/entradas/saídas:** depende de 06.5, 06.7, 08.1 e Finanças port; entrega availability list, proposals/responses, basic wage/contracts/loans/window/history.
+- **Contratos/consumidores/rotas/interfaces:** Transferências, Elenco, Finanças, Inbox, Reports; negotiation aggregate and financial commands/events.
+- **Autoridade/persistência/testes:** Market/Contract domains; negotiations/contracts ledgers persistem; rule, budget, window, concurrency/idempotency e UI-flow tests.
+- **Aceite/fora/riscos/gate/checkpoint:** proposta básica conclui ou falha com motivo e impacto financeiro; clauses/agents ficam 09.3; risco exploit; gate operations-2; checkpoint `08.2`.
 
-### Phase 06.3: SM-4 Tactical Analysis Strategy Instructions Opposition and Familiarity (INSERTED)
+### Phase 08.3: Scouting and Observation MVP
 
-**Status:** Planned
-**Directory slug:** `06.3-sm-4-tactical-model-familiarity`
+- **Objetivo/problema:** conhecimento parcial e relatórios reais; evita revelar atributos globais.
+- **Dependências/entradas/saídas:** depende de 06.4/06.5, 07.1 e 08.2; entrega search, shortlist, report request, confidence, comparison e opponent report.
+- **Contratos/consumidores/rotas/interfaces:** Observação, Transferências, Inbox, Reports; knowledge projection/report commands.
+- **Autoridade/persistência/testes:** Scouting domain owns knowledge/confidence; reports/shortlist persistem; visibility, confidence, staleness-basic, request and navigation tests.
+- **Aceite/fora/riscos/gate/checkpoint:** desconhecido permanece desconhecido e relatório abre contexto; network global fica 09.5; risco leakage; gate operations-3; checkpoint `08.3`.
 
-**Goal:** Make Analysis, Strategy, Instructions and Opposition progressive views over one persisted tactical model with explicit validation, precedence, familiarity and honest simulation boundaries.
-**Requirements:** SM-04; GAME-01 non-regression.
-**Depends on:** Phase 06.2.
-**Plans:** 0 plans
+### Phase 08.4: Finances, Club and Staff MVP
 
-Plans:
+- **Objetivo/problema:** utilidade real para Clube, Comissão e Finanças; elimina placeholders administrativos.
+- **Dependências/entradas/saídas:** depende de 06.4–06.7 e 08.2; entrega club overview/history/objectives, basic staff/responsibilities/contracts/recommendations e balance/budget/payroll/revenue/expense/prize/projection/monthly summary.
+- **Contratos/consumidores/rotas/interfaces:** Home, Inbox, Transfers, Reports e Board future; ledgers, staff contracts and club projections.
+- **Autoridade/persistência/testes:** Finance/Club/Staff domains; double-entry-like auditable ledger + snapshots; reconciliation, budget, contract, month-close e accessibility tests.
+- **Aceite/fora/riscos/gate/checkpoint:** toda movimentação tem origem e saldo reconciliado; infrastructure/deep revenue ficam 09.6; risco rounding; gate operations-4; checkpoint `08.4`.
 
-- [ ] TBD (run /gsd-plan-phase 06.3 to break down)
+### Phase 08.5: Inbox, Home, Data Centre and Reports
 
-**Success Criteria**:
+- **Objetivo/problema:** transformar eventos em contexto diário, decisões, exploração e documentos; evita dashboards mockados.
+- **Dependências/entradas/saídas:** depende de todos produtores MVP1; entrega event projections, actionable inbox, Home widgets, interactive analytics e consolidated reports.
+- **Contratos/consumidores/rotas/interfaces:** Início, Caixa de entrada, Central de dados, Relatórios; event subscription, deep links, read/archive/action commands e filters.
+- **Autoridade/persistência/testes:** source domains remain authoritative; projections/inbox/report metadata persistem e rebuildam; idempotency, ordering, deadline, deep-link, empty/error, accessibility e cross-route tests.
+- **Aceite/fora/riscos/gate/checkpoint:** Home responde aconteceu/atenção/próximo compromisso/decisão; Data Centre explora e Reports consolida; predictive AI fora; risco notification noise; gate route utility; checkpoint `08.5`.
 
-1. Analysis derives lineup, position, sector, corridor, width/depth, condition and bench facts from named Rust rules instead of generic client messages.
-2. Strategy persists compatible possession, out-of-possession, transition and match-context choices in the same aggregate, with progressive disclosure and no competing React stores.
-3. Collective, unit, role and individual instructions have stable IDs, scope, values, validation, incompatibilities and explicit precedence; conflicts are explained before persistence.
-4. Opposition supports typed instructions for the current matchday opponent when real context exists and truthful no-opponent/no-report/partial states otherwise; it does not claim Phase 8 opponent/season breadth or show fabricated scouting/simulator effects.
-5. Familiarity is multidimensional, event-driven, deterministic and explainable; saved tactics restore exactly, migrate safely and label any not-yet-consumed simulation effect honestly.
+### Phase 08.6: MVP1 Full Season Gate
 
-### Phase 06.4: SM-5 Player Coach Profiles and Explainable Ratings (INSERTED)
+- **Objetivo/problema:** provar uma temporada completa coerente; impede chamar conjunto parcial de MVP1.
+- **Dependências/entradas/saídas:** depende dos blocos 06, 07 e fases 08.1–08.5; recebe build candidato e base validada; entrega evidence pack, defects resolved e release checkpoint MVP1.
+- **Contratos/consumidores/rotas/interfaces:** valida todas as rotas/menu/lifecycle/saves; usa checklists canônicos sem criar novo domínio.
+- **Autoridade/persistência/testes:** verifica authorities existentes; E2E menu→38 rounds→champion, restart, migration, empty/error, accessibility, performance e deterministic replay.
+- **Aceite/fora/riscos/gate/checkpoint:** zero placeholders/mock-only routes, champion correto e save reabre; season rollover fica MVP2; risco long-run drift; gate MVP1; checkpoint `mvp1-complete-season`.
 
-**Status:** Planned
-**Directory slug:** `06.4-sm-5-player-coach-profiles-and-explainable-ratings`
+## Bloco 09 — MVP2 Sustainable Career
 
-**Goal:** Keep Elenco as the primary workspace while adding an actionable player inspector, stable full player and coach profiles, and deterministic contextual ratings whose origin and uncertainty can be inspected.
-**Requirements:** SM-05; UI-02 profile/navigation portion.
-**Depends on:** Phase 06.3.
-**Plans:** 0 plans
+### Phase 09.1: Season Rollover and History
 
-Plans:
+- **Objetivo/problema:** encerrar e iniciar temporadas preservando história; resolve carreira terminal após rodada 38.
+- **Dependências/entradas/saídas:** depende do MVP1; recebe final standings/stats/contracts; entrega awards, records/history, archive, next-season seed e rollover transaction.
+- **Contratos/consumidores/rotas/interfaces:** Competitions, Club, Reports, Calendar, Career lifecycle; rollover command/progress/recovery report.
+- **Autoridade/persistência/testes:** Season domain; atomic checkpoint/backup + immutable history; crash recovery, idempotency, multi-year determinism e reconciliation tests.
+- **Aceite/fora/riscos/gate/checkpoint:** rollover reiniciável sem duplicar premiações; promotion fica 09.2; risco partial commit; gate sustainable-1; checkpoint `09.1`.
 
-- [ ] TBD (run /gsd-plan-phase 06.4 to break down)
+### Phase 09.2: Promotion, Relegation and Secondary Competitions
 
-**Success Criteria**:
+- **Objetivo/problema:** mundo competitivo muda entre níveis/torneios; evita liga isolada e estática.
+- **Dependências/entradas/saídas:** depende de 09.1 e Calendar Engine; entrega qualification, promotion/relegation, multi-competition participants/schedules e history.
+- **Contratos/consumidores/rotas/interfaces:** Competitions, Calendar, Home, Inbox, Reports; rule plugins and participant-transition events.
+- **Autoridade/persistência/testes:** Competition domain; season-specific memberships persistem; rule matrix, simultaneous competitions, conflicts e long-run tests.
+- **Aceite/fora/riscos/gate/checkpoint:** participantes seguintes refletem regras e histórico; arbitrary community rules ficam 09.7; risco schedule conflicts; gate sustainable-2; checkpoint `09.2`.
 
-1. A single player selection keeps the squad table visible and opens a concise actionable inspector with a clear path to a stable full profile; inspector and page share typed projections rather than business-rule copies.
-2. Player and coach profiles expose only fixed-club adapter-fed identity, career, contract, availability, statistics, development and tactical context through hierarchical navigation with truthful partial/unavailable/unknown states and no Phase 9 offline-cache claim.
-3. A documented ADR fixes rating scale, composition, context and scouting uncertainty before formulas spread; Rust owns deterministic player, team and coach rating projections and their history.
-4. Position, role and tactical system can change a player's contextual evaluation without changing identity, and every visible rating exposes components, provenance, confidence and relevant explanation.
-5. No random filler metric is introduced; domain formula tests plus component/browser navigation, keyboard, nationality-fallback and non-regression tests pass.
+### Phase 09.3: Advanced Market, Contracts and Club AI
 
-### Phase 06.5: SM-6 Squad Dynamics Training and Dynamic Potential (INSERTED)
+- **Objetivo/problema:** renovar elencos e mercado ao longo dos anos; remove negociações básicas repetitivas.
+- **Dependências/entradas/saídas:** depende de 08.2, 09.1/09.2 e Club AI; entrega agents, bonuses, clauses, instalments, pre-contracts, promises, advanced loans, squad plans e coach movement.
+- **Contratos/consumidores/rotas/interfaces:** Transfers, Squad, Finances, Staff, Inbox; negotiation DSL, obligations schedule e AI planning events.
+- **Autoridade/persistência/testes:** Market/Contract/Club AI domains; ledgers/obligations/history persistem; adversarial negotiation, budget, expiry, transfer-window e multi-season tests.
+- **Aceite/fora/riscos/gate/checkpoint:** AI renova e negocia sem insolvência/duplicação; youth generation fica 09.4; risco economy inflation; gate sustainable-3; checkpoint `09.3`.
 
-**Status:** Planned
-**Directory slug:** `06.5-sm-6-squad-dynamics-training-and-dynamic-potential`
+### Phase 09.4: Youth, Retirement and World Renewal
 
-**Goal:** Deliver distinct squad-dynamics and a deterministic training week anchored to the current matchday whose persisted Rust-domain events explain workload, familiarity, development and uncertain dynamic potential without claiming season, travel, cache/offline or multiplayer breadth.
-**Requirements:** SM-06; GAME-01 non-regression.
-**Depends on:** Phase 06.4.
-**Plans:** 0 plans
+- **Objetivo/problema:** renovar população e talento; impede envelhecimento até mundo vazio.
+- **Dependências/entradas/saídas:** depende de 06.4/06.8, 09.1 e 09.3; entrega youth intake/development, aging, retirement, regenerated staff/players e world evolution events.
+- **Contratos/consumidores/rotas/interfaces:** Squad, Club, Dynamics, Training, Scouting, Transfers, Reports; lifecycle policies and generated-entity provenance.
+- **Autoridade/persistência/testes:** World/Development domains; stable new IDs, seeds and histories; distribution, determinism, privacy/potential e 20-season soak tests.
+- **Aceite/fora/riscos/gate/checkpoint:** população/qualidade permanecem sustentáveis e explicáveis; generative biographies avançadas fora; risco demographic drift; gate sustainable-4; checkpoint `09.4`.
 
-Plans:
+### Phase 09.5: Full Scouting Network
 
-- [ ] TBD (run /gsd-plan-phase 06.5 to break down)
+- **Objetivo/problema:** criar descoberta mundial operada por staff/região/missões; substitui pedido direto de relatório.
+- **Dependências/entradas/saídas:** depende de 08.3, 08.4 e 09.4; entrega scouts, regions, assignments, budget, discovery, updates e knowledge decay.
+- **Contratos/consumidores/rotas/interfaces:** Observação, Transfers, Staff, Finances, Inbox, Reports; assignment commands and knowledge graph projections.
+- **Autoridade/persistência/testes:** Scouting domain; time-stamped evidence/confidence persistem; fog-of-war, budget, assignment, decay e long-save tests.
+- **Aceite/fora/riscos/gate/checkpoint:** nenhum conhecimento surge sem fonte e atualização; public shared scouting fora; risco performance/leak; gate sustainable-5; checkpoint `09.5`.
 
-**Success Criteria**:
+### Phase 09.6: Board, Infrastructure and Deep Finances
 
-1. Squad Dynamics represents morale, cohesion, hierarchy, groups, promises/conflicts and recent events with clear provenance; it is not mislabeled or reused as Training.
-2. Training has its own working navigation and current-matchday week for persisted add, remove, replace, move, copy and template commands across collective, unit/group, recovery and individual plans.
-3. Rust validates calendar/match/availability conflicts and owns deterministic workload, eligibility, progression, fatigue/risk and familiarity events; React owns previews and explanations only.
-4. Dynamic potential distinguishes base reality, club estimate, range and confidence, records deterministic historical projections and avoids false precision or exact hidden-value leakage.
-5. At least one collective session and one individual plan produce real deterministic, explained Rust-domain consequences; options without implemented effects are not exposed as active.
-6. Restart, migration, invalid-action and a fixed 52-week determinism test plus component, browser, accessibility and full desktop quality gates pass without regressing the first-playable loop.
+- **Objetivo/problema:** decisões institucionais e sustentabilidade econômica; expande visão mensal básica.
+- **Dependências/entradas/saídas:** depende de 08.4, 09.1 e 09.3; entrega sponsorship, tickets, merchandising, debt, instalments, cash flow, financial rules, facilities/stadium works, board trust/objectives.
+- **Contratos/consumidores/rotas/interfaces:** Club, Finances, Home, Inbox, Training, Youth, Reports; project/approval commands and auditable ledger schedules.
+- **Autoridade/persistência/testes:** Finance/Board/Infrastructure domains; ledgers/projects/history persistem; accounting reconciliation, approval, construction timeline, insolvency e multi-year tests.
+- **Aceite/fora/riscos/gate/checkpoint:** projeções reconciliam e infraestrutura tem custo/prazo/efeito; stadium 3D fora; risco runaway economy; gate sustainable-6; checkpoint `09.6`.
 
-## Phase 7: Career Start and Club Selection
+### Phase 09.7: Complete Modding and Editor Ecosystem
 
-**Status:** Planned  
-**Gate:** 3  
-**Directory slug:** `07-dev-identity-fixtures-minimal-api`
+- **Objetivo/problema:** completar edição/import/export/patch/migration segura; transforma fundação 06.5 em ecossistema utilizável.
+- **Dependências/entradas/saídas:** depende de todos schemas estáveis 06.5–09.6; entrega editors completos, undo/redo seguro, validation reports, official mod format, load order/conflicts, migrations e public fictional base tooling.
+- **Contratos/consumidores/rotas/interfaces:** Main Menu Editor/Mods, Career creation e save migration; shared tables/forms/search/filters/history/assets/translations.
+- **Autoridade/persistência/testes:** resolver/schema registry authoritative; packages and migration logs persistem; round-trip, referential integrity, conflict, malicious archive/path, compatibility e accessibility tests.
+- **Aceite/fora/riscos/gate/checkpoint:** mod pode substituir/adicionar/patchar conteúdo sem silent save mutation; public hosting marketplace fora; risco security/schema fragmentation; gate sustainable-7; checkpoint `09.7`.
 
-**Objective:** Turn the fixed first-playable club into a selectable fictional career with deterministic identity and shared fixtures.
+### Phase 09.8: MVP2 Sustainable Career Gate
 
-**Requirements:** DESK-01; DATA-02; DATA-03.
+- **Objetivo/problema:** provar carreira indefinida íntegra; impede declarar MVP2 após apenas um rollover.
+- **Dependências/entradas/saídas:** depende de 09.1–09.7 e MVP1; recebe candidate build/databases/mods; entrega multi-season evidence, migration matrix e MVP2 checkpoint.
+- **Contratos/consumidores/rotas/interfaces:** valida todo produto e editores; no new domain.
+- **Autoridade/persistência/testes:** autoridades existentes; E2E várias temporadas, soak, backup/restore, version migration, mod compatibility, world renewal, performance e corruption recovery.
+- **Aceite/fora/riscos/gate/checkpoint:** repetição sustentável sem mundo estático, perda de histórico ou drift silencioso; multiplayer fora; risco combinatorial; gate MVP2; checkpoint `mvp2-sustainable-career`.
 
-**Dependencies:** Phase 06.5 verification. The fixed-club baseline from Phase 6 remains the migration source.
+## Dependências obrigatórias
 
-**Success criteria:**
+- 06.3 → 06.2; 06.4 → 06.3; 06.5 fornece base/mods a 06.6 e 06.7; 06.6 → 06.5; 06.7 → 06.5 + 06.6; 06.8 → 06.3 + 06.4 + 06.7.
+- 07.1 depende dos sistemas esportivos e da base; 07.2 depende de 06.2–06.8 + 07.1; 07.3 → 07.2; 07.4 → 07.2 + 07.3; 07.5 → 07.2 + estado completo.
+- MVP1 depende dos blocos 06, 07 e 08. MVP2 depende do MVP1 concluído. O grafo canônico, incluindo motores e domínios, está em `PHASE-DEPENDENCY-GRAPH.md` e deve permanecer acíclico.
 
-- Development identity is provided through AuthPort-compatible boundaries.
-- Fictional fixtures are shared appropriately by adapters and tests.
-- `/health`, `/ready`, `/api/v1/session`, `/api/v1/clubs`, and `/api/v1/me/context` meet their contract.
+## Migração de IDs e preservação histórica
 
-## Phase 8: Season Calendar and Matchday Depth
+| Identidade anterior                                              | Identidade canônica                                              | Tratamento                                                                                            |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| 06.5 / `06.5-sm-6-squad-dynamics-training-and-dynamic-potential` | 06.8 / `06.8-sm-6-squad-dynamics-training-and-dynamic-potential` | Renumerado; conteúdo SM-6, decisões, histórico e prompt-base preservados; referências novas usam 06.8 |
+| Antiga Phase 7 — Career Start and Club Selection                 | 06.6 + 06.7                                                      | Escopo absorvido por carreira/menu e engine de temporada; fase antiga não foi concluída               |
+| Antiga Phase 8 — Season Calendar and Matchday Depth              | 06.7 + Bloco 07                                                  | Separada em calendário/competição e Match Day; fase antiga não foi concluída                          |
+| Antiga Phase 9 — Dashboard, Squad, Cache and Offline Hardening   | 08.5 + gates de save                                             | Replanejada por projeções/rotas e long-save safety; fase antiga não foi concluída                     |
+| Antiga Phase 10 — V0.1 Verification                              | 08.6                                                             | Substituída pelo gate explícito MVP1                                                                  |
+| Antigas Phases 11–13 — multiplayer                               | Backlog pós-MVP2                                                 | Preservadas como intenção futura, fora deste roadmap e sem autorização                                |
 
-**Status:** Planned  
-**Gate:** 3  
-**Directory slug:** `08-club-selection-local-restore`
+## Gate global de rota
 
-**Objective:** Expand the single matchday into a short season calendar with multiple opponents, standings, availability, and richer tactical consequences.
+O MVP1 falha se qualquer rota principal não abrir, não tiver fonte autoritativa, ação útil, persistência, tratamento vazio/erro ou integração ao ciclo de carreira; rotas mock-only, placeholder ou “em breve” são bloqueadoras.
 
-**Requirements:** DESK-02; DESK-03; DATA-01 local-career portion.
+## Decisões pendentes, com dono futuro
 
-**Dependencies:** Phase 7.
+- 06.2: biblioteca/estratégia pointer/keyboard cross-WebView e modelo exato de overlap.
+- 06.4: ADR de escala/composição de ratings.
+- 06.5: serialização canônica de patches e política de assinatura de pacote.
+- 06.7: algoritmo de scheduling e política de timezone/remarcação.
+- 07.2: granularidade do event log e orçamento de performance.
+- 09.4: distribuições de youth/retirement calibradas.
+- 09.7: sandbox/security policy para importação de mods.
 
-**Success criteria:**
-
-- A user can advance through a short fictional season and see standings and availability change.
-- Matchday outcomes remain domain-owned and reproducible; React never becomes simulation authority.
-- The season consumes the bounded tactic, familiarity, training and availability contracts from Phases 06.2–06.5 without reimplementing their rules.
-
-## Phase 9: Dashboard, Squad, Cache and Offline Hardening
-
-**Status:** Planned  
-**Gate:** 3  
-**Directory slug:** `09-dashboard-squad-cache-offline-states`
-
-**Objective:** Implement the approved V0.1 dashboard and squad surfaces plus explicit cache/offline states.
-
-**Requirements:** DESK-02; DESK-04; DATA-01 cache/projection portion.
-
-**Dependencies:** Phase 8.
-
-**Success criteria:**
-
-- Dashboard and squad render from adapters/repositories, not component-local mocks.
-- The Phase 06.1 Table View Engine is migrated from `local-fixed` ownership to career identity and integrated with actual dashboard/squad data, SQLite/cache/offline boundaries and measured query modes without reimplementing table semantics.
-- Each real table selects client virtualization, client pagination, server pagination, or server query from measured data scale and records query/cancellation, cache/offline, drift, migration, and recovery evidence.
-- Offline, stale, queued, synchronising, and reconnected states are explicit and usable from cache.
-
-## Phase 10: V0.1 Verification and Release Evidence
-
-**Status:** Planned  
-**Gate:** 3  
-**Directory slug:** `10-v0-1-verification-release-evidence`
-
-**Objective:** Produce end-to-end, accessibility, visual, migration, contract, and release evidence for V0.1.
-
-**Requirements:** FOUND-02; UI-02; SM-02 through SM-06; all V0.1 requirements not already verified.
-
-**Dependencies:** Phase 9.
-
-**Success criteria:**
-
-- Required frontend, Rust, integration, contract, migration, visual, and desktop-build checks pass.
-- SM-02 through SM-06 retain explicit end-to-end, deterministic-domain, migration, accessibility and visual evidence after career/data hardening.
-- The V0.1 flow is manually reproducible online/offline with recorded evidence.
-
-## Phase 11: Private League Creation and Invitations
-
-**Status:** Planned — V0.2  
-**Gate:** V0.2  
-**Directory slug:** `11-private-league-creation-invitations`
-
-**Objective:** Select minimal real authentication and create/join private leagues with unique club selection.
-
-**Requirements:** MULTI-01.
-
-**Dependencies:** Phase 10; approved authentication-provider ADR revision.
-
-**Success criteria:**
-
-- Invited users create or join a private league and cannot select the same club.
-- Desktop authentication uses the approved provider and PKCE-capable flow.
-
-## Phase 12: Authoritative Round and Realtime Updates
-
-**Status:** Planned — V0.2  
-**Gate:** V0.2  
-**Directory slug:** `12-authoritative-round-realtime-updates`
-
-**Objective:** Prove server-authoritative readiness, a fictitious round advance, and state delivery to both clients.
-
-**Requirements:** MULTI-02.
-
-**Dependencies:** Phase 11.
-
-**Success criteria:**
-
-- Server validates readiness and the round transition with audit/version evidence.
-- Two desktops receive the resulting league state without client authority.
-
-## Phase 13: Reconnection, Neon Persistence and Two-Desktop Proof
-
-**Status:** Planned — V0.2  
-**Gate:** V0.2  
-**Directory slug:** `13-reconnection-neon-two-desktop-proof`
-
-**Objective:** Demonstrate reconnection and authoritative hosted persistence in a private two-desktop league.
-
-**Requirements:** MULTI-03.
-
-**Dependencies:** Phase 12; explicit credentials and infrastructure approval.
-
-**Success criteria:**
-
-- League state persists in Neon and reconnects correctly after a client interruption.
-- The two-desktop private multiplayer proof is repeatable and documented.
-
-## Approval Record
-
-| Gate   | Status   | Approved by | Result                                                                                               |
-| ------ | -------- | ----------- | ---------------------------------------------------------------------------------------------------- |
-| Gate 0 | APPROVED | Mateus      | Documentation, architecture, product, data, tests, design, and ADRs approved to proceed to scaffold. |
-| Gate 1 | Pending  | —           | Requires Phases 2–4 success criteria and explicit approval.                                          |
-| Gate 2 | Pending  | —           | Requires Phases 5–6 success criteria and explicit approval.                                          |
-| Gate 3 | Pending  | —           | Requires Phases 7–10 success criteria and explicit approval.                                         |
+Essas decisões não bloqueiam o planejamento, mas devem ser resolvidas e registradas antes da implementação dependente.

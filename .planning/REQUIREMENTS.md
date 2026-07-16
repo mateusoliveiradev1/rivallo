@@ -1,70 +1,67 @@
 # Requirements: Rivallo
 
 **Defined:** 2026-07-13  
-**Core Value:** dependable deep management in local and shared online competition.
+**Rebaselined for MVP1/MVP2 planning:** 2026-07-16
+**Core value:** deep, dependable and explainable football management.
 
-## V0.1 requirements
+## Validated baseline
 
-### Foundation
+- [x] **FOUND-01** — reproducible Tauri/React/Rust workspace boundaries and local tooling.
+- [x] **FOUND-02** — independent frontend, Rust, integration, contract, visual and desktop-build quality paths.
+- [x] **FOUND-03** — domain rules compile independently of React, Tauri, axum and database adapters.
+- [x] **GAME-01** — valid XI/tactical approach, deterministic fictional match, events/result and restart persistence.
+- [x] **UI-01/UI-02** — design primitives, accessible first-playable surface and regression evidence.
+- [x] **SM-01** — product-surface stabilisation.
+- [x] **SM-02** — controlled Table View Engine and durable views (Phase 06.1).
 
-- [x] **FOUND-01**: Repository has Tauri/React/Rust workspace boundaries and repeatable local tooling.
-- [x] **FOUND-02**: CI independently verifies frontend, Rust, integration, contracts, visual checks, and desktop build.
-- [x] **FOUND-03**: Domain rules compile independently of React, Tauri, axum, and database adapters.
+Historical completion status above is immutable; this planning update does not reopen those phases.
 
-### Desktop experience
+## MVP1 requirement groups
 
-- [ ] **DESK-01**: User can use a deterministic development identity.
-- [ ] **DESK-02**: User can select a fictional club and later see a dashboard and squad screen.
-- [ ] **DESK-03**: User selection and local state restore after restart.
-- [ ] **DESK-04**: UI shows explicit offline and synchronisation status and remains usable from cache.
+| ID         | Requirement                                                                                                                                             | Owner              |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| M1-CAREER  | Main menu, base/mod selection, coach create/select, any Série A 2026 club, slot creation, save/load/continue and safe return to menu                    | 06.5–06.7          |
+| M1-SPORT   | Squad, tactics, dynamics, training, calendar/competition engine, match preparation/simulation/centre/decisions/post-match                               | 06.2–07.5          |
+| M1-OPS     | Injuries, discipline, registration, basic transfers/contracts/scouting, club/staff/finances                                                             | 08.1–08.4          |
+| M1-INFO    | Event-driven Home, Inbox, Data Centre and consolidated Reports                                                                                          | 08.5               |
+| M1-SEASON  | Twenty clubs start at zero; 38 rounds complete; standings/statistics persist; champion is defined                                                       | 06.7, 08.6         |
+| M1-ROUTES  | Every principal career route opens, has an authoritative source, useful action, persistence and empty/error handling; no placeholder or mock-only route | 08.6               |
+| M1-EXPLAIN | Relevant changes expose cause, consequence, reaction, source and updated time                                                                           | Cross-cutting gate |
 
-### Gameplay
+The executable Definition of Done is authoritative in `MVP-1-DEFINITION.md` and `MVP-GATE-CHECKLIST.md`.
 
-- [x] **GAME-01**: User can select a valid XI and tactical approach, simulate one deterministic fictional match, inspect events and result, and resume the resulting matchday state after restart.
+## MVP2 requirement groups
 
-### Data and API
+| ID          | Requirement                                                                                                | Owner      |
+| ----------- | ---------------------------------------------------------------------------------------------------------- | ---------- |
+| M2-ROLLOVER | Close season, record history/awards, create the next season and continue safely                            | 09.1       |
+| M2-WORLD    | Promotion/relegation, secondary competitions, youth, retirements, coach movement and world renewal         | 09.2, 09.4 |
+| M2-MARKET   | Advanced transfers, agents, bonuses, clauses, instalments, pre-contracts, promises and club squad planning | 09.3       |
+| M2-SCOUT    | Complete staff/region/assignment/budget knowledge network with discovery and decay                         | 09.5       |
+| M2-CLUB     | Board, infrastructure, facilities, stadium work and deep sustainable finances                              | 09.6       |
+| M2-MODS     | Complete shared editor/mod ecosystem, explicit migrations, safe long-save compatibility                    | 09.7       |
+| M2-SUSTAIN  | Repeat multiple season rollovers without static world, save corruption or silent content drift             | 09.8       |
 
-- [ ] **DATA-01**: SQLite persists local career state, cache/projections, preferences, and command queue through adapters.
-- [x] **DATA-02**: API exposes health, readiness, session, clubs, and current context under `/api/v1` with stable errors and trace IDs.
-- [ ] **DATA-03**: Fixtures are fictional, adapter-fed, and reusable across backend and tests.
+## Cross-cutting requirements
 
-### Design quality
-
-- [x] **UI-01**: UI Lab documents tokens, component states, dense tables, and responsive examples.
-- [x] **UI-02**: Initial desktop screens meet WCAG AA, keyboard, reduced-motion, and visual-regression checks.
-
-### Sports-management product review
-
-- [x] **SM-01**: In the real Elenco product surface, density and its adjacent disclosure remain stable across repeated close/Escape/outside-click cycles; supplemental tooltips and accessible local nationality flags work with fallbacks; relevant console errors fail regression tests; and the established AppShell, navigation, table, inspector, tactics, persistence, tokens and domain behavior do not regress.
-- [x] **SM-02**: Dense product tables use one controlled Table View Engine with stable table/column/view IDs, declared capabilities, complete saved-view lifecycle, versioned adapter-owned persistence, sequential migrations and safe corruption/future-schema recovery; Elenco proves visibility, order, finite width, pinning, density, sorting and supported filtering across navigation and restart.
-- [ ] **SM-03**: Tactics use a Rust-authoritative normalized free-position model and one persisted move/swap command path for field and bench; presets remain starting points, custom shapes survive restart, invalid goalkeeper/count/overlap/duplicate states are rejected clearly, and essential operations work by pointer and keyboard without player duplication.
-- [ ] **SM-04**: Analysis, Strategy, Instructions and Opposition edit or derive from one persisted tactical aggregate with named validation, conflict and precedence rules; familiarity is multidimensional, explainable and event-driven, while unavailable scouting and simulation effects remain explicitly truthful rather than invented.
-- [ ] **SM-05**: Elenco keeps its table workspace and contextual player inspector while stable player and coach profile navigation exposes real adapter-fed data; contextual player/team/coach ratings are deterministic Rust-domain projections with documented scale, components, context, uncertainty and tests rather than opaque or decorative numbers.
-- [ ] **SM-06**: Squad Dynamics and Training are distinct working product areas: dynamics explains morale/cohesion/hierarchy/events, while a persisted week anchored to the current matchday supports validated collective, group and individual training commands; Rust owns implemented workload, development, familiarity and dynamic-potential consequences with deterministic history and perceived-potential uncertainty, without claiming later season/travel/cache/offline breadth.
-
-## V0.2 requirements
-
-- **MULTI-01**: Invited users create/join a private league and select distinct clubs.
-- **MULTI-02**: Server authoritatively validates readiness and a fictitious round advance.
-- **MULTI-03**: Two clients receive updates, reconnect, and preserve the league state in PostgreSQL/Neon.
-
-## Later requirements
-
-Advanced match simulation breadth, market, injuries, academy, full scouting, public mods, and the full editor remain later work. The bounded sports-management slices SM-2 through SM-6 are detailed planned requirements in inserted Phases 06.1 through 06.5, but they are not authorized for implementation in the current execution. A deliberately small matchday simulation remains the current executable base, and every future sporting effect must be real, deterministic and domain-owned or be labelled honestly as not yet consumed by the simulator.
+- **AUTH-01:** domains are authoritative; projections identify source and update time.
+- **EVENT-01:** domain events feed projections, routes, Inbox and Reports; actions return typed commands.
+- **DATA-01:** no specific club/player/competition is hardcoded in game code.
+- **DATA-02:** factual data and Rivallo evaluations are independently versioned and editable.
+- **SAVE-01:** saves record database/mod IDs, versions, hashes, load order, schema, seed, start date and world snapshot.
+- **SAVE-02:** database/mod updates never mutate an existing save silently; migration is explicit, backed up, validated and fail-safe.
+- **CAL-01:** Gregorian calendar/competition engine owns fixtures and standings; Training consumes it; Match consumes fixtures and never generates the calendar.
+- **UX-01:** desktop/dark first, keyboard capable, WCAG 2.2 AA, reduced motion and progressive disclosure.
 
 ## Traceability
 
-| Requirement group    | Phase | Status                                  |
-| -------------------- | ----: | --------------------------------------- |
-| Gate 0 documentation |     1 | Pending approval                        |
-| FOUND                |   2–4 | Pending                                 |
-| UI                   |   5–6 | Pending                                 |
-| SM-01 stabilization  |  6/02 | Complete; human product review deferred |
-| SM-02 table views    |  06.1 | Complete                                |
-| SM-03 tactical field |  06.2 | Planned                                 |
-| SM-04 tactical model |  06.3 | Planned                                 |
-| SM-05 profiles       |  06.4 | Planned                                 |
-| SM-06 training       |  06.5 | Planned                                 |
-| GAME                 |     6 | Complete                                |
-| DESK/DATA            |  7–10 | Pending                                 |
-| MULTI                | 11–13 | Deferred to V0.2                        |
+| Group                                   | Phase range | Status                    |
+| --------------------------------------- | ----------: | ------------------------- |
+| Foundation / first playable             |         1–6 | Complete                  |
+| Durable table views                     |        06.1 | Complete                  |
+| Sports-management and career foundation |   06.2–06.8 | Planned; 06.2 not started |
+| Match Day                               |   07.1–07.5 | Planned                   |
+| MVP1 Operations                         |   08.1–08.6 | Planned                   |
+| MVP2 Sustainable Career                 |   09.1–09.8 | Planned                   |
+
+The former SM-6 owner `06.5` is renumbered to `06.8`; the migration is recorded in `ROADMAP.md` and `STATE.md` without erasing history.
