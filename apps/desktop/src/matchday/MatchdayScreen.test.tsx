@@ -5,12 +5,21 @@ import { userEvent } from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MatchdayScreen } from './MatchdayScreen.js';
+import type {
+  ImportLegacyTablePreferencesRequest,
+  SaveTableViewsRequest,
+  TableViewRepositoryState,
+} from './client.js';
+import { createSquadDurableFilter, SQUAD_SYSTEM_VIEW } from './squad-table-schema.js';
 import type { MatchdayState, Player } from './types.js';
 
 const clientMock = vi.hoisted(() => ({
   loadMatchday: vi.fn(),
   saveMatchdayLineup: vi.fn(),
   playNextMatch: vi.fn(),
+  loadTableViews: vi.fn(),
+  saveTableViews: vi.fn(),
+  importLegacyTablePreferences: vi.fn(),
 }));
 
 vi.mock('./client.js', () => clientMock);
@@ -102,6 +111,24 @@ const playedState: MatchdayState = {
   },
 };
 
+const tableRepositoryState = (
+  activeState = structuredClone(SQUAD_SYSTEM_VIEW),
+): TableViewRepositoryState => ({
+  metadata: { envelopeVersion: 1, revision: 0 },
+  tableId: 'squad.primary',
+  schemaVersion: 1,
+  ownerScope: 'local-fixed',
+  activeViewId: activeState.viewId,
+  defaultViewId: SQUAD_SYSTEM_VIEW.viewId,
+  views: [
+    {
+      mutability: activeState.provenance === 'user-owned' ? 'mutable' : 'immutable',
+      state: activeState,
+    },
+  ],
+  legacyImportReceipts: [],
+});
+
 describe('MatchdayScreen', () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -109,6 +136,59 @@ describe('MatchdayScreen', () => {
     clientMock.loadMatchday.mockReset().mockResolvedValue(state);
     clientMock.saveMatchdayLineup.mockReset().mockResolvedValue(state);
     clientMock.playNextMatch.mockReset().mockResolvedValue(playedState);
+    clientMock.loadTableViews.mockReset().mockResolvedValue({
+      status: 'loaded',
+      state: tableRepositoryState(),
+    });
+    clientMock.saveTableViews
+      .mockReset()
+      .mockImplementation(async ({ state: candidate }: SaveTableViewsRequest) => {
+        const confirmedState = {
+          ...candidate,
+          metadata: {
+            ...candidate.metadata,
+            revision: candidate.metadata.revision + 1,
+          },
+        };
+        return {
+          status: 'confirmed',
+          state: confirmedState,
+          receipt: {
+            tableId: 'squad.primary',
+            schemaVersion: 1,
+            ownerScope: 'local-fixed',
+            acceptedRevision: confirmedState.metadata.revision,
+          },
+        };
+      });
+    clientMock.importLegacyTablePreferences
+      .mockReset()
+      .mockImplementation(async (request: ImportLegacyTablePreferencesRequest) => {
+        const receipt = {
+          sourceVersion: request.sourceVersion,
+          sourceFingerprint: request.sourceFingerprint,
+          tableId: 'squad.primary' as const,
+          schemaVersion: 1 as const,
+          ownerScope: 'local-fixed' as const,
+          importedViewId: request.state.viewId,
+          acceptedRevision: 1,
+        };
+        return {
+          status: 'confirmed',
+          state: {
+            ...tableRepositoryState(),
+            metadata: { envelopeVersion: 1, revision: 1 },
+            activeViewId: request.state.viewId,
+            views: [
+              ...tableRepositoryState().views,
+              { mutability: 'mutable', state: request.state },
+            ],
+            legacyImportReceipts: [receipt],
+          },
+          receipt,
+          imported: true,
+        };
+      });
   });
 
   it('loads the real squad workspace and exposes eleven selected players', async () => {
@@ -132,6 +212,54 @@ describe('MatchdayScreen', () => {
     expect(
       within(screen.getByLabelText('Resumo de Caio Brandão')).getByLabelText('Brasil, código BRA'),
     ).toBeInstanceOf(HTMLElement);
+  });
+
+  it('renders durable table descriptors while keeping the player-name query transient', async () => {
+    const durableView = {
+      ...structuredClone(SQUAD_SYSTEM_VIEW),
+      density: 'standard',
+      columns: SQUAD_SYSTEM_VIEW.columns.map((column) =>
+        column.columnId === 'age' ? { ...column, visible: false } : { ...column },
+      ),
+      sort: [{ columnId: 'age', direction: 'asc', nulls: 'last' }] as const,
+      filter: createSquadDurableFilter({
+        lineup: 'selected',
+        sector: 'midfielders',
+        status: 'ready',
+        positions: ['CM'],
+      }),
+    };
+    clientMock.loadTableViews.mockResolvedValue({
+      status: 'loaded',
+      state: tableRepositoryState(durableView),
+    });
+
+    render(<MatchdayScreen serviceOwnership="owned" />);
+
+    expect(await screen.findByRole('heading', { name: '2 jogadores' })).toBeInstanceOf(
+      HTMLHeadingElement,
+    );
+    expect(clientMock.loadTableViews).toHaveBeenCalledOnce();
+    expect((screen.getByLabelText('Filtro rápido') as HTMLSelectElement).value).toBe('selected');
+    expect((screen.getByLabelText('Filtrar por setor') as HTMLSelectElement).value).toBe(
+      'midfielders',
+    );
+    expect((screen.getByLabelText('Filtrar por status') as HTMLSelectElement).value).toBe('ready');
+    expect((screen.getByLabelText('Filtrar por posição') as HTMLSelectElement).value).toBe('CM');
+    expect((screen.getByLabelText('Ordenar elenco') as HTMLSelectElement).value).toBe('age');
+    expect(
+      screen.getByRole('button', { name: /Alterar densidade da tabela: Padrão/u }),
+    ).toBeInstanceOf(HTMLButtonElement);
+    expect(screen.queryByRole('button', { name: /Ordenar por idade/u })).toBeNull();
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Buscar jogador no elenco' }), {
+      target: { value: 'Luan' },
+    });
+
+    expect(await screen.findByRole('heading', { name: '1 jogadores' })).toBeInstanceOf(
+      HTMLHeadingElement,
+    );
+    expect(clientMock.saveTableViews).not.toHaveBeenCalled();
   });
 
   it('keeps an unknown nationality readable in the real table and dossier', async () => {
@@ -194,7 +322,8 @@ describe('MatchdayScreen', () => {
     await waitFor(() => {
       const stored = window.localStorage.getItem('rivallo.squad-ui.v4');
       expect(stored).toContain('"sidebarCollapsed":true');
-      expect(stored).toContain('"density":"comfortable"');
+      expect(stored).not.toContain('"density"');
+      expect(stored).not.toContain('"visibleColumns"');
     });
   });
 
@@ -216,6 +345,8 @@ describe('MatchdayScreen', () => {
     expect(screen.getByRole('button', { name: /Idade.*Oculta/u })).toBeInstanceOf(
       HTMLButtonElement,
     );
+    await waitFor(() => expect(clientMock.importLegacyTablePreferences).toHaveBeenCalledOnce());
+    expect(window.localStorage.getItem('rivallo.squad-ui.v4')).toBeNull();
   });
 
   it('migrates valid legacy column identifiers without restoring unknown columns', async () => {
@@ -231,11 +362,9 @@ describe('MatchdayScreen', () => {
       HTMLButtonElement,
     );
     expect(screen.queryByRole('button', { name: /Ordenar por potencial/u })).toBeNull();
-    await waitFor(() =>
-      expect(window.localStorage.getItem('rivallo.squad-ui.v4')).toContain(
-        '"visibleColumns":["age"]',
-      ),
-    );
+    await waitFor(() => expect(clientMock.importLegacyTablePreferences).toHaveBeenCalledOnce());
+    expect(window.localStorage.getItem('rivallo.squad-ui.v3')).toBeNull();
+    expect(window.localStorage.getItem('rivallo.squad-ui.v4')).toBeNull();
   });
 
   it('restores default columns when a legacy view contains only unknown identifiers', async () => {
@@ -253,12 +382,10 @@ describe('MatchdayScreen', () => {
     expect(screen.getByRole('button', { name: /Ordenar por potencial/u })).toBeInstanceOf(
       HTMLButtonElement,
     );
-    await waitFor(() => {
-      const stored = JSON.parse(window.localStorage.getItem('rivallo.squad-ui.v4') ?? '{}') as {
-        visibleColumns?: unknown[];
-      };
-      expect(stored.visibleColumns?.length).toBeGreaterThan(0);
-    });
+    await waitFor(() => expect(clientMock.loadTableViews).toHaveBeenCalledOnce());
+    expect(clientMock.importLegacyTablePreferences).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem('rivallo.squad-ui.v3')).toContain('"removedColumn"');
+    expect(window.localStorage.getItem('rivallo.squad-ui.v4')).toBeNull();
   });
 
   it('closes table view popovers without stale layers and restores focus across repeated use', async () => {
