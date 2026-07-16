@@ -925,7 +925,10 @@ fn validate_data_window(data_window: TableDataWindow) -> Result<(), TableViewVal
 
 #[cfg(test)]
 mod tests {
-    use std::cell::RefCell;
+    use std::{
+        cell::{Cell, RefCell},
+        rc::Rc,
+    };
 
     use super::*;
 
@@ -1222,5 +1225,490 @@ mod tests {
         );
         repository.save_atomic(&state).expect("atomic save intent");
         assert_eq!(repository.saves.into_inner(), vec![state]);
+    }
+
+    struct MemoryRepository {
+        load_result: RefCell<Result<TableViewRepositoryLoad, TableViewRepositoryError>>,
+        saves: RefCell<Vec<TableViewRepositoryState>>,
+        save_attempts: Cell<usize>,
+        fail_next_save: Cell<bool>,
+    }
+
+    impl MemoryRepository {
+        fn new(load: TableViewRepositoryLoad) -> Rc<Self> {
+            Rc::new(Self {
+                load_result: RefCell::new(Ok(load)),
+                saves: RefCell::new(Vec::new()),
+                save_attempts: Cell::new(0),
+                fail_next_save: Cell::new(false),
+            })
+        }
+
+        fn unavailable() -> Rc<Self> {
+            Rc::new(Self {
+                load_result: RefCell::new(Err(TableViewRepositoryError::Unavailable)),
+                saves: RefCell::new(Vec::new()),
+                save_attempts: Cell::new(0),
+                fail_next_save: Cell::new(false),
+            })
+        }
+
+        fn persisted_state(&self) -> Option<TableViewRepositoryState> {
+            match self.load_result.borrow().as_ref() {
+                Ok(TableViewRepositoryLoad::Loaded(state)) => Some(state.clone()),
+                _ => None,
+            }
+        }
+    }
+
+    impl TableViewRepository for Rc<MemoryRepository> {
+        fn load(
+            &self,
+        ) -> Result<TableViewRepositoryLoad, TableViewRepositoryError> {
+            self.load_result.borrow().clone()
+        }
+
+        fn save_atomic(
+            &self,
+            state: &TableViewRepositoryState,
+        ) -> Result<(), TableViewRepositoryError> {
+            self.save_attempts.set(self.save_attempts.get() + 1);
+            if self.fail_next_save.replace(false) {
+                return Err(TableViewRepositoryError::SaveFailed);
+            }
+
+            self.saves.borrow_mut().push(state.clone());
+            self.load_result
+                .replace(Ok(TableViewRepositoryLoad::Loaded(state.clone())));
+            Ok(())
+        }
+    }
+
+    fn user_view(view_id: &str, label: &str) -> SavedTableView {
+        let mut view = system_view();
+        view.label = label.to_owned();
+        view.provenance = ViewProvenance::UserOwned;
+        view.mutability = ViewMutability::Mutable;
+        view.state.view_id = ViewId::from(view_id);
+        view.state.baseline_view_id = ViewId::from("squad.system.default");
+        view
+    }
+
+    fn shared_view() -> SavedTableView {
+        let mut view = system_view();
+        view.label = "Compartilhada".to_owned();
+        view.provenance = ViewProvenance::SharedReadOnly;
+        view.mutability = ViewMutability::ReadOnly;
+        view.state.view_id = ViewId::from("squad.shared.read-only");
+        view.state.baseline_view_id = ViewId::from("squad.system.default");
+        view
+    }
+
+    fn state_with_all_provenances() -> TableViewRepositoryState {
+        let mut state = valid_repository_state();
+        state.views.push(user_view("squad.user.mine", "Minha visão"));
+        state.views.push(shared_view());
+        state.validate().expect("all provenance fixture");
+        state
+    }
+
+    fn service_for(
+        state: TableViewRepositoryState,
+    ) -> (
+        TableViewService<Rc<MemoryRepository>>,
+        Rc<MemoryRepository>,
+    ) {
+        let baseline = valid_repository_state();
+        let repository = MemoryRepository::new(TableViewRepositoryLoad::Loaded(state));
+        let service = TableViewService::new(Rc::clone(&repository), baseline)
+            .expect("valid system baseline");
+        (service, repository)
+    }
+
+    fn policy_code(error: TableViewServiceError) -> Option<TableViewPolicyCode> {
+        match error {
+            TableViewServiceError::Policy(error) => Some(error.code),
+            _ => None,
+        }
+    }
+
+    fn assert_fixed_owner(state: &TableViewRepositoryState) {
+        assert_eq!(state.table_id.as_str(), SQUAD_PRIMARY_TABLE_ID);
+        assert_eq!(state.schema_version, SQUAD_PRIMARY_SCHEMA_VERSION);
+        assert_eq!(state.owner_scope, OwnerScope::LocalFixed);
+        assert!(state
+            .legacy_import_receipts
+            .iter()
+            .all(|receipt| receipt.table_id.as_str() == SQUAD_PRIMARY_TABLE_ID
+                && receipt.schema_version == SQUAD_PRIMARY_SCHEMA_VERSION
+                && receipt.owner_scope == OwnerScope::LocalFixed));
+    }
+
+    #[test]
+    fn load_or_seed_preserves_typed_loaded_migrated_recovered_invalid_and_unavailable_states() {
+        let baseline = valid_repository_state();
+        let missing_repository = MemoryRepository::new(TableViewRepositoryLoad::Missing);
+        let missing_service =
+            TableViewService::new(Rc::clone(&missing_repository), baseline.clone())
+                .expect("service");
+        assert!(matches!(
+            missing_service.load_or_seed().expect("seed"),
+            TableViewLoadOutcome::Seeded { .. }
+        ));
+        assert_eq!(missing_repository.save_attempts.get(), 1);
+        assert!(matches!(
+            missing_service.load_or_seed().expect("subsequent load"),
+            TableViewLoadOutcome::Loaded { .. }
+        ));
+
+        let unavailable_repository = MemoryRepository::unavailable();
+        let unavailable_service =
+            TableViewService::new(Rc::clone(&unavailable_repository), baseline.clone())
+                .expect("service");
+        let unavailable = unavailable_service.load_or_seed().expect("safe fallback");
+        assert!(matches!(
+            unavailable,
+            TableViewLoadOutcome::Unavailable { .. }
+        ));
+        assert_fixed_owner(unavailable.state());
+
+        let migrated_repository =
+            MemoryRepository::new(TableViewRepositoryLoad::Migrated {
+                state: baseline.clone(),
+                from_envelope_version: 0,
+                to_envelope_version: CURRENT_ENVELOPE_VERSION,
+            });
+        let migrated_service =
+            TableViewService::new(Rc::clone(&migrated_repository), baseline.clone())
+                .expect("service");
+        assert!(matches!(
+            migrated_service.load_or_seed().expect("migrated"),
+            TableViewLoadOutcome::Migrated {
+                from_envelope_version: 0,
+                to_envelope_version: CURRENT_ENVELOPE_VERSION,
+                ..
+            }
+        ));
+
+        let recovered_repository =
+            MemoryRepository::new(TableViewRepositoryLoad::Recovered {
+                state: None,
+                reason: TableViewRecoveryReason::CorruptPayload,
+            });
+        let recovered_service =
+            TableViewService::new(Rc::clone(&recovered_repository), baseline.clone())
+                .expect("service");
+        assert!(matches!(
+            recovered_service.load_or_seed().expect("recovered"),
+            TableViewLoadOutcome::Recovered {
+                reason: TableViewRecoveryReason::CorruptPayload,
+                ..
+            }
+        ));
+
+        let mut invalid_state = baseline.clone();
+        invalid_state.table_id = TableId::from("invalid.table");
+        let invalid_repository =
+            MemoryRepository::new(TableViewRepositoryLoad::Loaded(invalid_state));
+        let invalid_service =
+            TableViewService::new(Rc::clone(&invalid_repository), baseline)
+                .expect("service");
+        assert!(matches!(
+            invalid_service.load_or_seed().expect("invalid fallback"),
+            TableViewLoadOutcome::Invalid {
+                reason: TableViewValidationError {
+                    code: TableViewValidationCode::WrongTableId
+                },
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn provenance_matrix_allows_activation_duplication_and_only_supported_default_targets() {
+        for view_id in [
+            "squad.system.default",
+            "squad.user.mine",
+            "squad.shared.read-only",
+        ] {
+            let (service, _) = service_for(state_with_all_provenances());
+            let state = service
+                .activate(&ViewId::from(view_id))
+                .expect("all provenances activate");
+            assert_eq!(state.active_view_id.as_str(), view_id);
+        }
+
+        for (index, source_id) in [
+            "squad.system.default",
+            "squad.user.mine",
+            "squad.shared.read-only",
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let (service, _) = service_for(state_with_all_provenances());
+            let new_id = format!("squad.user.copy.{index}");
+            let state = service
+                .duplicate(DuplicateTableViewRequest {
+                    source_view_id: ViewId::from(source_id),
+                    new_view_id: ViewId::from(new_id.clone()),
+                    label: format!("Cópia {index}"),
+                })
+                .expect("all provenances duplicate");
+            let duplicate = state
+                .views
+                .iter()
+                .find(|view| view.state.view_id.as_str() == new_id)
+                .expect("duplicate view");
+            assert_eq!(duplicate.provenance, ViewProvenance::UserOwned);
+            assert_eq!(duplicate.mutability, ViewMutability::Mutable);
+        }
+
+        for view_id in ["squad.system.default", "squad.user.mine"] {
+            let (service, _) = service_for(state_with_all_provenances());
+            let state = service
+                .set_default(&ViewId::from(view_id))
+                .expect("supported default target");
+            assert_eq!(state.default_view_id.as_str(), view_id);
+        }
+
+        let (service, _) = service_for(state_with_all_provenances());
+        assert_eq!(
+            service
+                .set_default(&ViewId::from("squad.shared.read-only"))
+                .map_err(policy_code),
+            Err(Some(TableViewPolicyCode::LifecycleOperationForbidden))
+        );
+    }
+
+    #[test]
+    fn only_user_owned_views_support_create_rename_save_reset_and_delete() {
+        let (service, _) = service_for(state_with_all_provenances());
+        let created = service
+            .create(CreateTableViewRequest {
+                view_id: ViewId::from("squad.user.created"),
+                label: "Criada".to_owned(),
+            })
+            .expect("create user view");
+        assert_eq!(created.active_view_id.as_str(), "squad.user.created");
+
+        let renamed = service
+            .rename(RenameTableViewRequest {
+                view_id: ViewId::from("squad.user.created"),
+                label: "Renomeada".to_owned(),
+            })
+            .expect("rename user view");
+        let mut editable = renamed
+            .views
+            .iter()
+            .find(|view| view.state.view_id.as_str() == "squad.user.created")
+            .expect("created view")
+            .clone();
+        editable.state.density = TableDensity::Comfortable;
+        let saved = service.save_view(editable).expect("save user view");
+        assert_eq!(
+            saved
+                .views
+                .iter()
+                .find(|view| view.state.view_id.as_str() == "squad.user.created")
+                .expect("saved view")
+                .state
+                .density,
+            TableDensity::Comfortable
+        );
+
+        let reset = service
+            .reset(&ViewId::from("squad.user.created"))
+            .expect("reset user view");
+        let reset_view = reset
+            .views
+            .iter()
+            .find(|view| view.state.view_id.as_str() == "squad.user.created")
+            .expect("reset view");
+        assert_eq!(reset_view.state.density, TableDensity::Compact);
+        assert_eq!(reset_view.label, "Renomeada");
+
+        for immutable_id in ["squad.system.default", "squad.shared.read-only"] {
+            let (service, _) = service_for(state_with_all_provenances());
+            assert_eq!(
+                service
+                    .rename(RenameTableViewRequest {
+                        view_id: ViewId::from(immutable_id),
+                        label: "Bloqueada".to_owned(),
+                    })
+                    .map_err(policy_code),
+                Err(Some(TableViewPolicyCode::LifecycleOperationForbidden))
+            );
+            assert_eq!(
+                service
+                    .delete(&ViewId::from(immutable_id))
+                    .map_err(policy_code),
+                Err(Some(TableViewPolicyCode::LifecycleOperationForbidden))
+            );
+            assert_eq!(
+                service
+                    .reset(&ViewId::from(immutable_id))
+                    .map_err(policy_code),
+                Err(Some(TableViewPolicyCode::LifecycleOperationForbidden))
+            );
+
+            let mut immutable = state_with_all_provenances()
+                .views
+                .into_iter()
+                .find(|view| view.state.view_id.as_str() == immutable_id)
+                .expect("immutable fixture");
+            immutable.state.density = TableDensity::Comfortable;
+            assert_eq!(
+                service.save_view(immutable).map_err(policy_code),
+                Err(Some(TableViewPolicyCode::LifecycleOperationForbidden))
+            );
+        }
+
+        let deleted = service
+            .delete(&ViewId::from("squad.user.created"))
+            .expect("delete user view");
+        assert!(deleted
+            .views
+            .iter()
+            .all(|view| view.state.view_id.as_str() != "squad.user.created"));
+    }
+
+    #[test]
+    fn deleting_active_or_default_user_view_persists_safe_fallback_and_rebases_dependents() {
+        let mut state = state_with_all_provenances();
+        state.active_view_id = ViewId::from("squad.user.mine");
+        state.default_view_id = ViewId::from("squad.user.mine");
+        let mut dependent = user_view("squad.user.dependent", "Dependente");
+        dependent.state.baseline_view_id = ViewId::from("squad.user.mine");
+        state.views.push(dependent);
+        state.validate().expect("delete fixture");
+
+        let (service, repository) = service_for(state);
+        let deleted = service
+            .delete(&ViewId::from("squad.user.mine"))
+            .expect("delete with fallback");
+
+        assert_eq!(repository.save_attempts.get(), 1);
+        assert_eq!(deleted.active_view_id.as_str(), "squad.system.default");
+        assert_eq!(deleted.default_view_id.as_str(), "squad.system.default");
+        assert_eq!(
+            deleted
+                .views
+                .iter()
+                .find(|view| view.state.view_id.as_str() == "squad.user.dependent")
+                .expect("dependent view")
+                .state
+                .baseline_view_id
+                .as_str(),
+            "squad.system.default"
+        );
+        assert!(matches!(
+            service.load_or_seed().expect("reload fallback"),
+            TableViewLoadOutcome::Loaded { state } if state == deleted
+        ));
+    }
+
+    #[test]
+    fn persistence_failure_keeps_prior_baseline_and_dirty_proposal_retryable() {
+        let initial = state_with_all_provenances();
+        let (service, repository) = service_for(initial.clone());
+        repository.fail_next_save.set(true);
+
+        let error = service
+            .rename(RenameTableViewRequest {
+                view_id: ViewId::from("squad.user.mine"),
+                label: "Pendente".to_owned(),
+            })
+            .expect_err("save failure");
+        let proposal = match error {
+            TableViewServiceError::PersistenceFailed {
+                cause: TableViewRepositoryError::SaveFailed,
+                previous,
+                proposal,
+            } => {
+                assert_eq!(*previous, initial);
+                *proposal
+            }
+            other => panic!("unexpected error: {other:?}"),
+        };
+
+        assert_eq!(repository.persisted_state(), Some(initial));
+        assert_eq!(
+            proposal
+                .views
+                .iter()
+                .find(|view| view.state.view_id.as_str() == "squad.user.mine")
+                .expect("dirty proposal")
+                .label,
+            "Pendente"
+        );
+
+        let retried = service
+            .validate_and_save(proposal)
+            .expect("retry dirty proposal");
+        assert_eq!(repository.persisted_state(), Some(retried));
+    }
+
+    fn legacy_import() -> LegacyTableViewImport {
+        let mut state = system_view().state;
+        state.view_id = ViewId::from("squad.user.legacy-v4");
+        state.baseline_view_id = ViewId::from("squad.system.default");
+        state.density = TableDensity::Standard;
+
+        LegacyTableViewImport {
+            source_version: 4,
+            source_fingerprint: "sha256:legacy-v4".to_owned(),
+            label: "Preferências antigas".to_owned(),
+            state,
+        }
+    }
+
+    #[test]
+    fn legacy_import_receipt_is_atomic_durable_and_idempotent() {
+        let baseline = valid_repository_state();
+        let repository =
+            MemoryRepository::new(TableViewRepositoryLoad::Loaded(baseline.clone()));
+        let service = TableViewService::new(Rc::clone(&repository), baseline)
+            .expect("service");
+
+        let first = service
+            .import_legacy(legacy_import())
+            .expect("first import");
+        assert!(first.imported);
+        assert_eq!(repository.save_attempts.get(), 1);
+        assert_eq!(first.state.legacy_import_receipts, vec![first.receipt.clone()]);
+        assert_fixed_owner(&first.state);
+
+        let replay = service
+            .import_legacy(legacy_import())
+            .expect("strict mode replay");
+        assert!(!replay.imported);
+        assert_eq!(replay.receipt, first.receipt);
+        assert_eq!(repository.save_attempts.get(), 1);
+        assert_eq!(replay.state.views.len(), first.state.views.len());
+    }
+
+    #[test]
+    fn failed_legacy_import_save_confirms_no_receipt() {
+        let baseline = valid_repository_state();
+        let repository =
+            MemoryRepository::new(TableViewRepositoryLoad::Loaded(baseline.clone()));
+        let service = TableViewService::new(Rc::clone(&repository), baseline.clone())
+            .expect("service");
+        repository.fail_next_save.set(true);
+
+        assert!(matches!(
+            service.import_legacy(legacy_import()),
+            Err(TableViewServiceError::PersistenceFailed {
+                cause: TableViewRepositoryError::SaveFailed,
+                ..
+            })
+        ));
+        assert_eq!(repository.persisted_state(), Some(baseline));
+        assert!(repository
+            .persisted_state()
+            .expect("persisted baseline")
+            .legacy_import_receipts
+            .is_empty());
     }
 }
