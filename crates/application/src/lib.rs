@@ -11,14 +11,17 @@ pub use rivallo_domain::{
     PreferredFoot, SeasonRecord, SquadRole, TacticalApproach,
 };
 pub use table_view::{
-    CURRENT_ENVELOPE_VERSION, ColumnId, ColumnPinning, ColumnPinningSide, FilterGroupId,
-    FilterGroupLogic, FilterId, FilterOperator, FilterValue, LegacyImportReceipt, NullOrder,
-    OwnerScope, SQUAD_PRIMARY_SCHEMA_VERSION, SQUAD_PRIMARY_TABLE_ID, SavedTableView,
-    SortDirection, TableColumnState, TableDataWindow, TableDensity, TableFilterClause,
-    TableFilterGroup, TableFilterNode, TableId, TableSort, TableViewEnvelopeMetadata,
+    CURRENT_ENVELOPE_VERSION, ColumnId, ColumnPinning, ColumnPinningSide, CreateTableViewRequest,
+    DuplicateTableViewRequest, FilterGroupId, FilterGroupLogic, FilterId, FilterOperator,
+    FilterValue, LegacyImportOutcome, LegacyImportReceipt, LegacyTableViewImport, NullOrder,
+    OwnerScope, RenameTableViewRequest, SQUAD_PRIMARY_SCHEMA_VERSION, SQUAD_PRIMARY_TABLE_ID,
+    SavedTableView, SortDirection, TableColumnState, TableDataWindow, TableDensity,
+    TableFilterClause, TableFilterGroup, TableFilterNode, TableId, TableSort,
+    TableViewEnvelopeMetadata, TableViewLoadOutcome, TableViewPolicyCode, TableViewPolicyError,
     TableViewRecoveryReason, TableViewRepository, TableViewRepositoryError,
-    TableViewRepositoryLoad, TableViewRepositoryState, TableViewState, TableViewValidationCode,
-    TableViewValidationError, ViewId, ViewMutability, ViewProvenance,
+    TableViewRepositoryLoad, TableViewRepositoryState, TableViewService, TableViewServiceError,
+    TableViewState, TableViewValidationCode, TableViewValidationError, ViewId, ViewMutability,
+    ViewProvenance, WindowId, squad_system_default_repository_state,
 };
 
 use rivallo_domain::{ModuleId, PreparedContractInput};

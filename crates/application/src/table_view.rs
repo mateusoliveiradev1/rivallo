@@ -8,21 +8,22 @@ pub const SQUAD_PRIMARY_SCHEMA_VERSION: u32 = 1;
 pub const MAX_STABLE_ID_BYTES: usize = 64;
 pub const MAX_VIEW_LABEL_BYTES: usize = 96;
 pub const MAX_SAVED_VIEWS: usize = 32;
-pub const MAX_COLUMNS: usize = 64;
-pub const MAX_SORT_CLAUSES: usize = 8;
-pub const MAX_FILTER_DEPTH: usize = 4;
+pub const MAX_COLUMNS: usize = 18;
+pub const MAX_SORT_CLAUSES: usize = 3;
+pub const MAX_FILTER_DEPTH: usize = 2;
 pub const MAX_FILTER_GROUPS: usize = 16;
-pub const MAX_FILTER_CLAUSES: usize = 32;
+pub const MAX_FILTER_CLAUSES: usize = 12;
 pub const MAX_FILTER_TEXT_BYTES: usize = 128;
 pub const MAX_FILTER_LIST_VALUES: usize = 32;
 pub const MAX_LEGACY_IMPORT_RECEIPTS: usize = 16;
 pub const MAX_LEGACY_FINGERPRINT_BYTES: usize = 128;
-pub const MIN_COLUMN_WIDTH: f64 = 40.0;
-pub const MAX_COLUMN_WIDTH: f64 = 640.0;
+pub const MIN_COLUMN_WIDTH: f64 = 48.0;
+pub const MAX_COLUMN_WIDTH: f64 = 360.0;
 pub const MAX_PINNED_COLUMNS: usize = 4;
+pub const MAX_PINNED_WIDTH_RATIO: f64 = 0.5;
 pub const MAX_FILTER_NUMBER: f64 = 1_000_000_000.0;
-pub const MAX_CLIENT_PAGE: u32 = 1_000_000;
-pub const MAX_CLIENT_PAGE_SIZE: u16 = 100;
+pub const MAX_CLIENT_PAGE: u32 = 1;
+pub const MAX_CLIENT_PAGE_SIZE: u16 = 25;
 
 const SUPPORTED_COLUMN_IDS: [&str; 18] = [
     "shirtNumber",
@@ -84,6 +85,7 @@ stable_id!(ViewId);
 stable_id!(ColumnId);
 stable_id!(FilterId);
 stable_id!(FilterGroupId);
+stable_id!(WindowId);
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -191,7 +193,9 @@ pub enum FilterOperator {
     Equals,
     Contains,
     GreaterThan,
+    GreaterThanOrEqual,
     LessThan,
+    LessThanOrEqual,
     OneOf,
     #[serde(other)]
     Unsupported,
@@ -203,6 +207,9 @@ pub enum FilterValue {
     Text(String),
     Number(f64),
     Boolean(bool),
+    Enum(String),
+    EnumSet(Vec<String>),
+    NumberRange { min: f64, max: f64 },
     TextList(Vec<String>),
     NumberList(Vec<f64>),
 }
@@ -241,10 +248,11 @@ pub struct TableFilterGroup {
     pub children: Vec<TableFilterNode>,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "mode", rename_all = "camelCase")]
 pub enum TableDataWindow {
     ClientPagination {
+        window_id: WindowId,
         page: u32,
         page_size: u16,
     },
@@ -305,6 +313,85 @@ pub struct TableViewRepositoryState {
     pub legacy_import_receipts: Vec<LegacyImportReceipt>,
 }
 
+pub fn squad_system_default_repository_state() -> TableViewRepositoryState {
+    let view_id = ViewId::from("squad.view.system-default");
+    let columns = SUPPORTED_COLUMN_IDS
+        .iter()
+        .map(|column_id| {
+            let (width, pinning) = match *column_id {
+                "shirtNumber" => (
+                    56.0,
+                    ColumnPinning {
+                        side: ColumnPinningSide::Start,
+                        order: 0,
+                    },
+                ),
+                "info" => (
+                    56.0,
+                    ColumnPinning {
+                        side: ColumnPinningSide::Start,
+                        order: 1,
+                    },
+                ),
+                "name" => (
+                    240.0,
+                    ColumnPinning {
+                        side: ColumnPinningSide::Start,
+                        order: 2,
+                    },
+                ),
+                other => (column_width_policy(other).2, ColumnPinning::none()),
+            };
+            TableColumnState {
+                column_id: ColumnId::from(*column_id),
+                visible: true,
+                width,
+                pinning,
+            }
+        })
+        .collect();
+    let system_view = SavedTableView {
+        label: "Padrão".to_owned(),
+        provenance: ViewProvenance::SystemDefault,
+        mutability: ViewMutability::Immutable,
+        state: TableViewState {
+            view_id: view_id.clone(),
+            baseline_view_id: view_id.clone(),
+            density: TableDensity::Compact,
+            columns,
+            sort: vec![TableSort {
+                column_id: ColumnId::from("position"),
+                direction: SortDirection::Ascending,
+                null_order: NullOrder::Last,
+            }],
+            filter: Some(TableFilterGroup {
+                group_id: FilterGroupId::from("filters.root"),
+                logic: FilterGroupLogic::And,
+                children: Vec::new(),
+            }),
+            data_window: TableDataWindow::ClientPagination {
+                window_id: WindowId::from("squad.window.page-1"),
+                page: 1,
+                page_size: 25,
+            },
+        },
+    };
+
+    TableViewRepositoryState {
+        metadata: TableViewEnvelopeMetadata {
+            envelope_version: CURRENT_ENVELOPE_VERSION,
+            revision: 0,
+        },
+        table_id: TableId::from(SQUAD_PRIMARY_TABLE_ID),
+        schema_version: SQUAD_PRIMARY_SCHEMA_VERSION,
+        owner_scope: OwnerScope::LocalFixed,
+        active_view_id: view_id.clone(),
+        default_view_id: view_id,
+        views: vec![system_view],
+        legacy_import_receipts: Vec::new(),
+    }
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TableViewValidationCode {
@@ -312,6 +399,7 @@ pub enum TableViewValidationCode {
     WrongTableId,
     WrongSchemaVersion,
     WrongOwnerScope,
+    SystemViewMismatch,
     TooManyViews,
     MissingSystemDefault,
     UnsupportedProvenance,
@@ -365,6 +453,7 @@ impl TableViewValidationCode {
             Self::WrongTableId => "table_view.wrong_table_id",
             Self::WrongSchemaVersion => "table_view.wrong_schema_version",
             Self::WrongOwnerScope => "table_view.wrong_owner_scope",
+            Self::SystemViewMismatch => "table_view.system_view_mismatch",
             Self::TooManyViews => "table_view.too_many_views",
             Self::MissingSystemDefault => "table_view.missing_system_default",
             Self::UnsupportedProvenance => "table_view.unsupported_provenance",
@@ -438,6 +527,7 @@ impl std::error::Error for TableViewValidationError {}
 pub enum TableViewRecoveryReason {
     CorruptPayload,
     FutureEnvelopeVersion,
+    FutureSchemaVersion,
     MissingMigrationStep,
     InterruptedWrite,
     InvalidPayload,
@@ -472,6 +562,732 @@ pub trait TableViewRepository {
 
     fn save_atomic(&self, state: &TableViewRepositoryState)
     -> Result<(), TableViewRepositoryError>;
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateTableViewRequest {
+    pub view_id: ViewId,
+    pub label: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DuplicateTableViewRequest {
+    pub source_view_id: ViewId,
+    pub new_view_id: ViewId,
+    pub label: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RenameTableViewRequest {
+    pub view_id: ViewId,
+    pub label: String,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LegacyTableViewImport {
+    pub source_version: u16,
+    pub source_fingerprint: String,
+    pub label: String,
+    pub state: TableViewState,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LegacyImportOutcome {
+    pub state: TableViewRepositoryState,
+    pub receipt: LegacyImportReceipt,
+    pub imported: bool,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TableViewPolicyCode {
+    InvalidSystemBaseline,
+    ViewNotFound,
+    DuplicateViewId,
+    LifecycleOperationForbidden,
+    InvalidTransition,
+}
+
+impl TableViewPolicyCode {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::InvalidSystemBaseline => "table_view.invalid_system_baseline",
+            Self::ViewNotFound => "table_view.view_not_found",
+            Self::DuplicateViewId => "table_view.duplicate_view_id",
+            Self::LifecycleOperationForbidden => "table_view.lifecycle_operation_forbidden",
+            Self::InvalidTransition => "table_view.invalid_transition",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TableViewPolicyError {
+    pub code: TableViewPolicyCode,
+}
+
+impl TableViewPolicyError {
+    const fn new(code: TableViewPolicyCode) -> Self {
+        Self { code }
+    }
+}
+
+impl std::fmt::Display for TableViewPolicyError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.code.as_str())
+    }
+}
+
+impl std::error::Error for TableViewPolicyError {}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TableViewLoadOutcome {
+    Loaded {
+        state: TableViewRepositoryState,
+    },
+    Seeded {
+        state: TableViewRepositoryState,
+    },
+    Unavailable {
+        fallback: TableViewRepositoryState,
+    },
+    Invalid {
+        fallback: TableViewRepositoryState,
+        reason: TableViewValidationError,
+    },
+    InvalidRepositoryData {
+        fallback: TableViewRepositoryState,
+    },
+    Migrated {
+        state: TableViewRepositoryState,
+        from_envelope_version: u32,
+        to_envelope_version: u32,
+    },
+    Recovered {
+        state: TableViewRepositoryState,
+        reason: TableViewRecoveryReason,
+    },
+    SaveFailed {
+        fallback: TableViewRepositoryState,
+        cause: TableViewRepositoryError,
+    },
+}
+
+impl TableViewLoadOutcome {
+    pub fn state(&self) -> &TableViewRepositoryState {
+        match self {
+            Self::Loaded { state }
+            | Self::Seeded { state }
+            | Self::Migrated { state, .. }
+            | Self::Recovered { state, .. } => state,
+            Self::Unavailable { fallback }
+            | Self::Invalid { fallback, .. }
+            | Self::InvalidRepositoryData { fallback }
+            | Self::SaveFailed { fallback, .. } => fallback,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TableViewServiceError {
+    Validation(TableViewValidationError),
+    Policy(TableViewPolicyError),
+    RepositoryUnavailable,
+    InvalidRepositoryData,
+    PersistenceFailed {
+        cause: TableViewRepositoryError,
+        previous: Box<TableViewRepositoryState>,
+        proposal: Box<TableViewRepositoryState>,
+    },
+}
+
+impl std::fmt::Display for TableViewServiceError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Validation(error) => error.fmt(formatter),
+            Self::Policy(error) => error.fmt(formatter),
+            Self::RepositoryUnavailable => formatter.write_str("table_view.repository_unavailable"),
+            Self::InvalidRepositoryData => {
+                formatter.write_str("table_view.invalid_repository_data")
+            }
+            Self::PersistenceFailed { .. } => formatter.write_str("table_view.persistence_failed"),
+        }
+    }
+}
+
+impl std::error::Error for TableViewServiceError {}
+
+impl From<TableViewValidationError> for TableViewServiceError {
+    fn from(error: TableViewValidationError) -> Self {
+        Self::Validation(error)
+    }
+}
+
+pub struct TableViewService<R> {
+    repository: R,
+    system_default: TableViewRepositoryState,
+}
+
+impl<R: TableViewRepository> TableViewService<R> {
+    pub fn new(
+        repository: R,
+        system_default: TableViewRepositoryState,
+    ) -> Result<Self, TableViewServiceError> {
+        system_default.validate()?;
+        if system_default != squad_system_default_repository_state() {
+            return policy_error(TableViewPolicyCode::InvalidSystemBaseline);
+        }
+
+        Ok(Self {
+            repository,
+            system_default,
+        })
+    }
+
+    pub fn load_or_seed(&self) -> Result<TableViewLoadOutcome, TableViewServiceError> {
+        match self.repository.load() {
+            Err(TableViewRepositoryError::Unavailable) => Ok(TableViewLoadOutcome::Unavailable {
+                fallback: self.system_default.clone(),
+            }),
+            Err(TableViewRepositoryError::InvalidData) => {
+                Ok(TableViewLoadOutcome::InvalidRepositoryData {
+                    fallback: self.system_default.clone(),
+                })
+            }
+            Err(TableViewRepositoryError::SaveFailed) => Ok(TableViewLoadOutcome::Unavailable {
+                fallback: self.system_default.clone(),
+            }),
+            Ok(TableViewRepositoryLoad::Missing) => {
+                match self.repository.save_atomic(&self.system_default) {
+                    Ok(()) => Ok(TableViewLoadOutcome::Seeded {
+                        state: self.system_default.clone(),
+                    }),
+                    Err(cause) => Ok(TableViewLoadOutcome::SaveFailed {
+                        fallback: self.system_default.clone(),
+                        cause,
+                    }),
+                }
+            }
+            Ok(TableViewRepositoryLoad::Loaded(state)) => {
+                match self.validate_authoritative_state(&state) {
+                    Ok(()) => Ok(TableViewLoadOutcome::Loaded { state }),
+                    Err(reason) => Ok(TableViewLoadOutcome::Invalid {
+                        fallback: self.system_default.clone(),
+                        reason,
+                    }),
+                }
+            }
+            Ok(TableViewRepositoryLoad::Migrated {
+                state,
+                from_envelope_version,
+                to_envelope_version,
+            }) => {
+                if to_envelope_version != CURRENT_ENVELOPE_VERSION
+                    || from_envelope_version >= to_envelope_version
+                {
+                    return Ok(TableViewLoadOutcome::Invalid {
+                        fallback: self.system_default.clone(),
+                        reason: TableViewValidationError::new(
+                            TableViewValidationCode::WrongEnvelopeVersion,
+                        ),
+                    });
+                }
+                match self.validate_authoritative_state(&state) {
+                    Ok(()) => Ok(TableViewLoadOutcome::Migrated {
+                        state,
+                        from_envelope_version,
+                        to_envelope_version,
+                    }),
+                    Err(reason) => Ok(TableViewLoadOutcome::Invalid {
+                        fallback: self.system_default.clone(),
+                        reason,
+                    }),
+                }
+            }
+            Ok(TableViewRepositoryLoad::Recovered { state, reason }) => {
+                let recovered = state
+                    .filter(|candidate| self.validate_authoritative_state(candidate).is_ok())
+                    .unwrap_or_else(|| self.system_default.clone());
+                Ok(TableViewLoadOutcome::Recovered {
+                    state: recovered,
+                    reason,
+                })
+            }
+        }
+    }
+
+    pub fn activate(
+        &self,
+        view_id: &ViewId,
+    ) -> Result<TableViewRepositoryState, TableViewServiceError> {
+        let previous = self.load_for_mutation()?;
+        require_view(&previous, view_id)?;
+        let mut proposal = previous.clone();
+        proposal.active_view_id = view_id.clone();
+        self.persist_standard(previous, proposal)
+    }
+
+    pub fn create(
+        &self,
+        request: CreateTableViewRequest,
+    ) -> Result<TableViewRepositoryState, TableViewServiceError> {
+        let previous = self.load_for_mutation()?;
+        ensure_view_id_available(&previous, &request.view_id)?;
+        let fallback_id = self.fallback_view_id().clone();
+        let baseline = require_view(&previous, &fallback_id)?;
+        let mut state = baseline.state.clone();
+        state.view_id = request.view_id.clone();
+        state.baseline_view_id = fallback_id;
+
+        let mut proposal = previous.clone();
+        proposal.views.push(SavedTableView {
+            label: request.label,
+            provenance: ViewProvenance::UserOwned,
+            mutability: ViewMutability::Mutable,
+            state,
+        });
+        proposal.active_view_id = request.view_id;
+        self.persist_standard(previous, proposal)
+    }
+
+    pub fn duplicate(
+        &self,
+        request: DuplicateTableViewRequest,
+    ) -> Result<TableViewRepositoryState, TableViewServiceError> {
+        let previous = self.load_for_mutation()?;
+        ensure_view_id_available(&previous, &request.new_view_id)?;
+        let source = require_view(&previous, &request.source_view_id)?;
+        let mut state = source.state.clone();
+        state.view_id = request.new_view_id.clone();
+        state.baseline_view_id = request.source_view_id;
+
+        let mut proposal = previous.clone();
+        proposal.views.push(SavedTableView {
+            label: request.label,
+            provenance: ViewProvenance::UserOwned,
+            mutability: ViewMutability::Mutable,
+            state,
+        });
+        proposal.active_view_id = request.new_view_id;
+        self.persist_standard(previous, proposal)
+    }
+
+    pub fn rename(
+        &self,
+        request: RenameTableViewRequest,
+    ) -> Result<TableViewRepositoryState, TableViewServiceError> {
+        let previous = self.load_for_mutation()?;
+        let index = require_mutable_view_index(&previous, &request.view_id)?;
+        let mut proposal = previous.clone();
+        proposal.views[index].label = request.label;
+        self.persist_standard(previous, proposal)
+    }
+
+    pub fn delete(
+        &self,
+        view_id: &ViewId,
+    ) -> Result<TableViewRepositoryState, TableViewServiceError> {
+        let previous = self.load_for_mutation()?;
+        require_mutable_view_index(&previous, view_id)?;
+        let fallback_id = self.fallback_view_id().clone();
+        let mut proposal = previous.clone();
+        proposal.views.retain(|view| view.state.view_id != *view_id);
+        for view in &mut proposal.views {
+            if view.state.baseline_view_id == *view_id {
+                view.state.baseline_view_id = fallback_id.clone();
+            }
+        }
+        if proposal.active_view_id == *view_id {
+            proposal.active_view_id = fallback_id.clone();
+        }
+        if proposal.default_view_id == *view_id {
+            proposal.default_view_id = fallback_id;
+        }
+        self.persist_standard(previous, proposal)
+    }
+
+    pub fn set_default(
+        &self,
+        view_id: &ViewId,
+    ) -> Result<TableViewRepositoryState, TableViewServiceError> {
+        let previous = self.load_for_mutation()?;
+        let view = require_view(&previous, view_id)?;
+        if !matches!(
+            view.provenance,
+            ViewProvenance::SystemDefault | ViewProvenance::UserOwned
+        ) {
+            return policy_error(TableViewPolicyCode::LifecycleOperationForbidden);
+        }
+        let mut proposal = previous.clone();
+        proposal.default_view_id = view_id.clone();
+        self.persist_standard(previous, proposal)
+    }
+
+    pub fn reset(
+        &self,
+        view_id: &ViewId,
+    ) -> Result<TableViewRepositoryState, TableViewServiceError> {
+        let previous = self.load_for_mutation()?;
+        let target_index = require_mutable_view_index(&previous, view_id)?;
+        let baseline_id = previous.views[target_index].state.baseline_view_id.clone();
+        let baseline = require_view(&previous, &baseline_id)?;
+        let mut reset_state = baseline.state.clone();
+        reset_state.view_id = view_id.clone();
+        reset_state.baseline_view_id = baseline_id;
+
+        let mut proposal = previous.clone();
+        proposal.views[target_index].state = reset_state;
+        self.persist_standard(previous, proposal)
+    }
+
+    pub fn save_view(
+        &self,
+        view: SavedTableView,
+    ) -> Result<TableViewRepositoryState, TableViewServiceError> {
+        let previous = self.load_for_mutation()?;
+        let index = require_mutable_view_index(&previous, &view.state.view_id)?;
+        if view.provenance != ViewProvenance::UserOwned
+            || view.mutability != ViewMutability::Mutable
+        {
+            return policy_error(TableViewPolicyCode::LifecycleOperationForbidden);
+        }
+
+        let mut proposal = previous.clone();
+        proposal.views[index] = view;
+        self.persist_standard(previous, proposal)
+    }
+
+    pub fn validate_and_save(
+        &self,
+        proposal: TableViewRepositoryState,
+    ) -> Result<TableViewRepositoryState, TableViewServiceError> {
+        let previous = self.load_for_mutation()?;
+        self.persist_candidate(previous, proposal, false)
+    }
+
+    pub fn import_legacy(
+        &self,
+        legacy: LegacyTableViewImport,
+    ) -> Result<LegacyImportOutcome, TableViewServiceError> {
+        let previous = self.load_for_mutation()?;
+        validate_legacy_source(legacy.source_version, &legacy.source_fingerprint)?;
+
+        if let Some(receipt) = previous.legacy_import_receipts.iter().find(|receipt| {
+            receipt.source_version == legacy.source_version
+                && receipt.source_fingerprint == legacy.source_fingerprint
+        }) {
+            return Ok(LegacyImportOutcome {
+                state: previous.clone(),
+                receipt: receipt.clone(),
+                imported: false,
+            });
+        }
+
+        ensure_view_id_available(&previous, &legacy.state.view_id)?;
+        let fallback_id = self.fallback_view_id().clone();
+        let mut imported_state = legacy.state;
+        imported_state.baseline_view_id = fallback_id;
+        let imported_view_id = imported_state.view_id.clone();
+
+        let mut proposal = previous.clone();
+        proposal.views.push(SavedTableView {
+            label: legacy.label,
+            provenance: ViewProvenance::UserOwned,
+            mutability: ViewMutability::Mutable,
+            state: imported_state,
+        });
+        proposal.active_view_id = imported_view_id.clone();
+        proposal.legacy_import_receipts.push(LegacyImportReceipt {
+            source_version: legacy.source_version,
+            source_fingerprint: legacy.source_fingerprint.clone(),
+            table_id: TableId::from(SQUAD_PRIMARY_TABLE_ID),
+            schema_version: SQUAD_PRIMARY_SCHEMA_VERSION,
+            owner_scope: OwnerScope::LocalFixed,
+            imported_view_id,
+            accepted_revision: 0,
+        });
+
+        let state = self.persist_candidate(previous, proposal, true)?;
+        let receipt = state
+            .legacy_import_receipts
+            .iter()
+            .find(|receipt| {
+                receipt.source_version == legacy.source_version
+                    && receipt.source_fingerprint == legacy.source_fingerprint
+            })
+            .cloned()
+            .ok_or_else(|| {
+                TableViewServiceError::Policy(TableViewPolicyError::new(
+                    TableViewPolicyCode::InvalidTransition,
+                ))
+            })?;
+        Ok(LegacyImportOutcome {
+            state,
+            receipt,
+            imported: true,
+        })
+    }
+
+    fn fallback_view_id(&self) -> &ViewId {
+        &self.system_default.active_view_id
+    }
+
+    fn validate_authoritative_state(
+        &self,
+        state: &TableViewRepositoryState,
+    ) -> Result<(), TableViewValidationError> {
+        state.validate()?;
+        if require_view(state, &state.default_view_id)
+            .is_ok_and(|view| view.provenance == ViewProvenance::SharedReadOnly)
+        {
+            return invalid(TableViewValidationCode::InvalidDefaultViewReference);
+        }
+
+        let system_views: Vec<_> = state
+            .views
+            .iter()
+            .filter(|view| view.provenance == ViewProvenance::SystemDefault)
+            .collect();
+        if system_views.len() != self.system_default.views.len()
+            || self
+                .system_default
+                .views
+                .iter()
+                .any(|expected| !system_views.iter().any(|actual| **actual == *expected))
+        {
+            return invalid(TableViewValidationCode::SystemViewMismatch);
+        }
+
+        Ok(())
+    }
+
+    fn load_for_mutation(&self) -> Result<TableViewRepositoryState, TableViewServiceError> {
+        let state = match self.repository.load() {
+            Ok(TableViewRepositoryLoad::Missing) => self.system_default.clone(),
+            Ok(TableViewRepositoryLoad::Loaded(state)) => state,
+            Ok(TableViewRepositoryLoad::Migrated {
+                state,
+                from_envelope_version,
+                to_envelope_version,
+            }) if to_envelope_version == CURRENT_ENVELOPE_VERSION
+                && from_envelope_version < to_envelope_version =>
+            {
+                state
+            }
+            Ok(TableViewRepositoryLoad::Migrated { .. }) => {
+                return Err(TableViewServiceError::InvalidRepositoryData);
+            }
+            Ok(TableViewRepositoryLoad::Recovered { state, .. }) => {
+                state.unwrap_or_else(|| self.system_default.clone())
+            }
+            Err(TableViewRepositoryError::Unavailable)
+            | Err(TableViewRepositoryError::SaveFailed) => {
+                return Err(TableViewServiceError::RepositoryUnavailable);
+            }
+            Err(TableViewRepositoryError::InvalidData) => {
+                return Err(TableViewServiceError::InvalidRepositoryData);
+            }
+        };
+        self.validate_authoritative_state(&state)?;
+        Ok(state)
+    }
+
+    fn persist_standard(
+        &self,
+        previous: TableViewRepositoryState,
+        proposal: TableViewRepositoryState,
+    ) -> Result<TableViewRepositoryState, TableViewServiceError> {
+        self.persist_candidate(previous, proposal, false)
+    }
+
+    fn persist_candidate(
+        &self,
+        previous: TableViewRepositoryState,
+        mut proposal: TableViewRepositoryState,
+        allow_receipt_addition: bool,
+    ) -> Result<TableViewRepositoryState, TableViewServiceError> {
+        let next_revision = previous.metadata.revision.checked_add(1).ok_or_else(|| {
+            TableViewServiceError::Validation(TableViewValidationError::new(
+                TableViewValidationCode::RevisionExhausted,
+            ))
+        })?;
+        proposal.metadata.envelope_version = CURRENT_ENVELOPE_VERSION;
+        proposal.metadata.revision = next_revision;
+
+        if allow_receipt_addition {
+            for receipt in &mut proposal.legacy_import_receipts {
+                let already_persisted = previous.legacy_import_receipts.iter().any(|existing| {
+                    existing.source_version == receipt.source_version
+                        && existing.source_fingerprint == receipt.source_fingerprint
+                });
+                if !already_persisted {
+                    receipt.accepted_revision = next_revision;
+                }
+            }
+        }
+
+        proposal.validate()?;
+        self.validate_authoritative_state(&proposal)?;
+        validate_transition(&previous, &proposal, allow_receipt_addition)?;
+
+        if let Err(cause) = self.repository.save_atomic(&proposal) {
+            if allow_receipt_addition {
+                proposal.legacy_import_receipts = previous.legacy_import_receipts.clone();
+            }
+            return Err(TableViewServiceError::PersistenceFailed {
+                cause,
+                previous: Box::new(previous),
+                proposal: Box::new(proposal),
+            });
+        }
+        Ok(proposal)
+    }
+}
+
+fn policy_error<T>(code: TableViewPolicyCode) -> Result<T, TableViewServiceError> {
+    Err(TableViewServiceError::Policy(TableViewPolicyError::new(
+        code,
+    )))
+}
+
+fn require_view<'a>(
+    state: &'a TableViewRepositoryState,
+    view_id: &ViewId,
+) -> Result<&'a SavedTableView, TableViewServiceError> {
+    state
+        .views
+        .iter()
+        .find(|view| view.state.view_id == *view_id)
+        .ok_or_else(|| {
+            TableViewServiceError::Policy(TableViewPolicyError::new(
+                TableViewPolicyCode::ViewNotFound,
+            ))
+        })
+}
+
+fn require_mutable_view_index(
+    state: &TableViewRepositoryState,
+    view_id: &ViewId,
+) -> Result<usize, TableViewServiceError> {
+    let index = state
+        .views
+        .iter()
+        .position(|view| view.state.view_id == *view_id)
+        .ok_or_else(|| {
+            TableViewServiceError::Policy(TableViewPolicyError::new(
+                TableViewPolicyCode::ViewNotFound,
+            ))
+        })?;
+    let view = &state.views[index];
+    if view.provenance != ViewProvenance::UserOwned || view.mutability != ViewMutability::Mutable {
+        return policy_error(TableViewPolicyCode::LifecycleOperationForbidden);
+    }
+    Ok(index)
+}
+
+fn ensure_view_id_available(
+    state: &TableViewRepositoryState,
+    view_id: &ViewId,
+) -> Result<(), TableViewServiceError> {
+    validate_stable_id(view_id.as_str())?;
+    if state
+        .views
+        .iter()
+        .any(|view| view.state.view_id == *view_id)
+    {
+        policy_error(TableViewPolicyCode::DuplicateViewId)
+    } else {
+        Ok(())
+    }
+}
+
+fn validate_legacy_source(
+    source_version: u16,
+    source_fingerprint: &str,
+) -> Result<(), TableViewServiceError> {
+    if !(2..=4).contains(&source_version) {
+        return Err(TableViewValidationError::new(
+            TableViewValidationCode::InvalidLegacySourceVersion,
+        )
+        .into());
+    }
+    if !is_valid_fingerprint(source_fingerprint) {
+        return Err(TableViewValidationError::new(
+            TableViewValidationCode::InvalidLegacyFingerprint,
+        )
+        .into());
+    }
+    Ok(())
+}
+
+fn validate_transition(
+    previous: &TableViewRepositoryState,
+    proposal: &TableViewRepositoryState,
+    allow_receipt_addition: bool,
+) -> Result<(), TableViewServiceError> {
+    for previous_view in &previous.views {
+        let proposed_view = proposal
+            .views
+            .iter()
+            .find(|view| view.state.view_id == previous_view.state.view_id);
+        match previous_view.provenance {
+            ViewProvenance::SystemDefault | ViewProvenance::SharedReadOnly => {
+                if proposed_view != Some(previous_view) {
+                    return policy_error(TableViewPolicyCode::LifecycleOperationForbidden);
+                }
+            }
+            ViewProvenance::UserOwned => {
+                if let Some(view) = proposed_view
+                    && (view.provenance != ViewProvenance::UserOwned
+                        || view.mutability != ViewMutability::Mutable)
+                {
+                    return policy_error(TableViewPolicyCode::InvalidTransition);
+                }
+            }
+            ViewProvenance::Unsupported => {
+                return policy_error(TableViewPolicyCode::InvalidTransition);
+            }
+        }
+    }
+
+    for proposed_view in &proposal.views {
+        let existed = previous
+            .views
+            .iter()
+            .any(|view| view.state.view_id == proposed_view.state.view_id);
+        if !existed
+            && (proposed_view.provenance != ViewProvenance::UserOwned
+                || proposed_view.mutability != ViewMutability::Mutable)
+        {
+            return policy_error(TableViewPolicyCode::InvalidTransition);
+        }
+    }
+
+    let default_view = require_view(proposal, &proposal.default_view_id)?;
+    if default_view.provenance == ViewProvenance::SharedReadOnly {
+        return policy_error(TableViewPolicyCode::LifecycleOperationForbidden);
+    }
+
+    if allow_receipt_addition {
+        if proposal.legacy_import_receipts.len() != previous.legacy_import_receipts.len() + 1
+            || !proposal
+                .legacy_import_receipts
+                .starts_with(&previous.legacy_import_receipts)
+        {
+            return policy_error(TableViewPolicyCode::InvalidTransition);
+        }
+    } else if proposal.legacy_import_receipts != previous.legacy_import_receipts {
+        return policy_error(TableViewPolicyCode::InvalidTransition);
+    }
+
+    Ok(())
 }
 
 impl TableViewRepositoryState {
@@ -525,7 +1341,7 @@ impl TableViewRepositoryState {
 
         let mut receipt_keys = HashSet::new();
         for receipt in &self.legacy_import_receipts {
-            receipt.validate_for(self, &view_ids)?;
+            receipt.validate_for(self)?;
             if !receipt_keys.insert((receipt.source_version, receipt.source_fingerprint.as_str())) {
                 return invalid(TableViewValidationCode::DuplicateLegacyReceipt);
             }
@@ -578,6 +1394,9 @@ impl TableViewState {
         if self.columns.len() > MAX_COLUMNS {
             return invalid(TableViewValidationCode::TooManyColumns);
         }
+        if self.columns.len() < MAX_COLUMNS {
+            return invalid(TableViewValidationCode::MissingRequiredColumn);
+        }
 
         let mut column_ids = HashSet::with_capacity(self.columns.len());
         let mut pinned_start = Vec::new();
@@ -593,8 +1412,14 @@ impl TableViewState {
             if !column.width.is_finite() {
                 return invalid(TableViewValidationCode::NonFiniteColumnWidth);
             }
-            if !(MIN_COLUMN_WIDTH..=MAX_COLUMN_WIDTH).contains(&column.width) {
+            let (minimum_width, maximum_width, _) = column_width_policy(column.column_id.as_str());
+            if !(minimum_width..=maximum_width).contains(&column.width) {
                 return invalid(TableViewValidationCode::ColumnWidthOutOfBounds);
+            }
+            if let Some((locked_side, locked_order)) = locked_pinning(column.column_id.as_str())
+                && (column.pinning.side != locked_side || column.pinning.order != locked_order)
+            {
+                return invalid(TableViewValidationCode::InvalidPinning);
             }
 
             match column.pinning.side {
@@ -607,7 +1432,7 @@ impl TableViewState {
             }
         }
 
-        for required in REQUIRED_COLUMN_IDS {
+        for required in SUPPORTED_COLUMN_IDS {
             let Some(column) = self
                 .columns
                 .iter()
@@ -615,18 +1440,19 @@ impl TableViewState {
             else {
                 return invalid(TableViewValidationCode::MissingRequiredColumn);
             };
-            if !column.visible {
+            if REQUIRED_COLUMN_IDS.contains(&required) && !column.visible {
                 return invalid(TableViewValidationCode::HiddenRequiredColumn);
             }
         }
 
-        validate_pinning(&pinned_start, &pinned_end)?;
+        validate_pinning(&pinned_start, &pinned_end, &self.columns)?;
         validate_sorts(&self.sort, &column_ids)?;
-        if let Some(filter) = &self.filter {
-            let mut filter_context = FilterValidationContext::default();
-            validate_filter_group(filter, 1, &column_ids, &mut filter_context)?;
-        }
-        validate_data_window(self.data_window)
+        let filter = self.filter.as_ref().ok_or_else(|| {
+            TableViewValidationError::new(TableViewValidationCode::EmptyFilterGroup)
+        })?;
+        let mut filter_context = FilterValidationContext::default();
+        validate_filter_group(filter, 1, &column_ids, &mut filter_context)?;
+        validate_data_window(&self.data_window)
     }
 }
 
@@ -634,7 +1460,6 @@ impl LegacyImportReceipt {
     fn validate_for(
         &self,
         repository: &TableViewRepositoryState,
-        view_ids: &HashSet<ViewId>,
     ) -> Result<(), TableViewValidationError> {
         if !(2..=4).contains(&self.source_version) {
             return invalid(TableViewValidationCode::InvalidLegacySourceVersion);
@@ -642,10 +1467,10 @@ impl LegacyImportReceipt {
         if !is_valid_fingerprint(&self.source_fingerprint) {
             return invalid(TableViewValidationCode::InvalidLegacyFingerprint);
         }
+        validate_stable_id(self.imported_view_id.as_str())?;
         if self.table_id != repository.table_id
             || self.schema_version != repository.schema_version
             || self.owner_scope != OwnerScope::LocalFixed
-            || !view_ids.contains(&self.imported_view_id)
             || self.accepted_revision > repository.metadata.revision
         {
             return invalid(TableViewValidationCode::InvalidLegacyReceipt);
@@ -688,9 +1513,40 @@ fn is_supported_column(column_id: &str) -> bool {
     SUPPORTED_COLUMN_IDS.contains(&column_id)
 }
 
+fn column_width_policy(column_id: &str) -> (f64, f64, f64) {
+    match column_id {
+        "shirtNumber" | "info" => (48.0, 72.0, 56.0),
+        "name" => (200.0, 360.0, 240.0),
+        "position" => (72.0, 104.0, 80.0),
+        "age" | "rating" | "potentialRating" => (56.0, 80.0, 64.0),
+        "nationality" => (80.0, 144.0, 96.0),
+        "heightCm" => (72.0, 104.0, 80.0),
+        "preferredFoot" => (72.0, 120.0, 88.0),
+        "squadRole" => (112.0, 176.0, 128.0),
+        "matchFitness" => (80.0, 120.0, 96.0),
+        "morale" => (72.0, 104.0, 80.0),
+        "condition" => (72.0, 112.0, 88.0),
+        "appearances" => (56.0, 88.0, 72.0),
+        "goals" => (56.0, 80.0, 64.0),
+        "assists" => (56.0, 88.0, 72.0),
+        "averageRating" => (64.0, 96.0, 80.0),
+        _ => (MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH, MIN_COLUMN_WIDTH),
+    }
+}
+
+fn locked_pinning(column_id: &str) -> Option<(ColumnPinningSide, u8)> {
+    match column_id {
+        "shirtNumber" => Some((ColumnPinningSide::Start, 0)),
+        "info" => Some((ColumnPinningSide::Start, 1)),
+        "name" => Some((ColumnPinningSide::Start, 2)),
+        _ => None,
+    }
+}
+
 fn validate_pinning(
     pinned_start: &[u8],
     pinned_end: &[u8],
+    columns: &[TableColumnState],
 ) -> Result<(), TableViewValidationError> {
     if pinned_start.len() + pinned_end.len() > MAX_PINNED_COLUMNS {
         return invalid(TableViewValidationCode::TooManyPinnedColumns);
@@ -706,6 +1562,19 @@ fn validate_pinning(
         {
             return invalid(TableViewValidationCode::InvalidPinning);
         }
+    }
+
+    let schema_width_basis: f64 = SUPPORTED_COLUMN_IDS
+        .iter()
+        .map(|column_id| column_width_policy(column_id).2)
+        .sum();
+    let pinned_width: f64 = columns
+        .iter()
+        .filter(|column| column.pinning.side != ColumnPinningSide::None)
+        .map(|column| column.width)
+        .sum();
+    if pinned_width / schema_width_basis > MAX_PINNED_WIDTH_RATIO + f64::EPSILON {
+        return invalid(TableViewValidationCode::TooManyPinnedColumns);
     }
 
     Ok(())
@@ -760,9 +1629,6 @@ fn validate_filter_group(
     if !context.group_ids.insert(group.group_id.clone()) {
         return invalid(TableViewValidationCode::DuplicateFilterGroupId);
     }
-    if group.children.is_empty() {
-        return invalid(TableViewValidationCode::EmptyFilterGroup);
-    }
     if group.logic == FilterGroupLogic::Unsupported {
         return invalid(TableViewValidationCode::UnsupportedFilterGroupLogic);
     }
@@ -776,6 +1642,21 @@ fn validate_filter_group(
                 validate_filter_group(child_group, depth + 1, columns, context)?;
             }
         }
+    }
+    let keys: Vec<String> = group
+        .children
+        .iter()
+        .map(|child| match child {
+            TableFilterNode::Clause(clause) => {
+                format!("clause:{}", clause.filter_id.as_str())
+            }
+            TableFilterNode::Group(group) => {
+                format!("group:{}", group.group_id.as_str())
+            }
+        })
+        .collect();
+    if keys.windows(2).any(|pair| pair[0] > pair[1]) {
+        return invalid(TableViewValidationCode::IncompatibleFilterValue);
     }
     Ok(())
 }
@@ -812,6 +1693,31 @@ fn validate_filter_value(value: &FilterValue) -> Result<(), TableViewValidationE
         FilterValue::Text(value) => validate_filter_text(value),
         FilterValue::Number(value) => validate_filter_number(*value),
         FilterValue::Boolean(_) => Ok(()),
+        FilterValue::Enum(value) => validate_filter_text(value),
+        FilterValue::EnumSet(values) => {
+            if values.len() > MAX_FILTER_LIST_VALUES {
+                return invalid(TableViewValidationCode::FilterValueOutOfBounds);
+            }
+            let mut canonical = values.clone();
+            canonical.sort();
+            canonical.dedup();
+            if canonical != *values {
+                return invalid(TableViewValidationCode::IncompatibleFilterValue);
+            }
+            for value in values {
+                validate_filter_text(value)?;
+            }
+            Ok(())
+        }
+        FilterValue::NumberRange { min, max } => {
+            validate_filter_number(*min)?;
+            validate_filter_number(*max)?;
+            if min > max {
+                invalid(TableViewValidationCode::IncompatibleFilterValue)
+            } else {
+                Ok(())
+            }
+        }
         FilterValue::TextList(values) => {
             if values.is_empty() || values.len() > MAX_FILTER_LIST_VALUES {
                 return invalid(TableViewValidationCode::FilterValueOutOfBounds);
@@ -844,28 +1750,10 @@ fn validate_filter_text(value: &str) -> Result<(), TableViewValidationError> {
 fn validate_filter_number(value: f64) -> Result<(), TableViewValidationError> {
     if !value.is_finite() {
         invalid(TableViewValidationCode::NonFiniteFilterValue)
-    } else if value.abs() > MAX_FILTER_NUMBER {
+    } else if value.abs() > MAX_FILTER_NUMBER || (value == 0.0 && value.is_sign_negative()) {
         invalid(TableViewValidationCode::FilterValueOutOfBounds)
     } else {
         Ok(())
-    }
-}
-
-#[derive(Clone, Copy, Eq, PartialEq)]
-enum ColumnValueKind {
-    Text,
-    Number,
-    Boolean,
-}
-
-fn column_value_kind(column_id: &str) -> ColumnValueKind {
-    match column_id {
-        "info" => ColumnValueKind::Boolean,
-        "shirtNumber" | "age" | "heightCm" | "rating" | "potentialRating" | "matchFitness"
-        | "morale" | "condition" | "appearances" | "goals" | "assists" | "averageRating" => {
-            ColumnValueKind::Number
-        }
-        _ => ColumnValueKind::Text,
     }
 }
 
@@ -874,46 +1762,70 @@ fn filter_value_is_compatible(
     operator: FilterOperator,
     value: &FilterValue,
 ) -> bool {
-    let kind = column_value_kind(column_id);
+    if column_id == "name" {
+        return operator == FilterOperator::Contains && matches!(value, FilterValue::Text(_));
+    }
+
+    if let Some(allowed_values) = enum_filter_values(column_id) {
+        return operator == FilterOperator::OneOf
+            && matches!(
+                value,
+                FilterValue::EnumSet(values)
+                    if values.iter().all(|value| allowed_values.contains(&value.as_str()))
+            );
+    }
+
+    if is_numeric_filter_column(column_id) {
+        return matches!(
+            operator,
+            FilterOperator::Equals
+                | FilterOperator::GreaterThan
+                | FilterOperator::GreaterThanOrEqual
+                | FilterOperator::LessThan
+                | FilterOperator::LessThanOrEqual
+        ) && matches!(value, FilterValue::Number(_));
+    }
+
+    false
+}
+
+fn is_numeric_filter_column(column_id: &str) -> bool {
     matches!(
-        (operator, kind, value),
-        (
-            FilterOperator::Equals,
-            ColumnValueKind::Text,
-            FilterValue::Text(_)
-        ) | (
-            FilterOperator::Equals,
-            ColumnValueKind::Number,
-            FilterValue::Number(_)
-        ) | (
-            FilterOperator::Equals,
-            ColumnValueKind::Boolean,
-            FilterValue::Boolean(_)
-        ) | (
-            FilterOperator::Contains,
-            ColumnValueKind::Text,
-            FilterValue::Text(_)
-        ) | (
-            FilterOperator::GreaterThan | FilterOperator::LessThan,
-            ColumnValueKind::Number,
-            FilterValue::Number(_),
-        ) | (
-            FilterOperator::OneOf,
-            ColumnValueKind::Text,
-            FilterValue::TextList(_)
-        ) | (
-            FilterOperator::OneOf,
-            ColumnValueKind::Number,
-            FilterValue::NumberList(_)
-        )
+        column_id,
+        "age"
+            | "heightCm"
+            | "rating"
+            | "potentialRating"
+            | "matchFitness"
+            | "morale"
+            | "condition"
+            | "appearances"
+            | "goals"
+            | "assists"
+            | "averageRating"
     )
 }
 
-fn validate_data_window(data_window: TableDataWindow) -> Result<(), TableViewValidationError> {
+fn enum_filter_values(column_id: &str) -> Option<&'static [&'static str]> {
+    match column_id {
+        "info" => Some(&["reserve", "selected"]),
+        "position" => Some(&["AM", "CB", "CM", "DM", "GK", "LB", "LW", "RB", "RW", "ST"]),
+        "nationality" => Some(&["ARG", "BRA", "POR", "URU"]),
+        "preferredFoot" => Some(&["left", "right"]),
+        "squadRole" => Some(&["backup", "firstTeam", "keyPlayer", "prospect", "rotation"]),
+        _ => None,
+    }
+}
+
+fn validate_data_window(data_window: &TableDataWindow) -> Result<(), TableViewValidationError> {
     match data_window {
-        TableDataWindow::ClientPagination { page, page_size }
-            if (1..=MAX_CLIENT_PAGE).contains(&page)
-                && (1..=MAX_CLIENT_PAGE_SIZE).contains(&page_size) =>
+        TableDataWindow::ClientPagination {
+            window_id,
+            page,
+            page_size,
+        } if validate_stable_id(window_id.as_str()).is_ok()
+            && *page == MAX_CLIENT_PAGE
+            && *page_size == MAX_CLIENT_PAGE_SIZE =>
         {
             Ok(())
         }
@@ -942,59 +1854,30 @@ mod tests {
     }
 
     fn system_view() -> SavedTableView {
-        let view_id = ViewId::from("squad.system.default");
-
-        SavedTableView {
-            label: "Padrão".to_owned(),
-            provenance: ViewProvenance::SystemDefault,
-            mutability: ViewMutability::Immutable,
-            state: TableViewState {
-                view_id: view_id.clone(),
-                baseline_view_id: view_id,
-                density: TableDensity::Compact,
-                columns: vec![
-                    column("shirtNumber", 64.0),
-                    column("info", 64.0),
-                    column("name", 220.0),
-                    column("position", 80.0),
-                    column("goals", 72.0),
-                ],
-                sort: vec![TableSort {
-                    column_id: ColumnId::from("position"),
-                    direction: SortDirection::Ascending,
-                    null_order: NullOrder::Last,
-                }],
-                filter: None,
-                data_window: TableDataWindow::ClientPagination {
-                    page: 1,
-                    page_size: 25,
-                },
-            },
-        }
+        squad_system_default_repository_state().views.remove(0)
     }
 
     fn valid_repository_state() -> TableViewRepositoryState {
-        let system = system_view();
-        let system_id = system.state.view_id.clone();
-
-        TableViewRepositoryState {
-            metadata: TableViewEnvelopeMetadata {
-                envelope_version: CURRENT_ENVELOPE_VERSION,
-                revision: 0,
-            },
-            table_id: TableId::from(SQUAD_PRIMARY_TABLE_ID),
-            schema_version: SQUAD_PRIMARY_SCHEMA_VERSION,
-            owner_scope: OwnerScope::LocalFixed,
-            active_view_id: system_id.clone(),
-            default_view_id: system_id,
-            views: vec![system],
-            legacy_import_receipts: Vec::new(),
-        }
+        squad_system_default_repository_state()
     }
 
     #[test]
     fn accepts_the_bounded_local_fixed_squad_repository_state() {
-        assert_eq!(valid_repository_state().validate(), Ok(()));
+        let state = valid_repository_state();
+        assert_eq!(state.validate(), Ok(()));
+        assert_eq!(
+            state.views[0].state.view_id.as_str(),
+            "squad.view.system-default"
+        );
+        assert_eq!(state.views[0].state.columns.len(), 18);
+        assert_eq!(
+            state.views[0].state.data_window,
+            TableDataWindow::ClientPagination {
+                window_id: WindowId::from("squad.window.page-1"),
+                page: 1,
+                page_size: 25,
+            }
+        );
     }
 
     #[test]
@@ -1045,10 +1928,7 @@ mod tests {
         );
 
         let mut duplicate_column = valid_repository_state();
-        duplicate_column.views[0]
-            .state
-            .columns
-            .push(column("name", 180.0));
+        duplicate_column.views[0].state.columns[17] = column("name", 240.0);
         assert_eq!(
             duplicate_column.validate().map_err(|error| error.code),
             Err(TableViewValidationCode::DuplicateColumnId)
@@ -1107,6 +1987,73 @@ mod tests {
             too_wide.validate().map_err(|error| error.code),
             Err(TableViewValidationCode::ColumnWidthOutOfBounds)
         );
+
+        let mut wrong_column_bound = valid_repository_state();
+        let age = wrong_column_bound.views[0]
+            .state
+            .columns
+            .iter_mut()
+            .find(|column| column.column_id.as_str() == "age")
+            .expect("age column");
+        age.width = 81.0;
+        assert_eq!(
+            wrong_column_bound.validate().map_err(|error| error.code),
+            Err(TableViewValidationCode::ColumnWidthOutOfBounds)
+        );
+
+        let mut unlocked_required_pin = valid_repository_state();
+        unlocked_required_pin.views[0].state.columns[0].pinning = ColumnPinning::none();
+        assert_eq!(
+            unlocked_required_pin.validate().map_err(|error| error.code),
+            Err(TableViewValidationCode::InvalidPinning)
+        );
+    }
+
+    #[test]
+    fn enforces_exact_sort_filter_depth_and_client_window_limits() {
+        let mut too_many_sorts = valid_repository_state();
+        too_many_sorts.views[0].state.sort = ["position", "age", "name", "goals"]
+            .into_iter()
+            .map(|column_id| TableSort {
+                column_id: ColumnId::from(column_id),
+                direction: SortDirection::Ascending,
+                null_order: NullOrder::Last,
+            })
+            .collect();
+        assert_eq!(
+            too_many_sorts.validate().map_err(|error| error.code),
+            Err(TableViewValidationCode::TooManySortClauses)
+        );
+
+        let mut too_deep = valid_repository_state();
+        too_deep.views[0].state.filter = Some(TableFilterGroup {
+            group_id: FilterGroupId::from("filters.root"),
+            logic: FilterGroupLogic::And,
+            children: vec![TableFilterNode::Group(TableFilterGroup {
+                group_id: FilterGroupId::from("filters.level-2"),
+                logic: FilterGroupLogic::And,
+                children: vec![TableFilterNode::Group(TableFilterGroup {
+                    group_id: FilterGroupId::from("filters.level-3"),
+                    logic: FilterGroupLogic::And,
+                    children: Vec::new(),
+                })],
+            })],
+        });
+        assert_eq!(
+            too_deep.validate().map_err(|error| error.code),
+            Err(TableViewValidationCode::FilterDepthExceeded)
+        );
+
+        let mut wrong_window = valid_repository_state();
+        wrong_window.views[0].state.data_window = TableDataWindow::ClientPagination {
+            window_id: WindowId::from("squad.window.page-2"),
+            page: 2,
+            page_size: 25,
+        };
+        assert_eq!(
+            wrong_window.validate().map_err(|error| error.code),
+            Err(TableViewValidationCode::InvalidDataWindow)
+        );
     }
 
     #[test]
@@ -1115,7 +2062,7 @@ mod tests {
         for index in 0..MAX_SAVED_VIEWS {
             let mut view = system_view();
             view.state.view_id = ViewId::from(format!("user.view.{index}"));
-            view.state.baseline_view_id = ViewId::from("squad.system.default");
+            view.state.baseline_view_id = ViewId::from("squad.view.system-default");
             view.provenance = ViewProvenance::UserOwned;
             view.mutability = ViewMutability::Mutable;
             too_many_views.views.push(view);
@@ -1162,7 +2109,7 @@ mod tests {
                 table_id: TableId::from(SQUAD_PRIMARY_TABLE_ID),
                 schema_version: SQUAD_PRIMARY_SCHEMA_VERSION,
                 owner_scope: OwnerScope::LocalFixed,
-                imported_view_id: ViewId::from("squad.system.default"),
+                imported_view_id: ViewId::from("squad.view.system-default"),
                 accepted_revision: 0,
             });
         assert_eq!(
@@ -1190,6 +2137,40 @@ mod tests {
             state.validate().map_err(|error| error.code),
             Err(TableViewValidationCode::IncompatibleFilterValue)
         );
+    }
+
+    #[test]
+    fn accepts_exact_lineup_enum_set_and_numeric_threshold_filters() {
+        let mut state = valid_repository_state();
+        state.views[0].state.filter = Some(TableFilterGroup {
+            group_id: FilterGroupId::from("filters.root"),
+            logic: FilterGroupLogic::And,
+            children: vec![
+                TableFilterNode::Clause(TableFilterClause {
+                    filter_id: FilterId::from("filter.lineup"),
+                    column_id: ColumnId::from("info"),
+                    operator: FilterOperator::OneOf,
+                    value: FilterValue::EnumSet(vec!["reserve".to_owned(), "selected".to_owned()]),
+                    enabled: true,
+                }),
+                TableFilterNode::Clause(TableFilterClause {
+                    filter_id: FilterId::from("filter.status-condition"),
+                    column_id: ColumnId::from("condition"),
+                    operator: FilterOperator::LessThan,
+                    value: FilterValue::Number(90.0),
+                    enabled: true,
+                }),
+                TableFilterNode::Clause(TableFilterClause {
+                    filter_id: FilterId::from("filter.status-fitness"),
+                    column_id: ColumnId::from("matchFitness"),
+                    operator: FilterOperator::GreaterThanOrEqual,
+                    value: FilterValue::Number(90.0),
+                    enabled: true,
+                }),
+            ],
+        });
+
+        assert_eq!(state.validate(), Ok(()));
     }
 
     struct RecordingRepository {
@@ -1245,8 +2226,12 @@ mod tests {
         }
 
         fn unavailable() -> Rc<Self> {
+            Self::load_error(TableViewRepositoryError::Unavailable)
+        }
+
+        fn load_error(error: TableViewRepositoryError) -> Rc<Self> {
             Rc::new(Self {
-                load_result: RefCell::new(Err(TableViewRepositoryError::Unavailable)),
+                load_result: RefCell::new(Err(error)),
                 saves: RefCell::new(Vec::new()),
                 save_attempts: Cell::new(0),
                 fail_next_save: Cell::new(false),
@@ -1262,9 +2247,7 @@ mod tests {
     }
 
     impl TableViewRepository for Rc<MemoryRepository> {
-        fn load(
-            &self,
-        ) -> Result<TableViewRepositoryLoad, TableViewRepositoryError> {
+        fn load(&self) -> Result<TableViewRepositoryLoad, TableViewRepositoryError> {
             self.load_result.borrow().clone()
         }
 
@@ -1278,8 +2261,10 @@ mod tests {
             }
 
             self.saves.borrow_mut().push(state.clone());
-            self.load_result
-                .replace(Ok(TableViewRepositoryLoad::Loaded(state.clone())));
+            drop(
+                self.load_result
+                    .replace(Ok(TableViewRepositoryLoad::Loaded(state.clone()))),
+            );
             Ok(())
         }
     }
@@ -1290,7 +2275,7 @@ mod tests {
         view.provenance = ViewProvenance::UserOwned;
         view.mutability = ViewMutability::Mutable;
         view.state.view_id = ViewId::from(view_id);
-        view.state.baseline_view_id = ViewId::from("squad.system.default");
+        view.state.baseline_view_id = ViewId::from("squad.view.system-default");
         view
     }
 
@@ -1300,13 +2285,15 @@ mod tests {
         view.provenance = ViewProvenance::SharedReadOnly;
         view.mutability = ViewMutability::ReadOnly;
         view.state.view_id = ViewId::from("squad.shared.read-only");
-        view.state.baseline_view_id = ViewId::from("squad.system.default");
+        view.state.baseline_view_id = ViewId::from("squad.view.system-default");
         view
     }
 
     fn state_with_all_provenances() -> TableViewRepositoryState {
         let mut state = valid_repository_state();
-        state.views.push(user_view("squad.user.mine", "Minha visão"));
+        state
+            .views
+            .push(user_view("squad.user.mine", "Minha visão"));
         state.views.push(shared_view());
         state.validate().expect("all provenance fixture");
         state
@@ -1314,14 +2301,11 @@ mod tests {
 
     fn service_for(
         state: TableViewRepositoryState,
-    ) -> (
-        TableViewService<Rc<MemoryRepository>>,
-        Rc<MemoryRepository>,
-    ) {
+    ) -> (TableViewService<Rc<MemoryRepository>>, Rc<MemoryRepository>) {
         let baseline = valid_repository_state();
         let repository = MemoryRepository::new(TableViewRepositoryLoad::Loaded(state));
-        let service = TableViewService::new(Rc::clone(&repository), baseline)
-            .expect("valid system baseline");
+        let service =
+            TableViewService::new(Rc::clone(&repository), baseline).expect("valid system baseline");
         (service, repository)
     }
 
@@ -1336,12 +2320,16 @@ mod tests {
         assert_eq!(state.table_id.as_str(), SQUAD_PRIMARY_TABLE_ID);
         assert_eq!(state.schema_version, SQUAD_PRIMARY_SCHEMA_VERSION);
         assert_eq!(state.owner_scope, OwnerScope::LocalFixed);
-        assert!(state
-            .legacy_import_receipts
-            .iter()
-            .all(|receipt| receipt.table_id.as_str() == SQUAD_PRIMARY_TABLE_ID
-                && receipt.schema_version == SQUAD_PRIMARY_SCHEMA_VERSION
-                && receipt.owner_scope == OwnerScope::LocalFixed));
+        assert!(
+            state
+                .legacy_import_receipts
+                .iter()
+                .all(
+                    |receipt| receipt.table_id.as_str() == SQUAD_PRIMARY_TABLE_ID
+                        && receipt.schema_version == SQUAD_PRIMARY_SCHEMA_VERSION
+                        && receipt.owner_scope == OwnerScope::LocalFixed
+                )
+        );
     }
 
     #[test]
@@ -1372,12 +2360,38 @@ mod tests {
         ));
         assert_fixed_owner(unavailable.state());
 
-        let migrated_repository =
-            MemoryRepository::new(TableViewRepositoryLoad::Migrated {
-                state: baseline.clone(),
-                from_envelope_version: 0,
-                to_envelope_version: CURRENT_ENVELOPE_VERSION,
-            });
+        let invalid_data_repository =
+            MemoryRepository::load_error(TableViewRepositoryError::InvalidData);
+        let invalid_data_service =
+            TableViewService::new(Rc::clone(&invalid_data_repository), baseline.clone())
+                .expect("service");
+        assert!(matches!(
+            invalid_data_service
+                .load_or_seed()
+                .expect("invalid repository data fallback"),
+            TableViewLoadOutcome::InvalidRepositoryData { .. }
+        ));
+
+        let save_failure_repository = MemoryRepository::new(TableViewRepositoryLoad::Missing);
+        save_failure_repository.fail_next_save.set(true);
+        let save_failure_service =
+            TableViewService::new(Rc::clone(&save_failure_repository), baseline.clone())
+                .expect("service");
+        assert!(matches!(
+            save_failure_service
+                .load_or_seed()
+                .expect("seed save failure outcome"),
+            TableViewLoadOutcome::SaveFailed {
+                cause: TableViewRepositoryError::SaveFailed,
+                ..
+            }
+        ));
+
+        let migrated_repository = MemoryRepository::new(TableViewRepositoryLoad::Migrated {
+            state: baseline.clone(),
+            from_envelope_version: 0,
+            to_envelope_version: CURRENT_ENVELOPE_VERSION,
+        });
         let migrated_service =
             TableViewService::new(Rc::clone(&migrated_repository), baseline.clone())
                 .expect("service");
@@ -1390,11 +2404,31 @@ mod tests {
             }
         ));
 
-        let recovered_repository =
-            MemoryRepository::new(TableViewRepositoryLoad::Recovered {
-                state: None,
-                reason: TableViewRecoveryReason::CorruptPayload,
+        let invalid_migration_repository =
+            MemoryRepository::new(TableViewRepositoryLoad::Migrated {
+                state: baseline.clone(),
+                from_envelope_version: CURRENT_ENVELOPE_VERSION,
+                to_envelope_version: CURRENT_ENVELOPE_VERSION + 1,
             });
+        let invalid_migration_service =
+            TableViewService::new(Rc::clone(&invalid_migration_repository), baseline.clone())
+                .expect("service");
+        assert!(matches!(
+            invalid_migration_service
+                .load_or_seed()
+                .expect("invalid migration fallback"),
+            TableViewLoadOutcome::Invalid {
+                reason: TableViewValidationError {
+                    code: TableViewValidationCode::WrongEnvelopeVersion
+                },
+                ..
+            }
+        ));
+
+        let recovered_repository = MemoryRepository::new(TableViewRepositoryLoad::Recovered {
+            state: None,
+            reason: TableViewRecoveryReason::CorruptPayload,
+        });
         let recovered_service =
             TableViewService::new(Rc::clone(&recovered_repository), baseline.clone())
                 .expect("service");
@@ -1406,13 +2440,31 @@ mod tests {
             }
         ));
 
+        let mut spoofed_system_state = baseline.clone();
+        spoofed_system_state.views[0].label = "Sistema falsificado".to_owned();
+        let spoofed_system_repository =
+            MemoryRepository::new(TableViewRepositoryLoad::Loaded(spoofed_system_state));
+        let spoofed_system_service =
+            TableViewService::new(Rc::clone(&spoofed_system_repository), baseline.clone())
+                .expect("service");
+        assert!(matches!(
+            spoofed_system_service
+                .load_or_seed()
+                .expect("spoofed system fallback"),
+            TableViewLoadOutcome::Invalid {
+                reason: TableViewValidationError {
+                    code: TableViewValidationCode::SystemViewMismatch
+                },
+                ..
+            }
+        ));
+
         let mut invalid_state = baseline.clone();
         invalid_state.table_id = TableId::from("invalid.table");
         let invalid_repository =
             MemoryRepository::new(TableViewRepositoryLoad::Loaded(invalid_state));
         let invalid_service =
-            TableViewService::new(Rc::clone(&invalid_repository), baseline)
-                .expect("service");
+            TableViewService::new(Rc::clone(&invalid_repository), baseline).expect("service");
         assert!(matches!(
             invalid_service.load_or_seed().expect("invalid fallback"),
             TableViewLoadOutcome::Invalid {
@@ -1427,7 +2479,7 @@ mod tests {
     #[test]
     fn provenance_matrix_allows_activation_duplication_and_only_supported_default_targets() {
         for view_id in [
-            "squad.system.default",
+            "squad.view.system-default",
             "squad.user.mine",
             "squad.shared.read-only",
         ] {
@@ -1439,7 +2491,7 @@ mod tests {
         }
 
         for (index, source_id) in [
-            "squad.system.default",
+            "squad.view.system-default",
             "squad.user.mine",
             "squad.shared.read-only",
         ]
@@ -1464,7 +2516,7 @@ mod tests {
             assert_eq!(duplicate.mutability, ViewMutability::Mutable);
         }
 
-        for view_id in ["squad.system.default", "squad.user.mine"] {
+        for view_id in ["squad.view.system-default", "squad.user.mine"] {
             let (service, _) = service_for(state_with_all_provenances());
             let state = service
                 .set_default(&ViewId::from(view_id))
@@ -1483,7 +2535,7 @@ mod tests {
 
     #[test]
     fn only_user_owned_views_support_create_rename_save_reset_and_delete() {
-        let (service, _) = service_for(state_with_all_provenances());
+        let (service, repository) = service_for(state_with_all_provenances());
         let created = service
             .create(CreateTableViewRequest {
                 view_id: ViewId::from("squad.user.created"),
@@ -1527,8 +2579,9 @@ mod tests {
             .expect("reset view");
         assert_eq!(reset_view.state.density, TableDensity::Compact);
         assert_eq!(reset_view.label, "Renomeada");
+        assert_eq!(repository.persisted_state(), Some(reset.clone()));
 
-        for immutable_id in ["squad.system.default", "squad.shared.read-only"] {
+        for immutable_id in ["squad.view.system-default", "squad.shared.read-only"] {
             let (service, _) = service_for(state_with_all_provenances());
             assert_eq!(
                 service
@@ -1567,10 +2620,12 @@ mod tests {
         let deleted = service
             .delete(&ViewId::from("squad.user.created"))
             .expect("delete user view");
-        assert!(deleted
-            .views
-            .iter()
-            .all(|view| view.state.view_id.as_str() != "squad.user.created"));
+        assert!(
+            deleted
+                .views
+                .iter()
+                .all(|view| view.state.view_id.as_str() != "squad.user.created")
+        );
     }
 
     #[test]
@@ -1589,8 +2644,11 @@ mod tests {
             .expect("delete with fallback");
 
         assert_eq!(repository.save_attempts.get(), 1);
-        assert_eq!(deleted.active_view_id.as_str(), "squad.system.default");
-        assert_eq!(deleted.default_view_id.as_str(), "squad.system.default");
+        assert_eq!(deleted.active_view_id.as_str(), "squad.view.system-default");
+        assert_eq!(
+            deleted.default_view_id.as_str(),
+            "squad.view.system-default"
+        );
         assert_eq!(
             deleted
                 .views
@@ -1600,7 +2658,7 @@ mod tests {
                 .state
                 .baseline_view_id
                 .as_str(),
-            "squad.system.default"
+            "squad.view.system-default"
         );
         assert!(matches!(
             service.load_or_seed().expect("reload fallback"),
@@ -1652,7 +2710,7 @@ mod tests {
     fn legacy_import() -> LegacyTableViewImport {
         let mut state = system_view().state;
         state.view_id = ViewId::from("squad.user.legacy-v4");
-        state.baseline_view_id = ViewId::from("squad.system.default");
+        state.baseline_view_id = ViewId::from("squad.view.system-default");
         state.density = TableDensity::Standard;
 
         LegacyTableViewImport {
@@ -1666,17 +2724,18 @@ mod tests {
     #[test]
     fn legacy_import_receipt_is_atomic_durable_and_idempotent() {
         let baseline = valid_repository_state();
-        let repository =
-            MemoryRepository::new(TableViewRepositoryLoad::Loaded(baseline.clone()));
-        let service = TableViewService::new(Rc::clone(&repository), baseline)
-            .expect("service");
+        let repository = MemoryRepository::new(TableViewRepositoryLoad::Loaded(baseline.clone()));
+        let service = TableViewService::new(Rc::clone(&repository), baseline).expect("service");
 
         let first = service
             .import_legacy(legacy_import())
             .expect("first import");
         assert!(first.imported);
         assert_eq!(repository.save_attempts.get(), 1);
-        assert_eq!(first.state.legacy_import_receipts, vec![first.receipt.clone()]);
+        assert_eq!(
+            first.state.legacy_import_receipts,
+            vec![first.receipt.clone()]
+        );
         assert_fixed_owner(&first.state);
 
         let replay = service
@@ -1689,26 +2748,52 @@ mod tests {
     }
 
     #[test]
+    fn accepts_each_supported_v2_v3_and_v4_legacy_source_version() {
+        for source_version in 2..=4 {
+            let baseline = valid_repository_state();
+            let repository =
+                MemoryRepository::new(TableViewRepositoryLoad::Loaded(baseline.clone()));
+            let service = TableViewService::new(Rc::clone(&repository), baseline).expect("service");
+            let mut legacy = legacy_import();
+            legacy.source_version = source_version;
+            legacy.source_fingerprint = format!("sha256:legacy-v{source_version}");
+            legacy.state.view_id = ViewId::from(format!("squad.user.legacy-v{source_version}"));
+
+            let imported = service
+                .import_legacy(legacy)
+                .expect("supported legacy import");
+            assert_eq!(imported.receipt.source_version, source_version);
+            assert!(imported.imported);
+            assert_fixed_owner(&imported.state);
+        }
+    }
+
+    #[test]
     fn failed_legacy_import_save_confirms_no_receipt() {
         let baseline = valid_repository_state();
-        let repository =
-            MemoryRepository::new(TableViewRepositoryLoad::Loaded(baseline.clone()));
-        let service = TableViewService::new(Rc::clone(&repository), baseline.clone())
-            .expect("service");
+        let repository = MemoryRepository::new(TableViewRepositoryLoad::Loaded(baseline.clone()));
+        let service =
+            TableViewService::new(Rc::clone(&repository), baseline.clone()).expect("service");
         repository.fail_next_save.set(true);
 
-        assert!(matches!(
-            service.import_legacy(legacy_import()),
-            Err(TableViewServiceError::PersistenceFailed {
+        let error = service
+            .import_legacy(legacy_import())
+            .expect_err("failed import");
+        match error {
+            TableViewServiceError::PersistenceFailed {
                 cause: TableViewRepositoryError::SaveFailed,
+                proposal,
                 ..
-            })
-        ));
+            } => assert!(proposal.legacy_import_receipts.is_empty()),
+            other => panic!("unexpected import error: {other:?}"),
+        }
         assert_eq!(repository.persisted_state(), Some(baseline));
-        assert!(repository
-            .persisted_state()
-            .expect("persisted baseline")
-            .legacy_import_receipts
-            .is_empty());
+        assert!(
+            repository
+                .persisted_state()
+                .expect("persisted baseline")
+                .legacy_import_receipts
+                .is_empty()
+        );
     }
 }
