@@ -1425,7 +1425,8 @@ fn import_legacy_table_preferences(
     request: ImportLegacyTablePreferencesRequestDto,
     table_views: State<'_, Arc<TableViewCoordinator>>,
 ) -> ImportLegacyTablePreferencesResponse {
-    let legacy = match LegacyTableViewImport::try_from(request) {
+    let conversion: Result<LegacyTableViewImport, &'static str> = request.try_into();
+    let legacy = match conversion {
         Ok(legacy) => legacy,
         Err(reason) => {
             return ImportLegacyTablePreferencesResponse::Invalid {
