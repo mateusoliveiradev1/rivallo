@@ -168,7 +168,7 @@ Evolve fixed formation slots into a domain-ready, normalized tactical layout whi
 
 ### Execution boundary
 
-Phase 06.2 may replace the fixed interaction only after Phase 06.1 is verified. Migration must preserve the current saved XI and first-playable matchday loop; freedom of placement cannot move validation authority into React.
+Phase 06.2 may evolve the fixed interaction only after Phase 06.1 is verified. Migration must preserve the current saved XI and first-playable matchday loop; freedom of placement cannot move validation authority into React.
 
 ## SM-4 — Tactical model: Analysis, Strategy, Instructions and Opposition (Phase 06.3)
 

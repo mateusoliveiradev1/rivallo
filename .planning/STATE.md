@@ -6,8 +6,8 @@ current_phase: 06.1
 current_phase_name: SM-2 Table View Engine and Durable Views
 current_plan: 1
 status: executing
-stopped_at: Phase 06.1 materialized; autonomous SM-2 through SM-6 execution authorized
-last_updated: "2026-07-16T06:31:04.499Z"
+stopped_at: Phase 06.1 context gathered; autonomous execution continues
+last_updated: "2026-07-16T06:39:59.081Z"
 last_activity: 2026-07-16
 last_activity_desc: Phase 06.1 execution started
 progress:
@@ -29,7 +29,7 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 **Current phase name:** SM-2 Table View Engine and Durable Views
 **Current gate:** SM-2 durable table views.
 **Gate 0:** APPROVED by Mateus.
-**Next action:** Discuss, specify, plan and execute Phase 06.1 against the canonical Table View Engine contract.
+**Next action:** Generate the Phase 06.1 UI contract and implementation plan from the accepted autonomous context.
 
 ## Current Position
 
@@ -38,7 +38,7 @@ Current Phase Name: SM-2 Table View Engine and Durable Views
 Current Plan: 1
 Total Plans in Phase: 0
 Status: Executing Phase 06.1
-Progress: Phase 06.1 materialized and ready for context gathering.
+Progress: Phase 06.1 context gathered; UI specification and planning are next.
 Last activity: 2026-07-16 — Phase 06.1 execution started
 
 ## Gate History
@@ -49,8 +49,8 @@ Last activity: 2026-07-16 — Phase 06.1 execution started
 
 ## Session
 
-**Last session:** 2026-07-16T06:22:37.891Z
-**Stopped at:** Phase 06.1 materialized; autonomous SM-2 through SM-6 execution authorized
+**Last session:** 2026-07-16T06:39:59.077Z
+**Stopped at:** Phase 06.1 context gathered; autonomous execution continues
 **Resume file:** None
 
 ## Accumulated Context
@@ -61,11 +61,11 @@ Last activity: 2026-07-16 — Phase 06.1 execution started
 
 ### Roadmap Evolution
 
-- Phase 06.1 inserted after Phase 6: SM-2 Table View Engine and Durable Views (URGENT)
-- Phase 06.2 inserted after Phase 6: SM-3 Free Tactical Field and Unified Bench Interaction (URGENT)
-- Phase 06.3 inserted after Phase 6: SM-4 Tactical Analysis Strategy Instructions Opposition and Familiarity (URGENT)
-- Phase 06.4 inserted after Phase 6: SM-5 Player Coach Profiles and Explainable Ratings (URGENT)
-- Phase 06.5 inserted after Phase 6: SM-6 Squad Dynamics Training and Dynamic Potential (URGENT)
+- Phase 06.1 inserted after Phase 6: SM-2 Table View Engine and Durable Views (ACTIVE)
+- Phase 06.2 inserted after Phase 6: SM-3 Free Tactical Field and Unified Bench Interaction (AUTHORIZED; depends on 06.1)
+- Phase 06.3 inserted after Phase 6: SM-4 Tactical Analysis Strategy Instructions Opposition and Familiarity (AUTHORIZED; depends on 06.2)
+- Phase 06.4 inserted after Phase 6: SM-5 Player Coach Profiles and Explainable Ratings (AUTHORIZED; depends on 06.3)
+- Phase 06.5 inserted after Phase 6: SM-6 Squad Dynamics Training and Dynamic Potential (AUTHORIZED; depends on 06.4)
 
 ## Performance Metrics
 
@@ -173,4 +173,4 @@ Last activity: 2026-07-16 — Phase 06.1 execution started
 - [Phase 05]: Keep Table View State language-neutral and controlled while commands, events, persistence, queries, and React rendering remain separate authorities. — Prevents screen-specific engines and direct storage or query authority in React.
 - [Phase 05]: Model Mostrar somente gols as an ordinary saved view; Phase 6 resolves screen semantics and Phase 9 executes the general pipeline. — Prevents one-off flags, renderers, and query branches.
 - [Phase 06.1]: Move the real controlled Table View Engine and versioned local-fixed repository into Phase 06.1. — Phase 9 now owns migration to career identity and SQLite plus real-data query, cache, offline and synchronisation hardening, preventing duplicate engines while preserving later roadmap scope.
-- [Phase 06.1]: Execute the authorized SM-2 through SM-6 sequence as bounded fixed-club vertical slices, then stop. — The user's latest instruction expands the earlier SM-1-only fence but does not authorize general Phases 7 through 13 or multiplayer.
+- [Phase 06.1]: Execute the authorized SM-2 through SM-6 sequence as bounded fixed-club vertical slices, then stop. — The user's latest direct instruction expands the earlier SM-1-only fence but does not authorize general Phases 7 through 13 or multiplayer.
