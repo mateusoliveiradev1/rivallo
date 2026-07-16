@@ -4,9 +4,10 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { userEvent } from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { MatchdayScreen } from './MatchdayScreen.js';
+import { describeTableViewRejection, MatchdayScreen } from './MatchdayScreen.js';
 import type {
   ImportLegacyTablePreferencesRequest,
+  LoadTableViewsOutcome,
   SavedTableView,
   SaveTableViewsOutcome,
   SaveTableViewsRequest,
@@ -940,7 +941,7 @@ describe('MatchdayScreen', () => {
     await user.click(within(selector).getByRole('button', { name: 'Salvar visualização' }));
 
     const failureHeading = await screen.findByRole('heading', {
-      name: 'Não foi possível salvar visualização',
+      name: 'Não foi possível salvar a visualização',
     });
     expect(document.activeElement).toBe(failureHeading);
     selector = await openSavedViewSelector(user);
@@ -950,7 +951,7 @@ describe('MatchdayScreen', () => {
     await user.click(screen.getByRole('button', { name: 'Tentar salvar visualização' }));
     await waitFor(() =>
       expect(
-        screen.queryByRole('heading', { name: 'Não foi possível salvar visualização' }),
+        screen.queryByRole('heading', { name: 'Não foi possível salvar a visualização' }),
       ).toBeNull(),
     );
     await waitFor(() =>
@@ -1079,6 +1080,237 @@ describe('MatchdayScreen', () => {
         screen.getByRole('button', { name: 'Visualização da tabela: Visão ocupada' }),
       ).toBeInstanceOf(HTMLButtonElement),
     );
+  });
+
+  it('keeps saved-view lifecycle inside the existing table header without displacing football DOM', async () => {
+    const user = await renderMatchdayWithViews(
+      lifecycleRepositoryState('squad.user.analysis', 'squad.user.analysis'),
+    );
+
+    const table = screen.getByRole('table');
+    const selectorTrigger = screen.getByRole('button', {
+      name: 'Visualização da tabela: Minha análise',
+    });
+    const tableHeader = selectorTrigger.closest('.squad-panel__header');
+    expect(tableHeader).toBeInstanceOf(HTMLElement);
+    expect(tableHeader?.contains(screen.getByRole('button', { name: 'Configurar colunas' }))).toBe(
+      true,
+    );
+    expect(tableHeader?.compareDocumentPosition(table) ?? 0).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+
+    const lifecycleState = screen.getByLabelText('Estado da visualização ativa');
+    expect(within(lifecycleState).getByText('Minha visualização')).toBeInstanceOf(HTMLElement);
+    expect(within(lifecycleState).getByText('Visualização padrão')).toBeInstanceOf(HTMLElement);
+    expect(screen.getByLabelText('Resumo de Caio Brandão')).toBeInstanceOf(HTMLElement);
+    expect(within(table).getAllByRole('button', { name: /Retirar|Escalar/u })).toHaveLength(12);
+
+    await changeDensity(user, 'confortável');
+    expect(within(lifecycleState).getByText('Alterações não salvas')).toBeInstanceOf(HTMLElement);
+    expect(screen.getByRole('button', { name: 'Táticas' })).toBeInstanceOf(HTMLButtonElement);
+  });
+
+  it('translates rejected table commands into product-safe Portuguese copy', () => {
+    const copy = describeTableViewRejection(
+      {
+        code: 'unknown-column-id',
+        path: 'command.columnId',
+        detail: 'removedInternalColumn',
+      },
+      { kind: 'column', columnId: 'removedInternalColumn' },
+    );
+
+    expect(copy).toBe(
+      'Coluna da tabela: a coluna solicitada não está disponível nesta visualização. A configuração anterior foi mantida.',
+    );
+    expect(copy).not.toContain('command.columnId');
+    expect(copy).not.toContain('unknown-column-id');
+    expect(copy).not.toContain('removedInternalColumn');
+  });
+
+  it('preserves table geometry with disabled lifecycle controls and skeleton rows while loading views', async () => {
+    let resolveLoad!: (outcome: LoadTableViewsOutcome) => void;
+    clientMock.loadTableViews.mockReturnValueOnce(
+      new Promise<LoadTableViewsOutcome>((resolve) => {
+        resolveLoad = resolve;
+      }),
+    );
+
+    render(<MatchdayScreen serviceOwnership="owned" />);
+    await screen.findByRole('heading', { name: 'Visão geral do elenco' });
+    const loadingHeading = screen.getByRole('heading', {
+      name: 'Carregando visualizações do elenco…',
+    });
+    expect(loadingHeading).toBeInstanceOf(HTMLHeadingElement);
+    expect(screen.getByRole('table')).toBeInstanceOf(HTMLTableElement);
+    expect(document.querySelectorAll('.squad-table__skeleton-row')).toHaveLength(5);
+    expect(
+      (
+        screen.getByRole('button', {
+          name: /Visualização da tabela:/u,
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+
+    resolveLoad({ status: 'loaded', state: lifecycleRepositoryState() });
+    await waitFor(() =>
+      expect(document.querySelectorAll('.squad-table__skeleton-row')).toHaveLength(0),
+    );
+    expect(
+      within(screen.getByRole('table')).getAllByRole('button', { name: /Retirar|Escalar/u }),
+    ).toHaveLength(12);
+  });
+
+  it.each([
+    {
+      name: 'unavailable repository',
+      outcome: {
+        status: 'unavailable',
+        fallback: tableRepositoryState(),
+      } satisfies LoadTableViewsOutcome,
+      heading: 'Visualizações personalizadas indisponíveis',
+      body: /O elenco continua utilizável na visualização padrão/u,
+      action: 'Tentar reconectar ao repositório',
+    },
+    {
+      name: 'invalid repository payload',
+      outcome: {
+        status: 'invalid',
+        fallback: tableRepositoryState(),
+        reason: 'table_view.invalid_payload',
+      } satisfies LoadTableViewsOutcome,
+      heading: 'Não foi possível carregar suas visualizações',
+      body: /O elenco foi aberto com a visualização padrão/u,
+      action: 'Tentar carregar visualizações',
+    },
+    {
+      name: 'corrupt payload recovery',
+      outcome: {
+        status: 'recovered',
+        state: tableRepositoryState(),
+        reason: 'corrupt_payload',
+      } satisfies LoadTableViewsOutcome,
+      heading: 'Uma visualização corrompida foi isolada',
+      body: /A configuração inválida não foi aplicada/u,
+      action: 'Revisar visualização padrão',
+    },
+    {
+      name: 'future schema recovery',
+      outcome: {
+        status: 'recovered',
+        state: tableRepositoryState(),
+        reason: 'future_schema_version',
+      } satisfies LoadTableViewsOutcome,
+      heading: 'Esta visualização exige uma versão mais recente',
+      body: /Ela foi isolada para evitar perda de configuração/u,
+      action: 'Usar visualização padrão',
+    },
+    {
+      name: 'interrupted write recovery',
+      outcome: {
+        status: 'recovered',
+        state: tableRepositoryState(),
+        reason: 'interrupted_write',
+      } satisfies LoadTableViewsOutcome,
+      heading: 'Visualizações do elenco recuperadas',
+      body: /Uma gravação interrompida foi reconciliada/u,
+      action: 'Revisar visualização padrão',
+    },
+  ])(
+    'renders exact $name copy with a usable system fallback',
+    async ({ outcome, heading, body, action }) => {
+      const user = userEvent.setup();
+      clientMock.loadTableViews.mockResolvedValueOnce(outcome);
+      render(<MatchdayScreen serviceOwnership="owned" />);
+
+      expect(await screen.findByRole('heading', { name: heading })).toBeInstanceOf(
+        HTMLHeadingElement,
+      );
+      expect(screen.getByText(body)).toBeInstanceOf(HTMLElement);
+      expect(screen.getByRole('table')).toBeInstanceOf(HTMLTableElement);
+      const recoveryAction = screen.getByRole('button', { name: action });
+
+      if (action.includes('visualização padrão')) {
+        await user.click(recoveryAction);
+        await waitFor(() =>
+          expect(document.activeElement).toBe(
+            screen.getByRole('button', {
+              name: /Visualização da tabela:/u,
+            }),
+          ),
+        );
+      } else {
+        expect(recoveryAction).toBeInstanceOf(HTMLButtonElement);
+      }
+    },
+  );
+
+  it('announces repository migration and receipt-confirmed legacy import without raw diagnostics', async () => {
+    const user = userEvent.setup();
+    clientMock.loadTableViews.mockResolvedValueOnce({
+      status: 'migrated',
+      state: lifecycleRepositoryState(),
+      fromEnvelopeVersion: 2,
+      toEnvelopeVersion: 3,
+    });
+    const { unmount } = render(<MatchdayScreen serviceOwnership="owned" />);
+    const migrationToast = await screen.findByRole('status', {
+      name: 'Visualizações do elenco atualizadas',
+    });
+    expect(migrationToast).toBeInstanceOf(HTMLElement);
+    expect(
+      within(migrationToast).getByText(
+        'Suas visualizações foram atualizadas e a configuração válida foi preservada.',
+      ),
+    ).toBeInstanceOf(HTMLElement);
+    expect(document.body.textContent).not.toContain('table_view.');
+    unmount();
+
+    window.localStorage.setItem(
+      'rivallo.squad-ui.v3',
+      JSON.stringify({ density: 'standard', visibleColumns: ['age'] }),
+    );
+    clientMock.loadTableViews.mockResolvedValueOnce({
+      status: 'loaded',
+      state: tableRepositoryState(),
+    });
+    render(<MatchdayScreen serviceOwnership="owned" />);
+    expect(await screen.findByText('Preferências antigas importadas')).toBeInstanceOf(HTMLElement);
+    expect(
+      screen.getByText(
+        'Densidade e colunas compatíveis agora estão protegidas no repositório de visualizações.',
+      ),
+    ).toBeInstanceOf(HTMLElement);
+    await user.click(screen.getByRole('button', { name: 'Revisar visualização importada' }));
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Configurar colunas' }),
+      ),
+    );
+    expect(clientMock.importLegacyTablePreferences).toHaveBeenCalledOnce();
+  });
+
+  it('keeps invalid legacy data and exposes the exact safe fallback copy', async () => {
+    window.localStorage.setItem(
+      'rivallo.squad-ui.v3',
+      JSON.stringify({
+        density: 'standard',
+        visibleColumns: ['removedColumn'],
+      }),
+    );
+    render(<MatchdayScreen serviceOwnership="owned" />);
+
+    expect(
+      await screen.findByRole('heading', {
+        name: 'Preferências antigas não puderam ser importadas',
+      }),
+    ).toBeInstanceOf(HTMLHeadingElement);
+    expect(
+      screen.getByText(
+        'Os dados antigos foram mantidos para diagnóstico e o elenco voltou à visualização padrão.',
+      ),
+    ).toBeInstanceOf(HTMLElement);
+    expect(window.localStorage.getItem('rivallo.squad-ui.v3')).toContain('"removedColumn"');
+    expect(clientMock.importLegacyTablePreferences).not.toHaveBeenCalled();
   });
 });
 

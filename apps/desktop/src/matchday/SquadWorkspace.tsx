@@ -4,6 +4,7 @@ import { useState, type CSSProperties, type ReactNode } from 'react';
 import { Button } from '../ui/primitives/actions.js';
 import { NationalityDisplay } from '../ui/Nationality/index.js';
 import { Popover, Tooltip } from '../ui/primitives/disclosure.js';
+import { Skeleton } from '../ui/primitives/feedback.js';
 import {
   defaultSquadSort,
   optionalColumnLabels,
@@ -25,7 +26,6 @@ import { PlayerFace } from './PlayerFace.js';
 import type { SortKey, SquadSortState } from './squad-sort.js';
 import type { MatchdayState, Player } from './types.js';
 import type {
-  SquadTableViewCommandStatus,
   SquadTableViewPersistenceStatus,
   SquadTableViewRepositoryStatus,
 } from './use-squad-table-view.js';
@@ -172,7 +172,8 @@ interface SquadWorkspaceProps {
   readonly showPlayerDetails: boolean;
   readonly tableViewRepositoryStatus: SquadTableViewRepositoryStatus;
   readonly tableViewPersistenceStatus: SquadTableViewPersistenceStatus;
-  readonly tableViewCommandStatus: SquadTableViewCommandStatus;
+  readonly tableHeader: ReactNode;
+  readonly tableViewLoading: boolean;
   readonly dirty: boolean;
   readonly message: string;
   readonly error: string;
@@ -209,7 +210,8 @@ export function SquadWorkspace({
   showPlayerDetails,
   tableViewRepositoryStatus,
   tableViewPersistenceStatus,
-  tableViewCommandStatus,
+  tableHeader,
+  tableViewLoading,
   dirty,
   message,
   error,
@@ -247,13 +249,6 @@ export function SquadWorkspace({
     roleFilter !== 'all' ||
     statusFilter !== 'all' ||
     positionFilterVisible;
-  const tableViewStatusText =
-    tableViewCommandStatus.status === 'rejected'
-      ? `${tableViewCommandStatus.heading}: ${tableViewCommandStatus.reason.path} — ${tableViewCommandStatus.reason.code}${tableViewCommandStatus.reason.detail === undefined ? '' : ` (${tableViewCommandStatus.reason.detail})`}`
-      : tableViewPersistenceStatus.status === 'saving' ||
-          tableViewPersistenceStatus.status === 'failed'
-        ? tableViewPersistenceStatus.heading
-        : tableViewRepositoryStatus.heading;
   const tableViewBusy =
     tableViewRepositoryStatus.status === 'loading' ||
     tableViewPersistenceStatus.status === 'saving';
@@ -267,9 +262,6 @@ export function SquadWorkspace({
       className="screen-view squad-view"
       data-table-view-status={tableViewRepositoryStatus.status}
     >
-      <p className="sr-only" role="status">
-        {tableViewStatusText}
-      </p>
       <header className="screen-heading">
         <div>
           <span>ELENCO · PLANTEL PRINCIPAL</span>
@@ -411,10 +403,11 @@ export function SquadWorkspace({
       >
         <section className="squad-panel" aria-labelledby="players-title">
           <header className="squad-panel__header">
-            <div>
+            <div className="squad-panel__title">
               <h2 id="players-title">{players.length} jogadores</h2>
               <span>{state.club.name} · plantel principal</span>
             </div>
+            {tableHeader}
             <div className="table-controls">
               <span>Densidade</span>
               <Popover
@@ -530,60 +523,81 @@ export function SquadWorkspace({
                 </tr>
               </thead>
               <tbody>
-                {players.map((player) => {
-                  const playerIndex = state.players.findIndex(
-                    (candidate) => candidate.id === player.id,
-                  );
-                  const selected = selectedIds.includes(player.id);
-                  const focused = player.id === focusedPlayerId;
-                  return (
-                    <tr
-                      data-focused={focused || undefined}
-                      key={player.id}
-                      onClick={() => onFocusPlayer(player.id)}
-                    >
-                      <td className="squad-number">{player.shirtNumber}</td>
-                      <td>
-                        <Tooltip
-                          content={selected ? 'Retirar do XI' : 'Escalar no primeiro espaço livre'}
+                {tableViewLoading
+                  ? Array.from({ length: 5 }, (_, index) => (
+                      <tr
+                        aria-hidden="true"
+                        className="squad-table__skeleton-row"
+                        key={`table-view-loading-${index}`}
+                      >
+                        <td colSpan={4 + visibleColumns.length}>
+                          <Skeleton />
+                        </td>
+                      </tr>
+                    ))
+                  : players.map((player) => {
+                      const playerIndex = state.players.findIndex(
+                        (candidate) => candidate.id === player.id,
+                      );
+                      const selected = selectedIds.includes(player.id);
+                      const focused = player.id === focusedPlayerId;
+                      return (
+                        <tr
+                          data-focused={focused || undefined}
+                          key={player.id}
+                          onClick={() => onFocusPlayer(player.id)}
                         >
-                          <button
-                            aria-label={`${selected ? 'Retirar' : 'Escalar'} ${player.name}`}
-                            aria-pressed={selected}
-                            className="lineup-control"
-                            onFocus={() => onFocusPlayer(player.id)}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onFocusPlayer(player.id);
-                              onTogglePlayer(player);
-                            }}
-                            type="button"
-                          >
-                            {selected ? 'XI' : '+'}
-                          </button>
-                        </Tooltip>
-                      </td>
-                      <th scope="row">
-                        <PlayerFace decorative index={playerIndex} name={player.name} size={36} />
-                        <span className="player-identity">
-                          <strong>{player.name}</strong>
-                          <small>{positionLongLabels[player.position]}</small>
-                        </span>
-                      </th>
-                      <td>
-                        <span className="position-badge">{positionLabels[player.position]}</span>
-                      </td>
-                      {optionalColumns.map(
-                        (column) =>
-                          visibleColumns.includes(column) && (
-                            <td data-column={column} key={column}>
-                              {renderOptionalPlayerValue(player, column)}
-                            </td>
-                          ),
-                      )}
-                    </tr>
-                  );
-                })}
+                          <td className="squad-number">{player.shirtNumber}</td>
+                          <td>
+                            <Tooltip
+                              content={
+                                selected ? 'Retirar do XI' : 'Escalar no primeiro espaço livre'
+                              }
+                            >
+                              <button
+                                aria-label={`${selected ? 'Retirar' : 'Escalar'} ${player.name}`}
+                                aria-pressed={selected}
+                                className="lineup-control"
+                                onFocus={() => onFocusPlayer(player.id)}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  onFocusPlayer(player.id);
+                                  onTogglePlayer(player);
+                                }}
+                                type="button"
+                              >
+                                {selected ? 'XI' : '+'}
+                              </button>
+                            </Tooltip>
+                          </td>
+                          <th scope="row">
+                            <PlayerFace
+                              decorative
+                              index={playerIndex}
+                              name={player.name}
+                              size={36}
+                            />
+                            <span className="player-identity">
+                              <strong>{player.name}</strong>
+                              <small>{positionLongLabels[player.position]}</small>
+                            </span>
+                          </th>
+                          <td>
+                            <span className="position-badge">
+                              {positionLabels[player.position]}
+                            </span>
+                          </td>
+                          {optionalColumns.map(
+                            (column) =>
+                              visibleColumns.includes(column) && (
+                                <td data-column={column} key={column}>
+                                  {renderOptionalPlayerValue(player, column)}
+                                </td>
+                              ),
+                          )}
+                        </tr>
+                      );
+                    })}
               </tbody>
             </table>
             {players.length === 0 && (

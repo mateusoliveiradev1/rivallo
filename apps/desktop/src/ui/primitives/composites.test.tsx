@@ -95,6 +95,21 @@ describe('Tooltip and stable IconButton composition', () => {
 });
 
 describe('Popover disclosure boundary', () => {
+  it('keeps a disabled trigger inert', async () => {
+    const user = userEvent.setup();
+    render(
+      <Popover title="Contexto indisponível" triggerDisabled triggerLabel="Abrir contexto">
+        <button type="button">Ação contextual</button>
+      </Popover>,
+    );
+
+    const trigger = screen.getByRole('button', { name: 'Abrir contexto' });
+    expect((trigger as HTMLButtonElement).disabled).toBe(true);
+
+    await user.click(trigger);
+    expect(screen.queryByRole('dialog', { name: 'Contexto indisponível' })).toBeNull();
+  });
+
   it('opens contextual work from a named trigger and returns focus after Escape/outside close', async () => {
     const user = userEvent.setup();
     render(

@@ -4,13 +4,21 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Button, IconButton } from '../ui/primitives/actions.js';
 import { Popover } from '../ui/primitives/disclosure.js';
 import { TextField } from '../ui/primitives/forms.js';
-import type { SavedTableView } from './client.js';
+
+export interface SavedViewSelectorView {
+  readonly mutability: 'immutable' | 'mutable' | 'read-only';
+  readonly state: {
+    readonly viewId: string;
+    readonly label: string;
+    readonly provenance: 'system-default' | 'user-owned' | 'shared-read-only';
+  };
+}
 
 const provenanceOrder = {
   'system-default': 0,
   'user-owned': 1,
   'shared-read-only': 2,
-} as const satisfies Record<SavedTableView['state']['provenance'], number>;
+} as const satisfies Record<SavedViewSelectorView['state']['provenance'], number>;
 
 const provenancePresentation = {
   'system-default': {
@@ -26,11 +34,11 @@ const provenancePresentation = {
     label: 'Somente leitura',
   },
 } as const satisfies Record<
-  SavedTableView['state']['provenance'],
+  SavedViewSelectorView['state']['provenance'],
   { readonly icon: GenericIconName; readonly label: string }
 >;
 
-const orderViews = (views: readonly SavedTableView[]): readonly SavedTableView[] =>
+const orderViews = (views: readonly SavedViewSelectorView[]): readonly SavedViewSelectorView[] =>
   [...views].sort((left, right) => {
     const provenanceDifference =
       provenanceOrder[left.state.provenance] - provenanceOrder[right.state.provenance];
@@ -45,12 +53,13 @@ const orderViews = (views: readonly SavedTableView[]): readonly SavedTableView[]
   });
 
 export interface SavedViewSelectorProps {
-  readonly views: readonly SavedTableView[];
+  readonly views: readonly SavedViewSelectorView[];
   readonly activeViewId: string;
   readonly defaultViewId: string;
   readonly dirty: boolean;
   readonly busy?: boolean;
   readonly disabled?: boolean;
+  readonly mutationsDisabled?: boolean;
   readonly onActivate: (viewId: string) => void;
   readonly onCreate: () => void;
   readonly onDuplicate: (viewId: string) => void;
@@ -68,6 +77,7 @@ export function SavedViewSelector({
   dirty,
   busy = false,
   disabled = false,
+  mutationsDisabled = false,
   onActivate,
   onCreate,
   onDuplicate,
@@ -94,6 +104,7 @@ export function SavedViewSelector({
     canManageActive;
   const immutableDirty = dirty && !canManageActive;
   const interactionDisabled = busy || disabled;
+  const mutationDisabled = interactionDisabled || mutationsDisabled;
 
   const selectAndClose = (callback: () => void) => {
     callback();
@@ -119,6 +130,7 @@ export function SavedViewSelector({
             </span>
           </>
         }
+        triggerDisabled={interactionDisabled}
         triggerLabel="Visualização da tabela"
       >
         <div className="saved-view-selector__content">
@@ -169,7 +181,7 @@ export function SavedViewSelector({
                 do elenco.
               </p>
               <Button
-                disabled={interactionDisabled || dirty}
+                disabled={mutationDisabled || dirty}
                 leadingIcon="add"
                 onClick={() => selectAndClose(onCreate)}
                 variant="secondary"
@@ -186,7 +198,7 @@ export function SavedViewSelector({
                 própria.
               </p>
               <Button
-                disabled={interactionDisabled}
+                disabled={mutationDisabled}
                 leadingIcon="copy"
                 onClick={() => selectAndClose(() => onDuplicate(activeView.state.viewId))}
                 variant="primary"
@@ -202,7 +214,7 @@ export function SavedViewSelector({
           >
             {!immutableDirty && (
               <Button
-                disabled={interactionDisabled || (dirty && canManageActive)}
+                disabled={mutationDisabled || (dirty && canManageActive)}
                 leadingIcon="copy"
                 onClick={() => selectAndClose(() => onDuplicate(activeView.state.viewId))}
                 variant="secondary"
@@ -214,7 +226,7 @@ export function SavedViewSelector({
             {canManageActive && (
               <>
                 <Button
-                  disabled={interactionDisabled || dirty}
+                  disabled={mutationDisabled || dirty}
                   leadingIcon="edit"
                   onClick={() => selectAndClose(() => onRename(activeView.state.viewId))}
                   variant="secondary"
@@ -222,7 +234,7 @@ export function SavedViewSelector({
                   Renomear visualização
                 </Button>
                 <Button
-                  disabled={interactionDisabled}
+                  disabled={mutationDisabled}
                   onClick={() => selectAndClose(() => onDelete(activeView.state.viewId))}
                   variant="secondary"
                 >
@@ -233,7 +245,7 @@ export function SavedViewSelector({
 
             {canSetDefault && (
               <Button
-                disabled={interactionDisabled || dirty || activeView.state.viewId === defaultViewId}
+                disabled={mutationDisabled || dirty || activeView.state.viewId === defaultViewId}
                 leadingIcon="favorite"
                 onClick={() => selectAndClose(() => onSetDefault(activeView.state.viewId))}
                 variant="secondary"
@@ -245,7 +257,7 @@ export function SavedViewSelector({
             {canManageActive && (
               <>
                 <Button
-                  disabled={interactionDisabled || !dirty}
+                  disabled={mutationDisabled || !dirty}
                   leadingIcon="retry"
                   onClick={() => selectAndClose(onReset)}
                   variant="secondary"
@@ -253,7 +265,7 @@ export function SavedViewSelector({
                   Restaurar visualização
                 </Button>
                 <Button
-                  disabled={interactionDisabled || !dirty}
+                  disabled={mutationDisabled || !dirty}
                   leadingIcon="save"
                   onClick={() => selectAndClose(onSave)}
                   variant="primary"
@@ -265,7 +277,7 @@ export function SavedViewSelector({
 
             {hasUserOwnedViews && (
               <Button
-                disabled={interactionDisabled || dirty}
+                disabled={mutationDisabled || dirty}
                 leadingIcon="add"
                 onClick={() => selectAndClose(onCreate)}
                 variant="secondary"

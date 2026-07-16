@@ -67,6 +67,7 @@ export interface PopoverProps {
   readonly triggerAccessibleLabel?: string;
   readonly triggerClassName?: string;
   readonly triggerContent?: ReactNode;
+  readonly triggerDisabled?: boolean;
   readonly triggerTooltip?: string;
 }
 
@@ -81,6 +82,7 @@ export function Popover({
   triggerAccessibleLabel,
   triggerClassName,
   triggerContent,
+  triggerDisabled,
   triggerTooltip,
 }: PopoverProps) {
   const titleId = `rv-popover-${useId()}`;
@@ -92,6 +94,7 @@ export function Popover({
         aria-label={triggerAccessibleLabel}
         className={triggerClassName ?? 'rv-button'}
         data-variant={triggerClassName ? undefined : 'secondary'}
+        disabled={triggerDisabled}
         ref={triggerRef}
         type="button"
       >

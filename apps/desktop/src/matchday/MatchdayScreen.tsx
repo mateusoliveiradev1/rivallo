@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react';
 import { Button } from '../ui/primitives/actions.js';
 import { Tooltip } from '../ui/primitives/disclosure.js';
 import { Skeleton, Status } from '../ui/primitives/feedback.js';
+import { Toast } from '../ui/primitives/toast.js';
 import { loadMatchday, playNextMatch, saveMatchdayLineup } from './client.js';
 import {
   defaultSquadSort,
@@ -26,6 +27,7 @@ import {
   createSquadDurableFilter,
   mergeSquadDurableFilter,
   readSquadDurableFilter,
+  SQUAD_TABLE_SCHEMA,
 } from './squad-table-schema.js';
 import {
   SavedViewDeleteDialog,
@@ -46,7 +48,7 @@ import {
 } from './tactics-model.js';
 import { TacticsWorkspace } from './TacticsWorkspace.js';
 import type { MatchResult, MatchdayState, Player, TacticalApproach } from './types.js';
-import { useSquadTableView } from './use-squad-table-view.js';
+import { useSquadTableView, type SquadTableViewCommandStatus } from './use-squad-table-view.js';
 import { WindowControls } from './WindowControls.js';
 
 import './matchday.css';
@@ -100,6 +102,95 @@ interface SavedViewDeleteDialogState {
 interface SavedViewRetryContext {
   readonly successMessage: string;
   readonly afterSave?: SavedViewTransitionTarget;
+}
+
+type RejectedSquadTableViewCommand = Extract<
+  SquadTableViewCommandStatus,
+  { readonly status: 'rejected' }
+>;
+
+export function describeTableViewRejection(
+  reason: RejectedSquadTableViewCommand['reason'],
+  focus: RejectedSquadTableViewCommand['event']['focus'],
+): string {
+  const column =
+    focus?.kind === 'column'
+      ? SQUAD_TABLE_SCHEMA.columns.find(({ columnId }) => columnId === focus.columnId)
+      : undefined;
+  const subject =
+    focus?.kind === 'column'
+      ? (column?.label ?? 'Coluna da tabela')
+      : focus?.kind === 'view'
+        ? 'Visualização da tabela'
+        : 'Tabela do elenco';
+
+  let constraint: string;
+  switch (reason.code) {
+    case 'unknown-column-id':
+      constraint = 'a coluna solicitada não está disponível nesta visualização';
+      break;
+    case 'missing-column-id':
+    case 'invalid-required-column':
+      constraint = 'uma coluna obrigatória está ausente';
+      break;
+    case 'required-column-hidden':
+      constraint = 'esta coluna é obrigatória e não pode ser ocultada';
+      break;
+    case 'invalid-column-width':
+    case 'column-width-out-of-bounds':
+      constraint =
+        column === undefined
+          ? 'a largura precisa respeitar os limites permitidos'
+          : `a largura deve ficar entre ${column.width.min} e ${column.width.max} pixels`;
+      break;
+    case 'column-visibility-unsupported':
+      constraint = 'a visibilidade desta coluna não pode ser alterada';
+      break;
+    case 'column-resize-unsupported':
+      constraint = 'esta coluna não permite ajuste de largura';
+      break;
+    case 'invalid-pin-order':
+    case 'pinned-column-limit-exceeded':
+    case 'pinned-width-limit-exceeded':
+      constraint = 'a posição fixada ultrapassa os limites da tabela';
+      break;
+    case 'invalid-density':
+    case 'unsupported-density':
+      constraint = 'a densidade escolhida não está disponível';
+      break;
+    case 'sort-limit-exceeded':
+    case 'duplicate-sort-column':
+    case 'sort-unsupported':
+    case 'invalid-sort-clause':
+      constraint = 'a ordenação escolhida não é permitida para esta tabela';
+      break;
+    case 'invalid-filter-group':
+    case 'duplicate-filter-id':
+    case 'duplicate-filter-group-id':
+    case 'filter-depth-exceeded':
+    case 'filter-clause-limit-exceeded':
+    case 'unsupported-filter-operator':
+    case 'incompatible-filter-value':
+      constraint = 'o filtro escolhido não é compatível com esta tabela';
+      break;
+    case 'invalid-view-label':
+      constraint = 'o nome da visualização precisa ter entre 1 e 80 caracteres';
+      break;
+    case 'invalid-data-window':
+    case 'invalid-data-window-schema':
+      constraint = 'a página solicitada está fora dos limites disponíveis';
+      break;
+    case 'table-id-mismatch':
+    case 'schema-version-mismatch':
+    case 'owner-scope-mismatch':
+    case 'invalid-schema-version':
+      constraint = 'a configuração pertence a uma versão incompatível desta tabela';
+      break;
+    default:
+      constraint = 'o ajuste não respeita os limites desta visualização';
+  }
+
+  return `${subject}: ${constraint}. A configuração anterior foi mantida.`;
 }
 
 const UI_PREFERENCES_KEY = 'rivallo.squad-ui.v4';
@@ -370,6 +461,14 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
   const focusNavigationItem = (screen: ActiveScreen) => {
     const focus = () => {
       document.querySelector<HTMLButtonElement>(`[data-navigation-id="${screen}"]`)?.focus();
+    };
+    queueMicrotask(focus);
+    window.requestAnimationFrame(focus);
+  };
+
+  const focusTableConfiguration = () => {
+    const focus = () => {
+      document.querySelector<HTMLButtonElement>('[aria-label="Configurar colunas"]')?.focus();
     };
     queueMicrotask(focus);
     window.requestAnimationFrame(focus);
@@ -830,6 +929,261 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
     lineupSlots.join('|') !== savedLineupSlots.join('|');
   const canPlay = selectedIds.length === 11 && busyAction === null;
   const lastResult = state.lastResult;
+  const systemSavedView = tableView.views.find(
+    ({ state: viewState }) => viewState.provenance === 'system-default',
+  );
+  const activeProvenance =
+    activeSavedView.state.provenance === 'system-default'
+      ? { icon: 'favorite' as const, label: 'Padrão do sistema' }
+      : activeSavedView.state.provenance === 'user-owned'
+        ? { icon: 'edit' as const, label: 'Minha visualização' }
+        : { icon: 'information' as const, label: 'Somente leitura' };
+
+  const useSystemSavedView = () => {
+    if (systemSavedView === undefined) return;
+    if (systemSavedView.state.viewId === tableView.activeViewId) {
+      finishSavedViewAction('Visualização padrão pronta para uso.');
+      return;
+    }
+    requestViewActivation(systemSavedView.state.viewId);
+  };
+
+  const savedViewRepositoryFeedback = (() => {
+    if (tableView.commandStatus.status === 'rejected') {
+      return (
+        <Status headingLevel={3} label="Este ajuste não pode ser aplicado" variant="danger">
+          <p>
+            {describeTableViewRejection(
+              tableView.commandStatus.reason,
+              tableView.commandStatus.event.focus,
+            )}
+          </p>
+          <Button onClick={focusTableConfiguration} variant="secondary">
+            Revisar ajuste da coluna
+          </Button>
+        </Status>
+      );
+    }
+
+    if (tableView.repositoryStatus.status === 'loading') {
+      return (
+        <Status headingLevel={3} label="Carregando visualizações do elenco…" variant="loading">
+          <p>A tabela será exibida assim que as configurações locais forem validadas.</p>
+        </Status>
+      );
+    }
+
+    if (
+      tableView.repositoryStatus.status === 'invalid' ||
+      tableView.repositoryStatus.status === 'save-failed'
+    ) {
+      return (
+        <Status
+          headingLevel={3}
+          label="Não foi possível carregar suas visualizações"
+          variant="danger"
+        >
+          <p>
+            O elenco foi aberto com a visualização padrão. Tente carregar novamente sem sair desta
+            tela.
+          </p>
+          <Button leadingIcon="retry" onClick={() => void tableView.reload()} variant="secondary">
+            Tentar carregar visualizações
+          </Button>
+        </Status>
+      );
+    }
+
+    if (tableView.repositoryStatus.status === 'unavailable') {
+      return (
+        <Status
+          headingLevel={3}
+          label="Visualizações personalizadas indisponíveis"
+          variant="danger"
+        >
+          <p>
+            O elenco continua utilizável na visualização padrão, mas novas alterações não podem ser
+            gravadas agora.
+          </p>
+          <Button leadingIcon="retry" onClick={() => void tableView.reload()} variant="secondary">
+            Tentar reconectar ao repositório
+          </Button>
+        </Status>
+      );
+    }
+
+    if (tableView.repositoryStatus.status === 'recovered') {
+      if (
+        tableView.repositoryStatus.reason === 'future_envelope_version' ||
+        tableView.repositoryStatus.reason === 'future_schema_version'
+      ) {
+        return (
+          <Status
+            headingLevel={3}
+            label="Esta visualização exige uma versão mais recente"
+            variant="warning"
+          >
+            <p>
+              Ela foi isolada para evitar perda de configuração. A visualização padrão foi aberta
+              com segurança.
+            </p>
+            <Button onClick={useSystemSavedView} variant="secondary">
+              Usar visualização padrão
+            </Button>
+          </Status>
+        );
+      }
+
+      if (tableView.repositoryStatus.reason === 'interrupted_write') {
+        return (
+          <Status headingLevel={3} label="Visualizações do elenco recuperadas" variant="warning">
+            <p>
+              Uma gravação interrompida foi reconciliada e a última configuração válida foi
+              preservada.
+            </p>
+            <Button onClick={useSystemSavedView} variant="secondary">
+              Revisar visualização padrão
+            </Button>
+          </Status>
+        );
+      }
+
+      return (
+        <Status headingLevel={3} label="Uma visualização corrompida foi isolada" variant="warning">
+          <p>
+            A configuração inválida não foi aplicada. O elenco e os jogadores não foram alterados.
+          </p>
+          <Button onClick={useSystemSavedView} variant="secondary">
+            Revisar visualização padrão
+          </Button>
+        </Status>
+      );
+    }
+
+    if (tableView.legacyStatus.status === 'invalid' || tableView.legacyStatus.status === 'failed') {
+      return (
+        <Status
+          headingLevel={3}
+          label="Preferências antigas não puderam ser importadas"
+          variant="warning"
+        >
+          <p>
+            Os dados antigos foram mantidos para diagnóstico e o elenco voltou à visualização
+            padrão.
+          </p>
+          <Button onClick={useSystemSavedView} variant="secondary">
+            Usar visualização padrão
+          </Button>
+        </Status>
+      );
+    }
+
+    if (tableView.legacyStatus.status === 'importing') {
+      return (
+        <Status headingLevel={3} label="Importando preferências antigas…" variant="loading">
+          <p>As preferências antigas serão retiradas somente após a confirmação do repositório.</p>
+        </Status>
+      );
+    }
+
+    return null;
+  })();
+
+  const savedViewMigrationFeedback =
+    tableView.legacyStatus.status === 'imported' ||
+    tableView.legacyStatus.status === 'already-imported' ? (
+      <div className="saved-view-migration-feedback">
+        <Toast
+          message="Densidade e colunas compatíveis agora estão protegidas no repositório de visualizações."
+          title="Preferências antigas importadas"
+          tone="positive"
+        />
+        <Button onClick={focusTableConfiguration} variant="secondary">
+          Revisar visualização importada
+        </Button>
+      </div>
+    ) : tableView.repositoryStatus.status === 'migrated' ? (
+      <Toast
+        message="Suas visualizações foram atualizadas e a configuração válida foi preservada."
+        title="Visualizações do elenco atualizadas"
+        tone="positive"
+      />
+    ) : null;
+
+  const savedViewHeader = (
+    <div className="saved-view-lifecycle-host">
+      <div className="saved-view-lifecycle">
+        <SavedViewSelector
+          activeViewId={tableView.activeViewId}
+          busy={tableView.persistenceStatus.status === 'saving'}
+          defaultViewId={tableView.defaultViewId}
+          dirty={tableView.dirty}
+          disabled={tableView.repositoryStatus.status === 'loading'}
+          mutationsDisabled={!tableView.capabilities.canPersist}
+          onActivate={requestViewActivation}
+          onCreate={requestCreateView}
+          onDelete={requestDeleteView}
+          onDuplicate={requestDuplicateView}
+          onRename={requestRenameView}
+          onReset={() => void restoreActiveView()}
+          onSave={() => void saveActiveView()}
+          onSetDefault={(viewId) => void setDefaultView(viewId)}
+          views={tableView.views}
+        />
+        <div aria-label="Estado da visualização ativa" className="saved-view-lifecycle__meta">
+          <span>
+            <Icon name={activeProvenance.icon} size={16} />
+            {activeProvenance.label}
+          </span>
+          {tableView.activeViewId === tableView.defaultViewId && (
+            <span>
+              <Icon name="check" size={16} />
+              Visualização padrão
+            </span>
+          )}
+          {tableView.dirty && (
+            <strong>
+              <Icon name="warning" size={16} />
+              Alterações não salvas
+            </strong>
+          )}
+        </div>
+      </div>
+      <p aria-atomic="true" className="sr-only" role="status">
+        {savedViewAnnouncement}
+      </p>
+      {savedViewRepositoryFeedback}
+      {savedViewMigrationFeedback}
+      {savedViewFailureVisible && tableView.persistenceStatus.status === 'failed' && (
+        <section className="saved-view-failure">
+          <Status label="Falha ao gravar visualização" variant="danger">
+            <h3 ref={savedViewFailureHeadingRef} tabIndex={-1}>
+              Não foi possível salvar a visualização
+            </h3>
+            <p>Seus ajustes continuam nesta tela e ainda não foram gravados neste dispositivo.</p>
+          </Status>
+          <div className="saved-view-failure__actions">
+            <Button
+              leadingIcon="retry"
+              onClick={() => void retrySavedViewMutation()}
+              variant="secondary"
+            >
+              Tentar salvar visualização
+            </Button>
+            <Button
+              onClick={() => {
+                setSavedViewFailureVisible(false);
+                focusSavedViewSelector();
+              }}
+              variant="secondary"
+            >
+              Continuar sem salvar
+            </Button>
+          </div>
+        </section>
+      )}
+    </div>
+  );
 
   return (
     <div
@@ -973,58 +1327,6 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
         <main className="manager-main">
           {preferences.activeScreen === 'squad' ? (
             <>
-              <div className="saved-view-lifecycle-host">
-                <SavedViewSelector
-                  activeViewId={tableView.activeViewId}
-                  busy={tableView.persistenceStatus.status === 'saving'}
-                  defaultViewId={tableView.defaultViewId}
-                  dirty={tableView.dirty}
-                  disabled={tableView.repositoryStatus.status === 'loading'}
-                  onActivate={requestViewActivation}
-                  onCreate={requestCreateView}
-                  onDelete={requestDeleteView}
-                  onDuplicate={requestDuplicateView}
-                  onRename={requestRenameView}
-                  onReset={() => void restoreActiveView()}
-                  onSave={() => void saveActiveView()}
-                  onSetDefault={(viewId) => void setDefaultView(viewId)}
-                  views={tableView.views}
-                />
-                <p aria-atomic="true" className="sr-only" role="status">
-                  {savedViewAnnouncement}
-                </p>
-                {savedViewFailureVisible && tableView.persistenceStatus.status === 'failed' && (
-                  <section className="saved-view-failure">
-                    <Status label="Falha ao gravar visualização" variant="danger">
-                      <h3 ref={savedViewFailureHeadingRef} tabIndex={-1}>
-                        Não foi possível salvar visualização
-                      </h3>
-                      <p>
-                        Seus ajustes continuam nesta tela e ainda não foram gravados neste
-                        dispositivo.
-                      </p>
-                    </Status>
-                    <div className="saved-view-failure__actions">
-                      <Button
-                        leadingIcon="retry"
-                        onClick={() => void retrySavedViewMutation()}
-                        variant="secondary"
-                      >
-                        Tentar salvar visualização
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          setSavedViewFailureVisible(false);
-                          focusSavedViewSelector();
-                        }}
-                        variant="secondary"
-                      >
-                        Continuar sem salvar
-                      </Button>
-                    </div>
-                  </section>
-                )}
-              </div>
               <SquadWorkspace
                 density={density}
                 dirty={dirty}
@@ -1058,7 +1360,8 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
                 squadFilter={squadFilter}
                 state={state}
                 statusFilter={statusFilter}
-                tableViewCommandStatus={tableView.commandStatus}
+                tableHeader={savedViewHeader}
+                tableViewLoading={tableView.repositoryStatus.status === 'loading'}
                 tableViewPersistenceStatus={tableView.persistenceStatus}
                 tableViewRepositoryStatus={tableView.repositoryStatus}
                 visibleColumns={visibleColumns}
