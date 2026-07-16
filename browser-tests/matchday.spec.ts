@@ -32,6 +32,7 @@ test.afterEach(({ page }) => {
 const screenshotViewports = [
   { width: 1024, height: 768 },
   { width: 1366, height: 768 },
+  { width: 1440, height: 900 },
   { width: 1920, height: 1080 },
   { width: 2560, height: 1080 },
 ] as const;
@@ -830,7 +831,7 @@ test('opens Elenco as a dedicated table workspace without rendering the tactical
   await expect(page.locator('.squad-table .player-face')).toHaveCount(18);
   await expect(page.locator('.squad-table img.rv-nationality__flag')).toHaveCount(18);
   await expect(page.locator('.player-dossier img.rv-nationality__flag')).toHaveCount(1);
-  await expect(page.locator('th[data-column="potentialRating"]')).toBeVisible();
+  await expect(page.locator('th[data-column-id="potentialRating"]')).toBeVisible();
   await expect(page.getByRole('row', { name: /Caio Brandão/u })).toContainText('1');
   await expect(page.getByRole('row', { name: /Davi Moura/u })).toContainText('22');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
@@ -975,7 +976,7 @@ test('personalizes the squad workspace and persists the choices', async ({ page 
   expect(focusStyle.outlineWidth).toBeGreaterThanOrEqual(2);
   await page.getByRole('button', { name: 'Ocultar Idade' }).click();
   await expect(page.getByRole('dialog', { name: 'Configurar tabela' })).toBeVisible();
-  await expect(page.locator('th[data-column="age"]')).toBeHidden();
+  await expect(page.locator('th[data-column-id="age"]')).toBeHidden();
   await page.getByRole('button', { name: 'Salvar visualização' }).click();
   await expect(page.getByRole('dialog', { name: 'Configurar tabela' })).toBeHidden();
   await columnsTrigger.focus();
@@ -994,11 +995,11 @@ test('personalizes the squad workspace and persists the choices', async ({ page 
   await expect(
     page.getByRole('button', { name: /Alterar densidade da tabela: Confortável/u }),
   ).toBeVisible();
-  await expect(page.locator('th[data-column="age"]')).toBeHidden();
+  await expect(page.locator('th[data-column-id="age"]')).toBeHidden();
 
   await page.reload();
   await expect(page.locator('.manager-shell')).toHaveAttribute('data-sidebar-collapsed', 'true');
-  await expect(page.locator('th[data-column="age"]')).toBeHidden();
+  await expect(page.locator('th[data-column-id="age"]')).toBeHidden();
   await expect(
     page.getByRole('button', { name: /Alterar densidade da tabela: Confortável/u }),
   ).toBeVisible();
@@ -1014,7 +1015,9 @@ test('uses real squad filters and navigates between the separate workspaces', as
 
   await page.getByRole('button', { name: 'Limpar' }).click();
   const playerRows = page.locator('.squad-table tbody tr');
-  const positionHeader = page.getByRole('button', { name: 'Ordenar por POS' });
+  const positionHeader = page.getByRole('button', {
+    name: /^(?:Ordenar por POS|POS, ordem)/u,
+  });
   await expect(playerRows.first()).toContainText('Caio Brandão');
   await positionHeader.click();
   await expect(playerRows.first()).toContainText('Murilo Braga');
@@ -1085,7 +1088,7 @@ test('substitutes through the accessible field flow and persists the saved plan'
   );
 });
 
-test('captures Elenco and Táticas at 1024, 1366, 1920 and 2560 pixels', async ({
+test('captures Elenco and Táticas at 1024, 1366, 1440, 1920 and 2560 pixels', async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -1156,7 +1159,7 @@ test('durable lifecycle persists an ordinary Mostrar somente gols view across re
     page.getByRole('heading', { name: 'Não foi possível salvar a visualização' }),
   ).toBeFocused();
   await expect(
-    page.locator('.saved-view-lifecycle-host').getByText('Alterações não salvas'),
+    page.locator('.rv-table-view-status').getByText('Alterações não salvas'),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Tentar salvar visualização' }).click();
   await expect(
@@ -1209,7 +1212,7 @@ test('durable lifecycle persists an ordinary Mostrar somente gols view across re
     page.getByRole('button', { name: 'Visualização da tabela: Mostrar somente gols' }),
   ).toBeVisible();
   await expect(page.locator('.squad-table thead th')).toHaveCount(5);
-  await expect(page.locator('th[data-column="goals"]')).toBeVisible();
+  await expect(page.locator('th[data-column-id="goals"]')).toBeVisible();
   await expect(page.locator('[aria-label*="Agrupar"], [data-control="grouping"]')).toHaveCount(0);
   const visibleGoals = await page
     .locator('.squad-table tbody tr td[data-column-id="goals"]')
@@ -1222,7 +1225,7 @@ test('durable lifecycle persists an ordinary Mostrar somente gols view across re
     await page.getByRole('button', { name: /Alterar densidade da tabela:/u }).click();
     await page.getByRole('button', { name: 'Densidade padrão' }).click();
     await expect(
-      page.locator('.saved-view-lifecycle-host').getByText('Alterações não salvas'),
+      page.locator('.rv-table-view-status').getByText('Alterações não salvas'),
     ).toBeVisible();
   };
   const requestSystemView = async () => {
@@ -1323,13 +1326,10 @@ test('durable lifecycle persists an ordinary Mostrar somente gols view across re
       }),
     );
   });
-  const importedPreferencesStatus = page.getByRole('status', {
-    name: 'Preferências antigas importadas',
-  });
-  await Promise.all([
-    importedPreferencesStatus.waitFor({ state: 'visible' }),
-    page.reload({ waitUntil: 'domcontentloaded' }),
-  ]);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect
+    .poll(async () => (await readTableViewRepository(page)).legacyImportReceipts.length)
+    .toBe(1);
   const afterLegacyImport = await readTableViewRepository(page);
   expect(afterLegacyImport.legacyImportReceipts).toHaveLength(1);
   expect(
@@ -1410,33 +1410,34 @@ test('live header parity keeps pointer and keyboard reorder resize rollback focu
     focusedPlayerRow.getByRole('button', { name: 'Retirar Caio Brandão' }),
   ).toHaveAttribute('aria-pressed', 'true');
   const initialOrder = await columnOrder();
-  const keyboardMove = page.getByRole('button', { name: 'Mover coluna Jogador' });
+  const keyboardMove = page.getByRole('button', {
+    name: /^(?:Ordenar por Jogador|Jogador, ordem)/u,
+  });
   await keyboardMove.focus();
-  await page.keyboard.press('Enter');
-  await page.keyboard.press('ArrowRight');
-  await page.keyboard.press('Enter');
+  await page.keyboard.press('Alt+ArrowRight');
   const keyboardOrder = await columnOrder();
   expect(keyboardOrder).not.toEqual(initialOrder);
   await expect(page.getByText(/^Jogador, posição \d+ de 18\.$/u)).toBeVisible();
   await expect(keyboardMove).toBeFocused();
 
   await page.reload();
-  const pointerMove = page.getByRole('button', { name: 'Mover coluna Jogador' });
-  await pointerMove.dragTo(page.locator('th[data-column="position"]'));
+  const pointerMove = page.locator('thead th[data-column-id="name"]');
+  await pointerMove.dragTo(page.locator('thead th[data-column-id="position"]'));
   expect(await columnOrder()).toEqual(keyboardOrder);
-  await expect(pointerMove).toBeFocused();
+  await expect(pointerMove).toBeVisible();
 
   await page.reload();
-  const rollbackMove = page.getByRole('button', { name: 'Mover coluna Jogador' });
+  const rollbackMove = page.getByRole('button', {
+    name: /^(?:Ordenar por Jogador|Jogador, ordem)/u,
+  });
   await rollbackMove.focus();
-  await page.keyboard.press('Enter');
-  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Alt+ArrowRight');
   await page.keyboard.press('Escape');
   expect(await columnOrder()).toEqual(initialOrder);
   await expect(rollbackMove).toBeFocused();
   await expect(page.getByText('Jogador, operação desfeita.')).toBeVisible();
 
-  const keyboardResize = page.getByRole('separator', { name: 'Redimensionar coluna Jogador' });
+  const keyboardResize = page.getByRole('separator', { name: 'Redimensionar Jogador' });
   const initialWidth = Number(await keyboardResize.getAttribute('aria-valuenow'));
   await keyboardResize.focus();
   await page.keyboard.press('ArrowRight');
@@ -1446,7 +1447,7 @@ test('live header parity keeps pointer and keyboard reorder resize rollback focu
   await expect(keyboardResize).toBeFocused();
 
   await page.reload();
-  const pointerResize = page.getByRole('separator', { name: 'Redimensionar coluna Jogador' });
+  const pointerResize = page.getByRole('separator', { name: 'Redimensionar Jogador' });
   const resizeBox = await pointerResize.boundingBox();
   if (resizeBox === null) throw new Error('The live Jogador resize handle is not measurable.');
   const resizeX = resizeBox.x + resizeBox.width / 2;
@@ -1458,7 +1459,7 @@ test('live header parity keeps pointer and keyboard reorder resize rollback focu
   expect(Number(await pointerResize.getAttribute('aria-valuenow'))).toBe(initialWidth + 8);
 
   await page.reload();
-  const rollbackResize = page.getByRole('separator', { name: 'Redimensionar coluna Jogador' });
+  const rollbackResize = page.getByRole('separator', { name: 'Redimensionar Jogador' });
   await rollbackResize.focus();
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('Escape');
@@ -1577,15 +1578,15 @@ test('computed WCAG contrast matrix covers operational and truthful table-view s
   await sample('default.table-row.text', page.locator('.squad-table tbody th').first());
   await sample(
     'default.live-header.inactive-sort-text',
-    page.locator('.squad-table__sort:not([data-active])').first(),
+    page.locator('.rv-data-table-header-cell__title:not([data-active])').first(),
   );
   await sample(
     'default.live-header.move-action-boundary',
-    page.getByRole('button', { name: /Mover coluna/u }).first(),
+    page.getByRole('button', { name: /Mais ações para/u }).first(),
   );
   await sample(
     'active.live-header.sort-text',
-    page.locator('.squad-table__sort[data-active]').first(),
+    page.locator('.rv-data-table-header-cell__title[data-active]').first(),
   );
   await sample(
     'default.live-header.resize-handle',
@@ -2019,7 +2020,7 @@ test('visual baseline and four-viewport geometry preserve the dense table and in
     projectViewport['desktop-1366x768'];
   const viewports =
     testInfo.project.name === 'desktop-1366x768'
-      ? [{ width: 1024, height: 768 }, currentViewport]
+      ? [{ width: 1024, height: 768 }, currentViewport, { width: 1440, height: 900 }]
       : [currentViewport];
 
   for (const viewport of viewports) {

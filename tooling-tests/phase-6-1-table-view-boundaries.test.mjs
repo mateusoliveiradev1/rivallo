@@ -56,6 +56,7 @@ const cargoManifestPaths = Object.freeze([
 const reviewedBaselines = Object.freeze({
   'browser-tests/__screenshots__/matchday/table-view-1024x768.png': [1024, 768],
   'browser-tests/__screenshots__/matchday/table-view-1366x768.png': [1366, 768],
+  'browser-tests/__screenshots__/matchday/table-view-1440x900.png': [1440, 900],
   'browser-tests/__screenshots__/matchday/table-view-1920x1080.png': [1920, 1080],
   'browser-tests/__screenshots__/matchday/table-view-2560x1080.png': [2560, 1080],
 });

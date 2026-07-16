@@ -496,7 +496,7 @@ export function TableViewCustomizer({
         {filteredSchemas.length === 0 ? (
           <section className="table-view-customizer__empty">
             <h4>Nenhuma coluna encontrada</h4>
-            <p>Tente outro nome; as colunas do elenco continuam disponíveis.</p>
+            <p>Tente outro nome; as colunas da tabela continuam disponíveis.</p>
             <Button onClick={() => setSearch('')} variant="secondary">
               Limpar busca de colunas
             </Button>

@@ -1,33 +1,27 @@
 import { Icon } from '@rivallo/icons';
-import {
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type DragEvent,
-  type KeyboardEvent,
-  type PointerEvent,
-  type ReactNode,
-} from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 
 import {
-  type TableViewColumnSchema,
   type TableViewColumnState,
   type TableViewCommand,
   type TableViewCommandResult,
   type TableViewState,
 } from '../table-view/table-view-engine.js';
 
+import {
+  DataTableHeader,
+  DataTableWorkspaceHeader,
+  TableDensityControl,
+  type TablePreferencesAdapter,
+} from '../ui/DataTable/index.js';
 import { Button } from '../ui/primitives/actions.js';
 import { NationalityDisplay } from '../ui/Nationality/index.js';
-import { Popover, Tooltip } from '../ui/primitives/disclosure.js';
+import { Tooltip } from '../ui/primitives/disclosure.js';
 import { Skeleton } from '../ui/primitives/feedback.js';
 import {
   positionLabels,
   positionLongLabels,
   preferredFootLabels,
-  squadColumnLabels,
-  squadColumnSortLabels,
   squadRoleLabels,
   squadSortPresets,
   type Density,
@@ -37,6 +31,7 @@ import {
   type StatusFilter,
 } from './matchday-ui.js';
 import { PlayerFace } from './PlayerFace.js';
+import { SQUAD_TABLE_DEFINITION } from './squad-table-definition.js';
 import { SQUAD_TABLE_SCHEMA, type SquadColumnId } from './squad-table-schema.js';
 import { TableViewCustomizer } from './TableViewCustomizer.js';
 import type { SortKey, SquadSortState } from './squad-sort.js';
@@ -61,27 +56,6 @@ const descendingFirstColumns = new Set<SortKey>([
 const averageRatingFormatter = new Intl.NumberFormat('pt-BR', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
-});
-
-const densityLabels: Record<Density, string> = {
-  compact: 'Compacta',
-  standard: 'Padrão',
-  comfortable: 'Confortável',
-};
-
-interface HeaderOperationSession {
-  readonly kind: 'move' | 'resize';
-  readonly input: 'keyboard' | 'pointer';
-  readonly columnId: string;
-  readonly snapshot: TableViewState;
-  readonly startX?: number;
-  readonly startWidth?: number;
-}
-
-const asResetBaseline = (snapshot: TableViewState, current: TableViewState): TableViewState => ({
-  ...snapshot,
-  viewId: current.baselineViewId,
-  baselineViewId: current.baselineViewId,
 });
 
 const calculatePinOffsets = (
@@ -170,6 +144,7 @@ interface SquadWorkspaceProps {
   readonly tableViewRepositoryStatus: SquadTableViewRepositoryStatus;
   readonly tableViewPersistenceStatus: SquadTableViewPersistenceStatus;
   readonly tableHeader: ReactNode;
+  readonly tableViewStatus: ReactNode;
   readonly tableViewState: TableViewState;
   readonly tableViewBaseline: TableViewState;
   readonly tableViewDirty: boolean;
@@ -210,6 +185,7 @@ export function SquadWorkspace({
   tableViewRepositoryStatus,
   tableViewPersistenceStatus,
   tableHeader,
+  tableViewStatus,
   tableViewState,
   tableViewBaseline,
   tableViewDirty,
@@ -232,7 +208,6 @@ export function SquadWorkspace({
   onTableViewCommand,
   onSaveTableView,
 }: SquadWorkspaceProps) {
-  const [openTableControl, setOpenTableControl] = useState<'density' | null>(null);
   const focusedPlayer =
     state.players.find((player) => player.id === focusedPlayerId) ?? state.players[0];
   const focusedIndex = focusedPlayer
@@ -252,279 +227,21 @@ export function SquadWorkspace({
   const tableViewBusy =
     tableViewRepositoryStatus.status === 'loading' ||
     tableViewPersistenceStatus.status === 'saving';
-  const updateTableControl = (control: 'density', open: boolean) =>
-    setOpenTableControl((current) => (open ? control : current === control ? null : current));
   const [tableAnnouncement, setTableAnnouncement] = useState('');
-  const [headerOperation, setHeaderOperation] = useState<HeaderOperationSession | null>(null);
-  const headerOperationRef = useRef<HeaderOperationSession | null>(null);
-  const tableViewStateRef = useRef(tableViewState);
-  const schemaById = new Map(SQUAD_TABLE_SCHEMA.columns.map((column) => [column.columnId, column]));
   const visibleColumnStates = tableViewState.columns.filter(({ visible }) => visible);
   const pinOffsets = calculatePinOffsets(visibleColumnStates);
-
-  useEffect(() => {
-    tableViewStateRef.current = tableViewState;
-  }, [tableViewState]);
 
   const announceTable = (message: string) => {
     setTableAnnouncement((current) => (current === message ? current : message));
   };
 
   const dispatchTableView = (command: TableViewCommand): TableViewCommandResult => {
-    const result = onTableViewCommand(command);
-    if (result.accepted) tableViewStateRef.current = result.state;
-    return result;
+    return onTableViewCommand(command);
   };
-
-  const setHeaderSession = (session: HeaderOperationSession | null) => {
-    headerOperationRef.current = session;
-    setHeaderOperation(session);
-  };
-
-  const beginHeaderSession = (
-    kind: HeaderOperationSession['kind'],
-    input: HeaderOperationSession['input'],
-    columnId: string,
-    pointer?: { readonly startX: number; readonly startWidth: number },
-  ) => {
-    if (headerOperationRef.current !== null) return;
-    setHeaderSession({
-      kind,
-      input,
-      columnId,
-      snapshot: tableViewStateRef.current,
-      ...(pointer === undefined ? {} : pointer),
-    });
-  };
-
-  const restoreHeaderOperation = () => {
-    const activeOperation = headerOperationRef.current;
-    if (activeOperation === null) return;
-    const focusTarget =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const label = schemaById.get(activeOperation.columnId)?.label ?? activeOperation.columnId;
-    const result = dispatchTableView({
-      type: 'view.reset',
-      baseline: asResetBaseline(activeOperation.snapshot, tableViewStateRef.current),
-    });
-    if (result.accepted) announceTable(`${label}, operação desfeita.`);
-    setHeaderSession(null);
-    focusTarget?.focus();
-  };
-
-  const moveHeader = (columnId: string, toIndex: number) => {
-    const result = dispatchTableView({ type: 'column.reorder', columnId, toIndex });
-    const label = schemaById.get(columnId)?.label ?? columnId;
-    if (result.accepted) {
-      const position = result.state.columns.findIndex((column) => column.columnId === columnId);
-      announceTable(`${label}, posição ${position + 1} de ${result.state.columns.length}.`);
-    } else {
-      announceTable(`${label}: esta posição não pode ser aplicada.`);
-    }
-  };
-
-  const handleHeaderMoveKeyDown = (event: KeyboardEvent<HTMLButtonElement>, columnId: string) => {
-    const active = headerOperationRef.current;
-    const moving = active?.kind === 'move' && active.columnId === columnId;
-    if (!moving && (event.key === 'Enter' || event.key === ' ')) {
-      event.preventDefault();
-      beginHeaderSession('move', 'keyboard', columnId);
-      return;
-    }
-    if (!moving) return;
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      setHeaderSession(null);
-      return;
-    }
-    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) {
-      return;
-    }
-    event.preventDefault();
-    const currentIndex = tableViewStateRef.current.columns.findIndex(
-      (column) => column.columnId === columnId,
-    );
-    const lastIndex = tableViewStateRef.current.columns.length - 1;
-    const nextIndex =
-      event.key === 'Home'
-        ? 0
-        : event.key === 'End'
-          ? lastIndex
-          : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
-            ? Math.max(0, currentIndex - 1)
-            : Math.min(lastIndex, currentIndex + 1);
-    moveHeader(columnId, nextIndex);
-  };
-
-  const handleHeaderMovePointerDown = (
-    event: PointerEvent<HTMLButtonElement>,
-    columnId: string,
-  ) => {
-    beginHeaderSession('move', 'pointer', columnId);
-    event.currentTarget.focus();
-  };
-
-  const movePointerToHeader = (targetColumnId: string) => {
-    const active = headerOperationRef.current;
-    if (active?.kind !== 'move' || active.input !== 'pointer') return;
-    const targetIndex = tableViewStateRef.current.columns.findIndex(
-      (column) => column.columnId === targetColumnId,
-    );
-    if (targetIndex >= 0) moveHeader(active.columnId, targetIndex);
-  };
-
-  const finishHeaderPointerMove = () => {
-    if (
-      headerOperationRef.current?.kind === 'move' &&
-      headerOperationRef.current.input === 'pointer'
-    ) {
-      setHeaderSession(null);
-    }
-  };
-
-  const handleHeaderDragStart = (event: DragEvent<HTMLButtonElement>, columnId: string) => {
-    beginHeaderSession('move', 'pointer', columnId);
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', columnId);
-  };
-
-  const resizeHeader = (columnId: string, width: number) => {
-    const result = dispatchTableView({ type: 'column.resize', columnId, width });
-    const label = schemaById.get(columnId)?.label ?? columnId;
-    if (result.accepted) {
-      const nextWidth =
-        result.state.columns.find((column) => column.columnId === columnId)?.width ?? width;
-      announceTable(`${label}, largura ${nextWidth} pixels.`);
-    } else {
-      announceTable(`${label}: esta largura não pode ser aplicada.`);
-    }
-  };
-
-  const handleHeaderResizeKeyDown = (
-    event: KeyboardEvent<HTMLSpanElement>,
-    columnSchema: TableViewColumnSchema,
-  ) => {
-    if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
-      event.preventDefault();
-      if (
-        headerOperationRef.current?.kind !== 'resize' ||
-        headerOperationRef.current.columnId !== columnSchema.columnId
-      ) {
-        beginHeaderSession('resize', 'keyboard', columnSchema.columnId);
-      }
-      const currentWidth =
-        tableViewStateRef.current.columns.find(
-          (column) => column.columnId === columnSchema.columnId,
-        )?.width ?? columnSchema.width.default;
-      const step = event.shiftKey ? 24 : 8;
-      const width =
-        event.key === 'Home'
-          ? columnSchema.width.min
-          : event.key === 'End'
-            ? columnSchema.width.max
-            : event.key === 'ArrowLeft'
-              ? currentWidth - step
-              : currentWidth + step;
-      resizeHeader(columnSchema.columnId, width);
-      return;
-    }
-    if (
-      event.key === 'Enter' &&
-      headerOperationRef.current?.kind === 'resize' &&
-      headerOperationRef.current.columnId === columnSchema.columnId
-    ) {
-      event.preventDefault();
-      setHeaderSession(null);
-    }
-  };
-
-  const handleHeaderResizePointerDown = (
-    event: PointerEvent<HTMLSpanElement>,
-    columnSchema: TableViewColumnSchema,
-  ) => {
-    const currentWidth =
-      tableViewStateRef.current.columns.find((column) => column.columnId === columnSchema.columnId)
-        ?.width ?? columnSchema.width.default;
-    beginHeaderSession('resize', 'pointer', columnSchema.columnId, {
-      startX: event.clientX,
-      startWidth: currentWidth,
-    });
-    event.currentTarget.focus();
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-  };
-
-  const handleHeaderResizePointerMove = (event: PointerEvent<HTMLSpanElement>) => {
-    const active = headerOperationRef.current;
-    if (
-      active?.kind !== 'resize' ||
-      active.input !== 'pointer' ||
-      active.startX === undefined ||
-      active.startWidth === undefined
-    ) {
-      return;
-    }
-    resizeHeader(active.columnId, active.startWidth + event.clientX - active.startX);
-  };
-
-  const finishHeaderPointerResize = (event: PointerEvent<HTMLSpanElement>) => {
-    if (
-      headerOperationRef.current?.kind !== 'resize' ||
-      headerOperationRef.current.input !== 'pointer'
-    ) {
-      return;
-    }
-    event.currentTarget.releasePointerCapture?.(event.pointerId);
-    setHeaderSession(null);
-  };
-
-  const cycleHeaderSort = (columnSchema: TableViewColumnSchema, shiftKey: boolean) => {
-    const currentSort = tableViewStateRef.current.sort;
-    const currentIndex = currentSort.findIndex(
-      (clause) => clause.columnId === columnSchema.columnId,
-    );
-    const currentClause = currentSort[currentIndex];
-    const descendingFirst = descendingFirstColumns.has(columnSchema.columnId as SortKey);
-    const nextDirection: 'asc' | 'desc' | null =
-      currentClause === undefined
-        ? descendingFirst
-          ? 'desc'
-          : 'asc'
-        : currentClause.direction === (descendingFirst ? 'desc' : 'asc')
-          ? descendingFirst
-            ? 'asc'
-            : 'desc'
-          : null;
-    let nextSort = shiftKey ? [...currentSort] : [];
-
-    if (shiftKey && currentIndex >= 0) nextSort.splice(currentIndex, 1);
-    if (nextDirection !== null) {
-      const nextClause = {
-        columnId: columnSchema.columnId,
-        direction: nextDirection,
-        nulls: 'last' as const,
-      };
-      if (shiftKey)
-        nextSort.splice(currentIndex >= 0 ? currentIndex : nextSort.length, 0, nextClause);
-      else nextSort = [nextClause];
-    }
-
-    const result = dispatchTableView({ type: 'sort.set', sort: nextSort });
-    if (!result.accepted) {
-      announceTable(`${columnSchema.label}: use no máximo três critérios de ordenação.`);
-      return;
-    }
-
-    const nextIndex = result.state.sort.findIndex(
-      (clause) => clause.columnId === columnSchema.columnId,
-    );
-    if (nextIndex < 0) {
-      announceTable(`${columnSchema.label}, ordenação removida.`);
-      return;
-    }
-    const clause = result.state.sort[nextIndex];
-    announceTable(
-      `${columnSchema.label}, ordem ${clause.direction === 'asc' ? 'crescente' : 'decrescente'}, prioridade ${nextIndex + 1} de ${result.state.sort.length}.`,
-    );
+  const tablePreferences: TablePreferencesAdapter = {
+    state: tableViewState,
+    baseline: tableViewBaseline,
+    dispatch: dispatchTableView,
   };
 
   return (
@@ -674,51 +391,8 @@ export function SquadWorkspace({
         data-density={density}
       >
         <section className="squad-panel" aria-labelledby="players-title">
-          <header className="squad-panel__header">
-            <div className="squad-panel__title">
-              <h2 id="players-title">{players.length} jogadores</h2>
-              <span>{state.club.name} · plantel principal</span>
-            </div>
-            {tableHeader}
-            <div className="table-controls">
-              <span>Densidade</span>
-              <Popover
-                align="end"
-                contentClassName="table-control-popover density-picker"
-                onOpenChange={(open) => updateTableControl('density', open)}
-                open={openTableControl === 'density'}
-                title="Densidade do elenco"
-                triggerAccessibleLabel={`Alterar densidade da tabela: ${densityLabels[density]}`}
-                triggerClassName="density-picker__trigger"
-                triggerContent={
-                  <>
-                    <i aria-hidden="true" data-lines={density} />
-                    <span>{densityLabels[density]}</span>
-                  </>
-                }
-                triggerLabel="Densidade"
-                triggerTooltip="Alterar espaçamento das linhas"
-              >
-                <div aria-label="Densidade da tabela" className="density-picker__menu" role="group">
-                  {(['compact', 'standard', 'comfortable'] as const).map((densityOption) => (
-                    <button
-                      aria-label={`Densidade ${densityOption === 'compact' ? 'compacta' : densityOption === 'standard' ? 'padrão' : 'confortável'}`}
-                      aria-pressed={density === densityOption}
-                      className="density-option"
-                      key={densityOption}
-                      onClick={() => {
-                        onDensityChange(densityOption);
-                        setOpenTableControl(null);
-                      }}
-                      type="button"
-                    >
-                      <i aria-hidden="true" data-lines={densityOption} />
-                      <span>{densityLabels[densityOption]}</span>
-                      <b>{density === densityOption ? 'Atual' : 'Selecionar'}</b>
-                    </button>
-                  ))}
-                </div>
-              </Popover>
+          <DataTableWorkspaceHeader
+            configurationTrigger={
               <TableViewCustomizer
                 baseline={tableViewBaseline}
                 busy={tableViewBusy}
@@ -728,8 +402,21 @@ export function SquadWorkspace({
                 schema={SQUAD_TABLE_SCHEMA}
                 state={tableViewState}
               />
-            </div>
-          </header>
+            }
+            contextLabel={`${state.club.name} · plantel principal`}
+            densityControl={
+              <TableDensityControl
+                densities={SQUAD_TABLE_SCHEMA.densities}
+                density={density}
+                onChange={(nextDensity) => onDensityChange(nextDensity as Density)}
+                title="Densidade do elenco"
+              />
+            }
+            recordLabel={`${players.length} jogadores`}
+            recordHeadingId="players-title"
+            viewSelector={tableHeader}
+            viewStatus={tableViewStatus}
+          />
 
           <div className="squad-table-wrap">
             <table
@@ -744,12 +431,6 @@ export function SquadWorkspace({
                   }px`,
                 } as CSSProperties
               }
-              onKeyDownCapture={(event) => {
-                if (event.key !== 'Escape' || headerOperationRef.current === null) return;
-                event.preventDefault();
-                event.stopPropagation();
-                restoreHeaderOperation();
-              }}
             >
               <caption className="sr-only">Elenco principal</caption>
               <colgroup>
@@ -762,114 +443,17 @@ export function SquadWorkspace({
                   />
                 ))}
               </colgroup>
-              <thead>
-                <tr>
-                  {visibleColumnStates.map((columnState) => {
-                    const columnSchema = schemaById.get(columnState.columnId);
-                    if (columnSchema === undefined) return null;
-                    const sortIndex = tableViewState.sort.findIndex(
-                      (clause) => clause.columnId === columnState.columnId,
-                    );
-                    const activeSort = tableViewState.sort[sortIndex];
-                    const pinned = columnState.pinning.side;
-                    const pinOffset = pinOffsets.get(columnState.columnId) ?? 0;
-                    const moving =
-                      headerOperation?.kind === 'move' &&
-                      headerOperation.columnId === columnState.columnId;
-                    const resizing =
-                      headerOperation?.kind === 'resize' &&
-                      headerOperation.columnId === columnState.columnId;
-                    const columnId = columnState.columnId as SquadColumnId;
-
-                    return (
-                      <th
-                        aria-sort={
-                          activeSort === undefined
-                            ? undefined
-                            : activeSort.direction === 'asc'
-                              ? 'ascending'
-                              : 'descending'
-                        }
-                        data-column={columnState.columnId}
-                        data-column-id={columnState.columnId}
-                        data-moving={moving || undefined}
-                        data-pinned={pinned === 'none' ? undefined : pinned}
-                        data-resizing={resizing || undefined}
-                        key={columnState.columnId}
-                        onDragOver={(event) => event.preventDefault()}
-                        onDrop={(event) => {
-                          event.preventDefault();
-                          movePointerToHeader(columnState.columnId);
-                          finishHeaderPointerMove();
-                        }}
-                        onPointerEnter={() => movePointerToHeader(columnState.columnId)}
-                        scope="col"
-                        style={
-                          {
-                            '--squad-column-width': `${columnState.width}px`,
-                            '--squad-pin-offset': `${pinOffset}px`,
-                          } as CSSProperties
-                        }
-                      >
-                        <div className="squad-table__header">
-                          <button
-                            aria-label={`Ordenar por ${columnSchema.label}`}
-                            className="squad-table__sort"
-                            data-active={activeSort !== undefined || undefined}
-                            onClick={(event) => cycleHeaderSort(columnSchema, event.shiftKey)}
-                            title={squadColumnSortLabels[columnId]}
-                            type="button"
-                          >
-                            <span>{squadColumnLabels[columnId]}</span>
-                            {activeSort !== undefined && (
-                              <span aria-hidden="true">
-                                {activeSort.direction === 'asc' ? '↑' : '↓'}
-                                {tableViewState.sort.length > 1 ? sortIndex + 1 : ''}
-                              </span>
-                            )}
-                          </button>
-                          <button
-                            aria-label={`Mover coluna ${columnSchema.label}`}
-                            aria-pressed={moving}
-                            className="squad-table__move"
-                            draggable
-                            onDragEnd={finishHeaderPointerMove}
-                            onDragStart={(event) =>
-                              handleHeaderDragStart(event, columnState.columnId)
-                            }
-                            onKeyDown={(event) =>
-                              handleHeaderMoveKeyDown(event, columnState.columnId)
-                            }
-                            onPointerDown={(event) =>
-                              handleHeaderMovePointerDown(event, columnState.columnId)
-                            }
-                            onPointerUp={finishHeaderPointerMove}
-                            type="button"
-                          >
-                            <span aria-hidden="true">↔</span>
-                          </button>
-                          <span
-                            aria-label={`Redimensionar coluna ${columnSchema.label}`}
-                            aria-orientation="vertical"
-                            aria-valuemax={columnSchema.width.max}
-                            aria-valuemin={columnSchema.width.min}
-                            aria-valuenow={columnState.width}
-                            className="squad-table__resize"
-                            onKeyDown={(event) => handleHeaderResizeKeyDown(event, columnSchema)}
-                            onPointerDown={(event) =>
-                              handleHeaderResizePointerDown(event, columnSchema)
-                            }
-                            onPointerMove={handleHeaderResizePointerMove}
-                            onPointerUp={finishHeaderPointerResize}
-                            role="separator"
-                            tabIndex={0}
-                          />
-                        </div>
-                      </th>
-                    );
-                  })}
-                </tr>
-              </thead>
+              <DataTableHeader
+                definition={SQUAD_TABLE_DEFINITION}
+                descendingFirstColumnIds={descendingFirstColumns}
+                onAnnouncement={announceTable}
+                onOpenAdvancedColumn={() => {
+                  document
+                    .querySelector<HTMLButtonElement>('[aria-label="Configurar tabela"]')
+                    ?.click();
+                }}
+                preferences={tablePreferences}
+              />
               <tbody>
                 {tableViewLoading
                   ? Array.from({ length: 5 }, (_, index) => (

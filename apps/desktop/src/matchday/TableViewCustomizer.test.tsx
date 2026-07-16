@@ -99,7 +99,7 @@ describe('TableViewCustomizer', () => {
       HTMLElement,
     );
     expect(
-      screen.getByText('Tente outro nome; as colunas do elenco continuam disponíveis.'),
+      screen.getByText('Tente outro nome; as colunas da tabela continuam disponíveis.'),
     ).toBeInstanceOf(HTMLElement);
 
     await user.click(screen.getByRole('button', { name: 'Limpar busca de colunas' }));

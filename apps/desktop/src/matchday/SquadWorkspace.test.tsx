@@ -237,6 +237,7 @@ function WorkspaceHarness({
         state={matchdayState}
         statusFilter={durable.status as StatusFilter}
         tableHeader={<span>Visualização controlada</span>}
+        tableViewStatus={<span>Visualização padrão</span>}
         tableViewBaseline={SQUAD_SYSTEM_VIEW}
         tableViewDirty={isTableViewDirty(SQUAD_TABLE_SCHEMA, view, SQUAD_SYSTEM_VIEW)}
         tableViewLoading={loading}
@@ -295,7 +296,7 @@ describe('SquadWorkspace normalized native table', () => {
     expect(
       within(squadTable)
         .getByRole('columnheader', { name: /Gols/u })
-        .style.getPropertyValue('--squad-pin-offset'),
+        .style.getPropertyValue('--rv-data-table-pin-offset'),
     ).toBe('0px');
     expect(squadTable.querySelector('[data-column-id="age"]')).toBeNull();
 
@@ -341,10 +342,10 @@ describe('SquadWorkspace normalized native table', () => {
     const user = userEvent.setup();
     render(<WorkspaceHarness />);
     const originalOrder = readView().columns.map(({ columnId }) => columnId);
-    const moveAge = within(table()).getByRole('button', { name: 'Mover coluna Idade' });
+    const moveAge = within(table()).getByRole('button', { name: 'Ordenar por Idade' });
 
     moveAge.focus();
-    await user.keyboard('{Enter}{End}');
+    await user.keyboard('{Alt>}{End}{/Alt}');
     expect(readView().columns.at(-1)?.columnId).toBe('age');
     expect(screen.getByRole('status', { name: 'Resultado da tabela' }).textContent).toContain(
       'Idade, posição 18 de 18.',
@@ -353,16 +354,19 @@ describe('SquadWorkspace normalized native table', () => {
     expect(readView().columns.map(({ columnId }) => columnId)).toEqual(originalOrder);
     expect(document.activeElement).toBe(moveAge);
 
-    fireEvent.pointerDown(moveAge, { pointerId: 1, clientX: 10 });
-    fireEvent.pointerEnter(within(table()).getByRole('columnheader', { name: /Gols/u }), {
-      pointerId: 1,
-      clientX: 40,
-    });
-    fireEvent.pointerUp(moveAge, { pointerId: 1, clientX: 40 });
+    const ageHeader = moveAge.closest('th');
+    if (!(ageHeader instanceof HTMLTableCellElement)) throw new Error('Age header missing.');
+    const dataTransfer = {
+      effectAllowed: 'none',
+      setData: () => undefined,
+    };
+    fireEvent.dragStart(ageHeader, { dataTransfer });
+    fireEvent.pointerEnter(within(table()).getByRole('columnheader', { name: /Gols/u }));
+    fireEvent.dragEnd(ageHeader, { dataTransfer });
     expect(readView().columns.findIndex(({ columnId }) => columnId === 'age')).toBe(15);
 
     const resizeAge = within(table()).getByRole('separator', {
-      name: 'Redimensionar coluna Idade',
+      name: 'Redimensionar Idade',
     });
     resizeAge.focus();
     await user.keyboard('{ArrowRight}');

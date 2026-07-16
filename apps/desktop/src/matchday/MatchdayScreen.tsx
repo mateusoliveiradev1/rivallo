@@ -2,6 +2,7 @@ import { Icon, type GenericIconName } from '@rivallo/icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 
+import { TableViewStatus } from '../ui/DataTable/index.js';
 import { Button } from '../ui/primitives/actions.js';
 import { Tooltip } from '../ui/primitives/disclosure.js';
 import { Skeleton, Status } from '../ui/primitives/feedback.js';
@@ -945,12 +946,6 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
   const systemSavedView = tableView.views.find(
     ({ state: viewState }) => viewState.provenance === 'system-default',
   );
-  const activeProvenance =
-    activeSavedView.state.provenance === 'system-default'
-      ? { icon: 'favorite' as const, label: 'Padrão do sistema' }
-      : activeSavedView.state.provenance === 'user-owned'
-        ? { icon: 'edit' as const, label: 'Minha visualização' }
-        : { icon: 'information' as const, label: 'Somente leitura' };
 
   const useSystemSavedView = () => {
     if (systemSavedView === undefined) return;
@@ -1143,24 +1138,6 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
           onSetDefault={(viewId) => void setDefaultView(viewId)}
           views={tableView.views}
         />
-        <div aria-label="Estado da visualização ativa" className="saved-view-lifecycle__meta">
-          <span>
-            <Icon name={activeProvenance.icon} size={16} />
-            {activeProvenance.label}
-          </span>
-          {tableView.activeViewId === tableView.defaultViewId && (
-            <span>
-              <Icon name="check" size={16} />
-              Visualização padrão
-            </span>
-          )}
-          {tableView.dirty && (
-            <strong>
-              <Icon name="warning" size={16} />
-              Alterações não salvas
-            </strong>
-          )}
-        </div>
       </div>
       <p aria-atomic="true" className="sr-only" role="status">
         {savedViewAnnouncement}
@@ -1378,6 +1355,13 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
                 tableViewPersistenceStatus={tableView.persistenceStatus}
                 tableViewRepositoryStatus={tableView.repositoryStatus}
                 tableViewState={tableView.proposal}
+                tableViewStatus={
+                  <TableViewStatus
+                    dirty={tableView.dirty}
+                    isDefault={tableView.activeViewId === tableView.defaultViewId}
+                    provenance={activeSavedView.state.provenance}
+                  />
+                }
                 onSaveTableView={saveActiveView}
                 onTableViewCommand={tableView.dispatch}
               />

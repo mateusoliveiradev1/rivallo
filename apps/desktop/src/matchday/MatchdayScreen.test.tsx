@@ -1300,7 +1300,7 @@ describe('MatchdayScreen', () => {
     const selectorTrigger = screen.getByRole('button', {
       name: 'Visualização da tabela: Minha análise',
     });
-    const tableHeader = selectorTrigger.closest('.squad-panel__header');
+    const tableHeader = selectorTrigger.closest('.rv-data-table-workspace-header');
     expect(tableHeader).toBeInstanceOf(HTMLElement);
     expect(tableHeader?.contains(screen.getByRole('button', { name: 'Configurar tabela' }))).toBe(
       true,
@@ -1308,8 +1308,10 @@ describe('MatchdayScreen', () => {
     expect(tableHeader?.compareDocumentPosition(table) ?? 0).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
 
     const lifecycleState = screen.getByLabelText('Estado da visualização ativa');
-    expect(within(lifecycleState).getByText('Minha visualização')).toBeInstanceOf(HTMLElement);
-    expect(within(lifecycleState).getByText('Visualização padrão')).toBeInstanceOf(HTMLElement);
+    expect(within(lifecycleState).getByText('Visualização personalizada')).toBeInstanceOf(
+      HTMLElement,
+    );
+    expect(within(lifecycleState).getByText('Padrão')).toBeInstanceOf(HTMLElement);
     expect(screen.getByLabelText('Resumo de Caio Brandão')).toBeInstanceOf(HTMLElement);
     expect(within(table).getAllByRole('button', { name: /Retirar|Escalar/u })).toHaveLength(12);
 
