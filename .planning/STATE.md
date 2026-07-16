@@ -4,18 +4,18 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 06.1
 current_phase_name: SM-2 Table View Engine and Durable Views
-current_plan: 4
+current_plan: 5
 status: executing
-stopped_at: Completed 06.1-03-PLAN.md
-last_updated: "2026-07-16T11:09:30.930Z"
+stopped_at: Completed 06.1-04-PLAN.md
+last_updated: "2026-07-16T11:51:47.331Z"
 last_activity: 2026-07-16
-last_activity_desc: Completed Phase 06.1 Plan 03 durable table-view repository
+last_activity_desc: Completed typed desktop table-view boundary and lossless legacy import
 progress:
   total_phases: 18
   completed_phases: 4
   total_plans: 45
-  completed_plans: 37
-  percent: 22
+  completed_plans: 38
+  percent: 84
 ---
 
 # State
@@ -29,17 +29,17 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 **Current phase name:** SM-2 Table View Engine and Durable Views
 **Current gate:** SM-2 durable table views.
 **Gate 0:** APPROVED by Mateus.
-**Next action:** Execute Phase 06.1 Plan 04 typed Tauri/client boundary and lossless legacy import.
+**Next action:** Execute Phase 06.1 Plan 05 controlled table-view controller and screen integration.
 
 ## Current Position
 
 Current Phase: 06.1
 Current Phase Name: SM-2 Table View Engine and Durable Views
-Current Plan: 4
+Current Plan: 5
 Total Plans in Phase: 8
 Status: Ready to execute
-Progress: 3/8 Phase 06.1 plans complete; Plan 04 is next.
-Last activity: 2026-07-16 — Completed durable table-view repository, migrations, quarantine, and crash recovery
+Progress: 4/8 Phase 06.1 plans complete; Plan 05 is next.
+Last activity: 2026-07-16 — Completed typed desktop table-view boundary and lossless legacy import
 
 ## Gate History
 
@@ -49,8 +49,8 @@ Last activity: 2026-07-16 — Completed durable table-view repository, migration
 
 ## Session
 
-**Last session:** 2026-07-16T11:09:30.926Z
-**Stopped at:** Completed 06.1-03-PLAN.md
+**Last session:** 2026-07-16T11:51:47.327Z
+**Stopped at:** Completed 06.1-04-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -101,6 +101,7 @@ Last activity: 2026-07-16 — Completed durable table-view repository, migration
 | Phase 06.1 P01 | 27min | 2 tasks | 5 files |
 | Phase 06.1 P02 | 52 min | 2 tasks | 4 files |
 | Phase 06.1 P03 | 18min | 2 tasks | 2 files |
+| Phase 06.1 P04 | 33min | 3 tasks | 6 files |
 
 ## Decisions
 
@@ -187,3 +188,6 @@ Last activity: 2026-07-16 — Completed durable table-view repository, migration
 - [Phase 06.1]: Remove only documented removedColumn during v1 to v2 and add averageRating from the application-owned squad.primary default during v2 to v3. — Preserves recognized durable intent while unknown IDs remain failure-oriented and cannot be partially merged.
 - [Phase 06.1]: Reconcile interrupted table-view writes by preferring a valid active generation, then staged, then backup, while retaining bounded quarantine evidence. — Every interruption exposes exactly a previous or new complete valid envelope without deleting the sole valid generation.
 - [Phase 06.1]: Serialize platform table-view access through one Mutex-wrapped application service. — Keeps filesystem coordination in platform while lifecycle and import policy remain application-owned and typed.
+- [Phase 06.1]: Expose engine-shaped runtime-decoded desktop DTOs through Tauri. — The next controller consumes one validated engine vocabulary while the host preserves application-owned repository authority.
+- [Phase 06.1]: Treat v2 and v3 legacy vocabularies as pre-averageRating while v4 owns current visibility. — Schema-owned defaults add averageRating without overwriting recognized legacy order, density, or intentional v4 visibility.
+- [Phase 06.1]: Require an exact durable source-version and fingerprint receipt before retiring legacy table fields. — Failed, replayed, changed, corrupt, and unknown-only imports keep diagnostic data and all non-table preferences intact.

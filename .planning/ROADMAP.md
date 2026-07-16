@@ -230,7 +230,7 @@ The sports-management evolution is detailed below as a bounded future sequence. 
 **Goal:** Turn table personalization into one controlled cross-product capability and prove it in Elenco with durable, versioned views instead of screen-specific state.
 **Requirements:** SM-02; DATA-01 preference-boundary portion; UI-02 dense-table portion.
 **Depends on:** Phase 6 and the canonical Phase 5 Table View Engine contract.
-**Plans:** 3/8 plans executed
+**Plans:** 4/8 plans executed
 
 Plans:
 **Wave 1**
@@ -244,7 +244,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 06.1-04-PLAN.md — Typed Tauri/client boundary and lossless legacy import.
+- [x] 06.1-04-PLAN.md — Typed Tauri/client boundary and lossless legacy import.
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
