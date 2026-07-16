@@ -36,6 +36,11 @@
 ### Sports-management product review
 
 - [x] **SM-01**: In the real Elenco product surface, density and its adjacent disclosure remain stable across repeated close/Escape/outside-click cycles; supplemental tooltips and accessible local nationality flags work with fallbacks; relevant console errors fail regression tests; and the established AppShell, navigation, table, inspector, tactics, persistence, tokens and domain behavior do not regress.
+- [ ] **SM-02**: Dense product tables use one controlled Table View Engine with stable table/column/view IDs, declared capabilities, complete saved-view lifecycle, versioned adapter-owned persistence, sequential migrations and safe corruption/future-schema recovery; Elenco proves visibility, order, finite width, pinning, density, sorting and supported filtering across navigation and restart.
+- [ ] **SM-03**: Tactics use a Rust-authoritative normalized free-position model and one persisted move/swap command path for field and bench; presets remain starting points, custom shapes survive restart, invalid goalkeeper/count/overlap/duplicate states are rejected clearly, and essential operations work by pointer and keyboard without player duplication.
+- [ ] **SM-04**: Analysis, Strategy, Instructions and Opposition edit or derive from one persisted tactical aggregate with named validation, conflict and precedence rules; familiarity is multidimensional, explainable and event-driven, while unavailable scouting and simulation effects remain explicitly truthful rather than invented.
+- [ ] **SM-05**: Elenco keeps its table workspace and contextual player inspector while stable player and coach profile navigation exposes real adapter-fed data; contextual player/team/coach ratings are deterministic Rust-domain projections with documented scale, components, context, uncertainty and tests rather than opaque or decorative numbers.
+- [ ] **SM-06**: Squad Dynamics and Training are distinct working product areas: dynamics explains morale/cohesion/hierarchy/events, while a persisted week anchored to the current matchday supports validated collective, group and individual training commands; Rust owns implemented workload, development, familiarity and dynamic-potential consequences with deterministic history and perceived-potential uncertainty, without claiming later season/travel/cache/offline breadth.
 
 ## V0.2 requirements
 
@@ -45,7 +50,7 @@
 
 ## Later requirements
 
-Advanced simulation, market, training, development, injuries, academy, scouting, public mods, and the full editor remain later work. Sports-management slices SM-2 through SM-6, including the Table View Engine, free tactical model, full tactical semantics, entity/ratings depth, dynamics, training and dynamic potential, are prospective and are not requirements for the current SM-1 execution. A deliberately small matchday simulation is part of V0.1 so the product is validated as a game rather than as infrastructure.
+Advanced match simulation breadth, market, injuries, academy, full scouting, public mods, and the full editor remain later work. The bounded sports-management slices SM-2 through SM-6 are detailed planned requirements in inserted Phases 06.1 through 06.5, but they are not authorized for implementation in the current execution. A deliberately small matchday simulation remains the current executable base, and every future sporting effect must be real, deterministic and domain-owned or be labelled honestly as not yet consumed by the simulator.
 
 ## Traceability
 
@@ -55,6 +60,11 @@ Advanced simulation, market, training, development, injuries, academy, scouting,
 | FOUND                |   2–4 | Pending                                 |
 | UI                   |   5–6 | Pending                                 |
 | SM-01 stabilization  |  6/02 | Complete; human product review deferred |
+| SM-02 table views    |  06.1 | Planned                                 |
+| SM-03 tactical field |  06.2 | Planned                                 |
+| SM-04 tactical model |  06.3 | Planned                                 |
+| SM-05 profiles       |  06.4 | Planned                                 |
+| SM-06 training       |  06.5 | Planned                                 |
 | GAME                 |     6 | Complete                                |
 | DESK/DATA            |  7–10 | Pending                                 |
 | MULTI                | 11–13 | Deferred to V0.2                        |

@@ -2,19 +2,20 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 06
-current_phase_name: First Playable Matchday
+current_phase: 06.1
+current_phase_name: SM-2 Table View Engine and Durable Views
 current_plan: 1
-status: awaiting_user_validation
-stopped_at: First playable matchday built, verified, and ready to run
-last_updated: '2026-07-15T22:38:00.000Z'
-last_activity: 2026-07-15
+status: executing
+stopped_at: Phase 06.1 materialized; autonomous SM-2 through SM-6 execution authorized
+last_updated: "2026-07-16T06:31:04.499Z"
+last_activity: 2026-07-16
+last_activity_desc: Phase 06.1 execution started
 progress:
-  total_phases: 13
+  total_phases: 18
   completed_phases: 4
-  total_plans: 35
-  completed_plans: 33
-  percent: 31
+  total_plans: 37
+  completed_plans: 34
+  percent: 22
 ---
 
 # State
@@ -24,21 +25,21 @@ progress:
 See `.planning/PROJECT.md` (updated 2026-07-13).
 
 **Core value:** dependable deep management in local and shared online competition.
-**Current phase:** 06
-**Current phase name:** First Playable Matchday
-**Current gate:** First Playable.
+**Current phase:** 06.1
+**Current phase name:** SM-2 Table View Engine and Durable Views
+**Current gate:** SM-2 durable table views.
 **Gate 0:** APPROVED by Mateus.
-**Next action:** Run the built first playable and collect Mateus's product feedback before expanding the season.
+**Next action:** Discuss, specify, plan and execute Phase 06.1 against the canonical Table View Engine contract.
 
 ## Current Position
 
-Current Phase: 6
-Current Phase Name: First Playable Matchday
+Current Phase: 06.1
+Current Phase Name: SM-2 Table View Engine and Durable Views
 Current Plan: 1
-Total Plans in Phase: 1
-Status: Awaiting user validation
-Progress: First playable implementation and automated verification complete
-Last activity: 2026-07-15
+Total Plans in Phase: 0
+Status: Executing Phase 06.1
+Progress: Phase 06.1 materialized and ready for context gathering.
+Last activity: 2026-07-16 — Phase 06.1 execution started
 
 ## Gate History
 
@@ -48,8 +49,8 @@ Last activity: 2026-07-15
 
 ## Session
 
-**Last session:** 2026-07-15T22:38:00.000Z
-**Stopped at:** First playable matchday built and verified
+**Last session:** 2026-07-16T06:22:37.891Z
+**Stopped at:** Phase 06.1 materialized; autonomous SM-2 through SM-6 execution authorized
 **Resume file:** None
 
 ## Accumulated Context
@@ -57,6 +58,14 @@ Last activity: 2026-07-15
 ### Pending Todos
 
 - 1 pending — [Design initial menu and football icon system](todos/pending/2026-07-15-design-initial-menu-and-football-icon-system.md)
+
+### Roadmap Evolution
+
+- Phase 06.1 inserted after Phase 6: SM-2 Table View Engine and Durable Views (URGENT)
+- Phase 06.2 inserted after Phase 6: SM-3 Free Tactical Field and Unified Bench Interaction (URGENT)
+- Phase 06.3 inserted after Phase 6: SM-4 Tactical Analysis Strategy Instructions Opposition and Familiarity (URGENT)
+- Phase 06.4 inserted after Phase 6: SM-5 Player Coach Profiles and Explainable Ratings (URGENT)
+- Phase 06.5 inserted after Phase 6: SM-6 Squad Dynamics Training and Dynamic Potential (URGENT)
 
 ## Performance Metrics
 
@@ -163,3 +172,5 @@ Last activity: 2026-07-15
 - [Phase 05]: Keep the labelled ScrollArea as the only native overflow owner. — Width, min-width, max-width and border-box constraints prevent parent layout amplification without introducing a second scroll layer.
 - [Phase 05]: Keep Table View State language-neutral and controlled while commands, events, persistence, queries, and React rendering remain separate authorities. — Prevents screen-specific engines and direct storage or query authority in React.
 - [Phase 05]: Model Mostrar somente gols as an ordinary saved view; Phase 6 resolves screen semantics and Phase 9 executes the general pipeline. — Prevents one-off flags, renderers, and query branches.
+- [Phase 06.1]: Move the real controlled Table View Engine and versioned local-fixed repository into Phase 06.1. — Phase 9 now owns migration to career identity and SQLite plus real-data query, cache, offline and synchronisation hardening, preventing duplicate engines while preserving later roadmap scope.
+- [Phase 06.1]: Execute the authorized SM-2 through SM-6 sequence as bounded fixed-club vertical slices, then stop. — The user's latest instruction expands the earlier SM-1-only fence but does not authorize general Phases 7 through 13 or multiplayer.

@@ -42,7 +42,7 @@ Delivery is sequential. A gate may advance only after the named approval and its
 
 ## Phase 3: Rust Modular Monolith and API Contract Pipeline
 
-**Status:** Planned  
+**Status:** Planned
 **Gate:** 1  
 **Directory slug:** `03-rust-modular-monolith-api-contracts`
 
@@ -95,7 +95,7 @@ Plans:
 
 ## Phase 4: Desktop Shell, Local Persistence Boundary, Containers and CI Skeleton
 
-**Status:** Planned  
+**Status:** Planned
 **Gate:** 1  
 **Directory slug:** `04-desktop-shell-local-persistence`
 
@@ -187,7 +187,7 @@ Plans:
 - Generic icon-family choice and football SVG policy are implemented consistently.
 - DenseTable remains finite and intentionally scrollable at 1366×768, 1920×1080, and 2560×1080.
 - Football icon refinement is evaluated only inside a real product context.
-- The complete Table View Engine is specified once for Phase 6 screen contracts and Phase 9 implementation, without engine code in Phase 5.
+- The complete Table View Engine is specified once for Phase 06.1 implementation and Phase 9 career-data/cache/offline integration, without engine code in Phase 5.
 - The foundation remains provisional until Mateus reviews the real first-playable surface.
 
 **Human review result:** The UI Lab was rejected as a proxy for the product experience. Its technical primitives remain available, but the visual direction is not approved and must be proven in Phase 6 through the real application.
@@ -220,6 +220,119 @@ The additional 06-02 plan records product-review remediation against baseline `3
 - The selected lineup, match result, round, and season record survive a desktop restart.
 - The full path is keyboard-operable, tested, buildable from a clean checkout, and visually reviewable at 1366×768 and 1920×1080.
 
+The sports-management evolution is detailed below as a bounded future sequence. The current execution authorization ends with SM-1 / Plan 06-02; Phases 06.1 through 06.5 require fresh explicit authorization before discussion, planning or implementation. Each inserted phase must preserve the executable baseline, use the established adapters and design system, and keep competitive rules in Rust.
+
+### Phase 06.1: SM-2 Table View Engine and Durable Views (INSERTED)
+
+**Status:** Planned
+**Directory slug:** `06.1-sm-2-table-view-engine-and-durable-views`
+
+**Goal:** Turn table personalization into one controlled cross-product capability and prove it in Elenco with durable, versioned views instead of screen-specific state.
+**Requirements:** SM-02; DATA-01 preference-boundary portion; UI-02 dense-table portion.
+**Depends on:** Phase 6 and the canonical Phase 5 Table View Engine contract.
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 06.1 to break down)
+
+**Success Criteria**:
+
+1. Elenco declares a stable table ID, schema version, stable column IDs, required columns, supported capabilities and default views without duplicating the canonical contract.
+2. Visibility, order, finite width, pinning, density, sorting and supported filters are controlled through engine commands; unsupported controls are not rendered.
+3. System, user and read-only view provenance plus create, duplicate, rename, delete, default, reset, save and dirty behavior are complete and keyboard accessible.
+4. A repository outside React persists `local-fixed` owner/table/schema/view envelopes across navigation and desktop restart, declares the future identity migration seam, and uses sequential migrations plus quarantine/recovery for the current preference v4, removed/added columns, corrupt payloads and incompatible future schemas.
+5. The working squad table, inspector, tactics, XI, match simulation, AppShell, routes, tokens and existing preference migration continue to pass component, browser, Rust and desktop-build regression gates.
+
+### Phase 06.2: SM-3 Free Tactical Field and Unified Bench Interaction (INSERTED)
+
+**Status:** Planned
+**Directory slug:** `06.2-sm-3-free-tactical-field-and-unified-bench-interaction`
+
+**Goal:** Evolve the fixed visual slots into a Rust-authoritative normalized tactical layout and one working interaction model for starters and reserves, while preserving presets as useful starting points.
+**Requirements:** SM-03; GAME-01 non-regression.
+**Depends on:** Phase 06.1.
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 06.2 to break down)
+
+**Success Criteria**:
+
+1. The tactic aggregate uses stable player/slot IDs, normalized coordinates, zones, nominal position, role, side and line; custom shapes are not reduced to the nearest preset.
+2. Field-to-field, reserve-to-field and field-to-reserve moves/swaps use one typed Rust command path with duplicate, XI-count, goalkeeper-bound, overlap and exclusivity validation.
+3. Pointer drag has a stable preview, valid/invalid feedback, snap/revert behavior and no pitch reflow; essential moves also work through keyboard or a contextual menu.
+4. Accepted changes persist through restart and migrate the existing saved XI/formation without losing slot identity or ordering; cancelled/rejected moves never mutate persisted state.
+5. Domain, component and browser tests prove valid custom formations, starter/reserve exchange, invalid feedback and zero player duplication at target desktop viewports and reduced motion.
+
+### Phase 06.3: SM-4 Tactical Analysis Strategy Instructions Opposition and Familiarity (INSERTED)
+
+**Status:** Planned
+**Directory slug:** `06.3-sm-4-tactical-model-familiarity`
+
+**Goal:** Make Analysis, Strategy, Instructions and Opposition progressive views over one persisted tactical model with explicit validation, precedence, familiarity and honest simulation boundaries.
+**Requirements:** SM-04; GAME-01 non-regression.
+**Depends on:** Phase 06.2.
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 06.3 to break down)
+
+**Success Criteria**:
+
+1. Analysis derives lineup, position, sector, corridor, width/depth, condition and bench facts from named Rust rules instead of generic client messages.
+2. Strategy persists compatible possession, out-of-possession, transition and match-context choices in the same aggregate, with progressive disclosure and no competing React stores.
+3. Collective, unit, role and individual instructions have stable IDs, scope, values, validation, incompatibilities and explicit precedence; conflicts are explained before persistence.
+4. Opposition supports typed instructions for the current matchday opponent when real context exists and truthful no-opponent/no-report/partial states otherwise; it does not claim Phase 8 opponent/season breadth or show fabricated scouting/simulator effects.
+5. Familiarity is multidimensional, event-driven, deterministic and explainable; saved tactics restore exactly, migrate safely and label any not-yet-consumed simulation effect honestly.
+
+### Phase 06.4: SM-5 Player Coach Profiles and Explainable Ratings (INSERTED)
+
+**Status:** Planned
+**Directory slug:** `06.4-sm-5-player-coach-profiles-and-explainable-ratings`
+
+**Goal:** Keep Elenco as the primary workspace while adding an actionable player inspector, stable full player and coach profiles, and deterministic contextual ratings whose origin and uncertainty can be inspected.
+**Requirements:** SM-05; UI-02 profile/navigation portion.
+**Depends on:** Phase 06.3.
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 06.4 to break down)
+
+**Success Criteria**:
+
+1. A single player selection keeps the squad table visible and opens a concise actionable inspector with a clear path to a stable full profile; inspector and page share typed projections rather than business-rule copies.
+2. Player and coach profiles expose only fixed-club adapter-fed identity, career, contract, availability, statistics, development and tactical context through hierarchical navigation with truthful partial/unavailable/unknown states and no Phase 9 offline-cache claim.
+3. A documented ADR fixes rating scale, composition, context and scouting uncertainty before formulas spread; Rust owns deterministic player, team and coach rating projections and their history.
+4. Position, role and tactical system can change a player's contextual evaluation without changing identity, and every visible rating exposes components, provenance, confidence and relevant explanation.
+5. No random filler metric is introduced; domain formula tests plus component/browser navigation, keyboard, nationality-fallback and non-regression tests pass.
+
+### Phase 06.5: SM-6 Squad Dynamics Training and Dynamic Potential (INSERTED)
+
+**Status:** Planned
+**Directory slug:** `06.5-sm-6-squad-dynamics-training-and-dynamic-potential`
+
+**Goal:** Deliver distinct squad-dynamics and a deterministic training week anchored to the current matchday whose persisted Rust-domain events explain workload, familiarity, development and uncertain dynamic potential without claiming season, travel, cache/offline or multiplayer breadth.
+**Requirements:** SM-06; GAME-01 non-regression.
+**Depends on:** Phase 06.4.
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 06.5 to break down)
+
+**Success Criteria**:
+
+1. Squad Dynamics represents morale, cohesion, hierarchy, groups, promises/conflicts and recent events with clear provenance; it is not mislabeled or reused as Training.
+2. Training has its own working navigation and current-matchday week for persisted add, remove, replace, move, copy and template commands across collective, unit/group, recovery and individual plans.
+3. Rust validates calendar/match/availability conflicts and owns deterministic workload, eligibility, progression, fatigue/risk and familiarity events; React owns previews and explanations only.
+4. Dynamic potential distinguishes base reality, club estimate, range and confidence, records deterministic historical projections and avoids false precision or exact hidden-value leakage.
+5. At least one collective session and one individual plan produce real deterministic, explained Rust-domain consequences; options without implemented effects are not exposed as active.
+6. Restart, migration, invalid-action and a fixed 52-week determinism test plus component, browser, accessibility and full desktop quality gates pass without regressing the first-playable loop.
+
 ## Phase 7: Career Start and Club Selection
 
 **Status:** Planned  
@@ -230,7 +343,7 @@ The additional 06-02 plan records product-review remediation against baseline `3
 
 **Requirements:** DESK-01; DATA-02; DATA-03.
 
-**Dependencies:** Phase 6 first-playable evidence and Mateus's product-surface feedback.
+**Dependencies:** Phase 06.5 verification. The fixed-club baseline from Phase 6 remains the migration source.
 
 **Success criteria:**
 
@@ -254,6 +367,7 @@ The additional 06-02 plan records product-review remediation against baseline `3
 
 - A user can advance through a short fictional season and see standings and availability change.
 - Matchday outcomes remain domain-owned and reproducible; React never becomes simulation authority.
+- The season consumes the bounded tactic, familiarity, training and availability contracts from Phases 06.2–06.5 without reimplementing their rules.
 
 ## Phase 9: Dashboard, Squad, Cache and Offline Hardening
 
@@ -270,7 +384,7 @@ The additional 06-02 plan records product-review remediation against baseline `3
 **Success criteria:**
 
 - Dashboard and squad render from adapters/repositories, not component-local mocks.
-- The real Table View Engine implements `05-TABLE-VIEW-ENGINE-CONTRACT.md` through adapters/repositories, versioned persistence and sequential migrations, using actual dashboard/squad data rather than fixtures or component-local state authority.
+- The Phase 06.1 Table View Engine is migrated from `local-fixed` ownership to career identity and integrated with actual dashboard/squad data, SQLite/cache/offline boundaries and measured query modes without reimplementing table semantics.
 - Each real table selects client virtualization, client pagination, server pagination, or server query from measured data scale and records query/cancellation, cache/offline, drift, migration, and recovery evidence.
 - Offline, stale, queued, synchronising, and reconnected states are explicit and usable from cache.
 
@@ -282,13 +396,14 @@ The additional 06-02 plan records product-review remediation against baseline `3
 
 **Objective:** Produce end-to-end, accessibility, visual, migration, contract, and release evidence for V0.1.
 
-**Requirements:** FOUND-02; UI-02; all V0.1 requirements not already verified.
+**Requirements:** FOUND-02; UI-02; SM-02 through SM-06; all V0.1 requirements not already verified.
 
 **Dependencies:** Phase 9.
 
 **Success criteria:**
 
 - Required frontend, Rust, integration, contract, migration, visual, and desktop-build checks pass.
+- SM-02 through SM-06 retain explicit end-to-end, deterministic-domain, migration, accessibility and visual evidence after career/data hardening.
 - The V0.1 flow is manually reproducible online/offline with recorded evidence.
 
 ## Phase 11: Private League Creation and Invitations

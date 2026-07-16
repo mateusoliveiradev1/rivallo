@@ -1,7 +1,7 @@
 # Sports Management Evolution — Prospective Product Plan
 
 **Created:** 2026-07-15  
-**Planning status:** prospective; only SM-1 / Plan 06-02 is authorized for implementation  
+**Planning status:** SM-1 complete; SM-2 through SM-6 detailed as inserted Phases 06.1 through 06.5 and not authorized in the current execution
 **Numbering rule:** SM-1 through SM-6 are product slices, not replacements for Roadmap Phases 1–13
 
 ## Purpose and non-regression rule
@@ -10,18 +10,18 @@ This document routes the requested evolution of Elenco, Táticas, player/coach e
 
 The attached screens and the FootSim interactive-pitch roadmap are functional references only. Their visual identity, layouts and components are not Rivallo specifications. The useful FootSim boundary is the separation between a visual pitch/slot interaction and the underlying tactical model: field, slots, starters/reserves, drag/drop and invalid feedback can be staged without pretending to deliver pixel-level control, 3D or advanced visual simulation.
 
-> **Execution fence:** SM-2, SM-3, SM-4, SM-5 and SM-6 are not authorized in the current execution. They must not be implemented, scaffolded behind decorative controls, or reported as complete. The only permitted work now is SM-1 and the smallest SM-2-compatible seam strictly required to avoid reintroducing the SM-1 defects.
+> **Execution fence:** SM-2 through SM-6 are planning only in the current execution. They must not be implemented or scaffolded behind decorative controls without fresh explicit authorization. Their ordered homes are Phases 06.1 through 06.5; general Phases 7 through 13, multiplayer and milestone lifecycle work remain outside this product-review slice. No phase may be reported complete without its own plan, executable implementation and verification evidence.
 
 ## Slice map
 
-| Slice | Outcome                                                                              | Current roadmap relationship                                                                       | Authorization now  |
+| Slice | Outcome                                                                              | Current roadmap relationship                                                                       | Current execution  |
 | ----- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- | ------------------ |
-| SM-1  | Stabilize density/disclosure, tooltips, flags and console quality                    | Additional product-review remediation Plan 06-02 in Phase 6                                        | **Authorized**     |
-| SM-2  | Reusable Table View Engine and versioned preference persistence                      | Existing Phase 5 contract; production owner remains Phase 9 unless roadmap authority moves it      | **Not authorized** |
-| SM-3  | Domain-ready free tactical field and unified starters/reserves interaction           | Natural fit with Phase 8 matchday depth after contracts are approved                               | **Not authorized** |
-| SM-4  | Analysis, Strategy, Instructions, Opposition and familiarity over one tactical model | Phase 8 expansion plus explicit domain contracts; may require later milestone slices               | **Not authorized** |
-| SM-5  | Contextual player inspector, full player/coach entities and explainable ratings      | Squad surface aligns with Phase 9; full profiles/ratings may exceed V0.1 and need roadmap approval | **Not authorized** |
-| SM-6  | Squad dynamics, training calendar, individual development and dynamic potential      | Explicitly “Later requirements”; no current Phase 7–13 owns this scope                             | **Not authorized** |
+| SM-1  | Stabilize density/disclosure, tooltips, flags and console quality                    | Additional product-review remediation Plan 06-02 in Phase 6                                        | **Complete**   |
+| SM-2  | Reusable Table View Engine and versioned preference persistence                      | Inserted Phase 06.1; canonical Phase 5 contract remains authoritative                              | **Planning only** |
+| SM-3  | Domain-ready free tactical field and unified starters/reserves interaction           | Inserted Phase 06.2; preserves later Phase 8 season/matchday ownership                              | **Planning only** |
+| SM-4  | Analysis, Strategy, Instructions, Opposition and familiarity over one tactical model | Inserted Phase 06.3; effects remain honest until consumed by simulation                            | **Planning only** |
+| SM-5  | Contextual player inspector, full player/coach entities and explainable ratings      | Inserted Phase 06.4; later Phase 9 still owns broader cache/offline hardening                       | **Planning only** |
+| SM-6  | Squad dynamics, training calendar, individual development and dynamic potential      | Inserted Phase 06.5; does not repurpose general Phases 7–13                                        | **Planning only** |
 
 ## Shared architectural invariants
 
@@ -82,7 +82,7 @@ Repair the concrete product-review regressions while preserving the committed El
 
 Only seams needed by the bug fix are permitted: a shared tooltip provider, a controlled reusable Popover API, a reusable nationality display/catalog and stable identifiers for the touched preference values. No column ordering, resizing, pinning, presets, view lifecycle, migration repository or new state library is allowed.
 
-## SM-2 — Table View Engine and durable views (future only)
+## SM-2 — Table View Engine and durable views (Phase 06.1)
 
 ### Outcome
 
@@ -93,7 +93,7 @@ Turn table personalization into a cross-product capability without special branc
 - SM-1 proven stable;
 - `05-TABLE-VIEW-ENGINE-CONTRACT.md` as canonical behavior/ownership contract;
 - a Phase 6/9 screen contract assigning `tableId`, `schemaVersion`, stable `columnId`s, required columns, capabilities and default views;
-- Phase 9 adapter/repository and DATA-01 persistence work;
+- Phase 06.1 `local-fixed` owner scope behind the application persistence port, with an explicit migration contract for Phase 7 identity and Phase 9 SQLite/cache/offline ownership;
 - measured row counts and selected client/server data-window mode;
 - explicit decision before adding TanStack/Zustand/Zod packages not present in the current baseline.
 
@@ -107,7 +107,7 @@ Turn table personalization into a cross-product capability without special branc
 ### Acceptance criteria
 
 - visibility, order, finite width, pinning, density, sorting and supported filters are controlled through stable IDs;
-- per-user/per-table/per-schema/per-view envelopes survive restart;
+- current `local-fixed` owner/table/schema/view envelopes survive restart and carry an explicit future identity-migration seam without claiming multi-user support;
 - sequential migrations handle added/removed columns and quarantine incompatible future payloads;
 - system, user-owned and read-only shared view provenance follows the existing contract;
 - create/duplicate/rename/delete/default/reset/save/dirty behaviors are complete and keyboard accessible;
@@ -123,11 +123,11 @@ Turn table personalization into a cross-product capability without special branc
 - array-index identity and schema drift;
 - overengineering before real data scale is measured.
 
-### Current-execution fence
+### Execution boundary
 
-SM-2 is documented only. Plan 06-02 must not implement its engine or claim that current density/column persistence meets this acceptance contract.
+Phase 06.1 may implement this capability against the canonical contract and current adapter seams. It must not reopen SM-1 or claim later Phase 9 cache/offline/database hardening unless that work is actually delivered and verified.
 
-## SM-3 — Free tactical field and unified bench interaction (future only)
+## SM-3 — Free tactical field and unified bench interaction (Phase 06.2)
 
 ### Outcome
 
@@ -140,7 +140,7 @@ Evolve fixed formation slots into a domain-ready, normalized tactical layout whi
 - normalized coordinates, zones, nominal position, role, side, line, bounds and overlap rules;
 - persistence/migration strategy for multiple tactical variants;
 - evaluated pointer/keyboard drag solution and performance budget;
-- current Phase 8 matchday-depth planning.
+- the current fixed-club matchday aggregate and a migration/consumption contract for later Phase 8 season/matchday depth.
 
 ### Domain authority
 
@@ -166,11 +166,11 @@ Evolve fixed formation slots into a domain-ready, normalized tactical layout whi
 - existing matchday persistence loses slot ordering;
 - field/bench implementations diverge.
 
-### Current-execution fence
+### Execution boundary
 
-SM-3 is not implemented now. The current preset slots, HTML5 drag/drop and local layout storage are preserved during SM-1.
+Phase 06.2 may replace the fixed interaction only after Phase 06.1 is verified. Migration must preserve the current saved XI and first-playable matchday loop; freedom of placement cannot move validation authority into React.
 
-## SM-4 — Tactical model: Analysis, Strategy, Instructions and Opposition (future only)
+## SM-4 — Tactical model: Analysis, Strategy, Instructions and Opposition (Phase 06.3)
 
 ### Outcome
 
@@ -207,11 +207,11 @@ Give four progressive-disclosure views a single persisted tactical model with ex
 - fake scouting depth;
 - UI copy promising simulation effects before the engine consumes them.
 
-### Current-execution fence
+### Execution boundary
 
-SM-4 is planning only. Current panels must not be expanded with fabricated data or arbitrary effects.
+Phase 06.3 may deliver the persisted model, editors, named analysis rules and familiarity events after Phase 06.2. Panels still must not fabricate scouting depth or promise simulation effects that the engine does not consume.
 
-## SM-5 — Player/coach entities and explainable ratings (future only)
+## SM-5 — Player/coach entities and explainable ratings (Phase 06.4)
 
 ### Outcome
 
@@ -224,7 +224,7 @@ Keep the squad table as the workspace, use the right panel as a concise inspecto
 - identity, career, contract, availability, statistics and scouting contracts;
 - rating-scale/composition ADR before formulas spread;
 - historical event/projection storage for rating/potential evolution;
-- Phase 9 squad/cache/offline ownership or an explicitly approved roadmap change.
+- fixed-club adapter-fed player/coach read models plus approved entity-navigation and rating ADRs; Phase 9 remains the later cache/offline/career-data hardening owner.
 
 ### Domain authority
 
@@ -250,11 +250,11 @@ Keep the squad table as the workspace, use the right panel as a concise inspecto
 - rating formulas become React helpers;
 - exact potential leaks information the club should not know.
 
-### Current-execution fence
+### Execution boundary
 
-SM-5 is not implemented now. SM-1 may reuse nationality presentation in the existing inspector but cannot add routes, coach pages or formulas.
+Phase 06.4 may add stable profile navigation, projections and tested Rust ratings after Phase 06.3. It must reuse the existing inspector/table relationship, avoid unapproved dependency transactions and keep unknown/partial data truthful.
 
-## SM-6 — Dynamics, training and dynamic potential (future only)
+## SM-6 — Dynamics, training and dynamic potential (Phase 06.5)
 
 ### Outcome
 
@@ -262,7 +262,7 @@ Establish squad dynamics and a calendar-based collective/individual training sys
 
 ### Dependencies
 
-- explicit later-milestone requirements and roadmap allocation;
+- explicit Phase 06.5 allocation and a bounded deterministic week anchored to the current matchday; later season/travel breadth remains Phase 8 work;
 - calendar/time, match, travel and availability contracts;
 - coach/staff capabilities from SM-5;
 - workload, fatigue, injury-risk, morale, familiarity and development aggregates;
@@ -295,9 +295,9 @@ Establish squad dynamics and a calendar-based collective/individual training sys
 - tight coupling between UI drag operations and simulation mutations;
 - large scope displacing the core season loop.
 
-### Current-execution fence
+### Execution boundary
 
-SM-6 is not part of current Roadmap Phases 7–13. Training, development and dynamic potential remain future requirements and must not be smuggled into Phase 6.
+Phase 06.5 is the explicit inserted owner for this bounded slice after Phase 06.4. It does not authorize unrelated later systems, general Phases 7–13 or invented sporting formulas; every shipped consequence must be deterministic, domain-owned and tested.
 
 ## Cross-slice dependency chain
 
@@ -310,24 +310,24 @@ SM-1 stability
   -> SM-6 training/dynamics/development
 ```
 
-This is a risk/dependency order, not permission to execute automatically. Each arrow requires a fresh discussion/spec/plan, explicit acceptance of the previous slice and an executable non-regression baseline.
+This is both the risk/dependency order and the authorized execution order for inserted Phases 06.1 through 06.5. Each arrow still requires its own context/spec/plan, verification and an executable non-regression baseline; autonomous execution is not permission to bypass a failed gate.
 
-The current roadmap placement is provisional and does not yet satisfy this order: Phase 8 is the likely home for SM-3/SM-4, while Phase 9 currently owns the production Table View Engine work in SM-2. Before either future slice starts, planning must explicitly reconcile that mismatch by moving the required SM-2 work earlier or by proving and approving that the tactical track can proceed independently. No phase may silently bypass this decision.
+The inserted sequence resolves the earlier ownership mismatch by moving the bounded product capability forward while preserving later roadmap responsibilities. Phase 06.1 owns the reusable view engine and current durable adapter boundary; Phase 9 continues to own broader squad data, SQLite/cache/offline and synchronisation hardening. Phases 06.2/06.3 own the bounded tactical product/domain model; Phase 8 continues to own later season-calendar and matchday-simulation depth. No inserted phase may claim those later responsibilities without implementing them explicitly.
 
 ## Relationship to existing Roadmap Phases
 
 | Roadmap phase   | Preserved relationship                                                                                          |
 | --------------- | --------------------------------------------------------------------------------------------------------------- |
 | Phase 5         | Owns tokens, primitives and the sole Table View Engine contract. It is not reopened or rewritten.               |
-| Phase 6         | Keeps 06-01 as closed first-playable history and receives additional unchecked remediation Plan 06-02 for SM-1. |
-| Phase 7         | Career/identity remains unchanged; SM work must not renumber or replace it.                                     |
-| Phase 8         | Likely owner for later SM-3/SM-4 matchday depth after explicit planning.                                        |
-| Phase 9         | Existing owner for real squad/table engine/cache/offline integration; likely home for SM-2 and part of SM-5.    |
+| Phase 6         | Keeps 06-01 and 06-02 as closed first-playable/SM-1 history; inserted phases build on that baseline.          |
+| Phase 7         | Starts after 06.5 and migrates the fixed local owner into selectable career identity without rewriting SM work. |
+| Phase 8         | Consumes bounded tactic/training contracts and owns later season-calendar, travel, opponent and matchday depth. |
+| Phase 9         | Migrates/integrates existing table/profile capabilities with SQLite, real data, cache, offline and sync.        |
 | Phase 10        | Must verify whatever V0.1 subset has actually shipped; prospective items are not release evidence.              |
 | Phases 11–13    | Multiplayer sequence remains intact; none is repurposed for training or profiles.                               |
-| Later milestone | Required home for unallocated SM-5 depth and SM-6 training/dynamics/development.                                |
+| Later milestone | Owns only additional profile/training/dynamics breadth explicitly deferred by the bounded 06.4/06.5 plans.      |
 
-## Decisions required before future execution
+## Decisions to resolve inside the authorized phases
 
 - exact router/entity-route adoption and migration path;
 - Table View repository/storage owner and migration envelope implementation;
@@ -340,8 +340,8 @@ The current roadmap placement is provisional and does not yet satisfy this order
 - real versus perceived potential model;
 - integration events consumed by the match/simulation engine.
 
-Until those decisions are approved, UI may show only real existing data and honest unavailable/empty states.
+Each responsible phase must record and verify its decision before dependent implementation spreads. Until then, UI may show only real existing data and honest unavailable/empty states.
 
 ## Current handoff
 
-Execute only `.planning/phases/06-first-playable-matchday/06-02-PLAN.md`. After its automated gates pass, Mateus must re-check the real Elenco surface. Only then should SM-2 be discussed/planned against the existing contract; no SM-2 through SM-6 implementation should be inferred from this document.
+SM-1 and Plan 06-02 are complete with automated evidence; human product review was explicitly deferred rather than recorded as visual approval. Continue autonomously from Phase 06.1 through Phase 06.5 in dependency order, using the existing contract and preservation rules. Stop after 06.5: general Phases 7 through 13 and milestone lifecycle are outside the current authorization.

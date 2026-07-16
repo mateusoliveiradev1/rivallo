@@ -117,7 +117,9 @@ describe('Phase 5 Table View Engine planning contract', () => {
       /Unknown future versions/iu,
     ]);
     expectTerms(contract, 'scope ownership', [
-      /Phase 9 owns the adapter, repository, persistence location, schema\/migration implementation/iu,
+      /Phase 06\.1 owns the first adapter\/repository, versioned persistence location, sequential schema migrations/iu,
+      /explicit `local-fixed` owner scope/iu,
+      /Phase 9 replaces or migrates the storage implementation/iu,
       /does (?:\*\*)?not(?:\*\*)? promise network sharing in Phase 9/iu,
     ]);
   });
@@ -181,7 +183,7 @@ describe('Phase 5 Table View Engine planning contract', () => {
     ]);
   });
 
-  it('assigns future ownership and preserves the canonical Roadmap and pending Gate 2', async () => {
+  it('assigns split 06.1/Phase 9 ownership and preserves the canonical Roadmap and pending Gate 2', async () => {
     const [contract, roadmap] = await Promise.all([
       readRootFile(contractPath),
       readRootFile('.planning/ROADMAP.md'),
@@ -194,9 +196,9 @@ describe('Phase 5 Table View Engine planning contract', () => {
     expect(roadmap, 'Gate 2 must remain Pending').toMatch(/^\| Gate 2 \| Pending\s+\|/mu);
     const phase9 = phaseSection(roadmap, 9);
     expectTerms(phase9, 'Roadmap Phase 9 ownership', [
-      /05-TABLE-VIEW-ENGINE-CONTRACT\.md/,
-      /adapters\/repositories/iu,
-      /versioned persistence and sequential migrations/iu,
+      /Phase 06\.1 Table View Engine/iu,
+      /migrated from `local-fixed` ownership to career identity/iu,
+      /SQLite\/cache\/offline boundaries/iu,
       /actual dashboard\/squad data/iu,
       /client virtualization, client pagination, server pagination, or server query/iu,
       /measured data scale/iu,
@@ -207,11 +209,11 @@ describe('Phase 5 Table View Engine planning contract', () => {
 
     expectTerms(contract, 'responsibility matrix', [
       /Cross-Phase Responsibility and Acceptance Matrix/,
-      /Phase 6 — screen-contract owner/,
-      /Phase 9 — implementation owner/,
-      /per-screen `tableId`/,
-      /versioned persistence, migrations, quarantine, and recovery/iu,
-      /adapter\/repository\/query tests and scale evidence/iu,
+      /Phase 06\.1 — current product owner/,
+      /Phase 9 — career integration\/hardening owner/,
+      /Assign `tableId`, schema version, stable columns/iu,
+      /`local-fixed` versioned persistence, sequential migrations, quarantine and recovery/iu,
+      /adapter\/repository\/query and scale evidence/iu,
       /Reverse traceability/,
     ]);
     expectTerms(contract, 'Phase 5 implementation fence', [
