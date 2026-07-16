@@ -1,3 +1,688 @@
+use std::ffi::OsString;
+use std::fs::{self, File};
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
+
+use rivallo_application::{
+    CURRENT_ENVELOPE_VERSION, SQUAD_PRIMARY_SCHEMA_VERSION, TableViewRecoveryReason,
+    TableViewRepository, TableViewRepositoryError, TableViewRepositoryLoad,
+    TableViewRepositoryState,
+};
+use serde_json::{Value, json};
+
+const CURRENT_STORAGE_ENVELOPE_VERSION: u32 = 3;
+pub(crate) const MAX_REPOSITORY_BYTES: usize = 512 * 1024;
+const MAX_QUARANTINE_BYTES: usize = 1024 * 1024;
+
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SaveInterruptionPoint {
+    AfterStageCreate,
+    DuringWrite,
+    AfterFlush,
+    AfterBackup,
+    DuringReplace,
+    AfterReplace,
+    BeforeCleanup,
+}
+
+#[cfg(test)]
+impl SaveInterruptionPoint {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::AfterStageCreate => "after-stage-create",
+            Self::DuringWrite => "during-write",
+            Self::AfterFlush => "after-flush",
+            Self::AfterBackup => "after-backup",
+            Self::DuringReplace => "during-replace",
+            Self::AfterReplace => "after-replace",
+            Self::BeforeCleanup => "before-cleanup",
+        }
+    }
+}
+
+#[derive(Debug)]
+struct CandidateBytes {
+    bytes: Vec<u8>,
+    original_len: u64,
+    truncated: bool,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct CandidateFailure {
+    reason: TableViewRecoveryReason,
+    source_envelope_version: Option<u32>,
+    source_schema_version: Option<u32>,
+}
+
+#[derive(Debug)]
+struct DecodedCandidate {
+    state: TableViewRepositoryState,
+}
+
+enum Candidate {
+    Valid(DecodedCandidate),
+    Invalid(CandidateFailure),
+}
+
+/// Platform-owned, fixed-path JSON adapter for durable table-view preferences.
+///
+/// The host supplies the complete app-data path. Semantic table/view IDs are
+/// serialized only as data and never participate in filesystem path selection.
+pub struct FileTableViewRepository {
+    path: PathBuf,
+    #[cfg(test)]
+    interruption: Option<SaveInterruptionPoint>,
+}
+
+impl FileTableViewRepository {
+    pub fn new(path: impl Into<PathBuf>) -> Self {
+        Self {
+            path: path.into(),
+            #[cfg(test)]
+            interruption: None,
+        }
+    }
+
+    #[cfg(test)]
+    fn with_interruption(path: impl Into<PathBuf>, interruption: SaveInterruptionPoint) -> Self {
+        Self {
+            path: path.into(),
+            interruption: Some(interruption),
+        }
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    fn temporary_path(&self) -> PathBuf {
+        sibling_with_suffix(&self.path, ".tmp")
+    }
+
+    fn backup_path(&self) -> PathBuf {
+        sibling_with_suffix(&self.path, ".bak")
+    }
+
+    fn quarantine_payload_path(&self) -> PathBuf {
+        sibling_with_suffix(&self.path, ".quarantine.payload")
+    }
+
+    fn quarantine_evidence_path(&self) -> PathBuf {
+        sibling_with_suffix(&self.path, ".quarantine.json")
+    }
+
+    fn encode_current(
+        &self,
+        state: &TableViewRepositoryState,
+    ) -> Result<Vec<u8>, TableViewRepositoryError> {
+        state
+            .validate()
+            .map_err(|_| TableViewRepositoryError::InvalidData)?;
+        let envelope = json!({
+            "envelopeVersion": CURRENT_STORAGE_ENVELOPE_VERSION,
+            "payload": state,
+        });
+        let mut bytes = serde_json::to_vec_pretty(&envelope)
+            .map_err(|_| TableViewRepositoryError::InvalidData)?;
+        bytes.push(b'\n');
+        if bytes.len() > MAX_REPOSITORY_BYTES {
+            return Err(TableViewRepositoryError::InvalidData);
+        }
+        Ok(bytes)
+    }
+
+    fn save_bytes(&self, bytes: &[u8]) -> Result<(), TableViewRepositoryError> {
+        let parent = repository_parent(&self.path)?;
+        fs::create_dir_all(parent).map_err(|_| TableViewRepositoryError::SaveFailed)?;
+
+        let temporary_path = self.temporary_path();
+        let backup_path = self.backup_path();
+        if temporary_path.exists() || backup_path.exists() {
+            return Err(TableViewRepositoryError::SaveFailed);
+        }
+
+        let mut temporary =
+            File::create(&temporary_path).map_err(|_| TableViewRepositoryError::SaveFailed)?;
+        self.interrupt_at(SaveInterruptionBoundary::AfterStageCreate)?;
+
+        #[cfg(test)]
+        if self.interruption == Some(SaveInterruptionPoint::DuringWrite) {
+            let partial_len = bytes.len().saturating_div(2).max(1);
+            temporary
+                .write_all(&bytes[..partial_len])
+                .and_then(|()| temporary.flush())
+                .and_then(|()| temporary.sync_all())
+                .map_err(|_| TableViewRepositoryError::SaveFailed)?;
+            return Err(TableViewRepositoryError::SaveFailed);
+        }
+
+        temporary
+            .write_all(bytes)
+            .and_then(|()| temporary.flush())
+            .and_then(|()| temporary.sync_all())
+            .map_err(|_| TableViewRepositoryError::SaveFailed)?;
+        drop(temporary);
+        self.interrupt_at(SaveInterruptionBoundary::AfterFlush)?;
+
+        match decode_candidate(bytes) {
+            Candidate::Valid(_) => {}
+            Candidate::Invalid(_) => return Err(TableViewRepositoryError::InvalidData),
+        }
+
+        if self.path.exists() {
+            let active = read_candidate_bytes(&self.path)
+                .map_err(|_| TableViewRepositoryError::SaveFailed)?;
+            if !matches!(decode_candidate(&active.bytes), Candidate::Valid(_)) {
+                return Err(TableViewRepositoryError::SaveFailed);
+            }
+            copy_synced(&self.path, &backup_path)
+                .map_err(|_| TableViewRepositoryError::SaveFailed)?;
+            let backup = read_candidate_bytes(&backup_path)
+                .map_err(|_| TableViewRepositoryError::SaveFailed)?;
+            if !matches!(decode_candidate(&backup.bytes), Candidate::Valid(_)) {
+                return Err(TableViewRepositoryError::SaveFailed);
+            }
+            self.interrupt_at(SaveInterruptionBoundary::AfterBackup)?;
+
+            fs::remove_file(&self.path).map_err(|_| TableViewRepositoryError::SaveFailed)?;
+            self.interrupt_at(SaveInterruptionBoundary::DuringReplace)?;
+        }
+
+        fs::rename(&temporary_path, &self.path)
+            .map_err(|_| TableViewRepositoryError::SaveFailed)?;
+        self.interrupt_at(SaveInterruptionBoundary::AfterReplace)?;
+
+        let committed =
+            read_candidate_bytes(&self.path).map_err(|_| TableViewRepositoryError::SaveFailed)?;
+        if !matches!(decode_candidate(&committed.bytes), Candidate::Valid(_)) {
+            return Err(TableViewRepositoryError::SaveFailed);
+        }
+        self.interrupt_at(SaveInterruptionBoundary::BeforeCleanup)?;
+
+        remove_if_exists(&backup_path).map_err(|_| TableViewRepositoryError::SaveFailed)?;
+        Ok(())
+    }
+
+    fn reconcile(&self) -> Result<TableViewRepositoryLoad, TableViewRepositoryError> {
+        let temporary_path = self.temporary_path();
+        let backup_path = self.backup_path();
+        let active_exists = self.path.exists();
+        let temporary_exists = temporary_path.exists();
+        let backup_exists = backup_path.exists();
+
+        if !active_exists && !temporary_exists && !backup_exists {
+            return Ok(TableViewRepositoryLoad::Missing);
+        }
+
+        let active = active_exists
+            .then(|| read_candidate_bytes(&self.path))
+            .transpose()
+            .map_err(|_| TableViewRepositoryError::Unavailable)?;
+        let temporary = temporary_exists
+            .then(|| read_candidate_bytes(&temporary_path))
+            .transpose()
+            .map_err(|_| TableViewRepositoryError::Unavailable)?;
+        let backup = backup_exists
+            .then(|| read_candidate_bytes(&backup_path))
+            .transpose()
+            .map_err(|_| TableViewRepositoryError::Unavailable)?;
+
+        if let Some(active_bytes) = &active {
+            match decode_candidate(&active_bytes.bytes) {
+                Candidate::Valid(active_candidate) => {
+                    if temporary.is_none() && backup.is_none() {
+                        return Ok(TableViewRepositoryLoad::Loaded(active_candidate.state));
+                    }
+
+                    let evidence = temporary
+                        .as_ref()
+                        .or(backup.as_ref())
+                        .unwrap_or(active_bytes);
+                    self.persist_quarantine(
+                        evidence,
+                        CandidateFailure {
+                            reason: TableViewRecoveryReason::InterruptedWrite,
+                            source_envelope_version: extract_u32(
+                                &evidence.bytes,
+                                &["envelopeVersion"],
+                            ),
+                            source_schema_version: extract_u32(
+                                &evidence.bytes,
+                                &["payload", "schemaVersion"],
+                            ),
+                        },
+                        "transaction-artifact",
+                    )?;
+                    remove_if_exists(&temporary_path)
+                        .map_err(|_| TableViewRepositoryError::Unavailable)?;
+                    remove_if_exists(&backup_path)
+                        .map_err(|_| TableViewRepositoryError::Unavailable)?;
+                    return Ok(TableViewRepositoryLoad::Recovered {
+                        state: Some(active_candidate.state),
+                        reason: TableViewRecoveryReason::InterruptedWrite,
+                    });
+                }
+                Candidate::Invalid(active_failure) => {
+                    self.persist_quarantine(active_bytes, active_failure, "active")?;
+                    remove_if_exists(&self.path)
+                        .map_err(|_| TableViewRepositoryError::Unavailable)?;
+
+                    if let Some((candidate, candidate_path)) =
+                        first_valid_candidate(&temporary, &temporary_path, &backup, &backup_path)
+                    {
+                        fs::rename(candidate_path, &self.path)
+                            .or_else(|_| {
+                                copy_synced(candidate_path, &self.path)?;
+                                remove_if_exists(candidate_path)
+                            })
+                            .map_err(|_| TableViewRepositoryError::Unavailable)?;
+                        remove_if_exists(if candidate_path == temporary_path {
+                            &backup_path
+                        } else {
+                            &temporary_path
+                        })
+                        .map_err(|_| TableViewRepositoryError::Unavailable)?;
+                        return Ok(TableViewRepositoryLoad::Recovered {
+                            state: Some(candidate.state),
+                            reason: active_failure.reason,
+                        });
+                    }
+
+                    remove_if_exists(&temporary_path)
+                        .map_err(|_| TableViewRepositoryError::Unavailable)?;
+                    remove_if_exists(&backup_path)
+                        .map_err(|_| TableViewRepositoryError::Unavailable)?;
+                    return Ok(TableViewRepositoryLoad::Recovered {
+                        state: None,
+                        reason: active_failure.reason,
+                    });
+                }
+            }
+        }
+
+        if let Some((candidate, candidate_path)) =
+            first_valid_candidate(&temporary, &temporary_path, &backup, &backup_path)
+        {
+            let evidence = if candidate_path == temporary_path {
+                backup.as_ref().unwrap_or_else(|| {
+                    temporary
+                        .as_ref()
+                        .expect("selected temporary candidate exists")
+                })
+            } else {
+                temporary
+                    .as_ref()
+                    .unwrap_or_else(|| backup.as_ref().expect("selected backup candidate exists"))
+            };
+            self.persist_quarantine(
+                evidence,
+                CandidateFailure {
+                    reason: TableViewRecoveryReason::InterruptedWrite,
+                    source_envelope_version: extract_u32(&evidence.bytes, &["envelopeVersion"]),
+                    source_schema_version: extract_u32(
+                        &evidence.bytes,
+                        &["payload", "schemaVersion"],
+                    ),
+                },
+                "transaction-artifact",
+            )?;
+            fs::rename(candidate_path, &self.path)
+                .or_else(|_| {
+                    copy_synced(candidate_path, &self.path)?;
+                    remove_if_exists(candidate_path)
+                })
+                .map_err(|_| TableViewRepositoryError::Unavailable)?;
+            remove_if_exists(if candidate_path == temporary_path {
+                &backup_path
+            } else {
+                &temporary_path
+            })
+            .map_err(|_| TableViewRepositoryError::Unavailable)?;
+            return Ok(TableViewRepositoryLoad::Recovered {
+                state: Some(candidate.state),
+                reason: TableViewRecoveryReason::InterruptedWrite,
+            });
+        }
+
+        let invalid = temporary
+            .as_ref()
+            .or(backup.as_ref())
+            .ok_or(TableViewRepositoryError::InvalidData)?;
+        let failure = match decode_candidate(&invalid.bytes) {
+            Candidate::Invalid(failure) => failure,
+            Candidate::Valid(_) => CandidateFailure {
+                reason: TableViewRecoveryReason::InterruptedWrite,
+                source_envelope_version: None,
+                source_schema_version: None,
+            },
+        };
+        self.persist_quarantine(invalid, failure, "transaction-artifact")?;
+        remove_if_exists(&temporary_path).map_err(|_| TableViewRepositoryError::Unavailable)?;
+        remove_if_exists(&backup_path).map_err(|_| TableViewRepositoryError::Unavailable)?;
+        Ok(TableViewRepositoryLoad::Recovered {
+            state: None,
+            reason: failure.reason,
+        })
+    }
+
+    fn persist_quarantine(
+        &self,
+        candidate: &CandidateBytes,
+        failure: CandidateFailure,
+        source: &str,
+    ) -> Result<(), TableViewRepositoryError> {
+        replace_auxiliary_file(&self.quarantine_payload_path(), &candidate.bytes)
+            .map_err(|_| TableViewRepositoryError::Unavailable)?;
+        let evidence = json!({
+            "diagnosticBytes": candidate.bytes.len(),
+            "diagnosticTruncated": candidate.truncated,
+            "fingerprint": fingerprint(&candidate.bytes, candidate.original_len),
+            "originalBytes": candidate.original_len,
+            "reasonCode": recovery_reason_code(failure.reason),
+            "source": source,
+            "sourceEnvelopeVersion": failure.source_envelope_version,
+            "sourceSchemaVersion": failure.source_schema_version,
+        });
+        let mut evidence_bytes = serde_json::to_vec_pretty(&evidence)
+            .map_err(|_| TableViewRepositoryError::Unavailable)?;
+        evidence_bytes.push(b'\n');
+        replace_auxiliary_file(&self.quarantine_evidence_path(), &evidence_bytes)
+            .map_err(|_| TableViewRepositoryError::Unavailable)
+    }
+
+    #[cfg(test)]
+    fn interrupt_at(
+        &self,
+        boundary: SaveInterruptionBoundary,
+    ) -> Result<(), TableViewRepositoryError> {
+        if self.interruption.map(SaveInterruptionBoundary::from) == Some(boundary) {
+            Err(TableViewRepositoryError::SaveFailed)
+        } else {
+            Ok(())
+        }
+    }
+
+    #[cfg(not(test))]
+    const fn interrupt_at(
+        &self,
+        _boundary: SaveInterruptionBoundary,
+    ) -> Result<(), TableViewRepositoryError> {
+        Ok(())
+    }
+}
+
+impl TableViewRepository for FileTableViewRepository {
+    fn load(&self) -> Result<TableViewRepositoryLoad, TableViewRepositoryError> {
+        self.reconcile()
+    }
+
+    fn save_atomic(
+        &self,
+        state: &TableViewRepositoryState,
+    ) -> Result<(), TableViewRepositoryError> {
+        let bytes = self.encode_current(state)?;
+        self.save_bytes(&bytes)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SaveInterruptionBoundary {
+    AfterStageCreate,
+    AfterFlush,
+    AfterBackup,
+    DuringReplace,
+    AfterReplace,
+    BeforeCleanup,
+}
+
+#[cfg(test)]
+impl From<SaveInterruptionPoint> for SaveInterruptionBoundary {
+    fn from(value: SaveInterruptionPoint) -> Self {
+        match value {
+            SaveInterruptionPoint::AfterStageCreate => Self::AfterStageCreate,
+            SaveInterruptionPoint::DuringWrite => Self::AfterFlush,
+            SaveInterruptionPoint::AfterFlush => Self::AfterFlush,
+            SaveInterruptionPoint::AfterBackup => Self::AfterBackup,
+            SaveInterruptionPoint::DuringReplace => Self::DuringReplace,
+            SaveInterruptionPoint::AfterReplace => Self::AfterReplace,
+            SaveInterruptionPoint::BeforeCleanup => Self::BeforeCleanup,
+        }
+    }
+}
+
+fn repository_parent(path: &Path) -> Result<&Path, TableViewRepositoryError> {
+    let parent = path.parent().ok_or(TableViewRepositoryError::SaveFailed)?;
+    if parent.as_os_str().is_empty() {
+        Ok(Path::new("."))
+    } else {
+        Ok(parent)
+    }
+}
+
+fn sibling_with_suffix(path: &Path, suffix: &str) -> PathBuf {
+    let mut sibling: OsString = path.as_os_str().to_owned();
+    sibling.push(suffix);
+    PathBuf::from(sibling)
+}
+
+fn remove_if_exists(path: &Path) -> std::io::Result<()> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+
+fn copy_synced(source: &Path, destination: &Path) -> std::io::Result<()> {
+    fs::copy(source, destination)?;
+    File::options()
+        .read(true)
+        .write(true)
+        .open(destination)?
+        .sync_all()
+}
+
+fn replace_auxiliary_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    if let Some(parent) = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        fs::create_dir_all(parent)?;
+    }
+    let temporary_path = sibling_with_suffix(path, ".tmp");
+    let backup_path = sibling_with_suffix(path, ".bak");
+    remove_if_exists(&temporary_path)?;
+
+    let mut temporary = File::create(&temporary_path)?;
+    temporary.write_all(bytes)?;
+    temporary.flush()?;
+    temporary.sync_all()?;
+    drop(temporary);
+
+    if path.exists() {
+        remove_if_exists(&backup_path)?;
+        copy_synced(path, &backup_path)?;
+        fs::remove_file(path)?;
+    }
+    match fs::rename(&temporary_path, path) {
+        Ok(()) => {
+            remove_if_exists(&backup_path)?;
+            Ok(())
+        }
+        Err(error) => {
+            if backup_path.exists() && !path.exists() {
+                let _ = fs::rename(&backup_path, path);
+            }
+            Err(error)
+        }
+    }
+}
+
+fn read_candidate_bytes(path: &Path) -> std::io::Result<CandidateBytes> {
+    let original_len = fs::metadata(path)?.len();
+    let file = File::open(path)?;
+    let mut bytes = Vec::with_capacity(
+        usize::try_from(original_len.min(MAX_QUARANTINE_BYTES as u64))
+            .unwrap_or(MAX_QUARANTINE_BYTES),
+    );
+    Read::take(file, MAX_QUARANTINE_BYTES as u64).read_to_end(&mut bytes)?;
+    Ok(CandidateBytes {
+        bytes,
+        original_len,
+        truncated: original_len > MAX_QUARANTINE_BYTES as u64,
+    })
+}
+
+fn decode_candidate(bytes: &[u8]) -> Candidate {
+    if bytes.len() > MAX_REPOSITORY_BYTES {
+        return Candidate::Invalid(CandidateFailure {
+            reason: TableViewRecoveryReason::InvalidPayload,
+            source_envelope_version: None,
+            source_schema_version: None,
+        });
+    }
+
+    let value: Value = match serde_json::from_slice(bytes) {
+        Ok(value) => value,
+        Err(_) => {
+            return Candidate::Invalid(CandidateFailure {
+                reason: TableViewRecoveryReason::CorruptPayload,
+                source_envelope_version: None,
+                source_schema_version: None,
+            });
+        }
+    };
+    let source_envelope_version = value
+        .get("envelopeVersion")
+        .and_then(Value::as_u64)
+        .and_then(|version| u32::try_from(version).ok());
+    let source_schema_version = value
+        .pointer("/payload/schemaVersion")
+        .and_then(Value::as_u64)
+        .and_then(|version| u32::try_from(version).ok());
+
+    let Some(envelope_version) = source_envelope_version else {
+        return Candidate::Invalid(CandidateFailure {
+            reason: TableViewRecoveryReason::InvalidPayload,
+            source_envelope_version,
+            source_schema_version,
+        });
+    };
+    if envelope_version > CURRENT_STORAGE_ENVELOPE_VERSION {
+        return Candidate::Invalid(CandidateFailure {
+            reason: TableViewRecoveryReason::FutureEnvelopeVersion,
+            source_envelope_version,
+            source_schema_version,
+        });
+    }
+    if envelope_version != CURRENT_STORAGE_ENVELOPE_VERSION {
+        return Candidate::Invalid(CandidateFailure {
+            reason: TableViewRecoveryReason::MissingMigrationStep,
+            source_envelope_version,
+            source_schema_version,
+        });
+    }
+    if source_schema_version.is_some_and(|version| version > SQUAD_PRIMARY_SCHEMA_VERSION) {
+        return Candidate::Invalid(CandidateFailure {
+            reason: TableViewRecoveryReason::FutureSchemaVersion,
+            source_envelope_version,
+            source_schema_version,
+        });
+    }
+
+    let Some(object) = value.as_object() else {
+        return Candidate::Invalid(CandidateFailure {
+            reason: TableViewRecoveryReason::InvalidPayload,
+            source_envelope_version,
+            source_schema_version,
+        });
+    };
+    if object.len() != 2 || !object.contains_key("payload") {
+        return Candidate::Invalid(CandidateFailure {
+            reason: TableViewRecoveryReason::InvalidPayload,
+            source_envelope_version,
+            source_schema_version,
+        });
+    }
+    let Some(payload) = object.get("payload").cloned() else {
+        return Candidate::Invalid(CandidateFailure {
+            reason: TableViewRecoveryReason::InvalidPayload,
+            source_envelope_version,
+            source_schema_version,
+        });
+    };
+    let state: TableViewRepositoryState = match serde_json::from_value(payload) {
+        Ok(state) => state,
+        Err(_) => {
+            return Candidate::Invalid(CandidateFailure {
+                reason: TableViewRecoveryReason::InvalidPayload,
+                source_envelope_version,
+                source_schema_version,
+            });
+        }
+    };
+    if state.metadata.envelope_version != CURRENT_ENVELOPE_VERSION || state.validate().is_err() {
+        return Candidate::Invalid(CandidateFailure {
+            reason: TableViewRecoveryReason::InvalidPayload,
+            source_envelope_version,
+            source_schema_version,
+        });
+    }
+    Candidate::Valid(DecodedCandidate { state })
+}
+
+fn first_valid_candidate<'a>(
+    temporary: &'a Option<CandidateBytes>,
+    temporary_path: &'a Path,
+    backup: &'a Option<CandidateBytes>,
+    backup_path: &'a Path,
+) -> Option<(DecodedCandidate, &'a Path)> {
+    if let Some(temporary) = temporary {
+        if let Candidate::Valid(candidate) = decode_candidate(&temporary.bytes) {
+            return Some((candidate, temporary_path));
+        }
+    }
+    if let Some(backup) = backup {
+        if let Candidate::Valid(candidate) = decode_candidate(&backup.bytes) {
+            return Some((candidate, backup_path));
+        }
+    }
+    None
+}
+
+fn extract_u32(bytes: &[u8], path: &[&str]) -> Option<u32> {
+    if path.is_empty() {
+        return None;
+    }
+    let owned = serde_json::from_slice::<Value>(bytes).ok()?;
+    let mut value = &owned;
+    for segment in path {
+        value = value.get(*segment)?;
+    }
+    value.as_u64().and_then(|number| u32::try_from(number).ok())
+}
+
+fn fingerprint(bytes: &[u8], original_len: u64) -> String {
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    format!("fnv1a64:{hash:016x}:{original_len}")
+}
+
+const fn recovery_reason_code(reason: TableViewRecoveryReason) -> &'static str {
+    match reason {
+        TableViewRecoveryReason::CorruptPayload => "table_view.corrupt_payload",
+        TableViewRecoveryReason::FutureEnvelopeVersion => "table_view.future_envelope_version",
+        TableViewRecoveryReason::FutureSchemaVersion => "table_view.future_schema_version",
+        TableViewRecoveryReason::MissingMigrationStep => "table_view.missing_migration_step",
+        TableViewRecoveryReason::InterruptedWrite => "table_view.interrupted_write",
+        TableViewRecoveryReason::InvalidPayload => "table_view.invalid_payload",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs;
