@@ -33,6 +33,10 @@
 - [x] **UI-01**: UI Lab documents tokens, component states, dense tables, and responsive examples.
 - [ ] **UI-02**: Initial desktop screens meet WCAG AA, keyboard, reduced-motion, and visual-regression checks.
 
+### Sports-management product review
+
+- [x] **SM-01**: In the real Elenco product surface, density and its adjacent disclosure remain stable across repeated close/Escape/outside-click cycles; supplemental tooltips and accessible local nationality flags work with fallbacks; relevant console errors fail regression tests; and the established AppShell, navigation, table, inspector, tactics, persistence, tokens and domain behavior do not regress.
+
 ## V0.2 requirements
 
 - **MULTI-01**: Invited users create/join a private league and select distinct clubs.
@@ -41,15 +45,16 @@
 
 ## Later requirements
 
-Advanced simulation, market, training, development, injuries, academy, scouting, public mods, and the full editor remain later work. A deliberately small matchday simulation is part of V0.1 so the product is validated as a game rather than as infrastructure.
+Advanced simulation, market, training, development, injuries, academy, scouting, public mods, and the full editor remain later work. Sports-management slices SM-2 through SM-6, including the Table View Engine, free tactical model, full tactical semantics, entity/ratings depth, dynamics, training and dynamic potential, are prospective and are not requirements for the current SM-1 execution. A deliberately small matchday simulation is part of V0.1 so the product is validated as a game rather than as infrastructure.
 
 ## Traceability
 
-| Requirement group    | Phase | Status           |
-| -------------------- | ----: | ---------------- |
-| Gate 0 documentation |     1 | Pending approval |
-| FOUND                |   2–4 | Pending          |
-| UI                   |   5–6 | Pending          |
-| GAME                 |     6 | Complete         |
-| DESK/DATA            |  7–10 | Pending          |
-| MULTI                | 11–13 | Deferred to V0.2 |
+| Requirement group    | Phase | Status                                  |
+| -------------------- | ----: | --------------------------------------- |
+| Gate 0 documentation |     1 | Pending approval                        |
+| FOUND                |   2–4 | Pending                                 |
+| UI                   |   5–6 | Pending                                 |
+| SM-01 stabilization  |  6/02 | Complete; human product review deferred |
+| GAME                 |     6 | Complete                                |
+| DESK/DATA            |  7–10 | Pending                                 |
+| MULTI                | 11–13 | Deferred to V0.2                        |

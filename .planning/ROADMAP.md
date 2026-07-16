@@ -194,7 +194,7 @@ Plans:
 
 ## Phase 6: First Playable Matchday
 
-**Status:** Complete — first playable ready for product review  
+**Status:** Complete — first playable and SM-1 automated stabilization delivered; human product review deferred
 **Gate:** First Playable  
 **Directory slug:** `06-first-playable-matchday`
 
@@ -205,9 +205,12 @@ Plans:
 
 **Dependencies:** Phase 5 technical assets. UI Lab visual approval is not a dependency.
 
-**Plans:** 1/1 complete
+**Plans:** 2/2 complete
 
 - [x] 06-01-PLAN.md — Ship the persisted XI → tactics → deterministic match → result loop.
+- [x] 06-02-PLAN.md — Stabilize density/disclosure, product tooltips, nationality flags and console regressions without redesigning or advancing SM-2 through SM-6.
+
+The additional 06-02 plan records product-review remediation against baseline `38c2bff`. Automated gates passed on 2026-07-16; Mateus's fullscreen product review remains explicitly deferred and is not represented as visual approval.
 
 **Success criteria:**
 
