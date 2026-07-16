@@ -5,11 +5,18 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use rivallo_platform::{
-    Formation, LOCAL_API_ADDRESS, LineupSelection, MatchdayCoordinator, MatchdayState,
-    READINESS_POLL_INTERVAL, READINESS_TIMEOUT, ReadinessDiagnostic, SHUTDOWN_CONTROL_MESSAGE,
-    TacticalApproach, validate_readiness_response,
+    ColumnId, ColumnPinning, ColumnPinningSide, FilterGroupId, FilterGroupLogic, FilterId,
+    FilterOperator, FilterValue, Formation, LOCAL_API_ADDRESS, LegacyImportOutcome,
+    LegacyImportReceipt, LegacyTableViewImport, LineupSelection, MatchdayCoordinator,
+    MatchdayState, NullOrder, OwnerScope, READINESS_POLL_INTERVAL, READINESS_TIMEOUT,
+    ReadinessDiagnostic, SHUTDOWN_CONTROL_MESSAGE, SavedTableView, SortDirection, TableColumnState,
+    TableDataWindow, TableDensity, TableFilterClause, TableFilterGroup, TableFilterNode, TableId,
+    TableSort, TableViewCoordinator, TableViewEnvelopeMetadata, TableViewLoadOutcome,
+    TableViewPolicyError, TableViewRecoveryReason, TableViewRepositoryState, TableViewServiceError,
+    TableViewState, TableViewValidationError, TacticalApproach, ViewId, ViewMutability,
+    ViewProvenance, WindowId, squad_system_default_repository_state, validate_readiness_response,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, RunEvent, State};
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
@@ -18,6 +25,962 @@ const PROBE_IO_TIMEOUT: Duration = Duration::from_millis(400);
 const OWNED_READINESS_INTERVAL: Duration = Duration::from_secs(1);
 const COOPERATIVE_SHUTDOWN_WAIT: Duration = Duration::from_millis(750);
 const MAX_READINESS_RESPONSE_BYTES: u64 = 8 * 1024;
+const INVALID_TABLE_VIEW_DTO: &str = "table_view.invalid_dto";
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TableViewRepositoryMetadataDto {
+    envelope_version: u32,
+    revision: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TableViewPinningDto {
+    side: String,
+    order: Option<u8>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TableViewColumnDto {
+    column_id: String,
+    visible: bool,
+    width: f64,
+    pinning: TableViewPinningDto,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TableViewSortDto {
+    column_id: String,
+    direction: String,
+    nulls: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
+enum TableViewFilterValueDto {
+    Text {
+        value: String,
+    },
+    Number {
+        value: f64,
+    },
+    Boolean {
+        value: bool,
+    },
+    #[serde(rename = "enum")]
+    Enumeration {
+        value: String,
+    },
+    EnumSet {
+        value: Vec<String>,
+    },
+    NumberRange {
+        min: f64,
+        max: f64,
+    },
+    TextList {
+        value: Vec<String>,
+    },
+    NumberList {
+        value: Vec<f64>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+enum TableViewFilterNodeDto {
+    Clause {
+        filter_id: String,
+        column_id: String,
+        operator: String,
+        value: TableViewFilterValueDto,
+        enabled: bool,
+    },
+    Group {
+        group_id: String,
+        logic: String,
+        children: Vec<TableViewFilterNodeDto>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TableViewFilterGroupDto {
+    kind: String,
+    group_id: String,
+    logic: String,
+    children: Vec<TableViewFilterNodeDto>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TableViewGroupingDto {
+    group_id: String,
+    column_id: String,
+    mode: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TableViewDataWindowDto {
+    window_id: String,
+    mode: String,
+    page: u32,
+    page_size: u16,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TableViewStateDto {
+    table_id: String,
+    schema_version: u32,
+    owner_scope: String,
+    view_id: String,
+    baseline_view_id: String,
+    provenance: String,
+    label: String,
+    density: String,
+    columns: Vec<TableViewColumnDto>,
+    sort: Vec<TableViewSortDto>,
+    filter: TableViewFilterGroupDto,
+    grouping: Vec<TableViewGroupingDto>,
+    data_window: TableViewDataWindowDto,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SavedTableViewDto {
+    mutability: String,
+    state: TableViewStateDto,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LegacyImportReceiptDto {
+    source_version: u16,
+    source_fingerprint: String,
+    table_id: String,
+    schema_version: u32,
+    owner_scope: String,
+    imported_view_id: String,
+    accepted_revision: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TableViewRepositoryStateDto {
+    metadata: TableViewRepositoryMetadataDto,
+    table_id: String,
+    schema_version: u32,
+    owner_scope: String,
+    active_view_id: String,
+    default_view_id: String,
+    views: Vec<SavedTableViewDto>,
+    legacy_import_receipts: Vec<LegacyImportReceiptDto>,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveTableViewsRequestDto {
+    state: TableViewRepositoryStateDto,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ImportLegacyTablePreferencesRequestDto {
+    source_version: u16,
+    source_fingerprint: String,
+    state: TableViewStateDto,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TableViewSaveReceiptDto {
+    table_id: &'static str,
+    schema_version: u32,
+    owner_scope: &'static str,
+    accepted_revision: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(
+    tag = "status",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+enum LoadTableViewsResponse {
+    Loaded {
+        state: TableViewRepositoryStateDto,
+    },
+    Migrated {
+        state: TableViewRepositoryStateDto,
+        from_envelope_version: u32,
+        to_envelope_version: u32,
+    },
+    Recovered {
+        state: TableViewRepositoryStateDto,
+        reason: TableViewRecoveryReason,
+    },
+    Unavailable {
+        fallback: TableViewRepositoryStateDto,
+    },
+    Invalid {
+        fallback: TableViewRepositoryStateDto,
+        reason: String,
+    },
+    SaveFailed {
+        fallback: TableViewRepositoryStateDto,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(
+    tag = "status",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+enum SaveTableViewsResponse {
+    Confirmed {
+        state: TableViewRepositoryStateDto,
+        receipt: TableViewSaveReceiptDto,
+    },
+    Invalid {
+        reason: String,
+    },
+    Unavailable,
+    SaveFailed,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(
+    tag = "status",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+enum ImportLegacyTablePreferencesResponse {
+    Confirmed {
+        state: Box<TableViewRepositoryStateDto>,
+        receipt: LegacyImportReceiptDto,
+        imported: bool,
+    },
+    Invalid {
+        reason: String,
+    },
+    Unavailable,
+    SaveFailed,
+}
+
+fn owner_scope_name(owner_scope: OwnerScope) -> &'static str {
+    match owner_scope {
+        OwnerScope::LocalFixed => "local-fixed",
+        OwnerScope::Unsupported => "unsupported",
+    }
+}
+
+fn parse_owner_scope(value: &str) -> Result<OwnerScope, &'static str> {
+    match value {
+        "local-fixed" => Ok(OwnerScope::LocalFixed),
+        _ => Err(INVALID_TABLE_VIEW_DTO),
+    }
+}
+
+fn provenance_name(provenance: ViewProvenance) -> &'static str {
+    match provenance {
+        ViewProvenance::SystemDefault => "system-default",
+        ViewProvenance::UserOwned => "user-owned",
+        ViewProvenance::SharedReadOnly => "shared-read-only",
+        ViewProvenance::Unsupported => "unsupported",
+    }
+}
+
+fn parse_provenance(value: &str) -> Result<ViewProvenance, &'static str> {
+    match value {
+        "system-default" => Ok(ViewProvenance::SystemDefault),
+        "user-owned" => Ok(ViewProvenance::UserOwned),
+        "shared-read-only" => Ok(ViewProvenance::SharedReadOnly),
+        _ => Err(INVALID_TABLE_VIEW_DTO),
+    }
+}
+
+fn mutability_name(mutability: ViewMutability) -> &'static str {
+    match mutability {
+        ViewMutability::Immutable => "immutable",
+        ViewMutability::Mutable => "mutable",
+        ViewMutability::ReadOnly => "read-only",
+        ViewMutability::Unsupported => "unsupported",
+    }
+}
+
+fn parse_mutability(value: &str) -> Result<ViewMutability, &'static str> {
+    match value {
+        "immutable" => Ok(ViewMutability::Immutable),
+        "mutable" => Ok(ViewMutability::Mutable),
+        "read-only" => Ok(ViewMutability::ReadOnly),
+        _ => Err(INVALID_TABLE_VIEW_DTO),
+    }
+}
+
+fn density_name(density: TableDensity) -> &'static str {
+    match density {
+        TableDensity::Compact => "compact",
+        TableDensity::Standard => "standard",
+        TableDensity::Comfortable => "comfortable",
+        TableDensity::Unsupported => "unsupported",
+    }
+}
+
+fn parse_density(value: &str) -> Result<TableDensity, &'static str> {
+    match value {
+        "compact" => Ok(TableDensity::Compact),
+        "standard" => Ok(TableDensity::Standard),
+        "comfortable" => Ok(TableDensity::Comfortable),
+        _ => Err(INVALID_TABLE_VIEW_DTO),
+    }
+}
+
+fn pinning_side_name(side: ColumnPinningSide) -> &'static str {
+    match side {
+        ColumnPinningSide::None => "none",
+        ColumnPinningSide::Start => "start",
+        ColumnPinningSide::End => "end",
+        ColumnPinningSide::Unsupported => "unsupported",
+    }
+}
+
+fn parse_pinning(pinning: TableViewPinningDto) -> Result<ColumnPinning, &'static str> {
+    match (pinning.side.as_str(), pinning.order) {
+        ("none", None) => Ok(ColumnPinning::none()),
+        ("start", Some(order)) => Ok(ColumnPinning {
+            side: ColumnPinningSide::Start,
+            order,
+        }),
+        ("end", Some(order)) => Ok(ColumnPinning {
+            side: ColumnPinningSide::End,
+            order,
+        }),
+        _ => Err(INVALID_TABLE_VIEW_DTO),
+    }
+}
+
+fn sort_direction_name(direction: SortDirection) -> &'static str {
+    match direction {
+        SortDirection::Ascending => "asc",
+        SortDirection::Descending => "desc",
+        SortDirection::Unsupported => "unsupported",
+    }
+}
+
+fn parse_sort_direction(value: &str) -> Result<SortDirection, &'static str> {
+    match value {
+        "asc" => Ok(SortDirection::Ascending),
+        "desc" => Ok(SortDirection::Descending),
+        _ => Err(INVALID_TABLE_VIEW_DTO),
+    }
+}
+
+fn null_order_name(null_order: NullOrder) -> &'static str {
+    match null_order {
+        NullOrder::First => "first",
+        NullOrder::Last => "last",
+        NullOrder::Unsupported => "unsupported",
+    }
+}
+
+fn parse_null_order(value: &str) -> Result<NullOrder, &'static str> {
+    match value {
+        "first" => Ok(NullOrder::First),
+        "last" => Ok(NullOrder::Last),
+        _ => Err(INVALID_TABLE_VIEW_DTO),
+    }
+}
+
+fn filter_operator_name(operator: FilterOperator) -> &'static str {
+    match operator {
+        FilterOperator::Equals => "equals",
+        FilterOperator::Contains => "contains",
+        FilterOperator::GreaterThan => "greater-than",
+        FilterOperator::GreaterThanOrEqual => "greater-than-or-equal",
+        FilterOperator::LessThan => "less-than",
+        FilterOperator::LessThanOrEqual => "less-than-or-equal",
+        FilterOperator::OneOf => "one-of",
+        FilterOperator::Unsupported => "unsupported",
+    }
+}
+
+fn parse_filter_operator(value: &str) -> Result<FilterOperator, &'static str> {
+    match value {
+        "equals" => Ok(FilterOperator::Equals),
+        "contains" => Ok(FilterOperator::Contains),
+        "greater-than" => Ok(FilterOperator::GreaterThan),
+        "greater-than-or-equal" => Ok(FilterOperator::GreaterThanOrEqual),
+        "less-than" => Ok(FilterOperator::LessThan),
+        "less-than-or-equal" => Ok(FilterOperator::LessThanOrEqual),
+        "one-of" => Ok(FilterOperator::OneOf),
+        _ => Err(INVALID_TABLE_VIEW_DTO),
+    }
+}
+
+fn filter_logic_name(logic: FilterGroupLogic) -> &'static str {
+    match logic {
+        FilterGroupLogic::And => "and",
+        FilterGroupLogic::Or => "or",
+        FilterGroupLogic::Unsupported => "unsupported",
+    }
+}
+
+fn parse_filter_logic(value: &str) -> Result<FilterGroupLogic, &'static str> {
+    match value {
+        "and" => Ok(FilterGroupLogic::And),
+        "or" => Ok(FilterGroupLogic::Or),
+        _ => Err(INVALID_TABLE_VIEW_DTO),
+    }
+}
+
+impl From<&FilterValue> for TableViewFilterValueDto {
+    fn from(value: &FilterValue) -> Self {
+        match value {
+            FilterValue::Text(value) => Self::Text {
+                value: value.clone(),
+            },
+            FilterValue::Number(value) => Self::Number { value: *value },
+            FilterValue::Boolean(value) => Self::Boolean { value: *value },
+            FilterValue::Enum(value) => Self::Enumeration {
+                value: value.clone(),
+            },
+            FilterValue::EnumSet(value) => Self::EnumSet {
+                value: value.clone(),
+            },
+            FilterValue::NumberRange { min, max } => Self::NumberRange {
+                min: *min,
+                max: *max,
+            },
+            FilterValue::TextList(value) => Self::TextList {
+                value: value.clone(),
+            },
+            FilterValue::NumberList(value) => Self::NumberList {
+                value: value.clone(),
+            },
+        }
+    }
+}
+
+impl From<TableViewFilterValueDto> for FilterValue {
+    fn from(value: TableViewFilterValueDto) -> Self {
+        match value {
+            TableViewFilterValueDto::Text { value } => Self::Text(value),
+            TableViewFilterValueDto::Number { value } => Self::Number(value),
+            TableViewFilterValueDto::Boolean { value } => Self::Boolean(value),
+            TableViewFilterValueDto::Enumeration { value } => Self::Enum(value),
+            TableViewFilterValueDto::EnumSet { value } => Self::EnumSet(value),
+            TableViewFilterValueDto::NumberRange { min, max } => Self::NumberRange { min, max },
+            TableViewFilterValueDto::TextList { value } => Self::TextList(value),
+            TableViewFilterValueDto::NumberList { value } => Self::NumberList(value),
+        }
+    }
+}
+
+impl From<&TableFilterNode> for TableViewFilterNodeDto {
+    fn from(node: &TableFilterNode) -> Self {
+        match node {
+            TableFilterNode::Clause(clause) => Self::Clause {
+                filter_id: clause.filter_id.as_str().to_owned(),
+                column_id: clause.column_id.as_str().to_owned(),
+                operator: filter_operator_name(clause.operator).to_owned(),
+                value: (&clause.value).into(),
+                enabled: clause.enabled,
+            },
+            TableFilterNode::Group(group) => Self::Group {
+                group_id: group.group_id.as_str().to_owned(),
+                logic: filter_logic_name(group.logic).to_owned(),
+                children: group.children.iter().map(Into::into).collect(),
+            },
+        }
+    }
+}
+
+impl TryFrom<TableViewFilterNodeDto> for TableFilterNode {
+    type Error = &'static str;
+
+    fn try_from(node: TableViewFilterNodeDto) -> Result<Self, Self::Error> {
+        match node {
+            TableViewFilterNodeDto::Clause {
+                filter_id,
+                column_id,
+                operator,
+                value,
+                enabled,
+            } => Ok(Self::Clause(TableFilterClause {
+                filter_id: FilterId::from(filter_id),
+                column_id: ColumnId::from(column_id),
+                operator: parse_filter_operator(&operator)?,
+                value: value.into(),
+                enabled,
+            })),
+            TableViewFilterNodeDto::Group {
+                group_id,
+                logic,
+                children,
+            } => Ok(Self::Group(TableFilterGroup {
+                group_id: FilterGroupId::from(group_id),
+                logic: parse_filter_logic(&logic)?,
+                children: children
+                    .into_iter()
+                    .map(TryInto::try_into)
+                    .collect::<Result<_, _>>()?,
+            })),
+        }
+    }
+}
+
+impl From<&TableFilterGroup> for TableViewFilterGroupDto {
+    fn from(group: &TableFilterGroup) -> Self {
+        Self {
+            kind: "group".to_owned(),
+            group_id: group.group_id.as_str().to_owned(),
+            logic: filter_logic_name(group.logic).to_owned(),
+            children: group.children.iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl TryFrom<TableViewFilterGroupDto> for TableFilterGroup {
+    type Error = &'static str;
+
+    fn try_from(group: TableViewFilterGroupDto) -> Result<Self, Self::Error> {
+        if group.kind != "group" {
+            return Err(INVALID_TABLE_VIEW_DTO);
+        }
+        Ok(Self {
+            group_id: FilterGroupId::from(group.group_id),
+            logic: parse_filter_logic(&group.logic)?,
+            children: group
+                .children
+                .into_iter()
+                .map(TryInto::try_into)
+                .collect::<Result<_, _>>()?,
+        })
+    }
+}
+
+impl TableViewStateDto {
+    fn from_application(
+        state: &TableViewState,
+        repository: &TableViewRepositoryState,
+        view: &SavedTableView,
+    ) -> Self {
+        let filter =
+            state
+                .filter
+                .as_ref()
+                .map(Into::into)
+                .unwrap_or_else(|| TableViewFilterGroupDto {
+                    kind: "group".to_owned(),
+                    group_id: "filters.root".to_owned(),
+                    logic: "and".to_owned(),
+                    children: Vec::new(),
+                });
+        Self {
+            table_id: repository.table_id.as_str().to_owned(),
+            schema_version: repository.schema_version,
+            owner_scope: owner_scope_name(repository.owner_scope).to_owned(),
+            view_id: state.view_id.as_str().to_owned(),
+            baseline_view_id: state.baseline_view_id.as_str().to_owned(),
+            provenance: provenance_name(view.provenance).to_owned(),
+            label: view.label.clone(),
+            density: density_name(state.density).to_owned(),
+            columns: state
+                .columns
+                .iter()
+                .map(|column| TableViewColumnDto {
+                    column_id: column.column_id.as_str().to_owned(),
+                    visible: column.visible,
+                    width: column.width,
+                    pinning: TableViewPinningDto {
+                        side: pinning_side_name(column.pinning.side).to_owned(),
+                        order: (column.pinning.side != ColumnPinningSide::None)
+                            .then_some(column.pinning.order),
+                    },
+                })
+                .collect(),
+            sort: state
+                .sort
+                .iter()
+                .map(|sort| TableViewSortDto {
+                    column_id: sort.column_id.as_str().to_owned(),
+                    direction: sort_direction_name(sort.direction).to_owned(),
+                    nulls: null_order_name(sort.null_order).to_owned(),
+                })
+                .collect(),
+            filter,
+            grouping: Vec::new(),
+            data_window: match &state.data_window {
+                TableDataWindow::ClientPagination {
+                    window_id,
+                    page,
+                    page_size,
+                } => TableViewDataWindowDto {
+                    window_id: window_id.as_str().to_owned(),
+                    mode: "client-pagination".to_owned(),
+                    page: *page,
+                    page_size: *page_size,
+                },
+                TableDataWindow::Unsupported => TableViewDataWindowDto {
+                    window_id: "unsupported".to_owned(),
+                    mode: "unsupported".to_owned(),
+                    page: 0,
+                    page_size: 0,
+                },
+            },
+        }
+    }
+
+    fn try_into_application(
+        self,
+        table_id: &str,
+        schema_version: u32,
+        owner_scope: &str,
+    ) -> Result<TableViewState, &'static str> {
+        if self.table_id != table_id
+            || self.schema_version != schema_version
+            || self.owner_scope != owner_scope
+            || !self.grouping.is_empty()
+        {
+            return Err(INVALID_TABLE_VIEW_DTO);
+        }
+        let data_window = if self.data_window.mode == "client-pagination" {
+            TableDataWindow::ClientPagination {
+                window_id: WindowId::from(self.data_window.window_id),
+                page: self.data_window.page,
+                page_size: self.data_window.page_size,
+            }
+        } else {
+            return Err(INVALID_TABLE_VIEW_DTO);
+        };
+        Ok(TableViewState {
+            view_id: ViewId::from(self.view_id),
+            baseline_view_id: ViewId::from(self.baseline_view_id),
+            density: parse_density(&self.density)?,
+            columns: self
+                .columns
+                .into_iter()
+                .map(|column| {
+                    Ok(TableColumnState {
+                        column_id: ColumnId::from(column.column_id),
+                        visible: column.visible,
+                        width: column.width,
+                        pinning: parse_pinning(column.pinning)?,
+                    })
+                })
+                .collect::<Result<_, &'static str>>()?,
+            sort: self
+                .sort
+                .into_iter()
+                .map(|sort| {
+                    Ok(TableSort {
+                        column_id: ColumnId::from(sort.column_id),
+                        direction: parse_sort_direction(&sort.direction)?,
+                        null_order: parse_null_order(&sort.nulls)?,
+                    })
+                })
+                .collect::<Result<_, &'static str>>()?,
+            filter: Some(self.filter.try_into()?),
+            data_window,
+        })
+    }
+}
+
+impl From<&LegacyImportReceipt> for LegacyImportReceiptDto {
+    fn from(receipt: &LegacyImportReceipt) -> Self {
+        Self {
+            source_version: receipt.source_version,
+            source_fingerprint: receipt.source_fingerprint.clone(),
+            table_id: receipt.table_id.as_str().to_owned(),
+            schema_version: receipt.schema_version,
+            owner_scope: owner_scope_name(receipt.owner_scope).to_owned(),
+            imported_view_id: receipt.imported_view_id.as_str().to_owned(),
+            accepted_revision: receipt.accepted_revision,
+        }
+    }
+}
+
+impl TryFrom<LegacyImportReceiptDto> for LegacyImportReceipt {
+    type Error = &'static str;
+
+    fn try_from(receipt: LegacyImportReceiptDto) -> Result<Self, Self::Error> {
+        Ok(Self {
+            source_version: receipt.source_version,
+            source_fingerprint: receipt.source_fingerprint,
+            table_id: TableId::from(receipt.table_id),
+            schema_version: receipt.schema_version,
+            owner_scope: parse_owner_scope(&receipt.owner_scope)?,
+            imported_view_id: ViewId::from(receipt.imported_view_id),
+            accepted_revision: receipt.accepted_revision,
+        })
+    }
+}
+
+impl From<&TableViewRepositoryState> for TableViewRepositoryStateDto {
+    fn from(state: &TableViewRepositoryState) -> Self {
+        Self {
+            metadata: TableViewRepositoryMetadataDto {
+                envelope_version: state.metadata.envelope_version,
+                revision: state.metadata.revision,
+            },
+            table_id: state.table_id.as_str().to_owned(),
+            schema_version: state.schema_version,
+            owner_scope: owner_scope_name(state.owner_scope).to_owned(),
+            active_view_id: state.active_view_id.as_str().to_owned(),
+            default_view_id: state.default_view_id.as_str().to_owned(),
+            views: state
+                .views
+                .iter()
+                .map(|view| SavedTableViewDto {
+                    mutability: mutability_name(view.mutability).to_owned(),
+                    state: TableViewStateDto::from_application(&view.state, state, view),
+                })
+                .collect(),
+            legacy_import_receipts: state
+                .legacy_import_receipts
+                .iter()
+                .map(Into::into)
+                .collect(),
+        }
+    }
+}
+
+impl TryFrom<TableViewRepositoryStateDto> for TableViewRepositoryState {
+    type Error = &'static str;
+
+    fn try_from(state: TableViewRepositoryStateDto) -> Result<Self, Self::Error> {
+        if state.table_id != "squad.primary"
+            || state.schema_version != 1
+            || state.owner_scope != "local-fixed"
+        {
+            return Err(INVALID_TABLE_VIEW_DTO);
+        }
+        let table_id = state.table_id;
+        let owner_scope = state.owner_scope;
+        let schema_version = state.schema_version;
+        let views = state
+            .views
+            .into_iter()
+            .map(|view| {
+                let provenance = parse_provenance(&view.state.provenance)?;
+                let label = view.state.label.clone();
+                Ok(SavedTableView {
+                    label,
+                    provenance,
+                    mutability: parse_mutability(&view.mutability)?,
+                    state: view.state.try_into_application(
+                        &table_id,
+                        schema_version,
+                        &owner_scope,
+                    )?,
+                })
+            })
+            .collect::<Result<_, &'static str>>()?;
+        Ok(Self {
+            metadata: TableViewEnvelopeMetadata {
+                envelope_version: state.metadata.envelope_version,
+                revision: state.metadata.revision,
+            },
+            table_id: TableId::from(table_id),
+            schema_version,
+            owner_scope: parse_owner_scope(&owner_scope)?,
+            active_view_id: ViewId::from(state.active_view_id),
+            default_view_id: ViewId::from(state.default_view_id),
+            views,
+            legacy_import_receipts: state
+                .legacy_import_receipts
+                .into_iter()
+                .map(TryInto::try_into)
+                .collect::<Result<_, _>>()?,
+        })
+    }
+}
+
+impl TryFrom<ImportLegacyTablePreferencesRequestDto> for LegacyTableViewImport {
+    type Error = &'static str;
+
+    fn try_from(request: ImportLegacyTablePreferencesRequestDto) -> Result<Self, Self::Error> {
+        if request.state.table_id != "squad.primary"
+            || request.state.schema_version != 1
+            || request.state.owner_scope != "local-fixed"
+            || request.state.provenance != "user-owned"
+        {
+            return Err(INVALID_TABLE_VIEW_DTO);
+        }
+        let label = request.state.label.clone();
+        Ok(Self {
+            source_version: request.source_version,
+            source_fingerprint: request.source_fingerprint,
+            label,
+            state: request
+                .state
+                .try_into_application("squad.primary", 1, "local-fixed")?,
+        })
+    }
+}
+
+fn fallback_table_views() -> TableViewRepositoryStateDto {
+    (&squad_system_default_repository_state()).into()
+}
+
+fn invalid_load(
+    fallback: &TableViewRepositoryState,
+    reason: impl Into<String>,
+) -> LoadTableViewsResponse {
+    LoadTableViewsResponse::Invalid {
+        fallback: fallback.into(),
+        reason: reason.into(),
+    }
+}
+
+fn load_table_views_response(
+    outcome: Result<TableViewLoadOutcome, TableViewServiceError>,
+) -> LoadTableViewsResponse {
+    match outcome {
+        Ok(TableViewLoadOutcome::Loaded { state } | TableViewLoadOutcome::Seeded { state }) => {
+            LoadTableViewsResponse::Loaded {
+                state: (&state).into(),
+            }
+        }
+        Ok(TableViewLoadOutcome::Unavailable { fallback }) => LoadTableViewsResponse::Unavailable {
+            fallback: (&fallback).into(),
+        },
+        Ok(TableViewLoadOutcome::Invalid { fallback, reason }) => {
+            invalid_load(&fallback, reason.code.as_str())
+        }
+        Ok(TableViewLoadOutcome::InvalidRepositoryData { fallback }) => {
+            invalid_load(&fallback, "table_view.invalid_repository_data")
+        }
+        Ok(TableViewLoadOutcome::Migrated {
+            state,
+            from_envelope_version,
+            to_envelope_version,
+        }) => LoadTableViewsResponse::Migrated {
+            state: (&state).into(),
+            from_envelope_version,
+            to_envelope_version,
+        },
+        Ok(TableViewLoadOutcome::Recovered { state, reason }) => {
+            LoadTableViewsResponse::Recovered {
+                state: (&state).into(),
+                reason,
+            }
+        }
+        Ok(TableViewLoadOutcome::SaveFailed { fallback, .. }) => {
+            LoadTableViewsResponse::SaveFailed {
+                fallback: (&fallback).into(),
+            }
+        }
+        Err(TableViewServiceError::Validation(TableViewValidationError { code })) => {
+            LoadTableViewsResponse::Invalid {
+                fallback: fallback_table_views(),
+                reason: code.as_str().to_owned(),
+            }
+        }
+        Err(TableViewServiceError::Policy(TableViewPolicyError { code })) => {
+            LoadTableViewsResponse::Invalid {
+                fallback: fallback_table_views(),
+                reason: code.as_str().to_owned(),
+            }
+        }
+        Err(TableViewServiceError::RepositoryUnavailable) => LoadTableViewsResponse::Unavailable {
+            fallback: fallback_table_views(),
+        },
+        Err(TableViewServiceError::InvalidRepositoryData) => LoadTableViewsResponse::Invalid {
+            fallback: fallback_table_views(),
+            reason: "table_view.invalid_repository_data".to_owned(),
+        },
+        Err(TableViewServiceError::PersistenceFailed { previous, .. }) => {
+            LoadTableViewsResponse::SaveFailed {
+                fallback: previous.as_ref().into(),
+            }
+        }
+    }
+}
+
+fn mutation_error_reason(error: &TableViewServiceError) -> Option<String> {
+    match error {
+        TableViewServiceError::Validation(error) => Some(error.code.as_str().to_owned()),
+        TableViewServiceError::Policy(error) => Some(error.code.as_str().to_owned()),
+        TableViewServiceError::InvalidRepositoryData => {
+            Some("table_view.invalid_repository_data".to_owned())
+        }
+        TableViewServiceError::RepositoryUnavailable
+        | TableViewServiceError::PersistenceFailed { .. } => None,
+    }
+}
+
+fn save_table_views_response(
+    outcome: Result<TableViewRepositoryState, TableViewServiceError>,
+) -> SaveTableViewsResponse {
+    match outcome {
+        Ok(state) => SaveTableViewsResponse::Confirmed {
+            receipt: TableViewSaveReceiptDto {
+                table_id: "squad.primary",
+                schema_version: 1,
+                owner_scope: "local-fixed",
+                accepted_revision: state.metadata.revision,
+            },
+            state: (&state).into(),
+        },
+        Err(error) => {
+            if let Some(reason) = mutation_error_reason(&error) {
+                SaveTableViewsResponse::Invalid { reason }
+            } else {
+                match error {
+                    TableViewServiceError::RepositoryUnavailable => {
+                        SaveTableViewsResponse::Unavailable
+                    }
+                    TableViewServiceError::PersistenceFailed { .. } => {
+                        SaveTableViewsResponse::SaveFailed
+                    }
+                    _ => unreachable!("typed mutation errors handled above"),
+                }
+            }
+        }
+    }
+}
+
+fn import_legacy_table_preferences_response(
+    outcome: Result<LegacyImportOutcome, TableViewServiceError>,
+) -> ImportLegacyTablePreferencesResponse {
+    match outcome {
+        Ok(outcome) => ImportLegacyTablePreferencesResponse::Confirmed {
+            state: Box::new((&outcome.state).into()),
+            receipt: (&outcome.receipt).into(),
+            imported: outcome.imported,
+        },
+        Err(error) => {
+            if let Some(reason) = mutation_error_reason(&error) {
+                ImportLegacyTablePreferencesResponse::Invalid { reason }
+            } else {
+                match error {
+                    TableViewServiceError::RepositoryUnavailable => {
+                        ImportLegacyTablePreferencesResponse::Unavailable
+                    }
+                    TableViewServiceError::PersistenceFailed { .. } => {
+                        ImportLegacyTablePreferencesResponse::SaveFailed
+                    }
+                    _ => unreachable!("typed mutation errors handled above"),
+                }
+            }
+        }
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -436,6 +1399,43 @@ fn play_next_match(gameplay: State<'_, Arc<MatchdayCoordinator>>) -> Result<Matc
     gameplay.play_next_match()
 }
 
+#[tauri::command]
+fn load_table_views(table_views: State<'_, Arc<TableViewCoordinator>>) -> LoadTableViewsResponse {
+    load_table_views_response(table_views.load())
+}
+
+#[tauri::command]
+fn save_table_views(
+    request: SaveTableViewsRequestDto,
+    table_views: State<'_, Arc<TableViewCoordinator>>,
+) -> SaveTableViewsResponse {
+    let proposal = match TableViewRepositoryState::try_from(request.state) {
+        Ok(proposal) => proposal,
+        Err(reason) => {
+            return SaveTableViewsResponse::Invalid {
+                reason: reason.to_owned(),
+            };
+        }
+    };
+    save_table_views_response(table_views.save(proposal))
+}
+
+#[tauri::command]
+fn import_legacy_table_preferences(
+    request: ImportLegacyTablePreferencesRequestDto,
+    table_views: State<'_, Arc<TableViewCoordinator>>,
+) -> ImportLegacyTablePreferencesResponse {
+    let legacy = match LegacyTableViewImport::try_from(request) {
+        Ok(legacy) => legacy,
+        Err(reason) => {
+            return ImportLegacyTablePreferencesResponse::Invalid {
+                reason: reason.to_owned(),
+            };
+        }
+    };
+    import_legacy_table_preferences_response(table_views.import_legacy(legacy))
+}
+
 fn main() {
     let manager = Arc::new(LifecycleManager::new());
     let exit_manager = Arc::clone(&manager);
@@ -447,7 +1447,10 @@ fn main() {
             retry_lifecycle,
             matchday_state,
             update_matchday_lineup,
-            play_next_match
+            play_next_match,
+            load_table_views,
+            save_table_views,
+            import_legacy_table_preferences
         ])
         .setup(move |app| {
             if let Some(window) = app.get_webview_window("main") {
@@ -455,7 +1458,9 @@ fn main() {
                 let _ = window.set_fullscreen(true);
             }
             let matchday_path = app.path().app_data_dir()?.join("first-playable.json");
+            let table_views_path = app.path().app_data_dir()?.join("table-views.json");
             app.manage(Arc::new(MatchdayCoordinator::new(matchday_path)));
+            app.manage(Arc::new(TableViewCoordinator::new(table_views_path)));
             manager.begin(app.handle().clone());
             Ok(())
         })
@@ -472,6 +1477,36 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn table_view_dto_round_trips_the_application_owned_repository_contract() {
+        let expected = squad_system_default_repository_state();
+        let dto = TableViewRepositoryStateDto::from(&expected);
+
+        assert_eq!(dto.table_id, "squad.primary");
+        assert_eq!(dto.schema_version, 1);
+        assert_eq!(dto.owner_scope, "local-fixed");
+        assert_eq!(dto.views[0].state.provenance, "system-default");
+        assert!(dto.views[0].state.grouping.is_empty());
+
+        let actual = TableViewRepositoryState::try_from(dto).expect("valid table-view DTO");
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn table_view_dto_rejects_unsupported_grouping_before_repository_mutation() {
+        let mut dto = TableViewRepositoryStateDto::from(&squad_system_default_repository_state());
+        dto.views[0].state.grouping.push(TableViewGroupingDto {
+            group_id: "group.position".to_owned(),
+            column_id: "position".to_owned(),
+            mode: "position".to_owned(),
+        });
+
+        assert_eq!(
+            TableViewRepositoryState::try_from(dto),
+            Err(INVALID_TABLE_VIEW_DTO)
+        );
+    }
 
     #[test]
     fn compatible_reuse_has_no_owned_child_or_monitor() {
