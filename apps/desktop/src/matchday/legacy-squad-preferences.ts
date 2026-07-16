@@ -399,3 +399,29 @@ export const retireConfirmedLegacyTablePreferences = (
     return false;
   }
 };
+
+export interface LegacySquadPreferenceAdapter {
+  read(): LegacySquadTablePreferences;
+  retire(preferences: LegacySquadTablePreferences, receipt: LegacyImportReceipt | null): boolean;
+}
+
+const unavailableBrowserStorage: LegacyPreferenceStorage = {
+  getItem() {
+    throw new Error('Browser preference storage is unavailable');
+  },
+  setItem() {
+    throw new Error('Browser preference storage is unavailable');
+  },
+  removeItem() {
+    throw new Error('Browser preference storage is unavailable');
+  },
+};
+
+const browserStorage = (): LegacyPreferenceStorage =>
+  typeof window === 'undefined' ? unavailableBrowserStorage : window.localStorage;
+
+export const browserLegacySquadPreferenceAdapter: LegacySquadPreferenceAdapter = {
+  read: () => readLegacySquadTablePreferences(browserStorage()),
+  retire: (preferences, receipt) =>
+    retireConfirmedLegacyTablePreferences(browserStorage(), preferences, receipt),
+};

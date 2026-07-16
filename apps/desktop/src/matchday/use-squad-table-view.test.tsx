@@ -98,15 +98,15 @@ const deferred = <Value,>() => {
   return { promise, reject, resolve };
 };
 
-const strictWrapper = ({ children }: PropsWithChildren) => (
-  <StrictMode>{children}</StrictMode>
-);
+const strictWrapper = ({ children }: PropsWithChildren) => <StrictMode>{children}</StrictMode>;
 
 describe('useSquadTableView', () => {
   it('keeps a valid geometry-preserving system view while loading, then exposes the durable baseline', async () => {
     const pendingLoad = deferred<LoadTableViewsOutcome>();
     const load = vi.fn(() => pendingLoad.promise);
-    const { result } = renderHook(() => useSquadTableView({ dependencies: dependencies({ load }) }));
+    const { result } = renderHook(() =>
+      useSquadTableView({ dependencies: dependencies({ load }) }),
+    );
 
     expect(result.current.repositoryStatus).toEqual({
       status: 'loading',
@@ -125,9 +125,7 @@ describe('useSquadTableView', () => {
   });
 
   it('reduces commands into immediate normalized previews and retains prior state on rejection', async () => {
-    const { result } = renderHook(() =>
-      useSquadTableView({ dependencies: dependencies() }),
-    );
+    const { result } = renderHook(() => useSquadTableView({ dependencies: dependencies() }));
     await waitFor(() => expect(result.current.repositoryStatus.status).toBe('loaded'));
 
     act(() => {
@@ -173,7 +171,7 @@ describe('useSquadTableView', () => {
     });
 
     await act(async () => {
-      expect((await result.current.save()).status).toBe('failed');
+      expect((await result.current.save('Ajustes do elenco')).status).toBe('failed');
     });
 
     expect(result.current.proposal.density).toBe('comfortable');
@@ -197,7 +195,7 @@ describe('useSquadTableView', () => {
 
   it('does not let a confirmed save erase a newer in-memory proposal', async () => {
     const pendingSave = deferred<SaveTableViewsOutcome>();
-    const save = vi.fn(() => pendingSave.promise);
+    const save = vi.fn<SquadTableViewControllerDependencies['save']>(() => pendingSave.promise);
     const { result } = renderHook(() =>
       useSquadTableView({ dependencies: dependencies({ save }) }),
     );
@@ -208,7 +206,7 @@ describe('useSquadTableView', () => {
     });
     let savePromise!: ReturnType<typeof result.current.save>;
     act(() => {
-      savePromise = result.current.save();
+      savePromise = result.current.save('Ajustes do elenco');
     });
     await waitFor(() => expect(result.current.persistenceStatus.status).toBe('saving'));
 
@@ -260,10 +258,7 @@ describe('useSquadTableView', () => {
       ...repositoryState(),
       metadata: { envelopeVersion: 1, revision: 1 },
       activeViewId: importedState.viewId,
-      views: [
-        ...repositoryState().views,
-        { mutability: 'mutable', state: importedState },
-      ],
+      views: [...repositoryState().views, { mutability: 'mutable', state: importedState }],
       legacyImportReceipts: [receipt],
     };
     const pendingImport = deferred<ImportLegacyTablePreferencesOutcome>();
@@ -343,10 +338,7 @@ describe('useSquadTableView', () => {
     const loadedState: TableViewRepositoryState = {
       ...repositoryState(),
       metadata: { envelopeVersion: 1, revision: 4 },
-      views: [
-        ...repositoryState().views,
-        { mutability: 'mutable', state: importedState },
-      ],
+      views: [...repositoryState().views, { mutability: 'mutable', state: importedState }],
       legacyImportReceipts: [receipt],
     };
     const importLegacy = vi.fn();
@@ -406,9 +398,7 @@ describe('useSquadTableView', () => {
         }),
       );
 
-      await waitFor(() =>
-        expect(result.current.repositoryStatus.status).toBe(expectedStatus),
-      );
+      await waitFor(() => expect(result.current.repositoryStatus.status).toBe(expectedStatus));
       expect(result.current.repositoryStatus.heading).toBe(expectedHeading);
       expect(result.current.proposal.tableId).toBe('squad.primary');
       expect(result.current.proposal.columns).toHaveLength(18);
@@ -475,9 +465,7 @@ describe('useSquadTableView', () => {
     expect(result.current.proposal.density).toBe('standard');
 
     await act(async () => {
-      expect((await result.current.activate(otherView.viewId, 'discard')).status).toBe(
-        'confirmed',
-      );
+      expect((await result.current.activate(otherView.viewId, 'discard')).status).toBe('confirmed');
     });
     expect(result.current.activeViewId).toBe(otherView.viewId);
     expect(result.current.proposal.density).toBe('comfortable');
@@ -512,9 +500,7 @@ describe('useSquadTableView', () => {
       expect((await result.current.rename('squad.user.duplicate', 'Renomeada')).status).toBe(
         'confirmed',
       );
-      expect((await result.current.setDefault('squad.user.duplicate')).status).toBe(
-        'confirmed',
-      );
+      expect((await result.current.setDefault('squad.user.duplicate')).status).toBe('confirmed');
     });
     expect(result.current.defaultViewId).toBe('squad.user.duplicate');
     expect(result.current.proposal.label).toBe('Renomeada');
@@ -526,9 +512,7 @@ describe('useSquadTableView', () => {
     expect(result.current.proposal.density).toBe('standard');
 
     await act(async () => {
-      expect((await result.current.delete('squad.user.duplicate')).status).toBe(
-        'confirmed',
-      );
+      expect((await result.current.delete('squad.user.duplicate')).status).toBe('confirmed');
     });
     expect(result.current.views.some(({ state }) => state.viewId === 'squad.user.duplicate')).toBe(
       false,
