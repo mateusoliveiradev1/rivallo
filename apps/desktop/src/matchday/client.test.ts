@@ -18,8 +18,7 @@ const invoke = vi.hoisted(() => vi.fn());
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke }));
 
-const clone = <Value>(value: Value): Value =>
-  JSON.parse(JSON.stringify(value)) as Value;
+const clone = <Value>(value: Value): Value => JSON.parse(JSON.stringify(value)) as Value;
 
 type DeepMutable<Value> = Value extends readonly (infer Entry)[]
   ? DeepMutable<Entry>[]
@@ -144,11 +143,7 @@ describe('table-view client commands', () => {
     [
       'column bound',
       (value: ReturnType<typeof repositoryState>) => {
-        Reflect.set(
-          value.views[0]!.state.columns[0]!,
-          'width',
-          Number.POSITIVE_INFINITY,
-        );
+        Reflect.set(value.views[0]!.state.columns[0]!, 'width', Number.POSITIVE_INFINITY);
       },
     ],
     [
@@ -211,12 +206,8 @@ describe('table-view client commands', () => {
     expect(payload).not.toBeUndefined();
     expect(payload.request).not.toBe(state);
     expect(payload.request.state.views).not.toBe(state.views);
-    expect(payload.request.state.views[0].state.columns).not.toBe(
-      state.views[0]!.state.columns,
-    );
-    expect(payload.request.state.views[0].state.filter).not.toBe(
-      state.views[0]!.state.filter,
-    );
+    expect(payload.request.state.views[0].state.columns).not.toBe(state.views[0]!.state.columns);
+    expect(payload.request.state.views[0].state.filter).not.toBe(state.views[0]!.state.filter);
   });
 
   it.each([
@@ -226,9 +217,7 @@ describe('table-view client commands', () => {
   ])('preserves a typed save error outcome: $status', async (outcome) => {
     invoke.mockResolvedValue(outcome);
 
-    await expect(saveTableViews({ state: repositoryState() })).resolves.toEqual(
-      outcome,
-    );
+    await expect(saveTableViews({ state: repositoryState() })).resolves.toEqual(outcome);
   });
 
   it('imports copied legacy intent and validates the confirmed durable receipt', async () => {

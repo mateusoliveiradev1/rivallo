@@ -46,12 +46,8 @@ const readReady = (storage: LegacyPreferenceStorage) => {
   return result;
 };
 
-const visibleIds = (
-  result: ReturnType<typeof readReady>,
-): readonly string[] =>
-  result.request.state.columns
-    .filter(({ visible }) => visible)
-    .map(({ columnId }) => columnId);
+const visibleIds = (result: ReturnType<typeof readReady>): readonly string[] =>
+  result.request.state.columns.filter(({ visible }) => visible).map(({ columnId }) => columnId);
 
 const columnIds = (result: ReturnType<typeof readReady>): readonly string[] =>
   result.request.state.columns.map(({ columnId }) => columnId);
@@ -105,15 +101,10 @@ describe('readLegacySquadTablePreferences', () => {
         provenance: 'user-owned',
         density,
       });
-      expect(columnIds(result).slice(0, 4)).toEqual([
-        'shirtNumber',
-        'info',
-        'name',
-        'position',
-      ]);
-      expect(
-        columnIds(result).filter((columnId) => columnId === visibleColumns[0]),
-      ).toHaveLength(1);
+      expect(columnIds(result).slice(0, 4)).toEqual(['shirtNumber', 'info', 'name', 'position']);
+      expect(columnIds(result).filter((columnId) => columnId === visibleColumns[0])).toHaveLength(
+        1,
+      );
       expect(
         columnIds(result).indexOf(visibleColumns[0]!) <
           columnIds(result).indexOf(visibleColumns[1]!),
@@ -143,13 +134,7 @@ describe('readLegacySquadTablePreferences', () => {
 
     expect(result.request.sourceVersion).toBe(4);
     expect(result.request.state.density).toBe('comfortable');
-    expect(visibleIds(result)).toEqual([
-      'shirtNumber',
-      'info',
-      'name',
-      'position',
-      'assists',
-    ]);
+    expect(visibleIds(result)).toEqual(['shirtNumber', 'info', 'name', 'position', 'assists']);
   });
 
   it('materializes averageRating once at its owning-schema default for a pre-column v3 payload', () => {
@@ -176,9 +161,7 @@ describe('readLegacySquadTablePreferences', () => {
         pinning: schemaDefault?.defaultPinning,
       },
     ]);
-    expect(columnIds(result).indexOf('goals')).toBeLessThan(
-      columnIds(result).indexOf('age'),
-    );
+    expect(columnIds(result).indexOf('goals')).toBeLessThan(columnIds(result).indexOf('age'));
   });
 
   it('keeps an intentional empty v4 optional-column selection valid', () => {
@@ -191,12 +174,7 @@ describe('readLegacySquadTablePreferences', () => {
 
     const result = readReady(storage);
 
-    expect(visibleIds(result)).toEqual([
-      'shirtNumber',
-      'info',
-      'name',
-      'position',
-    ]);
+    expect(visibleIds(result)).toEqual(['shirtNumber', 'info', 'name', 'position']);
   });
 
   it('drops explicit removed and unknown columns only when recognized intent remains', () => {
@@ -309,9 +287,7 @@ describe('retireConfirmedLegacyTablePreferences', () => {
         sourceFingerprint: 'fnv1a32:00000000',
       }),
     ).toBe(false);
-    expect(retireConfirmedLegacyTablePreferences(storage, result, null)).toBe(
-      false,
-    );
+    expect(retireConfirmedLegacyTablePreferences(storage, result, null)).toBe(false);
     expect(storage.values.get('rivallo.squad-ui.v3')).toBe(raw);
     expect(storage.writes).toEqual([]);
     expect(storage.removals).toEqual([]);
@@ -337,19 +313,13 @@ describe('retireConfirmedLegacyTablePreferences', () => {
     });
     const result = readReady(storage);
 
-    expect(
-      retireConfirmedLegacyTablePreferences(
-        storage,
-        result,
-        confirmedReceipt(result),
-      ),
-    ).toBe(true);
+    expect(retireConfirmedLegacyTablePreferences(storage, result, confirmedReceipt(result))).toBe(
+      true,
+    );
 
     expect(storage.values.has('rivallo.squad-ui.v2')).toBe(false);
     expect(storage.values.has('rivallo.squad-ui.v3')).toBe(false);
-    expect(
-      JSON.parse(storage.values.get('rivallo.squad-ui.v4') ?? '{}'),
-    ).toEqual({
+    expect(JSON.parse(storage.values.get('rivallo.squad-ui.v4') ?? '{}')).toEqual({
       sidebarCollapsed: true,
       activeScreen: 'tactics',
       workspaceView: 'split',
@@ -373,17 +343,11 @@ describe('retireConfirmedLegacyTablePreferences', () => {
     });
     const result = readReady(storage);
 
-    expect(
-      retireConfirmedLegacyTablePreferences(
-        storage,
-        result,
-        confirmedReceipt(result),
-      ),
-    ).toBe(true);
+    expect(retireConfirmedLegacyTablePreferences(storage, result, confirmedReceipt(result))).toBe(
+      true,
+    );
 
-    expect(
-      JSON.parse(storage.values.get('rivallo.squad-ui.v4') ?? '{}'),
-    ).toEqual({
+    expect(JSON.parse(storage.values.get('rivallo.squad-ui.v4') ?? '{}')).toEqual({
       sidebarCollapsed: false,
       activeScreen: 'squad',
       showPlayerDetails: true,

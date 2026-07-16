@@ -5,15 +5,8 @@ import {
   type TableViewFilterValue,
   type TableViewState,
 } from '../table-view/table-view-engine.js';
-import type {
-  ImportLegacyTablePreferencesRequest,
-  LegacyImportReceipt,
-} from './client.js';
-import {
-  SQUAD_SYSTEM_VIEW,
-  SQUAD_TABLE_SCHEMA,
-  type SquadColumnId,
-} from './squad-table-schema.js';
+import type { ImportLegacyTablePreferencesRequest, LegacyImportReceipt } from './client.js';
+import { SQUAD_SYSTEM_VIEW, SQUAD_TABLE_SCHEMA, type SquadColumnId } from './squad-table-schema.js';
 
 export interface LegacyPreferenceStorage {
   getItem(key: string): string | null;
@@ -52,14 +45,10 @@ const MAX_LEGACY_COLUMNS = 64;
 const MAX_LEGACY_COLUMN_ID_BYTES = 64;
 const TABLE_FIELDS = new Set(['density', 'visibleColumns']);
 const REQUIRED_COLUMN_IDS: ReadonlySet<string> = new Set(
-  SQUAD_TABLE_SCHEMA.columns
-    .filter(({ required }) => required)
-    .map(({ columnId }) => columnId),
+  SQUAD_TABLE_SCHEMA.columns.filter(({ required }) => required).map(({ columnId }) => columnId),
 );
 const OPTIONAL_COLUMN_IDS: ReadonlySet<string> = new Set(
-  SQUAD_TABLE_SCHEMA.columns
-    .filter(({ required }) => !required)
-    .map(({ columnId }) => columnId),
+  SQUAD_TABLE_SCHEMA.columns.filter(({ required }) => !required).map(({ columnId }) => columnId),
 );
 const REMOVED_LEGACY_COLUMN_IDS = new Set(['importance', 'removedColumn']);
 const ALL_OPTIONAL_COLUMN_IDS = SQUAD_TABLE_SCHEMA.columns
@@ -75,9 +64,7 @@ const LEGACY_SOURCES = [
   {
     version: 3,
     key: 'rivallo.squad-ui.v3',
-    knownColumns: ALL_OPTIONAL_COLUMN_IDS.filter(
-      (columnId) => columnId !== 'averageRating',
-    ),
+    knownColumns: ALL_OPTIONAL_COLUMN_IDS.filter((columnId) => columnId !== 'averageRating'),
   },
   {
     version: 2,
@@ -195,15 +182,9 @@ const readNewestSource = (
   return null;
 };
 
-const decodeDensity = (
-  value: unknown,
-): TableViewState['density'] | 'invalid' => {
+const decodeDensity = (value: unknown): TableViewState['density'] | 'invalid' => {
   if (value === undefined) return SQUAD_SYSTEM_VIEW.density;
-  return value === 'compact' ||
-    value === 'standard' ||
-    value === 'comfortable'
-    ? value
-    : 'invalid';
+  return value === 'compact' || value === 'standard' || value === 'comfortable' ? value : 'invalid';
 };
 
 const decodeVisibleColumns = (
@@ -230,10 +211,7 @@ const decodeVisibleColumns = (
   const recognized: SquadColumnId[] = [];
   const seen = new Set<string>();
   for (const entry of value) {
-    if (
-      typeof entry !== 'string' ||
-      encoder.encode(entry).length > MAX_LEGACY_COLUMN_ID_BYTES
-    ) {
+    if (typeof entry !== 'string' || encoder.encode(entry).length > MAX_LEGACY_COLUMN_ID_BYTES) {
       return 'invalid-columns';
     }
     if (seen.has(entry)) continue;
@@ -247,9 +225,7 @@ const decodeVisibleColumns = (
     value.length > 0 &&
     recognized.length === 0 &&
     [...seen].every(
-      (columnId) =>
-        REMOVED_LEGACY_COLUMN_IDS.has(columnId) ||
-        !OPTIONAL_COLUMN_IDS.has(columnId),
+      (columnId) => REMOVED_LEGACY_COLUMN_IDS.has(columnId) || !OPTIONAL_COLUMN_IDS.has(columnId),
     )
   ) {
     return 'unknown-only';
@@ -273,10 +249,7 @@ const materializeColumns = (
     ...recognized,
     ...SQUAD_TABLE_SCHEMA.columns
       .map(({ columnId }) => columnId)
-      .filter(
-        (columnId) =>
-          !REQUIRED_COLUMN_IDS.has(columnId) && !recognizedSet.has(columnId),
-      ),
+      .filter((columnId) => !REQUIRED_COLUMN_IDS.has(columnId) && !recognizedSet.has(columnId)),
   ];
 
   return orderedIds.map((columnId) => {
@@ -299,13 +272,8 @@ const materializeColumns = (
   });
 };
 
-const legacyViewId = (
-  version: 2 | 3 | 4,
-  sourceFingerprint: string,
-): string =>
-  `squad.user.legacy-v${version}-${sourceFingerprint.slice(
-    sourceFingerprint.indexOf(':') + 1,
-  )}`;
+const legacyViewId = (version: 2 | 3 | 4, sourceFingerprint: string): string =>
+  `squad.user.legacy-v${version}-${sourceFingerprint.slice(sourceFingerprint.indexOf(':') + 1)}`;
 
 export const readLegacySquadTablePreferences = (
   storage: LegacyPreferenceStorage,
@@ -335,10 +303,7 @@ export const readLegacySquadTablePreferences = (
   if (density === 'invalid') {
     return invalid(source.version, source.raw, 'invalid-density');
   }
-  const columns = decodeVisibleColumns(
-    parsed.visibleColumns,
-    source.knownColumns,
-  );
+  const columns = decodeVisibleColumns(parsed.visibleColumns, source.knownColumns);
   if (typeof columns === 'string') {
     return invalid(source.version, source.raw, columns);
   }
@@ -379,12 +344,8 @@ const receiptMatches = (
   Number.isSafeInteger(receipt.acceptedRevision) &&
   receipt.acceptedRevision >= 0;
 
-const withoutTableFields = (
-  payload: Record<string, unknown>,
-): Record<string, unknown> =>
-  Object.fromEntries(
-    Object.entries(payload).filter(([key]) => !TABLE_FIELDS.has(key)),
-  );
+const withoutTableFields = (payload: Record<string, unknown>): Record<string, unknown> =>
+  Object.fromEntries(Object.entries(payload).filter(([key]) => !TABLE_FIELDS.has(key)));
 
 export const retireConfirmedLegacyTablePreferences = (
   storage: LegacyPreferenceStorage,
@@ -420,10 +381,7 @@ export const retireConfirmedLegacyTablePreferences = (
   const remaining = withoutTableFields(parsed);
   const currentKey = LEGACY_SOURCES[0].key;
   try {
-    if (
-      preferences.sourceKey !== currentKey &&
-      storage.getItem(currentKey) !== null
-    ) {
+    if (preferences.sourceKey !== currentKey && storage.getItem(currentKey) !== null) {
       return false;
     }
 

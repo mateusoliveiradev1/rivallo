@@ -153,11 +153,7 @@ const utf8Length = (value: string): number => new TextEncoder().encode(value).le
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-const recordAt = (
-  value: unknown,
-  context: string,
-  path: string,
-): Record<string, unknown> => {
+const recordAt = (value: unknown, context: string, path: string): Record<string, unknown> => {
   if (!isRecord(value)) return fail(context, path);
   return value;
 };
@@ -174,17 +170,8 @@ const arrayAt = (
   return value;
 };
 
-const stringAt = (
-  value: unknown,
-  context: string,
-  path: string,
-  maximumBytes: number,
-): string => {
-  if (
-    typeof value !== 'string' ||
-    utf8Length(value) > maximumBytes ||
-    value.includes('\u0000')
-  ) {
+const stringAt = (value: unknown, context: string, path: string, maximumBytes: number): string => {
+  if (typeof value !== 'string' || utf8Length(value) > maximumBytes || value.includes('\u0000')) {
     return fail(context, path);
   }
   return value;
@@ -214,17 +201,8 @@ const finiteAt = (value: unknown, context: string, path: string): number => {
   return value;
 };
 
-const integerAt = (
-  value: unknown,
-  context: string,
-  path: string,
-  minimum = 0,
-): number => {
-  if (
-    typeof value !== 'number' ||
-    !Number.isSafeInteger(value) ||
-    value < minimum
-  ) {
+const integerAt = (value: unknown, context: string, path: string, minimum = 0): number => {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < minimum) {
     return fail(context, path);
   }
   return value;
@@ -250,11 +228,7 @@ const reasonAt = (value: unknown, context: string, path: string): string => {
   return reason;
 };
 
-const decodeFilterValue = (
-  value: unknown,
-  context: string,
-  path: string,
-): TableViewFilterValue => {
+const decodeFilterValue = (value: unknown, context: string, path: string): TableViewFilterValue => {
   const source = recordAt(value, context, path);
   const kind = oneOfAt(
     source.kind,
@@ -268,12 +242,7 @@ const decodeFilterValue = (
     case 'enum':
       return {
         kind,
-        value: stringAt(
-          source.value,
-          context,
-          `${path}.value`,
-          MAX_FILTER_TEXT_BYTES,
-        ),
+        value: stringAt(source.value, context, `${path}.value`, MAX_FILTER_TEXT_BYTES),
       };
     case 'number': {
       const number = finiteAt(source.value, context, `${path}.value`);
@@ -285,28 +254,15 @@ const decodeFilterValue = (
     case 'enum-set':
       return {
         kind,
-        value: arrayAt(
-          source.value,
-          context,
-          `${path}.value`,
-          MAX_FILTER_LIST_VALUES,
-        ).map((entry, index) =>
-          stringAt(
-            entry,
-            context,
-            `${path}.value.${index}`,
-            MAX_FILTER_TEXT_BYTES,
-          ),
+        value: arrayAt(source.value, context, `${path}.value`, MAX_FILTER_LIST_VALUES).map(
+          (entry, index) =>
+            stringAt(entry, context, `${path}.value.${index}`, MAX_FILTER_TEXT_BYTES),
         ),
       };
     case 'number-range': {
       const min = finiteAt(source.min, context, `${path}.min`);
       const max = finiteAt(source.max, context, `${path}.max`);
-      if (
-        Math.abs(min) > MAX_FILTER_NUMBER ||
-        Math.abs(max) > MAX_FILTER_NUMBER ||
-        min > max
-      ) {
+      if (Math.abs(min) > MAX_FILTER_NUMBER || Math.abs(max) > MAX_FILTER_NUMBER || min > max) {
         fail(context, path);
       }
       return { kind, min, max };
@@ -362,34 +318,15 @@ const decodeFilterGroup = (
   return {
     kind: 'group',
     groupId: stableIdAt(source.groupId, context, `${path}.groupId`),
-    logic: oneOfAt(
-      source.logic,
-      ['and', 'or'] as const,
-      context,
-      `${path}.logic`,
-    ),
-    children: arrayAt(
-      source.children,
-      context,
-      `${path}.children`,
-      MAX_FILTER_CHILDREN,
-    ).map((child, index) =>
-      decodeFilterNode(
-        child,
-        context,
-        `${path}.children.${index}`,
-        depth + 1,
-        clauseCounter,
-      ),
+    logic: oneOfAt(source.logic, ['and', 'or'] as const, context, `${path}.logic`),
+    children: arrayAt(source.children, context, `${path}.children`, MAX_FILTER_CHILDREN).map(
+      (child, index) =>
+        decodeFilterNode(child, context, `${path}.children.${index}`, depth + 1, clauseCounter),
     ),
   };
 };
 
-const decodeColumn = (
-  value: unknown,
-  context: string,
-  path: string,
-): TableViewColumnState => {
+const decodeColumn = (value: unknown, context: string, path: string): TableViewColumnState => {
   const source = recordAt(value, context, path);
   const pinning = recordAt(source.pinning, context, `${path}.pinning`);
   const side = oneOfAt(
@@ -399,9 +336,7 @@ const decodeColumn = (
     `${path}.pinning.side`,
   );
   const order =
-    pinning.order === null
-      ? null
-      : integerAt(pinning.order, context, `${path}.pinning.order`);
+    pinning.order === null ? null : integerAt(pinning.order, context, `${path}.pinning.order`);
 
   if ((side === 'none') !== (order === null)) fail(context, `${path}.pinning`);
 
@@ -413,55 +348,29 @@ const decodeColumn = (
   };
 };
 
-const decodeSort = (
-  value: unknown,
-  context: string,
-  path: string,
-): TableViewSortClause => {
+const decodeSort = (value: unknown, context: string, path: string): TableViewSortClause => {
   const source = recordAt(value, context, path);
   return {
     columnId: stableIdAt(source.columnId, context, `${path}.columnId`),
-    direction: oneOfAt(
-      source.direction,
-      ['asc', 'desc'] as const,
-      context,
-      `${path}.direction`,
-    ),
-    nulls: oneOfAt(
-      source.nulls,
-      ['first', 'last'] as const,
-      context,
-      `${path}.nulls`,
-    ),
+    direction: oneOfAt(source.direction, ['asc', 'desc'] as const, context, `${path}.direction`),
+    nulls: oneOfAt(source.nulls, ['first', 'last'] as const, context, `${path}.nulls`),
   };
 };
 
-const decodeTableViewState = (
-  value: unknown,
-  context: string,
-  path: string,
-): TableViewState => {
+const decodeTableViewState = (value: unknown, context: string, path: string): TableViewState => {
   const source = recordAt(value, context, path);
   if (source.tableId !== 'squad.primary') fail(context, `${path}.tableId`);
   if (source.schemaVersion !== 1) fail(context, `${path}.schemaVersion`);
   if (source.ownerScope !== 'local-fixed') fail(context, `${path}.ownerScope`);
 
   const grouping = arrayAt(source.grouping, context, `${path}.grouping`, 0);
-  const dataWindow = recordAt(
-    source.dataWindow,
-    context,
-    `${path}.dataWindow`,
-  );
+  const dataWindow = recordAt(source.dataWindow, context, `${path}.dataWindow`);
   const state: TableViewState = {
     tableId: 'squad.primary',
     schemaVersion: 1,
     ownerScope: 'local-fixed',
     viewId: stableIdAt(source.viewId, context, `${path}.viewId`),
-    baselineViewId: stableIdAt(
-      source.baselineViewId,
-      context,
-      `${path}.baselineViewId`,
-    ),
+    baselineViewId: stableIdAt(source.baselineViewId, context, `${path}.baselineViewId`),
     provenance: oneOfAt(
       source.provenance,
       ['system-default', 'user-owned', 'shared-read-only'] as const,
@@ -475,46 +384,24 @@ const decodeTableViewState = (
       context,
       `${path}.density`,
     ),
-    columns: arrayAt(
-      source.columns,
-      context,
-      `${path}.columns`,
-      MAX_COLUMNS,
-    ).map((column, index) =>
+    columns: arrayAt(source.columns, context, `${path}.columns`, MAX_COLUMNS).map((column, index) =>
       decodeColumn(column, context, `${path}.columns.${index}`),
     ),
-    sort: arrayAt(
-      source.sort,
-      context,
-      `${path}.sort`,
-      MAX_SORT_CLAUSES,
-    ).map((sort, index) => decodeSort(sort, context, `${path}.sort.${index}`)),
+    sort: arrayAt(source.sort, context, `${path}.sort`, MAX_SORT_CLAUSES).map((sort, index) =>
+      decodeSort(sort, context, `${path}.sort.${index}`),
+    ),
     filter: decodeFilterGroup(source.filter, context, `${path}.filter`),
     grouping: grouping as readonly [],
     dataWindow: {
-      windowId: stableIdAt(
-        dataWindow.windowId,
-        context,
-        `${path}.dataWindow.windowId`,
-      ),
+      windowId: stableIdAt(dataWindow.windowId, context, `${path}.dataWindow.windowId`),
       mode: oneOfAt(
         dataWindow.mode,
         ['client-pagination'] as const,
         context,
         `${path}.dataWindow.mode`,
       ),
-      page: integerAt(
-        dataWindow.page,
-        context,
-        `${path}.dataWindow.page`,
-        1,
-      ),
-      pageSize: integerAt(
-        dataWindow.pageSize,
-        context,
-        `${path}.dataWindow.pageSize`,
-        1,
-      ),
+      page: integerAt(dataWindow.page, context, `${path}.dataWindow.page`, 1),
+      pageSize: integerAt(dataWindow.pageSize, context, `${path}.dataWindow.pageSize`, 1),
     },
   };
 
@@ -523,11 +410,7 @@ const decodeTableViewState = (
   return state;
 };
 
-const decodeReceipt = (
-  value: unknown,
-  context: string,
-  path: string,
-): LegacyImportReceipt => {
+const decodeReceipt = (value: unknown, context: string, path: string): LegacyImportReceipt => {
   const source = recordAt(value, context, path);
   if (source.tableId !== 'squad.primary') fail(context, `${path}.tableId`);
   if (source.schemaVersion !== 1) fail(context, `${path}.schemaVersion`);
@@ -547,16 +430,8 @@ const decodeReceipt = (
     tableId: 'squad.primary',
     schemaVersion: 1,
     ownerScope: 'local-fixed',
-    importedViewId: stableIdAt(
-      source.importedViewId,
-      context,
-      `${path}.importedViewId`,
-    ),
-    acceptedRevision: integerAt(
-      source.acceptedRevision,
-      context,
-      `${path}.acceptedRevision`,
-    ),
+    importedViewId: stableIdAt(source.importedViewId, context, `${path}.importedViewId`),
+    acceptedRevision: integerAt(source.acceptedRevision, context, `${path}.acceptedRevision`),
   };
 };
 
@@ -574,35 +449,28 @@ const decodeRepositoryState = (
   if (source.schemaVersion !== 1) fail(context, `${path}.schemaVersion`);
   if (source.ownerScope !== 'local-fixed') fail(context, `${path}.ownerScope`);
 
-  const views = arrayAt(
-    source.views,
-    context,
-    `${path}.views`,
-    MAX_SAVED_VIEWS,
-  ).map((view, index): SavedTableView => {
-    const entry = recordAt(view, context, `${path}.views.${index}`);
-    const mutability = oneOfAt(
-      entry.mutability,
-      ['immutable', 'mutable', 'read-only'] as const,
-      context,
-      `${path}.views.${index}.mutability`,
-    );
-    const state = decodeTableViewState(
-      entry.state,
-      context,
-      `${path}.views.${index}.state`,
-    );
-    const expectedMutability: TableViewMutability =
-      state.provenance === 'system-default'
-        ? 'immutable'
-        : state.provenance === 'user-owned'
-          ? 'mutable'
-          : 'read-only';
-    if (mutability !== expectedMutability) {
-      fail(context, `${path}.views.${index}.mutability`);
-    }
-    return { mutability, state };
-  });
+  const views = arrayAt(source.views, context, `${path}.views`, MAX_SAVED_VIEWS).map(
+    (view, index): SavedTableView => {
+      const entry = recordAt(view, context, `${path}.views.${index}`);
+      const mutability = oneOfAt(
+        entry.mutability,
+        ['immutable', 'mutable', 'read-only'] as const,
+        context,
+        `${path}.views.${index}.mutability`,
+      );
+      const state = decodeTableViewState(entry.state, context, `${path}.views.${index}.state`);
+      const expectedMutability: TableViewMutability =
+        state.provenance === 'system-default'
+          ? 'immutable'
+          : state.provenance === 'user-owned'
+            ? 'mutable'
+            : 'read-only';
+      if (mutability !== expectedMutability) {
+        fail(context, `${path}.views.${index}.mutability`);
+      }
+      return { mutability, state };
+    },
+  );
   if (views.length === 0) fail(context, `${path}.views`);
 
   const viewIds = new Set(views.map(({ state }) => state.viewId));
@@ -613,24 +481,12 @@ const decodeRepositoryState = (
     }
   }
 
-  const activeViewId = stableIdAt(
-    source.activeViewId,
-    context,
-    `${path}.activeViewId`,
-  );
-  const defaultViewId = stableIdAt(
-    source.defaultViewId,
-    context,
-    `${path}.defaultViewId`,
-  );
+  const activeViewId = stableIdAt(source.activeViewId, context, `${path}.activeViewId`);
+  const defaultViewId = stableIdAt(source.defaultViewId, context, `${path}.defaultViewId`);
   if (!viewIds.has(activeViewId)) fail(context, `${path}.activeViewId`);
   if (!viewIds.has(defaultViewId)) fail(context, `${path}.defaultViewId`);
 
-  const revision = integerAt(
-    metadata.revision,
-    context,
-    `${path}.metadata.revision`,
-  );
+  const revision = integerAt(metadata.revision, context, `${path}.metadata.revision`);
   const legacyImportReceipts = arrayAt(
     source.legacyImportReceipts,
     context,
@@ -705,11 +561,7 @@ const decodeLoadOutcome = (value: unknown): LoadTableViewsOutcome => {
         context,
         '$.fromEnvelopeVersion',
       );
-      const toEnvelopeVersion = integerAt(
-        source.toEnvelopeVersion,
-        context,
-        '$.toEnvelopeVersion',
-      );
+      const toEnvelopeVersion = integerAt(source.toEnvelopeVersion, context, '$.toEnvelopeVersion');
       if (fromEnvelopeVersion >= toEnvelopeVersion) {
         fail(context, '$.fromEnvelopeVersion');
       }
@@ -755,11 +607,7 @@ const decodeSaveReceipt = (
   if (source.tableId !== 'squad.primary') fail(context, `${path}.tableId`);
   if (source.schemaVersion !== 1) fail(context, `${path}.schemaVersion`);
   if (source.ownerScope !== 'local-fixed') fail(context, `${path}.ownerScope`);
-  const acceptedRevision = integerAt(
-    source.acceptedRevision,
-    context,
-    `${path}.acceptedRevision`,
-  );
+  const acceptedRevision = integerAt(source.acceptedRevision, context, `${path}.acceptedRevision`);
   if (acceptedRevision !== state.metadata.revision) {
     fail(context, `${path}.acceptedRevision`);
   }
@@ -850,11 +698,7 @@ const decodeImportRequest = (
     'import request',
     '$.sourceVersion',
   );
-  const state = decodeTableViewState(
-    request.state,
-    'import request',
-    '$.state',
-  );
+  const state = decodeTableViewState(request.state, 'import request', '$.state');
   if (state.provenance !== 'user-owned') {
     fail('import request', '$.state.provenance');
   }
@@ -878,9 +722,7 @@ export const saveTableViews = async (
   const copiedRequest: SaveTableViewsRequest = {
     state: decodeRepositoryState(request.state, 'save request', '$.state'),
   };
-  return decodeSaveOutcome(
-    await invoke<unknown>('save_table_views', { request: copiedRequest }),
-  );
+  return decodeSaveOutcome(await invoke<unknown>('save_table_views', { request: copiedRequest }));
 };
 
 export const importLegacyTablePreferences = async (
