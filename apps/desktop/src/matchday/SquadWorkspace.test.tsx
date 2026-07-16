@@ -524,7 +524,13 @@ describe('SquadWorkspace normalized native table', () => {
     expect(css).toMatch(/\.squad-table-wrap\s*\{[^}]*overflow:\s*auto;/su);
     expect(css).toContain('min(304px, calc(35% - var(--rv-space-3)))');
     expect(css).toContain('@media (max-width: 1120px)');
-    expect(css).toContain(':has(> .table-view-customizer)');
+    expect(css).toMatch(
+      /\.table-view-customizer\s*\{[^}]*width:\s*min\(24rem,[^}]*grid-template-rows:\s*auto minmax\(0, 1fr\);[^}]*overflow:\s*hidden;/su,
+    );
+    expect(css).toMatch(
+      /\.table-view-customizer__content\s*\{[^}]*max-height:\s*min\(\s*28rem,[^}]*overflow-y:\s*auto;/su,
+    );
+    expect(css).not.toContain(':has(> .table-view-customizer)');
     expect(css).toContain("[data-pinned='start']");
     expect(css).toContain('left: var(--squad-pin-offset)');
     expect(css).toContain('right: var(--squad-pin-offset)');

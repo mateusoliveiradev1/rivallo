@@ -7,6 +7,7 @@ import {
   requiredContrastRatio,
   sampleComputedContrast,
   type ComputedContrastSample,
+  type ContrastForeground,
 } from './helpers/wcag-contrast.js';
 
 const developmentUrl = 'http://127.0.0.1:4173/';
@@ -34,6 +35,364 @@ const screenshotViewports = [
   { width: 1920, height: 1080 },
   { width: 2560, height: 1080 },
 ] as const;
+
+const wcagStateInventory = [
+  'default',
+  'hover',
+  'focus-visible',
+  'active',
+  'selected',
+  'disabled',
+  'loading',
+  'empty',
+  'invalid',
+  'unavailable',
+  'migrated',
+  'recovered',
+  'future-schema',
+  'dirty',
+  'save-failure',
+] as const;
+
+type WcagTableViewState = (typeof wcagStateInventory)[number];
+
+interface TableViewContrastRequirement {
+  readonly applicability?: 'inactive-control-exception' | 'required';
+  readonly foreground?: ContrastForeground;
+  readonly id: string;
+  readonly kind: ComputedContrastSample['kind'];
+  readonly label: string;
+  readonly state: WcagTableViewState;
+}
+
+const tableViewContrastMatrix = [
+  {
+    id: 'default.table-row.text',
+    state: 'default',
+    kind: 'text',
+    label: 'default player row text',
+  },
+  {
+    id: 'default.saved-view-trigger.boundary',
+    state: 'default',
+    kind: 'control',
+    label: 'default saved-view selector boundary',
+  },
+  {
+    id: 'default.customizer-trigger.boundary',
+    state: 'default',
+    kind: 'control',
+    label: 'default customizer selector boundary',
+  },
+  {
+    id: 'default.live-header.inactive-sort-text',
+    state: 'default',
+    kind: 'text',
+    label: 'inactive live-header sort control',
+  },
+  {
+    id: 'default.live-header.move-action-boundary',
+    state: 'default',
+    kind: 'control',
+    label: 'live-header move action boundary',
+  },
+  {
+    id: 'default.live-header.resize-handle',
+    state: 'default',
+    kind: 'control',
+    foreground: 'color',
+    label: 'live-header resize handle',
+  },
+  {
+    id: 'default.saved-view-menu.provenance-text',
+    state: 'default',
+    kind: 'text',
+    label: 'saved-view provenance label',
+  },
+  {
+    id: 'default.saved-view-menu.default-text',
+    state: 'default',
+    kind: 'text',
+    label: 'saved-view default label',
+  },
+  {
+    id: 'default.saved-view-menu.empty-explanation-text',
+    state: 'default',
+    kind: 'text',
+    label: 'saved-view empty-state explanation',
+  },
+  {
+    id: 'default.saved-view-menu.duplicate-action-boundary',
+    state: 'default',
+    kind: 'control',
+    label: 'saved-view duplicate action boundary',
+  },
+  {
+    id: 'default.saved-view-menu.create-first-action-boundary',
+    state: 'default',
+    kind: 'control',
+    label: 'saved-view first-create action boundary',
+  },
+  {
+    id: 'default.customizer.field-label-text',
+    state: 'default',
+    kind: 'text',
+    label: 'customizer search field label',
+  },
+  {
+    id: 'default.customizer.field-boundary',
+    state: 'default',
+    kind: 'control',
+    label: 'customizer search field boundary',
+  },
+  {
+    id: 'default.customizer.column-title-text',
+    state: 'default',
+    kind: 'text',
+    label: 'customizer column title',
+  },
+  {
+    id: 'default.customizer.column-width-text',
+    state: 'default',
+    kind: 'text',
+    label: 'customizer column width',
+  },
+  {
+    id: 'default.customizer.column-explanation-text',
+    state: 'default',
+    kind: 'text',
+    label: 'customizer required-column explanation',
+  },
+  {
+    id: 'default.customizer.move-action-boundary',
+    state: 'default',
+    kind: 'control',
+    label: 'customizer move action boundary',
+  },
+  {
+    id: 'default.customizer.resize-handle',
+    state: 'default',
+    kind: 'control',
+    foreground: 'color',
+    label: 'customizer resize handle',
+  },
+  {
+    id: 'default.customizer.pin-action-boundary',
+    state: 'default',
+    kind: 'control',
+    label: 'customizer pin action boundary',
+  },
+  {
+    id: 'default.customizer.reset-columns-action-boundary',
+    state: 'default',
+    kind: 'control',
+    label: 'customizer reset-columns action boundary',
+  },
+  {
+    id: 'default.customizer.reset-view-action-boundary',
+    state: 'default',
+    kind: 'control',
+    label: 'customizer reset-view action boundary',
+  },
+  {
+    id: 'default.customizer.discard-action-boundary',
+    state: 'default',
+    kind: 'control',
+    label: 'customizer discard action boundary',
+  },
+  {
+    id: 'hover.saved-view-trigger.boundary',
+    state: 'hover',
+    kind: 'control',
+    label: 'hover selector boundary',
+  },
+  {
+    id: 'hover.customizer-trigger.boundary',
+    state: 'hover',
+    kind: 'control',
+    label: 'hover customizer selector boundary',
+  },
+  {
+    id: 'focus-visible.saved-view-trigger.ring',
+    state: 'focus-visible',
+    kind: 'focus',
+    label: 'focus-visible selector ring',
+  },
+  {
+    id: 'focus-visible.customizer-search.ring',
+    state: 'focus-visible',
+    kind: 'focus',
+    label: 'focus-visible customizer search ring',
+  },
+  {
+    id: 'active.live-header.sort-text',
+    state: 'active',
+    kind: 'text',
+    label: 'active live header sort control',
+  },
+  {
+    id: 'active.saved-view-menu.option-text',
+    state: 'active',
+    kind: 'text',
+    label: 'active saved-view menu row',
+  },
+  {
+    id: 'active.customizer.move-action-boundary',
+    state: 'active',
+    kind: 'control',
+    label: 'active customizer move action boundary',
+  },
+  {
+    id: 'selected.customizer.visibility-boundary',
+    state: 'selected',
+    kind: 'control',
+    label: 'selected visibility control',
+  },
+  {
+    id: 'disabled.saved-view-menu.default-action-boundary',
+    state: 'disabled',
+    kind: 'control',
+    applicability: 'inactive-control-exception',
+    label: 'disabled default action boundary',
+  },
+  {
+    id: 'disabled.customizer.save-action-boundary',
+    state: 'disabled',
+    kind: 'control',
+    applicability: 'inactive-control-exception',
+    label: 'disabled customizer save action boundary',
+  },
+  {
+    id: 'loading.repository-state.text',
+    state: 'loading',
+    kind: 'text',
+    label: 'loading product state',
+  },
+  {
+    id: 'empty.customizer-state.text',
+    state: 'empty',
+    kind: 'text',
+    label: 'empty customizer state',
+  },
+  {
+    id: 'invalid.repository-state.text',
+    state: 'invalid',
+    kind: 'text',
+    label: 'invalid product state',
+  },
+  {
+    id: 'unavailable.repository-state.text',
+    state: 'unavailable',
+    kind: 'text',
+    label: 'unavailable product state',
+  },
+  {
+    id: 'migrated.repository-state.text',
+    state: 'migrated',
+    kind: 'text',
+    label: 'migrated product state',
+  },
+  {
+    id: 'recovered.repository-state.text',
+    state: 'recovered',
+    kind: 'text',
+    label: 'recovered product state',
+  },
+  {
+    id: 'future-schema.repository-state.text',
+    state: 'future-schema',
+    kind: 'text',
+    label: 'future-schema product state',
+  },
+  {
+    id: 'dirty.customizer-state.text',
+    state: 'dirty',
+    kind: 'text',
+    label: 'dirty state label',
+  },
+  {
+    id: 'dirty.saved-view-menu.readonly-explanation-text',
+    state: 'dirty',
+    kind: 'text',
+    label: 'dirty immutable-view explanation',
+  },
+  {
+    id: 'dirty.saved-view-menu.duplicate-to-edit-action-boundary',
+    state: 'dirty',
+    kind: 'control',
+    label: 'dirty immutable-view duplicate action boundary',
+  },
+  {
+    id: 'dirty.customizer.save-action-boundary',
+    state: 'dirty',
+    kind: 'control',
+    label: 'dirty customizer save action boundary',
+  },
+  {
+    id: 'default.saved-view-menu.rename-action-boundary',
+    state: 'default',
+    kind: 'control',
+    label: 'saved-view rename action boundary',
+  },
+  {
+    id: 'default.saved-view-menu.delete-action-text',
+    state: 'default',
+    kind: 'text',
+    label: 'saved-view destructive action text',
+  },
+  {
+    id: 'default.saved-view-menu.delete-action-boundary',
+    state: 'default',
+    kind: 'control',
+    label: 'saved-view destructive action boundary',
+  },
+  {
+    id: 'default.saved-view-menu.set-default-action-boundary',
+    state: 'default',
+    kind: 'control',
+    label: 'saved-view set-default action boundary',
+  },
+  {
+    id: 'disabled.saved-view-menu.reset-action-boundary',
+    state: 'disabled',
+    kind: 'control',
+    applicability: 'inactive-control-exception',
+    label: 'disabled saved-view reset action boundary',
+  },
+  {
+    id: 'disabled.saved-view-menu.save-action-boundary',
+    state: 'disabled',
+    kind: 'control',
+    applicability: 'inactive-control-exception',
+    label: 'disabled saved-view save action boundary',
+  },
+  {
+    id: 'default.saved-view-menu.create-action-boundary',
+    state: 'default',
+    kind: 'control',
+    label: 'saved-view create action boundary',
+  },
+  {
+    id: 'save-failure.dialog-heading.text',
+    state: 'save-failure',
+    kind: 'text',
+    label: 'save-failure destructive text',
+  },
+  {
+    id: 'save-failure.retry-action.boundary',
+    state: 'save-failure',
+    kind: 'control',
+    label: 'save-failure destructive boundary',
+  },
+] as const satisfies readonly TableViewContrastRequirement[];
+
+type TableViewContrastRequirementId = (typeof tableViewContrastMatrix)[number]['id'];
+
+interface EmittedTableViewContrastSample extends ComputedContrastSample {
+  readonly id: TableViewContrastRequirementId;
+  readonly state: WcagTableViewState;
+  readonly threshold: number | null;
+}
 
 const tableViewSeed: TableViewRepositoryState = {
   metadata: { envelopeVersion: 1, revision: 0 },
@@ -1190,86 +1549,253 @@ test('live header parity keeps pointer and keyboard reorder resize rollback focu
 test('computed WCAG contrast matrix covers operational and truthful table-view states', async ({
   page,
 }, testInfo) => {
-  const samples: ComputedContrastSample[] = [];
+  const samples: EmittedTableViewContrastSample[] = [];
+  const requirements = new Map<TableViewContrastRequirementId, TableViewContrastRequirement>(
+    tableViewContrastMatrix.map((requirement) => [requirement.id, requirement]),
+  );
   const sample = async (
-    label: string,
-    kind: 'text' | 'control' | 'focus',
+    id: TableViewContrastRequirementId,
     locator: ReturnType<Page['locator']>,
   ) => {
-    const result = await sampleComputedContrast(locator, { kind, label });
-    samples.push(result);
-    expect(
-      result.ratio,
-      `${label}: ${result.foreground} on ${result.background}`,
-    ).toBeGreaterThanOrEqual(requiredContrastRatio(kind));
+    const requirement = requirements.get(id);
+    if (requirement === undefined) throw new Error(`Unknown WCAG contrast requirement: ${id}`);
+    const result = await sampleComputedContrast(locator, requirement);
+    const threshold =
+      requirement.applicability === 'inactive-control-exception'
+        ? null
+        : requiredContrastRatio(requirement.kind);
+    samples.push({ ...result, id, state: requirement.state, threshold });
+    if (threshold !== null) {
+      expect(
+        result.ratio,
+        `${requirement.label}: ${result.foreground} on ${result.background}`,
+      ).toBeGreaterThanOrEqual(threshold);
+    }
   };
 
-  const stateInventory = [
-    'default',
-    'hover',
-    'focus-visible',
-    'active',
-    'selected',
-    'disabled',
-    'loading',
-    'empty',
-    'invalid',
-    'unavailable',
-    'migrated',
-    'recovered',
-    'future-schema',
-    'dirty',
-    'save-failure',
-  ] as const;
-  expect(stateInventory).toHaveLength(15);
-
   await page.goto(developmentUrl);
-  await sample('default table text', 'text', page.locator('.squad-table tbody th').first());
+  await sample('default.table-row.text', page.locator('.squad-table tbody th').first());
+  await sample(
+    'default.live-header.inactive-sort-text',
+    page.locator('.squad-table__sort:not([data-active])').first(),
+  );
+  await sample(
+    'default.live-header.move-action-boundary',
+    page.getByRole('button', { name: /Mover coluna/u }).first(),
+  );
+  await sample(
+    'active.live-header.sort-text',
+    page.locator('.squad-table__sort[data-active]').first(),
+  );
+  await sample(
+    'default.live-header.resize-handle',
+    page.getByRole('separator', { name: /Redimensionar/u }).first(),
+  );
+
   const selectorTrigger = page.getByRole('button', { name: /Visualização da tabela:/u });
+  await sample('default.saved-view-trigger.boundary', selectorTrigger);
+  const customizerTrigger = page.getByRole('button', { name: 'Configurar tabela' });
+  await sample('default.customizer-trigger.boundary', customizerTrigger);
+  await customizerTrigger.hover();
+  await sample('hover.customizer-trigger.boundary', customizerTrigger);
   await selectorTrigger.hover();
-  await sample('hover selector boundary', 'control', selectorTrigger);
+  await sample('hover.saved-view-trigger.boundary', selectorTrigger);
   await selectorTrigger.focus();
-  await sample('focus-visible selector ring', 'focus', selectorTrigger);
+  await sample('focus-visible.saved-view-trigger.ring', selectorTrigger);
+  await selectorTrigger.click();
+
+  const selector = page.getByRole('dialog', { name: 'Visualização da tabela' });
+  await sample(
+    'active.saved-view-menu.option-text',
+    selector.locator(".saved-view-selector__option[aria-current='true'] strong").first(),
+  );
+  await sample(
+    'default.saved-view-menu.provenance-text',
+    selector.getByText('Padrão do sistema', { exact: true }),
+  );
+  await sample(
+    'default.saved-view-menu.default-text',
+    selector.getByText('Visualização padrão', { exact: true }),
+  );
+  await sample(
+    'default.saved-view-menu.duplicate-action-boundary',
+    selector.getByRole('button', { name: 'Duplicar visualização' }),
+  );
+  await sample(
+    'default.saved-view-menu.empty-explanation-text',
+    selector.locator('.saved-view-selector__empty p'),
+  );
+  await sample(
+    'default.saved-view-menu.create-first-action-boundary',
+    selector.locator('.saved-view-selector__empty .rv-button'),
+  );
+  const disabledDefaultAction = selector.getByRole('button', {
+    name: 'Definir como visualização padrão',
+  });
+  await expect(disabledDefaultAction).toBeDisabled();
+  await sample('disabled.saved-view-menu.default-action-boundary', disabledDefaultAction);
+  await page.keyboard.press('Escape');
+
+  const densityTrigger = page.getByRole('button', { name: /Alterar densidade da tabela/u });
+  await densityTrigger.click();
+  await page.getByRole('button', { name: /Densidade confortável/u }).click();
+  await selectorTrigger.click();
+  const dirtyImmutableSelector = page.getByRole('dialog', { name: 'Visualização da tabela' });
+  await sample(
+    'dirty.saved-view-menu.readonly-explanation-text',
+    dirtyImmutableSelector.locator('.saved-view-selector__readonly p'),
+  );
+  await sample(
+    'dirty.saved-view-menu.duplicate-to-edit-action-boundary',
+    dirtyImmutableSelector.locator('.saved-view-selector__readonly .rv-button'),
+  );
+  await page.keyboard.press('Escape');
+  await densityTrigger.click();
+  await page.getByRole('button', { name: /Densidade compacta/u }).click();
 
   await page.getByRole('button', { name: 'Configurar tabela' }).click();
   const customizer = page.getByRole('dialog', { name: 'Configurar tabela' });
   const search = customizer.getByRole('searchbox', { name: 'Buscar colunas' });
-  await sample('customizer field text', 'text', search);
-  await sample('customizer field boundary', 'control', search);
-  const selectedVisibility = customizer.getByRole('button', { name: 'Ocultar Jogador' });
-  await sample('selected visibility control', 'control', selectedVisibility);
+  await expect(search).toBeFocused();
   await sample(
-    'disabled required visibility explanation',
-    'text',
-    customizer.getByText('Obrigatória para identificar cada jogador.'),
+    'default.customizer.field-label-text',
+    customizer.locator('.rv-field__label').filter({ hasText: 'Buscar colunas' }),
   );
+  await sample('default.customizer.field-boundary', search);
+  await sample('focus-visible.customizer-search.ring', search);
+  const requiredColumn = customizer.getByRole('group', { name: 'Coluna Jogador' });
+  await sample('default.customizer.column-title-text', requiredColumn.locator('strong').first());
+  await sample('default.customizer.column-width-text', requiredColumn.locator('small').first());
+  await sample(
+    'default.customizer.column-explanation-text',
+    requiredColumn.locator('.table-view-customizer__required'),
+  );
+  const customizerMove = requiredColumn.getByRole('button', { name: 'Mover Jogador' });
+  await sample('default.customizer.move-action-boundary', customizerMove);
+  await sample(
+    'default.customizer.resize-handle',
+    requiredColumn.getByRole('separator', { name: 'Redimensionar Jogador' }),
+  );
+  await sample(
+    'default.customizer.pin-action-boundary',
+    customizer.locator('.table-view-customizer__pinning button').first(),
+  );
+  const selectedVisibility = requiredColumn.getByRole('button', { name: 'Ocultar Jogador' });
+  await sample('selected.customizer.visibility-boundary', selectedVisibility);
+  await sample(
+    'default.customizer.reset-columns-action-boundary',
+    customizer.getByRole('button', { name: 'Restaurar colunas' }),
+  );
+  await sample(
+    'default.customizer.reset-view-action-boundary',
+    customizer.getByRole('button', { name: 'Restaurar visualização' }),
+  );
+  await sample(
+    'default.customizer.discard-action-boundary',
+    customizer.getByRole('button', { name: 'Descartar ajustes' }),
+  );
+  const disabledCustomizerSave = customizer.getByRole('button', {
+    name: 'Salvar visualização',
+  });
+  await expect(disabledCustomizerSave).toBeDisabled();
+  await sample('disabled.customizer.save-action-boundary', disabledCustomizerSave);
+  await customizerMove.focus();
+  await page.keyboard.press('Enter');
+  await sample('active.customizer.move-action-boundary', customizerMove);
+  await page.keyboard.press('Escape');
   await customizer
     .getByRole('searchbox', { name: 'Buscar colunas' })
     .fill('sem resultado possível');
   await sample(
-    'empty customizer state',
-    'text',
+    'empty.customizer-state.text',
     customizer.getByRole('heading', { name: 'Nenhuma coluna encontrada' }),
   );
   await search.fill('Idade');
   await customizer.getByRole('button', { name: 'Ocultar Idade' }).click();
-  await sample('dirty state label', 'text', customizer.getByText('Alterações não salvas'));
+  await sample('dirty.customizer-state.text', customizer.getByText('Alterações não salvas'));
+  await sample(
+    'dirty.customizer.save-action-boundary',
+    customizer.getByRole('button', { name: 'Salvar visualização' }),
+  );
+  await customizer.getByRole('button', { name: 'Descartar ajustes' }).click();
 
-  for (const [mode, heading] of [
-    ['loading', 'Carregando visualizações do elenco…'],
-    ['invalid', 'Não foi possível carregar suas visualizações'],
-    ['unavailable', 'Visualizações personalizadas indisponíveis'],
-    ['migrated', 'Visualizações do elenco atualizadas'],
-    ['corrupt', 'Uma visualização corrompida foi isolada'],
-    ['future-schema', 'Esta visualização exige uma versão mais recente'],
-  ] as const) {
-    await setTableViewBridgeControl(page, { nextLoad: mode });
+  await createSavedView(page, 'Contraste de ações');
+  const ownedSelector = await openSavedViewSelector(page);
+  await sample(
+    'default.saved-view-menu.rename-action-boundary',
+    ownedSelector.getByRole('button', { name: 'Renomear visualização' }),
+  );
+  await sample(
+    'default.saved-view-menu.delete-action-text',
+    ownedSelector.getByRole('button', { name: 'Excluir visualização' }),
+  );
+  await sample(
+    'default.saved-view-menu.delete-action-boundary',
+    ownedSelector.getByRole('button', { name: 'Excluir visualização' }),
+  );
+  await sample(
+    'default.saved-view-menu.set-default-action-boundary',
+    ownedSelector.getByRole('button', { name: 'Definir como visualização padrão' }),
+  );
+  const disabledResetAction = ownedSelector.getByRole('button', {
+    name: 'Restaurar visualização',
+  });
+  await expect(disabledResetAction).toBeDisabled();
+  await sample('disabled.saved-view-menu.reset-action-boundary', disabledResetAction);
+  const disabledSaveAction = ownedSelector.getByRole('button', {
+    name: 'Salvar visualização',
+  });
+  await expect(disabledSaveAction).toBeDisabled();
+  await sample('disabled.saved-view-menu.save-action-boundary', disabledSaveAction);
+  await sample(
+    'default.saved-view-menu.create-action-boundary',
+    ownedSelector.getByRole('button', { name: 'Criar visualização' }),
+  );
+  await page.keyboard.press('Escape');
+
+  for (const productState of [
+    {
+      mode: 'loading',
+      heading: 'Carregando visualizações do elenco…',
+      id: 'loading.repository-state.text',
+    },
+    {
+      mode: 'invalid',
+      heading: 'Não foi possível carregar suas visualizações',
+      id: 'invalid.repository-state.text',
+    },
+    {
+      mode: 'unavailable',
+      heading: 'Visualizações personalizadas indisponíveis',
+      id: 'unavailable.repository-state.text',
+    },
+    {
+      mode: 'migrated',
+      heading: 'Visualizações do elenco atualizadas',
+      id: 'migrated.repository-state.text',
+    },
+    {
+      mode: 'corrupt',
+      heading: 'Uma visualização corrompida foi isolada',
+      id: 'recovered.repository-state.text',
+    },
+    {
+      mode: 'future-schema',
+      heading: 'Esta visualização exige uma versão mais recente',
+      id: 'future-schema.repository-state.text',
+    },
+  ] as const satisfies readonly {
+    readonly heading: string;
+    readonly id: TableViewContrastRequirementId;
+    readonly mode: string;
+  }[]) {
+    await setTableViewBridgeControl(page, { nextLoad: productState.mode });
     await page.reload();
     const stateLocator =
-      mode === 'migrated'
-        ? page.getByRole('status', { name: heading })
-        : page.getByRole('heading', { name: heading });
-    await sample(`${mode} product state`, 'text', stateLocator);
+      productState.mode === 'migrated'
+        ? page.getByRole('status', { name: productState.heading })
+        : page.getByRole('heading', { name: productState.heading });
+    await sample(productState.id, stateLocator);
   }
 
   await setTableViewBridgeControl(page, { nextLoad: 'loaded' });
@@ -1282,23 +1808,41 @@ test('computed WCAG contrast matrix covers operational and truthful table-view s
   await setTableViewBridgeControl(page, { failNextSave: true });
   await failureCustomizer.getByRole('button', { name: 'Salvar visualização' }).click();
   await sample(
-    'save-failure destructive text',
-    'text',
+    'save-failure.dialog-heading.text',
     page.getByRole('heading', { name: 'Não foi possível salvar a visualização' }),
   );
   await sample(
-    'save-failure destructive boundary',
-    'control',
+    'save-failure.retry-action.boundary',
     page.getByRole('button', { name: 'Tentar salvar visualização' }),
   );
 
+  const requiredIds = tableViewContrastMatrix.map(({ id }) => id);
+  expect(new Set(requiredIds).size).toBe(requiredIds.length);
+  expect([...new Set(tableViewContrastMatrix.map(({ state }) => state))].sort()).toEqual(
+    [...wcagStateInventory].sort(),
+  );
+  expect(samples.map(({ id }) => id).sort()).toEqual([...requiredIds].sort());
+  expect([...new Set(samples.map(({ state }) => state))].sort()).toEqual(
+    [...wcagStateInventory].sort(),
+  );
+
   await testInfo.attach('wcag-contrast-matrix.json', {
-    body: Buffer.from(JSON.stringify({ states: stateInventory, samples }, null, 2)),
+    body: Buffer.from(
+      JSON.stringify(
+        {
+          states: wcagStateInventory,
+          requirements: tableViewContrastMatrix,
+          samples,
+        },
+        null,
+        2,
+      ),
+    ),
     contentType: 'application/json',
   });
 });
 
-test('200% zoom reflow keeps long Portuguese controls, table overflow and focus reachable', async ({
+test('200% zoom reflow proves long Portuguese controls have no clipping or overlap', async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -1312,10 +1856,20 @@ test('200% zoom reflow keeps long Portuguese controls, table overflow and focus 
     mobile: false,
   });
   await page.goto(developmentUrl);
-  await createSavedView(
-    page,
-    'Visualização extensa para análise técnica do elenco principal em preparação',
-  );
+  const longViewName =
+    'Visualização extensa para análise técnica do elenco principal em preparação';
+  await createSavedView(page, longViewName);
+
+  const longViewTrigger = page.getByRole('button', {
+    name: `Visualização da tabela: ${longViewName}`,
+  });
+  await expect(longViewTrigger.locator('strong')).toHaveAttribute('title', longViewName);
+  await longViewTrigger.click();
+  const longViewOption = page
+    .getByRole('dialog', { name: 'Visualização da tabela' })
+    .getByRole('button', { name: new RegExp(longViewName, 'u') });
+  await expect(longViewOption).toHaveAttribute('title', longViewName);
+  await page.keyboard.press('Escape');
 
   const customizerTrigger = page.getByRole('button', { name: 'Configurar tabela' });
   await customizerTrigger.focus();
@@ -1329,6 +1883,105 @@ test('200% zoom reflow keeps long Portuguese controls, table overflow and focus 
   await expect(customizer.getByRole('searchbox', { name: 'Buscar colunas' })).toBeFocused();
   await customizer.getByRole('searchbox', { name: 'Buscar colunas' }).fill('Jogador');
   await expect(customizer.getByText('Obrigatória para identificar cada jogador.')).toBeVisible();
+
+  const clippingTargets = [
+    {
+      label: 'customizer heading',
+      locator: customizer.getByRole('heading', { name: 'Configurar tabela' }),
+    },
+    {
+      label: 'required-column explanation',
+      locator: customizer.getByText('Obrigatória para identificar cada jogador.'),
+    },
+    {
+      label: 'visibility action',
+      locator: customizer.getByRole('button', { name: 'Ocultar Jogador' }),
+    },
+    {
+      label: 'restore-columns action',
+      locator: customizer.getByRole('button', { name: 'Restaurar colunas' }),
+    },
+    {
+      label: 'restore-view action',
+      locator: customizer.getByRole('button', { name: 'Restaurar visualização' }),
+    },
+    {
+      label: 'discard action',
+      locator: customizer.getByRole('button', { name: 'Descartar ajustes' }),
+    },
+    {
+      label: 'save action',
+      locator: customizer.getByRole('button', { name: 'Salvar visualização' }),
+    },
+  ] as const;
+  for (const target of clippingTargets) {
+    await target.locator.scrollIntoViewIfNeeded();
+    const geometry = await target.locator.evaluate((element) => {
+      const html = element as HTMLElement;
+      return {
+        clientHeight: html.clientHeight,
+        clientWidth: html.clientWidth,
+        scrollHeight: html.scrollHeight,
+        scrollWidth: html.scrollWidth,
+      };
+    });
+    expect(
+      geometry.scrollWidth,
+      `${target.label} must not clip horizontally at 200% zoom`,
+    ).toBeLessThanOrEqual(geometry.clientWidth + 1);
+    expect(
+      geometry.scrollHeight,
+      `${target.label} must not clip vertically at 200% zoom`,
+    ).toBeLessThanOrEqual(geometry.clientHeight + 1);
+  }
+
+  const customizerBody = customizer.locator('.table-view-customizer__content');
+  await customizerBody.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  const zoomGeometry = await customizer.evaluate((element) => {
+    const root = element as HTMLElement;
+    const required = (selector: string): HTMLElement => {
+      const target = root.querySelector<HTMLElement>(selector);
+      if (target === null) throw new Error(`Missing zoom geometry target: ${selector}`);
+      return target;
+    };
+    const buttonByName = (name: string): HTMLButtonElement => {
+      const target = [...root.querySelectorAll<HTMLButtonElement>('button')].find(
+        (button) => button.textContent?.trim() === name,
+      );
+      if (target === undefined) throw new Error(`Missing zoom action: ${name}`);
+      return target;
+    };
+    const rect = (target: Element) => target.getBoundingClientRect();
+    const overlaps = (first: DOMRect, second: DOMRect) =>
+      first.left < second.right &&
+      first.right > second.left &&
+      first.top < second.bottom &&
+      first.bottom > second.top;
+    const containedHorizontally = (outer: DOMRect, inner: DOMRect) =>
+      inner.left >= outer.left - 1 && inner.right <= outer.right + 1;
+
+    const outer = rect(root);
+    const heading = rect(required('.rv-overlay__header h3'));
+    const close = rect(required('.rv-overlay__header button'));
+    const discard = rect(buttonByName('Descartar ajustes'));
+    const save = rect(buttonByName('Salvar visualização'));
+    return {
+      actionsContained: containedHorizontally(outer, discard) && containedHorizontally(outer, save),
+      actionsOverlap: overlaps(discard, save),
+      closeContained: containedHorizontally(outer, close),
+      headerControlsOverlap: overlaps(heading, close),
+      headingContained: containedHorizontally(outer, heading),
+    };
+  });
+  expect(zoomGeometry.headingContained).toBe(true);
+  expect(zoomGeometry.closeContained).toBe(true);
+  expect(zoomGeometry.headerControlsOverlap).toBe(false);
+  expect(zoomGeometry.actionsContained).toBe(true);
+  expect(zoomGeometry.actionsOverlap).toBe(false);
+  await expect(customizer.getByRole('heading', { name: 'Configurar tabela' })).toBeVisible();
+  await expect(customizer.getByRole('button', { name: 'Fechar personalização' })).toBeVisible();
 
   const reducedDuration = await customizer.evaluate(
     (element) => getComputedStyle(element).transitionDuration,
@@ -1457,6 +2110,52 @@ test('visual baseline and four-viewport geometry preserve the dense table and in
 
     await page.getByRole('button', { name: 'Configurar tabela' }).click();
     const customizer = page.getByRole('dialog', { name: 'Configurar tabela' });
+    if (viewport.width === 1024) {
+      const heading = customizer.getByRole('heading', { name: 'Configurar tabela' });
+      const close = customizer.getByRole('button', { name: 'Fechar personalização' });
+      await expect(heading).toBeVisible();
+      await expect(close).toBeVisible();
+      const compactGeometry = await customizer.evaluate((element) => {
+        const root = element as HTMLElement;
+        const body = root.querySelector<HTMLElement>('.table-view-customizer__content');
+        const columns = root.querySelector<HTMLElement>('.table-view-customizer__columns');
+        const headingElement = root.querySelector<HTMLElement>('.rv-overlay__header h3');
+        const closeElement = root.querySelector<HTMLElement>('.rv-overlay__header button');
+        if (body === null || columns === null || headingElement === null || closeElement === null) {
+          throw new Error('Expected compact customizer geometry nodes were not rendered.');
+        }
+        const rootRect = root.getBoundingClientRect();
+        const headingRect = headingElement.getBoundingClientRect();
+        const closeRect = closeElement.getBoundingClientRect();
+        const initialHeadingTop = headingRect.top;
+        const initialCloseTop = closeRect.top;
+        body.scrollTop = body.scrollHeight;
+        return {
+          bodyClientHeight: body.clientHeight,
+          bodyOverflowY: getComputedStyle(body).overflowY,
+          bodyScrollHeight: body.scrollHeight,
+          closeContained:
+            closeRect.left >= rootRect.left - 1 && closeRect.right <= rootRect.right + 1,
+          closeTopDelta: Math.abs(closeElement.getBoundingClientRect().top - initialCloseTop),
+          columnsOverflowY: getComputedStyle(columns).overflowY,
+          headingContained:
+            headingRect.left >= rootRect.left - 1 && headingRect.right <= rootRect.right + 1,
+          headingTopDelta: Math.abs(headingElement.getBoundingClientRect().top - initialHeadingTop),
+          width: rootRect.width,
+        };
+      });
+      expect(compactGeometry.width).toBeGreaterThanOrEqual(360);
+      expect(compactGeometry.width).toBeLessThanOrEqual(420);
+      expect(compactGeometry.bodyScrollHeight).toBeGreaterThan(compactGeometry.bodyClientHeight);
+      expect(compactGeometry.bodyOverflowY).toBe('auto');
+      expect(compactGeometry.columnsOverflowY).toBe('visible');
+      expect(compactGeometry.headingContained).toBe(true);
+      expect(compactGeometry.closeContained).toBe(true);
+      expect(compactGeometry.headingTopDelta).toBeLessThanOrEqual(1);
+      expect(compactGeometry.closeTopDelta).toBeLessThanOrEqual(1);
+      await expect(heading).toBeVisible();
+      await expect(close).toBeVisible();
+    }
     await customizer.getByRole('searchbox', { name: 'Buscar colunas' }).fill('Idade');
     await customizer.getByRole('button', { name: 'Ocultar Idade' }).click();
     await expect(customizer.getByText('Alterações não salvas')).toBeVisible();

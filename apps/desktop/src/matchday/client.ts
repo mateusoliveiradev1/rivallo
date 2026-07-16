@@ -498,11 +498,7 @@ const decodeRepositoryState = (
   const receiptKeys = new Set<string>();
   for (const [index, receipt] of legacyImportReceipts.entries()) {
     const key = `${receipt.sourceVersion}:${receipt.sourceFingerprint}`;
-    if (
-      receiptKeys.has(key) ||
-      !viewIds.has(receipt.importedViewId) ||
-      receipt.acceptedRevision > revision
-    ) {
+    if (receiptKeys.has(key) || receipt.acceptedRevision > revision) {
       fail(context, `${path}.legacyImportReceipts.${index}`);
     }
     receiptKeys.add(key);

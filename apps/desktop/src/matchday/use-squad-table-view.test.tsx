@@ -193,6 +193,82 @@ describe('useSquadTableView', () => {
     expect(result.current.persistenceStatus.status).toBe('confirmed');
   });
 
+  it('rebuilds a failed save retry from the latest proposal instead of restoring its old preview', async () => {
+    const save = vi
+      .fn<SquadTableViewControllerDependencies['save']>()
+      .mockResolvedValueOnce({ status: 'saveFailed' })
+      .mockImplementation(async ({ state }) => confirmedSave(state));
+    const { result } = renderHook(() =>
+      useSquadTableView({ dependencies: dependencies({ save }) }),
+    );
+    await waitFor(() => expect(result.current.repositoryStatus.status).toBe('loaded'));
+
+    act(() => {
+      result.current.dispatch({ type: 'density.set', density: 'standard' });
+    });
+    await act(async () => {
+      expect((await result.current.save('Ajustes do elenco')).status).toBe('failed');
+    });
+    act(() => {
+      result.current.dispatch({ type: 'density.set', density: 'comfortable' });
+    });
+
+    await act(async () => {
+      expect((await result.current.retry()).status).toBe('confirmed');
+    });
+
+    const retriedState = save.mock.calls[1]?.[0].state;
+    const retriedView = retriedState?.views.find(
+      ({ state }) => state.viewId === retriedState.activeViewId,
+    );
+    expect(retriedView?.state.density).toBe('comfortable');
+    expect(result.current.proposal.density).toBe('comfortable');
+    expect(result.current.baseline.density).toBe('comfortable');
+    expect(result.current.dirty).toBe(false);
+  });
+
+  it('blocks a retry continuation when the proposal changes while that retry is pending', async () => {
+    const pendingRetry = deferred<SaveTableViewsOutcome>();
+    const save = vi
+      .fn<SquadTableViewControllerDependencies['save']>()
+      .mockResolvedValueOnce({ status: 'saveFailed' })
+      .mockImplementationOnce(() => pendingRetry.promise);
+    const { result } = renderHook(() =>
+      useSquadTableView({ dependencies: dependencies({ save }) }),
+    );
+    await waitFor(() => expect(result.current.repositoryStatus.status).toBe('loaded'));
+
+    act(() => {
+      result.current.dispatch({ type: 'density.set', density: 'standard' });
+    });
+    await act(async () => {
+      expect((await result.current.save('Ajustes do elenco')).status).toBe('failed');
+    });
+
+    let retryPromise!: ReturnType<typeof result.current.retry>;
+    act(() => {
+      retryPromise = result.current.retry();
+    });
+    await waitFor(() => expect(result.current.persistenceStatus.status).toBe('saving'));
+    act(() => {
+      result.current.dispatch({ type: 'density.set', density: 'comfortable' });
+    });
+    const submittedState = save.mock.calls[1]?.[0].state;
+    expect(submittedState).toBeDefined();
+
+    let outcome!: Awaited<typeof retryPromise>;
+    await act(async () => {
+      pendingRetry.resolve(confirmedSave(submittedState!));
+      outcome = await retryPromise;
+    });
+
+    expect(outcome).toEqual({ status: 'blocked', reason: 'dirty' });
+    expect(result.current.baseline.density).toBe('standard');
+    expect(result.current.proposal.density).toBe('comfortable');
+    expect(result.current.dirty).toBe(true);
+    expect(result.current.persistenceStatus.status).toBe('confirmed');
+  });
+
   it('does not let a confirmed save erase a newer in-memory proposal', async () => {
     const pendingSave = deferred<SaveTableViewsOutcome>();
     const save = vi.fn<SquadTableViewControllerDependencies['save']>(() => pendingSave.promise);
@@ -222,6 +298,73 @@ describe('useSquadTableView', () => {
     });
 
     expect(result.current.baseline.density).toBe('standard');
+    expect(result.current.proposal.density).toBe('comfortable');
+    expect(result.current.dirty).toBe(true);
+  });
+
+  it('stops save-and-activate when the proposal changes while the save is pending', async () => {
+    const activeState: TableViewState = {
+      ...clone(SQUAD_SYSTEM_VIEW),
+      viewId: 'squad.user.active',
+      baselineViewId: SQUAD_SYSTEM_VIEW.viewId,
+      provenance: 'user-owned',
+      label: 'Atual',
+    };
+    const targetState: TableViewState = {
+      ...clone(SQUAD_SYSTEM_VIEW),
+      viewId: 'squad.user.target',
+      baselineViewId: SQUAD_SYSTEM_VIEW.viewId,
+      provenance: 'user-owned',
+      label: 'Destino',
+      density: 'comfortable',
+    };
+    const loadedState: TableViewRepositoryState = {
+      ...repositoryState(),
+      activeViewId: activeState.viewId,
+      views: [
+        ...repositoryState().views,
+        { mutability: 'mutable', state: activeState },
+        { mutability: 'mutable', state: targetState },
+      ],
+    };
+    const pendingSave = deferred<SaveTableViewsOutcome>();
+    const save = vi
+      .fn<SquadTableViewControllerDependencies['save']>()
+      .mockImplementationOnce(() => pendingSave.promise)
+      .mockImplementation(async ({ state }) => confirmedSave(state));
+    const { result } = renderHook(() =>
+      useSquadTableView({
+        dependencies: dependencies({
+          load: vi.fn().mockResolvedValue({ status: 'loaded', state: loadedState }),
+          save,
+        }),
+      }),
+    );
+    await waitFor(() => expect(result.current.repositoryStatus.status).toBe('loaded'));
+
+    act(() => {
+      result.current.dispatch({ type: 'density.set', density: 'standard' });
+    });
+    let activation!: ReturnType<typeof result.current.activate>;
+    act(() => {
+      activation = result.current.activate(targetState.viewId, 'save');
+    });
+    await waitFor(() => expect(result.current.persistenceStatus.status).toBe('saving'));
+    act(() => {
+      result.current.dispatch({ type: 'density.set', density: 'comfortable' });
+    });
+    const submittedState = save.mock.calls[0]?.[0].state;
+    expect(submittedState).toBeDefined();
+
+    let outcome!: Awaited<typeof activation>;
+    await act(async () => {
+      pendingSave.resolve(confirmedSave(submittedState!));
+      outcome = await activation;
+    });
+
+    expect(outcome).toEqual({ status: 'blocked', reason: 'dirty' });
+    expect(save).toHaveBeenCalledOnce();
+    expect(result.current.activeViewId).toBe(activeState.viewId);
     expect(result.current.proposal.density).toBe('comfortable');
     expect(result.current.dirty).toBe(true);
   });
@@ -360,6 +503,80 @@ describe('useSquadTableView', () => {
     await waitFor(() => expect(result.current.legacyStatus.status).toBe('already-imported'));
     expect(importLegacy).not.toHaveBeenCalled();
     expect(legacy.retire).toHaveBeenCalledWith(preferences, receipt);
+  });
+
+  it('preserves a legacy receipt as a tombstone through delete and reload', async () => {
+    const importedState: TableViewState = {
+      ...clone(SQUAD_SYSTEM_VIEW),
+      viewId: 'squad.user.legacy-v4-deleted',
+      baselineViewId: SQUAD_SYSTEM_VIEW.viewId,
+      provenance: 'user-owned',
+      label: 'Importada',
+    };
+    const preferences: LegacySquadTablePreferences = {
+      status: 'ready',
+      sourceKey: 'rivallo.squad-ui.v4',
+      request: {
+        sourceVersion: 4,
+        sourceFingerprint: 'fnv1a32:deleted',
+        state: importedState,
+      },
+    };
+    const receipt: LegacyImportReceipt = {
+      sourceVersion: 4,
+      sourceFingerprint: 'fnv1a32:deleted',
+      tableId: 'squad.primary',
+      schemaVersion: 1,
+      ownerScope: 'local-fixed',
+      importedViewId: importedState.viewId,
+      acceptedRevision: 4,
+    };
+    let durableState: TableViewRepositoryState = {
+      ...repositoryState(),
+      metadata: { envelopeVersion: 1, revision: 4 },
+      views: [...repositoryState().views, { mutability: 'mutable', state: importedState }],
+      legacyImportReceipts: [receipt],
+    };
+    const load = vi.fn(
+      async () =>
+        ({
+          status: 'loaded',
+          state: durableState,
+        }) satisfies LoadTableViewsOutcome,
+    );
+    const save = vi.fn<SquadTableViewControllerDependencies['save']>(async ({ state }) => {
+      const outcome = confirmedSave(state);
+      durableState = outcome.state;
+      return outcome;
+    });
+    const importLegacy = vi.fn();
+    const legacy = {
+      read: vi.fn(() => preferences),
+      retire: vi.fn(() => true),
+    };
+    const { result } = renderHook(() =>
+      useSquadTableView({
+        dependencies: dependencies({ importLegacy, legacy, load, save }),
+      }),
+    );
+    await waitFor(() => expect(result.current.legacyStatus.status).toBe('already-imported'));
+
+    await act(async () => {
+      expect((await result.current.delete(importedState.viewId)).status).toBe('confirmed');
+    });
+
+    expect(save.mock.calls[0]?.[0].state.legacyImportReceipts).toEqual([receipt]);
+    expect(durableState.views.some(({ state }) => state.viewId === importedState.viewId)).toBe(
+      false,
+    );
+
+    await act(async () => {
+      await result.current.reload();
+    });
+    await waitFor(() => expect(legacy.retire).toHaveBeenCalledTimes(2));
+
+    expect(importLegacy).not.toHaveBeenCalled();
+    expect(result.current.repository.legacyImportReceipts).toEqual([receipt]);
   });
 
   it.each([

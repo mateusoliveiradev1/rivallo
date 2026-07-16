@@ -414,10 +414,18 @@ export function useSquadTableView(
     readonly id: number;
     readonly intent: SquadTableViewMutationIntent;
   } | null>(null);
+  const completedMutationRef = useRef<{
+    readonly id: number;
+    readonly intent: SquadTableViewMutationIntent;
+    readonly submittedProposalVersion: number;
+    readonly proposalChangedWhilePending: boolean;
+  } | null>(null);
+  const transitionOperationRef = useRef(0);
   const failedCandidateRef = useRef<{
     readonly intent: SquadTableViewMutationIntent;
     readonly state: TableViewRepositoryState;
     readonly preview: TableViewState | null;
+    readonly submittedProposalVersion: number;
   } | null>(null);
   const writableRef = useRef(false);
 
@@ -680,6 +688,7 @@ export function useSquadTableView(
 
       const requestId = ++mutationRequestRef.current;
       inFlightMutationRef.current = { id: requestId, intent };
+      completedMutationRef.current = null;
       failedCandidateRef.current = null;
       const submittedProposalVersion = proposalVersionRef.current;
       setPersistenceStatus({
@@ -699,7 +708,12 @@ export function useSquadTableView(
         }
         if (outcome.status !== 'confirmed') {
           const failure = saveFailure(outcome);
-          failedCandidateRef.current = { intent, state: candidate, preview };
+          failedCandidateRef.current = {
+            intent,
+            state: candidate,
+            preview,
+            submittedProposalVersion,
+          };
           setPersistenceStatus({
             status: 'failed',
             intent,
@@ -710,8 +724,15 @@ export function useSquadTableView(
           return { status: 'failed', reason: failure.reason };
         }
 
+        const proposalChangedWhilePending = proposalVersionRef.current !== submittedProposalVersion;
+        completedMutationRef.current = {
+          id: requestId,
+          intent,
+          submittedProposalVersion,
+          proposalChangedWhilePending,
+        };
         applyRepositoryState(outcome.state, {
-          preserveProposal: proposalVersionRef.current !== submittedProposalVersion,
+          preserveProposal: proposalChangedWhilePending,
         });
         setPersistenceStatus({
           status: 'confirmed',
@@ -731,7 +752,12 @@ export function useSquadTableView(
         ) {
           return { status: 'ignored' };
         }
-        failedCandidateRef.current = { intent, state: candidate, preview };
+        failedCandidateRef.current = {
+          intent,
+          state: candidate,
+          preview,
+          submittedProposalVersion,
+        };
         setPersistenceStatus({
           status: 'failed',
           intent,
@@ -795,7 +821,49 @@ export function useSquadTableView(
   const retry = useCallback(async (): Promise<SquadTableViewActionResult> => {
     const failed = failedCandidateRef.current;
     if (failed === null) return { status: 'blocked', reason: 'not-found' };
-    return persistCandidate(failed.intent, failed.state, failed.preview);
+
+    let candidate = failed.state;
+    let preview = failed.preview;
+    if (proposalVersionRef.current !== failed.submittedProposalVersion) {
+      if (failed.intent !== 'save' || failed.preview === null) {
+        return { status: 'blocked', reason: 'dirty' };
+      }
+      const rebuiltPreview = normalizeTableViewState(SQUAD_TABLE_SCHEMA, {
+        ...proposalRef.current,
+        viewId: failed.preview.viewId,
+        baselineViewId: failed.preview.baselineViewId,
+        provenance: failed.preview.provenance,
+        label: failed.preview.label,
+      });
+      preview = rebuiltPreview;
+      let foundPreview = false;
+      candidate = {
+        ...failed.state,
+        views: failed.state.views.map((view) => {
+          if (view.state.viewId !== rebuiltPreview.viewId) return view;
+          foundPreview = true;
+          return { ...view, state: rebuiltPreview };
+        }),
+      };
+      if (!foundPreview) return { status: 'blocked', reason: 'not-found' };
+    }
+
+    const expectedRequestId = mutationRequestRef.current + 1;
+    const result = await persistCandidate(failed.intent, candidate, preview);
+    if (result.status !== 'confirmed') return result;
+
+    const completed = completedMutationRef.current;
+    if (
+      completed === null ||
+      completed.id !== expectedRequestId ||
+      completed.intent !== failed.intent
+    ) {
+      return { status: 'ignored' };
+    }
+    if (completed.proposalChangedWhilePending) {
+      return { status: 'blocked', reason: 'dirty' };
+    }
+    return result;
   }, [persistCandidate]);
 
   const discard = useCallback((): SquadTableViewActionResult => {
@@ -821,6 +889,7 @@ export function useSquadTableView(
       decision?: SquadTableViewTransitionDecision,
       saveAsName?: string,
     ): Promise<SquadTableViewActionResult> => {
+      const operationId = ++transitionOperationRef.current;
       const dirty = isTableViewDirty(SQUAD_TABLE_SCHEMA, proposalRef.current, baselineRef.current);
       if (!dirty) {
         setTransitionStatus({
@@ -844,8 +913,28 @@ export function useSquadTableView(
       }
       if (decision === 'discard') return discard();
 
+      const expectedRequestId = mutationRequestRef.current + 1;
       const result = await save(saveAsName);
       if (result.status === 'confirmed') {
+        if (transitionOperationRef.current !== operationId) {
+          return { status: 'cancelled' };
+        }
+        const completed = completedMutationRef.current;
+        if (
+          completed === null ||
+          completed.id !== expectedRequestId ||
+          completed.intent !== 'save'
+        ) {
+          return { status: 'ignored' };
+        }
+        if (completed.proposalChangedWhilePending) {
+          setTransitionStatus({
+            status: 'blocked',
+            target: 'screen',
+            heading: 'Alterações não salvas',
+          });
+          return { status: 'blocked', reason: 'dirty' };
+        }
         setTransitionStatus({
           status: 'proceeding',
           target: 'screen',
@@ -863,6 +952,7 @@ export function useSquadTableView(
       decision?: SquadTableViewTransitionDecision,
       saveAsName?: string,
     ): Promise<SquadTableViewActionResult> => {
+      const operationId = ++transitionOperationRef.current;
       const targetBeforeGuard = repositoryRef.current.views.find(
         ({ state }) => state.viewId === viewId,
       );
@@ -885,8 +975,28 @@ export function useSquadTableView(
         if (decision === 'discard') {
           updateProposal(baselineRef.current);
         } else {
+          const expectedRequestId = mutationRequestRef.current + 1;
           const saved = await save(saveAsName);
           if (saved.status !== 'confirmed') return saved;
+          if (transitionOperationRef.current !== operationId) {
+            return { status: 'cancelled' };
+          }
+          const completed = completedMutationRef.current;
+          if (
+            completed === null ||
+            completed.id !== expectedRequestId ||
+            completed.intent !== 'save'
+          ) {
+            return { status: 'ignored' };
+          }
+          if (completed.proposalChangedWhilePending) {
+            setTransitionStatus({
+              status: 'blocked',
+              target: viewId,
+              heading: 'Alterações não salvas',
+            });
+            return { status: 'blocked', reason: 'dirty' };
+          }
         }
       }
 
@@ -1057,9 +1167,6 @@ export function useSquadTableView(
         activeViewId,
         defaultViewId,
         views: remainingViews,
-        legacyImportReceipts: currentRepository.legacyImportReceipts.filter(
-          ({ importedViewId }) => importedViewId !== viewId,
-        ),
       };
       const preview = activeSavedView(candidate).state;
       return persistCandidate('delete', candidate, preview);

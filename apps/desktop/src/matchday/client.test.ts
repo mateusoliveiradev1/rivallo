@@ -127,6 +127,21 @@ describe('table-view client commands', () => {
     expect(invoke).toHaveBeenCalledWith('load_table_views');
   });
 
+  it('accepts a durable legacy-import receipt after its imported view was deleted', async () => {
+    const imported = importedRepositoryState();
+    const state = {
+      ...imported.state,
+      metadata: { ...imported.state.metadata, revision: 2 },
+      activeViewId: 'squad.view.system-default',
+      views: imported.state.views.filter(
+        ({ state: viewState }) => viewState.viewId !== imported.receipt.importedViewId,
+      ),
+    };
+    invoke.mockResolvedValue({ status: 'loaded', state });
+
+    await expect(loadTableViews()).resolves.toEqual({ status: 'loaded', state });
+  });
+
   it.each([
     [
       'nested identity',

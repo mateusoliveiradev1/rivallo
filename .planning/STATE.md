@@ -5,17 +5,17 @@ milestone_name: milestone
 current_phase: 06.1
 current_phase_name: SM-2 Table View Engine and Durable Views
 current_plan: 8
-status: verifying
-stopped_at: Completed 06.1-08-PLAN.md
-last_updated: "2026-07-16T17:25:34.417Z"
+status: complete
+stopped_at: Phase 06.1 stable checkpoint; execution stopped before Phase 06.2
+last_updated: "2026-07-16T19:55:51.113Z"
 last_activity: 2026-07-16
-last_activity_desc: Completed Phase 06.1 browser, restart, accessibility, scope, and full regression gate
+last_activity_desc: Stabilized and verified Phase 06.1; built desktop release and stopped before Phase 06.2
 progress:
   total_phases: 18
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 45
   completed_plans: 42
-  percent: 28
+  percent: 33
 ---
 
 # State
@@ -29,7 +29,7 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 **Current phase name:** SM-2 Table View Engine and Durable Views
 **Current gate:** SM-2 durable table views.
 **Gate 0:** APPROVED by Mateus.
-**Next action:** Verify the Phase 06.1 goal, then advance to authorized Phase 06.2.
+**Next action:** None in this execution. Phase 06.1 is closed at a stable checkpoint; Phase 06.2 was not started.
 
 ## Current Position
 
@@ -37,9 +37,9 @@ Current Phase: 06.1
 Current Phase Name: SM-2 Table View Engine and Durable Views
 Current Plan: 8
 Total Plans in Phase: 8
-Status: Phase complete — ready for verification
-Progress: 8/8 Phase 06.1 plans complete; ready for verification.
-Last activity: 2026-07-16 — Completed browser, restart, accessibility, scope, and full regression gate
+Status: Complete — verified and stabilized; execution stopped before Phase 06.2
+Progress: 8/8 Phase 06.1 plans complete; scoped verification and desktop release passed.
+Last activity: 2026-07-16 — Stabilized async lifecycle, persistence, quarantine, responsive customizer, and truthful accessibility evidence
 
 ## Gate History
 
@@ -49,8 +49,8 @@ Last activity: 2026-07-16 — Completed browser, restart, accessibility, scope, 
 
 ## Session
 
-**Last session:** 2026-07-16T17:25:06.308Z
-**Stopped at:** Completed 06.1-08-PLAN.md
+**Last session:** 2026-07-16T19:55:51.113Z
+**Stopped at:** Phase 06.1 stable checkpoint; Phase 06.2 not started
 **Resume file:** None
 
 ## Accumulated Context
@@ -61,8 +61,8 @@ Last activity: 2026-07-16 — Completed browser, restart, accessibility, scope, 
 
 ### Roadmap Evolution
 
-- Phase 06.1 inserted after Phase 6: SM-2 Table View Engine and Durable Views (ACTIVE)
-- Phase 06.2 inserted after Phase 6: SM-3 Free Tactical Field and Unified Bench Interaction (AUTHORIZED; depends on 06.1)
+- Phase 06.1 inserted after Phase 6: SM-2 Table View Engine and Durable Views (COMPLETE; stable checkpoint)
+- Phase 06.2 inserted after Phase 6: SM-3 Free Tactical Field and Unified Bench Interaction (AUTHORIZED BUT NOT STARTED; depends on 06.1)
 - Phase 06.3 inserted after Phase 6: SM-4 Tactical Analysis Strategy Instructions Opposition and Familiarity (AUTHORIZED; depends on 06.2)
 - Phase 06.4 inserted after Phase 6: SM-5 Player Coach Profiles and Explainable Ratings (AUTHORIZED; depends on 06.3)
 - Phase 06.5 inserted after Phase 6: SM-6 Squad Dynamics Training and Dynamic Potential (AUTHORIZED; depends on 06.4)

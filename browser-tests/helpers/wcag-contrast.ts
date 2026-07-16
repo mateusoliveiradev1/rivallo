@@ -1,6 +1,7 @@
 import type { Locator } from '@playwright/test';
 
 export type ContrastKind = 'text' | 'control' | 'focus';
+export type ContrastForeground = 'auto' | 'background' | 'border' | 'color' | 'outline';
 
 export interface ComputedContrastSample {
   readonly label: string;
@@ -11,6 +12,7 @@ export interface ComputedContrastSample {
 }
 
 export interface ComputedContrastOptions {
+  readonly foreground?: ContrastForeground;
   readonly kind: ContrastKind;
   readonly label: string;
 }
@@ -99,49 +101,65 @@ export async function sampleComputedContrast(
   locator: Locator,
   options: ComputedContrastOptions,
 ): Promise<ComputedContrastSample> {
-  const computed = await locator.evaluate((element, kind) => {
-    if (!(element instanceof HTMLElement || element instanceof SVGElement)) {
-      throw new Error('Contrast sampling requires an HTML or SVG element.');
-    }
+  const computed = await locator.evaluate(
+    (element, options) => {
+      if (!(element instanceof HTMLElement || element instanceof SVGElement)) {
+        throw new Error('Contrast sampling requires an HTML or SVG element.');
+      }
 
-    const canvas = document.createElement('canvas');
-    canvas.width = 1;
-    canvas.height = 1;
-    const context = canvas.getContext('2d', { willReadFrequently: true });
-    if (context === null) throw new Error('Canvas colour normalization is unavailable.');
+      const canvas = document.createElement('canvas');
+      canvas.width = 1;
+      canvas.height = 1;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      if (context === null) throw new Error('Canvas colour normalization is unavailable.');
 
-    const normalizeToSrgb = (value: string): string => {
-      context.clearRect(0, 0, 1, 1);
-      context.fillStyle = 'rgba(0, 0, 0, 0)';
-      context.fillStyle = value;
-      context.fillRect(0, 0, 1, 1);
-      const [red = 0, green = 0, blue = 0, alpha = 0] = context.getImageData(0, 0, 1, 1).data;
-      return `rgba(${red}, ${green}, ${blue}, ${alpha / 255})`;
-    };
+      const normalizeToSrgb = (value: string): string => {
+        context.clearRect(0, 0, 1, 1);
+        context.fillStyle = 'rgba(0, 0, 0, 0)';
+        context.fillStyle = value;
+        context.fillRect(0, 0, 1, 1);
+        const [red = 0, green = 0, blue = 0, alpha = 0] = context.getImageData(0, 0, 1, 1).data;
+        return `rgba(${red}, ${green}, ${blue}, ${alpha / 255})`;
+      };
 
-    const style = getComputedStyle(element);
-    const foreground =
-      kind === 'text'
-        ? style.color
-        : kind === 'focus'
-          ? style.outlineColor
-          : style.borderTopColor === 'rgba(0, 0, 0, 0)' ||
-              style.borderTopStyle === 'none' ||
-              style.borderTopWidth === '0px'
-            ? style.backgroundColor
-            : style.borderTopColor;
-    const layers: string[] = [];
-    let current: Element | null = kind === 'text' ? element : element.parentElement;
-    while (current !== null) {
-      layers.push(normalizeToSrgb(getComputedStyle(current).backgroundColor));
-      current = current.parentElement;
-    }
+      const style = getComputedStyle(element);
+      const source =
+        options.foreground === 'auto'
+          ? options.kind === 'text'
+            ? 'color'
+            : options.kind === 'focus'
+              ? 'outline'
+              : style.borderTopColor === 'rgba(0, 0, 0, 0)' ||
+                  style.borderTopStyle === 'none' ||
+                  style.borderTopWidth === '0px'
+                ? 'background'
+                : 'border'
+          : options.foreground;
+      const foreground =
+        source === 'color'
+          ? style.color
+          : source === 'outline'
+            ? style.outlineColor
+            : source === 'background'
+              ? style.backgroundColor
+              : style.borderTopColor;
+      const layers: string[] = [];
+      let current: Element | null = source === 'color' ? element : element.parentElement;
+      while (current !== null) {
+        layers.push(normalizeToSrgb(getComputedStyle(current).backgroundColor));
+        current = current.parentElement;
+      }
 
-    return {
-      foreground: normalizeToSrgb(foreground),
-      backgroundLayers: layers,
-    };
-  }, options.kind);
+      return {
+        foreground: normalizeToSrgb(foreground),
+        backgroundLayers: layers,
+      };
+    },
+    {
+      foreground: options.foreground ?? 'auto',
+      kind: options.kind,
+    },
+  );
 
   const background = resolveEffectiveBackground(computed.backgroundLayers);
   const foreground = compositeSrgb(parseSrgb(computed.foreground), background);

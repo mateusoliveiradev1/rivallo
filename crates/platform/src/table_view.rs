@@ -280,25 +280,27 @@ impl FileTableViewRepository {
                         .as_ref()
                         .or(backup.as_ref())
                         .unwrap_or(active_bytes);
-                    self.persist_quarantine(
-                        evidence,
-                        CandidateFailure {
-                            reason: TableViewRecoveryReason::InterruptedWrite,
-                            source_envelope_version: extract_u32(
-                                &evidence.bytes,
-                                &["envelopeVersion"],
-                            ),
-                            source_schema_version: extract_u32(
-                                &evidence.bytes,
-                                &["payload", "schemaVersion"],
-                            ),
-                        },
-                        "transaction-artifact",
-                    )?;
-                    remove_if_exists(&temporary_path)
-                        .map_err(|_| TableViewRepositoryError::Unavailable)?;
-                    remove_if_exists(&backup_path)
-                        .map_err(|_| TableViewRepositoryError::Unavailable)?;
+                    let quarantine_persisted = self
+                        .persist_quarantine(
+                            evidence,
+                            CandidateFailure {
+                                reason: TableViewRecoveryReason::InterruptedWrite,
+                                source_envelope_version: extract_u32(
+                                    &evidence.bytes,
+                                    &["envelopeVersion"],
+                                ),
+                                source_schema_version: extract_u32(
+                                    &evidence.bytes,
+                                    &["payload", "schemaVersion"],
+                                ),
+                            },
+                            "transaction-artifact",
+                        )
+                        .is_ok();
+                    if quarantine_persisted {
+                        let _ = remove_if_exists(&temporary_path);
+                        let _ = remove_if_exists(&backup_path);
+                    }
                     return Ok(TableViewRepositoryLoad::Recovered {
                         state: Some(active_candidate.state),
                         reason: TableViewRecoveryReason::InterruptedWrite,
@@ -356,30 +358,33 @@ impl FileTableViewRepository {
                     .as_ref()
                     .unwrap_or_else(|| backup.as_ref().expect("selected backup candidate exists"))
             };
-            self.persist_quarantine(
-                evidence,
-                CandidateFailure {
-                    reason: TableViewRecoveryReason::InterruptedWrite,
-                    source_envelope_version: extract_u32(&evidence.bytes, &["envelopeVersion"]),
-                    source_schema_version: extract_u32(
-                        &evidence.bytes,
-                        &["payload", "schemaVersion"],
-                    ),
-                },
-                "transaction-artifact",
-            )?;
+            let quarantine_persisted = self
+                .persist_quarantine(
+                    evidence,
+                    CandidateFailure {
+                        reason: TableViewRecoveryReason::InterruptedWrite,
+                        source_envelope_version: extract_u32(&evidence.bytes, &["envelopeVersion"]),
+                        source_schema_version: extract_u32(
+                            &evidence.bytes,
+                            &["payload", "schemaVersion"],
+                        ),
+                    },
+                    "transaction-artifact",
+                )
+                .is_ok();
             fs::rename(candidate_path, &self.path)
                 .or_else(|_| {
                     copy_synced(candidate_path, &self.path)?;
                     remove_if_exists(candidate_path)
                 })
                 .map_err(|_| TableViewRepositoryError::Unavailable)?;
-            remove_if_exists(if candidate_path == temporary_path {
-                &backup_path
-            } else {
-                &temporary_path
-            })
-            .map_err(|_| TableViewRepositoryError::Unavailable)?;
+            if quarantine_persisted {
+                let _ = remove_if_exists(if candidate_path == temporary_path {
+                    &backup_path
+                } else {
+                    &temporary_path
+                });
+            }
             return Ok(TableViewRepositoryLoad::Recovered {
                 state: Some(candidate.state),
                 reason: TableViewRecoveryReason::InterruptedWrite,
@@ -841,6 +846,13 @@ fn migrate_storage_envelope(
 }
 
 fn migrate_storage_v1_to_v2(envelope: &mut Value) -> Result<(), ()> {
+    let empty_filter = squad_system_default_repository_state()
+        .views
+        .into_iter()
+        .next()
+        .and_then(|view| view.state.filter)
+        .ok_or(())?;
+    let empty_filter = serde_json::to_value(empty_filter).map_err(|_| ())?;
     let views = envelope
         .pointer_mut("/payload/views")
         .and_then(Value::as_array_mut)
@@ -860,11 +872,10 @@ fn migrate_storage_v1_to_v2(envelope: &mut Value) -> Result<(), ()> {
             .ok_or(())?
             .retain(|sort| sort.get("columnId").and_then(Value::as_str) != Some("removedColumn"));
         let filter = state.get_mut("filter").ok_or(())?;
-        if !filter.is_null() {
-            let (has_children, removed) = remove_obsolete_filter_clauses(filter)?;
-            if removed && !has_children {
-                *filter = Value::Null;
-            }
+        if filter.is_null() {
+            *filter = empty_filter.clone();
+        } else {
+            remove_obsolete_filter_clauses(filter)?;
         }
     }
     Ok(())
@@ -1147,6 +1158,47 @@ mod tests {
         envelope
     }
 
+    fn removed_column_filter_clause(filter_id: &str) -> Value {
+        json!({
+            "kind": "clause",
+            "value": {
+                "filterId": filter_id,
+                "columnId": "removedColumn",
+                "operator": "equals",
+                "value": {
+                    "type": "number",
+                    "value": 1.0,
+                },
+                "enabled": true,
+            },
+        })
+    }
+
+    fn assert_historical_migration(
+        case: &str,
+        expected: &TableViewRepositoryState,
+        fixture: &Value,
+    ) {
+        let directory = TestDirectory::new(case);
+        let repository = FileTableViewRepository::new(directory.join("table-views.json"));
+        write_envelope(repository.path(), fixture);
+
+        assert_eq!(
+            repository.load().expect("migrate historical fixture"),
+            TableViewRepositoryLoad::Migrated {
+                state: expected.clone(),
+                from_envelope_version: 0,
+                to_envelope_version: 1,
+            }
+        );
+        assert!(!repository.quarantine_payload_path().exists());
+        assert!(!repository.quarantine_evidence_path().exists());
+        assert_eq!(
+            repository.load().expect("reload migrated fixture"),
+            TableViewRepositoryLoad::Loaded(expected.clone())
+        );
+    }
+
     fn evidence(repository: &FileTableViewRepository) -> Value {
         serde_json::from_slice(
             &fs::read(repository.quarantine_evidence_path()).expect("quarantine evidence bytes"),
@@ -1303,6 +1355,116 @@ mod tests {
     }
 
     #[test]
+    fn valid_active_remains_available_when_quarantine_diagnostics_are_unwritable() {
+        for artifact_name in ["temporary", "backup"] {
+            let directory = TestDirectory::new(&format!("active-quarantine-{artifact_name}"));
+            let repository = FileTableViewRepository::new(directory.join("table-views.json"));
+            let state = squad_system_default_repository_state();
+            repository
+                .save_atomic(&state)
+                .expect("persist valid active generation");
+            let artifact_path = if artifact_name == "temporary" {
+                repository.temporary_path()
+            } else {
+                repository.backup_path()
+            };
+            fs::copy(repository.path(), &artifact_path).expect("create valid transaction artifact");
+            fs::create_dir(repository.quarantine_payload_path())
+                .expect("block quarantine payload writes");
+
+            assert_eq!(
+                repository
+                    .load()
+                    .expect("valid active must remain available"),
+                TableViewRepositoryLoad::Recovered {
+                    state: Some(state.clone()),
+                    reason: TableViewRecoveryReason::InterruptedWrite,
+                }
+            );
+            assert!(
+                artifact_path.exists(),
+                "artifact must remain when diagnostic persistence fails"
+            );
+
+            fs::remove_dir(repository.quarantine_payload_path())
+                .expect("unblock quarantine payload writes");
+            assert_eq!(
+                repository
+                    .load()
+                    .expect("retry quarantine after blocker removal"),
+                TableViewRepositoryLoad::Recovered {
+                    state: Some(state.clone()),
+                    reason: TableViewRecoveryReason::InterruptedWrite,
+                }
+            );
+            assert!(!artifact_path.exists());
+            assert!(repository.quarantine_payload_path().is_file());
+            assert!(repository.quarantine_evidence_path().is_file());
+            assert_eq!(
+                repository.load().expect("load stable active generation"),
+                TableViewRepositoryLoad::Loaded(state)
+            );
+        }
+    }
+
+    #[test]
+    fn valid_transaction_candidate_is_promoted_when_quarantine_diagnostics_are_unwritable() {
+        for candidate_name in ["temporary", "backup"] {
+            let directory = TestDirectory::new(&format!("candidate-quarantine-{candidate_name}"));
+            let repository = FileTableViewRepository::new(directory.join("table-views.json"));
+            let state = squad_system_default_repository_state();
+            repository
+                .save_atomic(&state)
+                .expect("persist candidate generation");
+            let (candidate_path, invalid_path) = if candidate_name == "temporary" {
+                (repository.temporary_path(), repository.backup_path())
+            } else {
+                (repository.backup_path(), repository.temporary_path())
+            };
+            fs::rename(repository.path(), &candidate_path)
+                .expect("move active generation into transaction candidate");
+            fs::write(&invalid_path, b"{broken").expect("write invalid peer artifact");
+            fs::create_dir(repository.quarantine_payload_path())
+                .expect("block quarantine payload writes");
+
+            assert_eq!(
+                repository
+                    .load()
+                    .expect("valid transaction candidate must remain available"),
+                TableViewRepositoryLoad::Recovered {
+                    state: Some(state.clone()),
+                    reason: TableViewRecoveryReason::InterruptedWrite,
+                }
+            );
+            assert!(repository.path().is_file());
+            assert!(!candidate_path.exists());
+            assert_eq!(
+                fs::read(&invalid_path).expect("invalid peer artifact remains"),
+                b"{broken"
+            );
+
+            fs::remove_dir(repository.quarantine_payload_path())
+                .expect("unblock quarantine payload writes");
+            assert_eq!(
+                repository
+                    .load()
+                    .expect("retry quarantine after candidate promotion"),
+                TableViewRepositoryLoad::Recovered {
+                    state: Some(state.clone()),
+                    reason: TableViewRecoveryReason::InterruptedWrite,
+                }
+            );
+            assert!(!invalid_path.exists());
+            assert!(repository.quarantine_payload_path().is_file());
+            assert!(repository.quarantine_evidence_path().is_file());
+            assert_eq!(
+                repository.load().expect("load stable promoted generation"),
+                TableViewRepositoryLoad::Loaded(state)
+            );
+        }
+    }
+
+    #[test]
     fn adjacent_v1_and_v2_migrations_reach_current_without_skipping_steps() {
         for (storage_version, include_removed_column) in [(1, true), (2, false)] {
             let directory = TestDirectory::new(&format!("migration-v{storage_version}"));
@@ -1325,6 +1487,85 @@ mod tests {
                 TableViewRepositoryLoad::Loaded(expected)
             );
         }
+    }
+
+    #[test]
+    fn v1_null_filter_root_migrates_to_application_owned_empty_root() {
+        let expected = valid_state_with_user_intent();
+        let mut fixture = historical_payload(1, &expected, true);
+        fixture["payload"]["views"][1]["state"]["filter"] = Value::Null;
+
+        assert_historical_migration("migration-null-filter", &expected, &fixture);
+    }
+
+    #[test]
+    fn v1_removed_only_filter_migrates_to_empty_root() {
+        let expected = valid_state_with_user_intent();
+        let mut fixture = historical_payload(1, &expected, true);
+        fixture["payload"]["views"][1]["state"]["filter"] = json!({
+            "groupId": "filters.root",
+            "logic": "and",
+            "children": [removed_column_filter_clause("filter.removed")],
+        });
+
+        assert_historical_migration("migration-removed-only-filter", &expected, &fixture);
+    }
+
+    #[test]
+    fn v1_mixed_nested_filter_preserves_supported_clauses() {
+        let mut expected = valid_state_with_user_intent();
+        expected.views[1].state.filter = Some(
+            serde_json::from_value(json!({
+                "groupId": "filters.root",
+                "logic": "and",
+                "children": [
+                    {
+                        "kind": "clause",
+                        "value": {
+                            "filterId": "filter.goals",
+                            "columnId": "goals",
+                            "operator": "greaterThan",
+                            "value": {
+                                "type": "number",
+                                "value": 0.0,
+                            },
+                            "enabled": true,
+                        },
+                    },
+                    {
+                        "kind": "group",
+                        "value": {
+                            "groupId": "filters.nested",
+                            "logic": "and",
+                            "children": [
+                                {
+                                    "kind": "clause",
+                                    "value": {
+                                        "filterId": "filter.condition",
+                                        "columnId": "condition",
+                                        "operator": "greaterThanOrEqual",
+                                        "value": {
+                                            "type": "number",
+                                            "value": 90.0,
+                                        },
+                                        "enabled": true,
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                ],
+            }))
+            .expect("deserialize supported nested filter"),
+        );
+        expected.validate().expect("mixed nested filter is valid");
+        let mut fixture = historical_payload(1, &expected, true);
+        fixture["payload"]["views"][1]["state"]["filter"]["children"][1]["value"]["children"]
+            .as_array_mut()
+            .expect("nested filter children")
+            .push(removed_column_filter_clause("filter.removed"));
+
+        assert_historical_migration("migration-mixed-nested-filter", &expected, &fixture);
     }
 
     #[test]

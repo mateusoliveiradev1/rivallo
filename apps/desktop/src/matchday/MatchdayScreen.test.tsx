@@ -188,6 +188,38 @@ const lifecycleRepositoryState = (
   legacyImportReceipts: [],
 });
 
+const deferred = <Value,>() => {
+  let resolve!: (value: Value | PromiseLike<Value>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<Value>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, reject, resolve };
+};
+
+const confirmedTableViewSave = (
+  candidate: TableViewRepositoryState,
+): Extract<SaveTableViewsOutcome, { readonly status: 'confirmed' }> => {
+  const confirmedState = {
+    ...candidate,
+    metadata: {
+      ...candidate.metadata,
+      revision: candidate.metadata.revision + 1,
+    },
+  };
+  return {
+    status: 'confirmed',
+    state: confirmedState,
+    receipt: {
+      tableId: 'squad.primary',
+      schemaVersion: 1,
+      ownerScope: 'local-fixed',
+      acceptedRevision: confirmedState.metadata.revision,
+    },
+  };
+};
+
 const expectOnlyNonTablePreferences = (storageKey: string): void => {
   const raw = window.localStorage.getItem(storageKey);
   expect(raw).not.toBeNull();
@@ -840,6 +872,185 @@ describe('MatchdayScreen', () => {
     expect(document.activeElement).toBe(
       screen.getByRole('button', { name: 'Visualização da tabela: Minha análise' }),
     );
+  });
+
+  it('cancels a pending save-and-open view continuation when Escape dismisses the dialog', async () => {
+    const pendingSave = deferred<SaveTableViewsOutcome>();
+    clientMock.saveTableViews.mockImplementationOnce(() => pendingSave.promise);
+    const user = await renderMatchdayWithViews(lifecycleRepositoryState());
+
+    await changeDensity(user, 'confortável');
+    const selector = await openSavedViewSelector(user);
+    await user.click(
+      within(selector).getByRole('button', { name: /Abrir visualização Rotação do elenco/u }),
+    );
+    const dialog = screen.getByRole('alertdialog', {
+      name: 'Salvar alterações antes de abrir “Rotação do elenco”?',
+    });
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Salvar e abrir “Rotação do elenco”' }),
+    );
+    await waitFor(() => expect(clientMock.saveTableViews).toHaveBeenCalledOnce());
+
+    fireEvent(dialog, new Event('cancel', { cancelable: true }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+
+    const candidate = (clientMock.saveTableViews.mock.calls[0]?.[0] as SaveTableViewsRequest).state;
+    pendingSave.resolve(confirmedTableViewSave(candidate));
+    await waitFor(() => expect(screen.queryByText('Salvando visualização…')).toBeNull());
+
+    expect(clientMock.saveTableViews).toHaveBeenCalledOnce();
+    expect(
+      screen.getByRole('button', { name: 'Visualização da tabela: Minha análise' }),
+    ).toBeInstanceOf(HTMLButtonElement);
+  });
+
+  it('keeps Elenco open when Continue cancels a pending save-and-navigation continuation', async () => {
+    const pendingSave = deferred<SaveTableViewsOutcome>();
+    clientMock.saveTableViews.mockImplementationOnce(() => pendingSave.promise);
+    const user = await renderMatchdayWithViews(lifecycleRepositoryState());
+
+    await changeDensity(user, 'confortável');
+    await user.click(screen.getByRole('button', { name: 'Táticas' }));
+    const dialog = screen.getByRole('alertdialog', {
+      name: 'Salvar alterações antes de abrir “Táticas”?',
+    });
+    await user.click(within(dialog).getByRole('button', { name: 'Salvar e abrir “Táticas”' }));
+    await waitFor(() => expect(clientMock.saveTableViews).toHaveBeenCalledOnce());
+
+    await user.click(within(dialog).getByRole('button', { name: 'Continuar nesta visualização' }));
+
+    const candidate = (clientMock.saveTableViews.mock.calls[0]?.[0] as SaveTableViewsRequest).state;
+    pendingSave.resolve(confirmedTableViewSave(candidate));
+    await waitFor(() => expect(screen.queryByText('Salvando visualização…')).toBeNull());
+
+    expect(screen.getByRole('heading', { name: 'Visão geral do elenco' })).toBeInstanceOf(
+      HTMLElement,
+    );
+    expect(screen.queryByRole('heading', { name: 'Plano de jogo' })).toBeNull();
+    expect(clientMock.saveTableViews).toHaveBeenCalledOnce();
+  });
+
+  it('does not delete the active view after Continue cancels its pending save continuation', async () => {
+    const pendingSave = deferred<SaveTableViewsOutcome>();
+    clientMock.saveTableViews.mockImplementationOnce(() => pendingSave.promise);
+    const user = await renderMatchdayWithViews(
+      lifecycleRepositoryState('squad.user.analysis', 'squad.user.rotation'),
+    );
+
+    await changeDensity(user, 'confortável');
+    const selector = await openSavedViewSelector(user);
+    await user.click(within(selector).getByRole('button', { name: 'Excluir visualização' }));
+    let dialog = screen.getByRole('alertdialog', {
+      name: 'Excluir visualização “Minha análise”?',
+    });
+    await user.click(within(dialog).getByRole('button', { name: 'Excluir visualização' }));
+    dialog = screen.getByRole('alertdialog', {
+      name: 'Salvar alterações antes de abrir “Rotação do elenco”?',
+    });
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Salvar e abrir “Rotação do elenco”' }),
+    );
+    await waitFor(() => expect(clientMock.saveTableViews).toHaveBeenCalledOnce());
+
+    await user.click(within(dialog).getByRole('button', { name: 'Continuar nesta visualização' }));
+
+    const candidate = (clientMock.saveTableViews.mock.calls[0]?.[0] as SaveTableViewsRequest).state;
+    pendingSave.resolve(confirmedTableViewSave(candidate));
+    await waitFor(() => expect(screen.queryByText('Salvando visualização…')).toBeNull());
+
+    expect(clientMock.saveTableViews).toHaveBeenCalledOnce();
+    expect(
+      screen.getByRole('button', { name: 'Visualização da tabela: Minha análise' }),
+    ).toBeInstanceOf(HTMLButtonElement);
+  });
+
+  it('cancels an immutable save-as continuation when its busy dialog is closed', async () => {
+    const pendingSave = deferred<SaveTableViewsOutcome>();
+    clientMock.saveTableViews.mockImplementationOnce(() => pendingSave.promise);
+    const user = await renderMatchdayWithViews(
+      lifecycleRepositoryState(lifecycleSharedView().state.viewId),
+    );
+
+    await changeDensity(user, 'compacta');
+    await user.click(screen.getByRole('button', { name: 'Táticas' }));
+    const dirtyDialog = screen.getByRole('alertdialog', {
+      name: 'Salvar alterações antes de abrir “Táticas”?',
+    });
+    await user.click(within(dirtyDialog).getByRole('button', { name: 'Salvar e abrir “Táticas”' }));
+    const nameDialog = screen.getByRole('dialog', {
+      name: 'Criar uma visualização editável',
+    });
+    await user.type(
+      within(nameDialog).getByRole('textbox', { name: 'Nome da visualização' }),
+      'Leitura cancelada',
+    );
+    await user.click(within(nameDialog).getByRole('button', { name: 'Duplicar para editar' }));
+    await waitFor(() => expect(clientMock.saveTableViews).toHaveBeenCalledOnce());
+
+    await user.click(
+      within(nameDialog).getByRole('button', {
+        name: 'Fechar diálogo de visualização',
+      }),
+    );
+
+    const candidate = (clientMock.saveTableViews.mock.calls[0]?.[0] as SaveTableViewsRequest).state;
+    pendingSave.resolve(confirmedTableViewSave(candidate));
+    await waitFor(() => expect(screen.queryByText('Salvando visualização…')).toBeNull());
+
+    expect(screen.getByRole('heading', { name: 'Visão geral do elenco' })).toBeInstanceOf(
+      HTMLElement,
+    );
+    expect(screen.queryByRole('heading', { name: 'Plano de jogo' })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Visualização da tabela: Leitura cancelada' }),
+    ).toBeInstanceOf(HTMLButtonElement);
+    expect(clientMock.saveTableViews).toHaveBeenCalledOnce();
+  });
+
+  it('does not resume a failed save-as navigation after the proposal changes during retry', async () => {
+    const pendingRetry = deferred<SaveTableViewsOutcome>();
+    clientMock.saveTableViews
+      .mockResolvedValueOnce({ status: 'saveFailed' })
+      .mockImplementationOnce(() => pendingRetry.promise);
+    const user = await renderMatchdayWithViews(
+      lifecycleRepositoryState(lifecycleSharedView().state.viewId),
+    );
+
+    await changeDensity(user, 'compacta');
+    await user.click(screen.getByRole('button', { name: 'Táticas' }));
+    const dirtyDialog = screen.getByRole('alertdialog', {
+      name: 'Salvar alterações antes de abrir “Táticas”?',
+    });
+    await user.click(within(dirtyDialog).getByRole('button', { name: 'Salvar e abrir “Táticas”' }));
+    const nameDialog = screen.getByRole('dialog', {
+      name: 'Criar uma visualização editável',
+    });
+    await user.type(
+      within(nameDialog).getByRole('textbox', { name: 'Nome da visualização' }),
+      'Retry protegido',
+    );
+    await user.click(within(nameDialog).getByRole('button', { name: 'Duplicar para editar' }));
+    const retryButton = await screen.findByRole('button', {
+      name: 'Tentar salvar visualização',
+    });
+
+    await user.click(retryButton);
+    await waitFor(() => expect(clientMock.saveTableViews).toHaveBeenCalledTimes(2));
+    await changeDensity(user, 'padrão');
+    const candidate = (clientMock.saveTableViews.mock.calls[1]?.[0] as SaveTableViewsRequest).state;
+    pendingRetry.resolve(confirmedTableViewSave(candidate));
+    await waitFor(() => expect(screen.queryByText('Salvando visualização…')).toBeNull());
+
+    expect(screen.getByRole('heading', { name: 'Visão geral do elenco' })).toBeInstanceOf(
+      HTMLElement,
+    );
+    expect(screen.queryByRole('heading', { name: 'Plano de jogo' })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Visualização da tabela: Retry protegido' }),
+    ).toBeInstanceOf(HTMLButtonElement);
+    expect(screen.getAllByText('Alterações não salvas').length).toBeGreaterThan(0);
+    expect(clientMock.saveTableViews).toHaveBeenCalledTimes(2);
   });
 
   it('guards dirty deletion and Elenco navigation without implicit save or discard', async () => {

@@ -100,6 +100,7 @@ interface SavedViewDeleteDialogState {
 interface SavedViewRetryContext {
   readonly successMessage: string;
   readonly afterSave?: SavedViewTransitionTarget;
+  readonly continuationId?: number;
 }
 
 type RejectedSquadTableViewCommand = Extract<
@@ -324,6 +325,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
   const [savedViewFailureVisible, setSavedViewFailureVisible] = useState(false);
   const savedViewFailureHeadingRef = useRef<HTMLHeadingElement>(null);
   const savedViewRetryRef = useRef<SavedViewRetryContext | null>(null);
+  const savedViewContinuationRef = useRef(0);
 
   const selectedIds = useMemo(() => selectedIdsFromSlots(lineupSlots), [lineupSlots]);
   const durableFilters = useMemo(
@@ -467,6 +469,19 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
     window.requestAnimationFrame(focus);
   };
 
+  const beginSavedViewContinuation = () => {
+    savedViewContinuationRef.current += 1;
+    return savedViewContinuationRef.current;
+  };
+
+  const isCurrentSavedViewContinuation = (continuationId: number) =>
+    savedViewContinuationRef.current === continuationId;
+
+  const cancelSavedViewContinuation = () => {
+    savedViewContinuationRef.current += 1;
+    savedViewRetryRef.current = null;
+  };
+
   const finishSavedViewAction = (announcement: string) => {
     savedViewRetryRef.current = null;
     setSavedViewFailureVisible(false);
@@ -486,13 +501,9 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
     viewId: string,
     name: string,
     decision?: 'save' | 'discard',
-    afterSave?: SavedViewTransitionTarget,
   ) => {
     const successMessage = `Visualização “${name}” aberta.`;
-    savedViewRetryRef.current = {
-      successMessage,
-      ...(afterSave === undefined ? {} : { afterSave }),
-    };
+    savedViewRetryRef.current = { successMessage };
     const result = await tableView.activate(viewId, decision);
     if (result.status === 'confirmed') finishSavedViewAction(successMessage);
     return result;
@@ -508,7 +519,11 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
     return result;
   };
 
-  const continueAfterSavedView = async (target: SavedViewTransitionTarget) => {
+  const continueAfterSavedView = async (
+    target: SavedViewTransitionTarget,
+    continuationId: number,
+  ) => {
+    if (!isCurrentSavedViewContinuation(continuationId)) return;
     if (target.kind === 'view') {
       await performViewActivation(target.viewId, target.name);
       return;
@@ -525,8 +540,13 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
     const result = await tableView.retry();
     if (result.status !== 'confirmed') return;
 
-    if (context?.afterSave !== undefined && result.intent === 'save') {
-      await continueAfterSavedView(context.afterSave);
+    if (
+      context?.afterSave !== undefined &&
+      context.continuationId !== undefined &&
+      result.intent === 'save'
+    ) {
+      if (!isCurrentSavedViewContinuation(context.continuationId)) return;
+      await continueAfterSavedView(context.afterSave, context.continuationId);
       return;
     }
     finishSavedViewAction(context?.successMessage ?? 'Visualização salva.');
@@ -552,15 +572,20 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
       action = tableView.save(name);
     }
 
+    const continuationId =
+      dialog.continuation === undefined ? undefined : beginSavedViewContinuation();
     savedViewRetryRef.current = {
       successMessage,
-      ...(dialog.continuation === undefined ? {} : { afterSave: dialog.continuation }),
+      ...(dialog.continuation === undefined || continuationId === undefined
+        ? {}
+        : { afterSave: dialog.continuation, continuationId }),
     };
     const result = await action;
     if (result.status === 'confirmed') {
       setSavedViewNameDialog(null);
-      if (dialog.continuation !== undefined) {
-        await continueAfterSavedView(dialog.continuation);
+      if (dialog.continuation !== undefined && continuationId !== undefined) {
+        if (!isCurrentSavedViewContinuation(continuationId)) return;
+        await continueAfterSavedView(dialog.continuation, continuationId);
       } else {
         finishSavedViewAction(successMessage);
       }
@@ -685,6 +710,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
 
   const continueCurrentView = () => {
     const target = savedViewDirtyTarget;
+    cancelSavedViewContinuation();
     setSavedViewDirtyTarget(null);
     if (target?.kind === 'screen') focusNavigationItem(target.screen);
     else focusSavedViewSelector();
@@ -728,21 +754,19 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
       return;
     }
 
-    if (target.kind === 'view') {
-      const result = await performViewActivation(target.viewId, target.name, 'save', target);
-      if (result.status === 'confirmed') setSavedViewDirtyTarget(null);
-      return;
-    }
-
     const successMessage =
-      target.kind === 'screen'
-        ? `Alterações salvas. ${target.name} aberta.`
-        : `Visualização “${target.viewName}” excluída. “${target.name}” foi aberta.`;
-    savedViewRetryRef.current = { successMessage, afterSave: target };
+      target.kind === 'view'
+        ? `Visualização “${target.name}” aberta.`
+        : target.kind === 'screen'
+          ? `Alterações salvas. ${target.name} aberta.`
+          : `Visualização “${target.viewName}” excluída. “${target.name}” foi aberta.`;
+    const continuationId = beginSavedViewContinuation();
+    savedViewRetryRef.current = { successMessage, afterSave: target, continuationId };
     const result = await tableView.save();
     if (result.status !== 'confirmed') return;
+    if (!isCurrentSavedViewContinuation(continuationId)) return;
     setSavedViewDirtyTarget(null);
-    await continueAfterSavedView(target);
+    await continueAfterSavedView(target, continuationId);
   };
 
   const setActiveScreen = (activeScreen: ActiveScreen) => {
@@ -1401,6 +1425,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
           key={`${savedViewNameDialog.mode}:${savedViewNameDialog.viewId}`}
           mode={savedViewNameDialog.mode}
           onDismiss={() => {
+            cancelSavedViewContinuation();
             setSavedViewNameDialog(null);
             focusSavedViewSelector();
           }}
@@ -1413,6 +1438,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
           busy={tableView.persistenceStatus.status === 'saving'}
           onConfirm={confirmDeleteView}
           onDismiss={() => {
+            cancelSavedViewContinuation();
             setSavedViewDeleteDialog(null);
             focusSavedViewSelector();
           }}
