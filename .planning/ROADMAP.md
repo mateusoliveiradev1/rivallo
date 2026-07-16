@@ -230,13 +230,13 @@ The sports-management evolution is detailed below as a bounded future sequence. 
 **Goal:** Turn table personalization into one controlled cross-product capability and prove it in Elenco with durable, versioned views instead of screen-specific state.
 **Requirements:** SM-02; DATA-01 preference-boundary portion; UI-02 dense-table portion.
 **Depends on:** Phase 6 and the canonical Phase 5 Table View Engine contract.
-**Plans:** 1/8 plans executed
+**Plans:** 2/8 plans executed
 
 Plans:
 **Wave 1**
 
 - [x] 06.1-01-PLAN.md — Pure controlled Table View Engine and `squad.primary` schema.
-- [ ] 06.1-02-PLAN.md — Rust application repository port and lifecycle service.
+- [x] 06.1-02-PLAN.md — Rust application repository port and lifecycle service.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 

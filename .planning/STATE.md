@@ -4,17 +4,17 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 06.1
 current_phase_name: SM-2 Table View Engine and Durable Views
-current_plan: 2
+current_plan: 3
 status: executing
-stopped_at: Completed 06.1-01-PLAN.md
-last_updated: "2026-07-16T09:37:57.881Z"
+stopped_at: Completed 06.1-02-PLAN.md
+last_updated: "2026-07-16T10:39:34.417Z"
 last_activity: 2026-07-16
 last_activity_desc: Phase 06.1 execution started
 progress:
   total_phases: 18
   completed_phases: 4
   total_plans: 45
-  completed_plans: 35
+  completed_plans: 36
   percent: 22
 ---
 
@@ -35,7 +35,7 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 
 Current Phase: 06.1
 Current Phase Name: SM-2 Table View Engine and Durable Views
-Current Plan: 2
+Current Plan: 3
 Total Plans in Phase: 8
 Status: Ready to execute
 Progress: Phase 06.1 context gathered; UI specification and planning are next.
@@ -49,8 +49,8 @@ Last activity: 2026-07-16 — Phase 06.1 execution started
 
 ## Session
 
-**Last session:** 2026-07-16T09:37:57.877Z
-**Stopped at:** Completed 06.1-01-PLAN.md
+**Last session:** 2026-07-16T10:39:34.413Z
+**Stopped at:** Completed 06.1-02-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -99,6 +99,7 @@ Last activity: 2026-07-16 — Phase 06.1 execution started
 | Phase 05 P13 | 10min  | 2 tasks  | 4 files  |
 | Phase 06 P01 | 35min  | 5 tasks  | 26 files |
 | Phase 06.1 P01 | 27min | 2 tasks | 5 files |
+| Phase 06.1 P02 | 52 min | 2 tasks | 4 files |
 
 ## Decisions
 
@@ -178,3 +179,6 @@ Last activity: 2026-07-16 — Phase 06.1 execution started
 - [Phase 06.1]: Keep the Table View Engine framework-independent and I/O-free. — Owning-screen schemas declare capabilities while the pure reducer validates complete proposals and never owns React, storage, query, or network authority.
 - [Phase 06.1]: Represent Mostrar somente gols through ordinary durable commands. — Required columns plus goals visibility, goals-descending and name tie-break sorts, and a typed goals greater-than-zero clause use the same pipeline as every other view.
 - [Phase 06.1]: Keep player-name search transient and encode existing squad filters durably. — Todos/Titulares/Reservas, Setor, Status, and optional Posicao normalize into typed filter groups while the global name query does not dirty or persist a saved view.
+- [Phase 06.1]: Application owns the exact squad.primary system baseline. — Repository state cannot spoof system provenance or mutate immutable defaults.
+- [Phase 06.1]: Legacy import receipts are confirmed only after atomic save succeeds. — Failed imports retain prior durable state and expose no receipt while remaining retryable by source version and fingerprint.
+- [Phase 06.1]: Lifecycle transitions preserve system and read-only views byte-for-byte. — Only user-owned mutable views can be renamed, saved, reset, or deleted; safe fallback references persist in one candidate.
