@@ -230,7 +230,7 @@ The sports-management evolution is detailed below as a bounded future sequence. 
 **Goal:** Turn table personalization into one controlled cross-product capability and prove it in Elenco with durable, versioned views instead of screen-specific state.
 **Requirements:** SM-02; DATA-01 preference-boundary portion; UI-02 dense-table portion.
 **Depends on:** Phase 6 and the canonical Phase 5 Table View Engine contract.
-**Plans:** 4/8 plans executed
+**Plans:** 5/8 plans executed
 
 Plans:
 **Wave 1**
@@ -248,7 +248,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 06.1-05-PLAN.md — Controlled React controller and preference-boundary migration.
+- [x] 06.1-05-PLAN.md — Controlled React controller and preference-boundary migration.
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
