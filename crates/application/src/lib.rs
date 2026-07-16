@@ -7,7 +7,7 @@ pub use matchday::{MatchdayRepository, MatchdayService, MatchdayServiceError};
 pub use persistence::{LocalPersistenceError, LocalPersistencePort};
 pub use rivallo_domain::{
     Club, Formation, LineupSelection, MatchEvent, MatchResult, MatchdayState, Player, Position,
-    SeasonRecord, TacticalApproach,
+    PreferredFoot, SeasonRecord, SquadRole, TacticalApproach,
 };
 
 use rivallo_domain::{ModuleId, PreparedContractInput};

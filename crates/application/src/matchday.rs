@@ -46,7 +46,14 @@ impl<R: MatchdayRepository> MatchdayService<R> {
             .load()
             .map_err(MatchdayServiceError::Persistence)?
         {
-            Some(state) => Ok(state),
+            Some(mut state) => {
+                if state.backfill_player_profiles() {
+                    self.repository
+                        .save(&state)
+                        .map_err(MatchdayServiceError::Persistence)?;
+                }
+                Ok(state)
+            }
             None => {
                 let state = MatchdayState::default();
                 self.repository
@@ -109,5 +116,24 @@ mod tests {
         assert_eq!(initial.round, 1);
         assert_eq!(played.round, 2);
         assert_eq!(service.state().expect("reloaded state"), played);
+    }
+
+    #[test]
+    fn backfills_and_persists_detailed_profiles_for_an_existing_career() {
+        let mut legacy = MatchdayState::default();
+        legacy.players[0].shirt_number = 0;
+        legacy.players[0].nationality.clear();
+        legacy.players[0].height_cm = 0;
+        legacy.players[0].potential_rating = 0;
+        let service = MatchdayService::new(MemoryRepository {
+            state: RefCell::new(Some(legacy)),
+        });
+
+        let migrated = service.state().expect("migrated state");
+        assert_eq!(migrated.players[0].shirt_number, 1);
+        assert_eq!(migrated.players[0].nationality, "BRA");
+        assert_eq!(migrated.players[0].height_cm, 190);
+        assert_eq!(migrated.players[0].potential_rating, 76);
+        assert_eq!(service.state().expect("persisted migration"), migrated);
     }
 }

@@ -1,6 +1,6 @@
 import '@testing-library/dom';
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MatchdayScreen } from './MatchdayScreen.js';
@@ -27,14 +27,26 @@ const players: Player[] = [
   ['p10', 'Murilo Braga', 'M. Braga', 'ST', 81, true],
   ['p11', 'Noah Teles', 'N. Teles', 'LW', 77, true],
   ['p12', 'Ícaro Reis', 'Í. Reis', 'GK', 68, false],
-].map(([id, name, shortName, position, rating, selected]) => ({
+].map(([id, name, shortName, position, rating, selected], index): Player => ({
   id: String(id),
   name: String(name),
   shortName: String(shortName),
+  shirtNumber: [1, 22, 3, 4, 16, 5, 8, 10, 7, 9, 11, 12][index] ?? index + 1,
   position: position as Player['position'],
   age: 24,
+  nationality: 'BRA',
+  heightCm: 180,
+  preferredFoot: 'right',
+  squadRole: selected ? 'firstTeam' : 'prospect',
   rating: Number(rating),
+  potentialRating: Number(rating) + 3,
+  matchFitness: 92,
+  morale: 80,
   condition: 95,
+  appearances: selected ? 14 : 2,
+  goals: position === 'ST' ? 8 : 0,
+  assists: position === 'CM' ? 4 : 1,
+  averageRating: 7.12,
   selected: Boolean(selected),
 }));
 
@@ -103,12 +115,16 @@ describe('MatchdayScreen', () => {
     expect(await screen.findByRole('heading', { name: 'Visão geral do elenco' })).toBeInstanceOf(
       HTMLHeadingElement,
     );
-    expect(screen.getAllByRole('button', { name: /Retirar/u })).toHaveLength(11);
+    expect(
+      within(screen.getByRole('table')).getAllByRole('button', { name: /Retirar/u }),
+    ).toHaveLength(11);
     expect((screen.getByRole('button', { name: 'Continuar' }) as HTMLButtonElement).disabled).toBe(
       false,
     );
     expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
-    expect(screen.getAllByRole('button', { name: /Retirar|Escalar/u })).toHaveLength(12);
+    expect(
+      within(screen.getByRole('table')).getAllByRole('button', { name: /Retirar|Escalar/u }),
+    ).toHaveLength(12);
   });
 
   it('lets the manager replace the goalkeeper and save a valid XI', async () => {
@@ -145,9 +161,33 @@ describe('MatchdayScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Densidade confortável' }));
 
     await waitFor(() => {
-      const stored = window.localStorage.getItem('rivallo.squad-ui.v2');
+      const stored = window.localStorage.getItem('rivallo.squad-ui.v4');
       expect(stored).toContain('"sidebarCollapsed":true');
       expect(stored).toContain('"density":"comfortable"');
     });
+  });
+
+  it('opens Tactics as a dedicated screen and substitutes through the accessible field flow', async () => {
+    render(<MatchdayScreen serviceOwnership="owned" />);
+    await screen.findByRole('heading', { name: 'Visão geral do elenco' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Táticas' }));
+    expect(screen.getByRole('heading', { name: 'Plano de jogo' })).toBeInstanceOf(
+      HTMLHeadingElement,
+    );
+    expect(screen.queryByRole('table')).toBeNull();
+    expect(screen.getByLabelText('Escalação no 4-3-3')).toBeInstanceOf(HTMLElement);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Selecionar reserva Ícaro Reis' }));
+    fireEvent.click(screen.getByRole('button', { name: /^GOL: Caio Brandão/u }));
+    expect(screen.getByRole('button', { name: /^GOL: Ícaro Reis/u })).toBeInstanceOf(
+      HTMLButtonElement,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar plano' }));
+    await waitFor(() => expect(clientMock.saveMatchdayLineup).toHaveBeenCalledOnce());
+    const [selectedIds] = clientMock.saveMatchdayLineup.mock.calls[0] as [string[]];
+    expect(selectedIds).toContain('p12');
+    expect(selectedIds).not.toContain('p1');
   });
 });

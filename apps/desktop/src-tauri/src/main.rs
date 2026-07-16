@@ -451,7 +451,8 @@ fn main() {
         ])
         .setup(move |app| {
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.maximize();
+                let _ = window.set_decorations(false);
+                let _ = window.set_fullscreen(true);
             }
             let matchday_path = app.path().app_data_dir()?.join("first-playable.json");
             app.manage(Arc::new(MatchdayCoordinator::new(matchday_path)));

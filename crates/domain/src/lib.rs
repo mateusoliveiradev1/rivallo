@@ -4,7 +4,7 @@ mod matchday;
 
 pub use matchday::{
     Club, Formation, LineupSelection, MatchEvent, MatchResult, MatchdayError, MatchdayState,
-    Player, Position, SeasonRecord, TacticalApproach,
+    Player, Position, PreferredFoot, SeasonRecord, SquadRole, TacticalApproach,
 };
 
 /// A neutral identifier for a module participating in contract preparation.

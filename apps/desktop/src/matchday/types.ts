@@ -1,6 +1,8 @@
 export type Position = 'GK' | 'RB' | 'CB' | 'LB' | 'DM' | 'CM' | 'AM' | 'RW' | 'LW' | 'ST';
 export type Formation = '4-3-3' | '4-2-3-1' | '4-4-2';
 export type TacticalApproach = 'balanced' | 'frontFoot' | 'compact';
+export type PreferredFoot = 'left' | 'right';
+export type SquadRole = 'keyPlayer' | 'firstTeam' | 'rotation' | 'prospect' | 'backup';
 
 export interface Club {
   readonly id: string;
@@ -14,10 +16,22 @@ export interface Player {
   readonly id: string;
   readonly name: string;
   readonly shortName: string;
+  readonly shirtNumber: number;
   readonly position: Position;
   readonly age: number;
+  readonly nationality: string;
+  readonly heightCm: number;
+  readonly preferredFoot: PreferredFoot;
+  readonly squadRole: SquadRole;
   readonly rating: number;
+  readonly potentialRating: number;
+  readonly matchFitness: number;
+  readonly morale: number;
   readonly condition: number;
+  readonly appearances: number;
+  readonly goals: number;
+  readonly assists: number;
+  readonly averageRating: number;
   readonly selected: boolean;
 }
 

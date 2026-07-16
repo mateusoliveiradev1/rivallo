@@ -19,6 +19,25 @@ pub enum Position {
     St,
 }
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PreferredFoot {
+    Left,
+    #[default]
+    Right,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SquadRole {
+    KeyPlayer,
+    FirstTeam,
+    #[default]
+    Rotation,
+    Prospect,
+    Backup,
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum Formation {
     #[serde(rename = "4-3-3")]
@@ -37,16 +56,40 @@ pub enum TacticalApproach {
     Compact,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Player {
     pub id: String,
     pub name: String,
     pub short_name: String,
+    #[serde(default)]
+    pub shirt_number: u8,
     pub position: Position,
     pub age: u8,
+    #[serde(default)]
+    pub nationality: String,
+    #[serde(default)]
+    pub height_cm: u16,
+    #[serde(default)]
+    pub preferred_foot: PreferredFoot,
+    #[serde(default)]
+    pub squad_role: SquadRole,
     pub rating: u8,
+    #[serde(default)]
+    pub potential_rating: u8,
+    #[serde(default)]
+    pub match_fitness: u8,
+    #[serde(default)]
+    pub morale: u8,
     pub condition: u8,
+    #[serde(default)]
+    pub appearances: u16,
+    #[serde(default)]
+    pub goals: u16,
+    #[serde(default)]
+    pub assists: u16,
+    #[serde(default)]
+    pub average_rating: f32,
     pub selected: bool,
 }
 
@@ -103,7 +146,7 @@ pub struct SeasonRecord {
     pub points: u16,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MatchdayState {
     pub club: Club,
@@ -143,15 +186,298 @@ impl Default for MatchdayState {
                       position: Position,
                       age: u8,
                       rating: u8,
-                      condition: u8| Player {
-            id: id.to_owned(),
-            name: name.to_owned(),
-            short_name: short_name.to_owned(),
-            position,
-            age,
-            rating,
-            condition,
-            selected: starters.contains(id),
+                      condition: u8| {
+            let (
+                shirt_number,
+                nationality,
+                height_cm,
+                preferred_foot,
+                squad_role,
+                potential_rating,
+                match_fitness,
+                morale,
+                appearances,
+                goals,
+                assists,
+                average_rating,
+            ) = match id {
+                "rv-01" => (
+                    1,
+                    "BRA",
+                    190,
+                    PreferredFoot::Right,
+                    SquadRole::FirstTeam,
+                    76,
+                    92,
+                    78,
+                    16,
+                    0,
+                    0,
+                    7.18,
+                ),
+                "rv-02" => (
+                    22,
+                    "BRA",
+                    177,
+                    PreferredFoot::Right,
+                    SquadRole::FirstTeam,
+                    76,
+                    88,
+                    74,
+                    14,
+                    0,
+                    3,
+                    6.91,
+                ),
+                "rv-03" => (
+                    3,
+                    "BRA",
+                    188,
+                    PreferredFoot::Right,
+                    SquadRole::KeyPlayer,
+                    78,
+                    91,
+                    82,
+                    16,
+                    1,
+                    0,
+                    7.24,
+                ),
+                "rv-04" => (
+                    4,
+                    "BRA",
+                    186,
+                    PreferredFoot::Right,
+                    SquadRole::FirstTeam,
+                    78,
+                    94,
+                    79,
+                    15,
+                    0,
+                    1,
+                    7.08,
+                ),
+                "rv-05" => (
+                    16,
+                    "BRA",
+                    175,
+                    PreferredFoot::Left,
+                    SquadRole::FirstTeam,
+                    82,
+                    96,
+                    86,
+                    15,
+                    1,
+                    4,
+                    7.32,
+                ),
+                "rv-06" => (
+                    5,
+                    "URU",
+                    184,
+                    PreferredFoot::Right,
+                    SquadRole::KeyPlayer,
+                    79,
+                    90,
+                    84,
+                    16,
+                    2,
+                    2,
+                    7.41,
+                ),
+                "rv-07" => (
+                    8,
+                    "BRA",
+                    181,
+                    PreferredFoot::Right,
+                    SquadRole::FirstTeam,
+                    84,
+                    95,
+                    88,
+                    15,
+                    3,
+                    5,
+                    7.36,
+                ),
+                "rv-08" => (
+                    10,
+                    "BRA",
+                    178,
+                    PreferredFoot::Left,
+                    SquadRole::FirstTeam,
+                    79,
+                    87,
+                    76,
+                    13,
+                    2,
+                    6,
+                    7.12,
+                ),
+                "rv-09" => (
+                    7,
+                    "BRA",
+                    174,
+                    PreferredFoot::Left,
+                    SquadRole::KeyPlayer,
+                    86,
+                    97,
+                    91,
+                    16,
+                    6,
+                    7,
+                    7.62,
+                ),
+                "rv-10" => (
+                    9,
+                    "BRA",
+                    187,
+                    PreferredFoot::Right,
+                    SquadRole::KeyPlayer,
+                    82,
+                    93,
+                    89,
+                    16,
+                    11,
+                    2,
+                    7.71,
+                ),
+                "rv-11" => (
+                    11,
+                    "BRA",
+                    176,
+                    PreferredFoot::Right,
+                    SquadRole::FirstTeam,
+                    82,
+                    94,
+                    85,
+                    15,
+                    5,
+                    5,
+                    7.38,
+                ),
+                "rv-12" => (
+                    12,
+                    "BRA",
+                    193,
+                    PreferredFoot::Right,
+                    SquadRole::Prospect,
+                    81,
+                    83,
+                    72,
+                    2,
+                    0,
+                    0,
+                    6.88,
+                ),
+                "rv-13" => (
+                    14,
+                    "BRA",
+                    190,
+                    PreferredFoot::Right,
+                    SquadRole::Backup,
+                    72,
+                    78,
+                    68,
+                    5,
+                    0,
+                    0,
+                    6.72,
+                ),
+                "rv-14" => (
+                    27,
+                    "BRA",
+                    179,
+                    PreferredFoot::Right,
+                    SquadRole::Prospect,
+                    86,
+                    89,
+                    81,
+                    7,
+                    1,
+                    2,
+                    7.03,
+                ),
+                "rv-15" => (
+                    20,
+                    "ARG",
+                    176,
+                    PreferredFoot::Left,
+                    SquadRole::Rotation,
+                    83,
+                    90,
+                    83,
+                    10,
+                    3,
+                    3,
+                    7.15,
+                ),
+                "rv-16" => (
+                    17,
+                    "POR",
+                    172,
+                    PreferredFoot::Right,
+                    SquadRole::Rotation,
+                    75,
+                    86,
+                    73,
+                    9,
+                    2,
+                    2,
+                    6.89,
+                ),
+                "rv-17" => (
+                    19,
+                    "BRA",
+                    185,
+                    PreferredFoot::Right,
+                    SquadRole::Rotation,
+                    75,
+                    76,
+                    65,
+                    8,
+                    4,
+                    1,
+                    6.96,
+                ),
+                "rv-18" => (
+                    25,
+                    "BRA",
+                    178,
+                    PreferredFoot::Left,
+                    SquadRole::Prospect,
+                    82,
+                    91,
+                    80,
+                    6,
+                    0,
+                    2,
+                    6.94,
+                ),
+                _ => unreachable!("unknown default player profile"),
+            };
+
+            Player {
+                id: id.to_owned(),
+                name: name.to_owned(),
+                short_name: short_name.to_owned(),
+                shirt_number,
+                position,
+                age,
+                nationality: nationality.to_owned(),
+                height_cm,
+                preferred_foot,
+                squad_role,
+                rating,
+                potential_rating,
+                match_fitness,
+                morale,
+                condition,
+                appearances,
+                goals,
+                assists,
+                average_rating,
+                selected: starters.contains(id),
+            }
         };
 
         Self {
@@ -271,6 +597,43 @@ impl Default for MatchdayState {
 }
 
 impl MatchdayState {
+    /// Completes careers created before detailed squad profiles were introduced.
+    /// The zero shirt number is reserved as the migration sentinel and is never
+    /// used by a seeded player.
+    pub fn backfill_player_profiles(&mut self) -> bool {
+        let defaults = Self::default();
+        let mut changed = false;
+
+        for player in &mut self.players {
+            if player.shirt_number != 0 {
+                continue;
+            }
+            let Some(profile) = defaults
+                .players
+                .iter()
+                .find(|profile| profile.id == player.id)
+            else {
+                continue;
+            };
+
+            player.shirt_number = profile.shirt_number;
+            player.nationality.clone_from(&profile.nationality);
+            player.height_cm = profile.height_cm;
+            player.preferred_foot = profile.preferred_foot;
+            player.squad_role = profile.squad_role;
+            player.potential_rating = profile.potential_rating;
+            player.match_fitness = profile.match_fitness;
+            player.morale = profile.morale;
+            player.appearances = profile.appearances;
+            player.goals = profile.goals;
+            player.assists = profile.assists;
+            player.average_rating = profile.average_rating;
+            changed = true;
+        }
+
+        changed
+    }
+
     pub fn selection(&self) -> LineupSelection {
         LineupSelection {
             player_ids: self
@@ -373,12 +736,34 @@ impl MatchdayState {
                 )
             })
             .collect();
+        let creators: Vec<_> = selected
+            .iter()
+            .copied()
+            .filter(|player| {
+                matches!(
+                    player.position,
+                    Position::Cm | Position::Am | Position::Rw | Position::Lw
+                )
+            })
+            .collect();
         let mut events = Vec::new();
+        let mut scorer_ids = Vec::new();
+        let mut assistant_ids = Vec::new();
         for goal in 0..home_goals {
             let scorer = scorers
                 .get(usize::from(goal) % scorers.len().max(1))
                 .copied()
                 .unwrap_or(selected[0]);
+            scorer_ids.push(scorer.id.clone());
+            if let Some(assistant) = creators
+                .iter()
+                .cycle()
+                .skip(usize::from(goal))
+                .take(creators.len())
+                .find(|player| player.id != scorer.id)
+            {
+                assistant_ids.push(assistant.id.clone());
+            }
             events.push(MatchEvent {
                 minute: 14 + goal * 19,
                 kind: "goal".to_owned(),
@@ -413,6 +798,44 @@ impl MatchdayState {
             shots_against: 6 + away_goals * 2 + defending_roll,
             events,
         };
+        let selected_ids: HashSet<_> = selected.iter().map(|player| player.id.clone()).collect();
+        drop(creators);
+        drop(scorers);
+        drop(selected);
+
+        for player in &mut self.players {
+            if !selected_ids.contains(&player.id) {
+                continue;
+            }
+
+            let goals = scorer_ids.iter().filter(|id| *id == &player.id).count() as u16;
+            let assists = assistant_ids.iter().filter(|id| *id == &player.id).count() as u16;
+            let previous_appearances = player.appearances;
+            let result_modifier = match home_goals.cmp(&away_goals) {
+                std::cmp::Ordering::Greater => 0.45,
+                std::cmp::Ordering::Equal => 0.1,
+                std::cmp::Ordering::Less => -0.25,
+            };
+            let match_rating =
+                (6.4_f32 + result_modifier + goals as f32 * 0.8 + assists as f32 * 0.35)
+                    .clamp(5.0, 10.0);
+            player.average_rating = ((player.average_rating * f32::from(previous_appearances)
+                + match_rating)
+                / f32::from(previous_appearances + 1)
+                * 100.0)
+                .round()
+                / 100.0;
+            player.appearances += 1;
+            player.goals += goals;
+            player.assists += assists;
+            player.match_fitness = player.match_fitness.saturating_sub(4);
+            player.condition = player.condition.saturating_sub(3);
+            player.morale = match home_goals.cmp(&away_goals) {
+                std::cmp::Ordering::Greater => player.morale.saturating_add(4).min(100),
+                std::cmp::Ordering::Equal => player.morale.saturating_add(1).min(100),
+                std::cmp::Ordering::Less => player.morale.saturating_sub(4),
+            };
+        }
         self.record.played += 1;
         self.record.goals_for += u16::from(home_goals);
         self.record.goals_against += u16::from(away_goals);
@@ -446,6 +869,22 @@ mod tests {
             state
                 .players
                 .iter()
+                .map(|player| player.shirt_number)
+                .collect::<HashSet<_>>()
+                .len(),
+            18
+        );
+        assert!(state.players.iter().all(|player| {
+            player.shirt_number > 0
+                && player.nationality.len() == 3
+                && player.height_cm >= 170
+                && player.potential_rating >= player.rating
+                && (6.0..=10.0).contains(&player.average_rating)
+        }));
+        assert_eq!(
+            state
+                .players
+                .iter()
                 .filter(|player| player.selected && player.position == Position::Gk)
                 .count(),
             1
@@ -467,11 +906,43 @@ mod tests {
     fn simulation_is_deterministic_and_advances_the_record() {
         let mut first = MatchdayState::default();
         let mut second = MatchdayState::default();
+        let starter_before = first.players[0].clone();
+        let goals_before: u16 = first.players.iter().map(|player| player.goals).sum();
+        let assists_before: u16 = first.players.iter().map(|player| player.assists).sum();
         let first_result = first.play_next_match().expect("valid default lineup");
         let second_result = second.play_next_match().expect("valid default lineup");
+        let simulated_goals = u16::from(first_result.home_goals);
+        let expected_morale = match first_result.home_goals.cmp(&first_result.away_goals) {
+            std::cmp::Ordering::Greater => starter_before.morale.saturating_add(4).min(100),
+            std::cmp::Ordering::Equal => starter_before.morale.saturating_add(1).min(100),
+            std::cmp::Ordering::Less => starter_before.morale.saturating_sub(4),
+        };
         assert_eq!(first_result, second_result);
         assert_eq!(first.round, 2);
         assert_eq!(first.record.played, 1);
         assert_eq!(first.last_result, Some(first_result));
+        assert_eq!(first.players[0].appearances, starter_before.appearances + 1);
+        assert_eq!(
+            first.players[0].match_fitness,
+            starter_before.match_fitness - 4
+        );
+        assert_eq!(first.players[0].condition, starter_before.condition - 3);
+        assert_eq!(first.players[0].morale, expected_morale);
+        assert_ne!(
+            first.players[0].average_rating,
+            starter_before.average_rating
+        );
+        assert_eq!(
+            first.players.iter().map(|player| player.goals).sum::<u16>(),
+            goals_before + simulated_goals
+        );
+        assert_eq!(
+            first
+                .players
+                .iter()
+                .map(|player| player.assists)
+                .sum::<u16>(),
+            assists_before + simulated_goals
+        );
     }
 }

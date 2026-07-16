@@ -18,6 +18,10 @@ describe('Phase 4 desktop-owned local API lifecycle', () => {
     const parsedCapability = JSON.parse(capability);
     expect(parsedCapability.permissions).toEqual([
       'core:default',
+      'core:window:allow-minimize',
+      'core:window:allow-is-fullscreen',
+      'core:window:allow-set-fullscreen',
+      'core:window:allow-close',
       {
         identifier: 'shell:allow-execute',
         allow: [{ name: 'binaries/local_api', sidecar: true, args: false }],

@@ -1,0 +1,592 @@
+import { Icon } from '@rivallo/icons';
+import type { CSSProperties, ReactNode } from 'react';
+
+import { Button } from '../ui/primitives/actions.js';
+import {
+  defaultSquadSort,
+  optionalColumnLabels,
+  optionalColumns,
+  positionLabels,
+  positionLongLabels,
+  preferredFootLabels,
+  squadColumnLabels,
+  squadColumnSortLabels,
+  squadRoleLabels,
+  squadSortPresets,
+  type Density,
+  type OptionalColumn,
+  type RoleFilter,
+  type SquadFilter,
+  type StatusFilter,
+  type UiPreferences,
+} from './matchday-ui.js';
+import { PlayerFace } from './PlayerFace.js';
+import type { SortKey, SquadSortState } from './squad-sort.js';
+import type { MatchdayState, Player } from './types.js';
+
+const descendingFirstColumns = new Set<SortKey>([
+  'rating',
+  'potentialRating',
+  'matchFitness',
+  'morale',
+  'condition',
+  'appearances',
+  'goals',
+  'assists',
+  'averageRating',
+]);
+
+const averageRatingFormatter = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+interface SortableColumnHeaderProps {
+  readonly column: SortKey;
+  readonly sortState: SquadSortState;
+  readonly onSortChange: (sort: SquadSortState) => void;
+}
+
+function SortableColumnHeader({ column, sortState, onSortChange }: SortableColumnHeaderProps) {
+  const active = sortState.key === column;
+  const nextDirection = active
+    ? sortState.direction === 'asc'
+      ? 'desc'
+      : 'asc'
+    : descendingFirstColumns.has(column)
+      ? 'desc'
+      : 'asc';
+  const ariaSort = active ? (sortState.direction === 'asc' ? 'ascending' : 'descending') : 'none';
+
+  return (
+    <th aria-sort={ariaSort} data-column={column} scope="col">
+      <button
+        aria-label={`Ordenar por ${squadColumnSortLabels[column]} em ordem ${nextDirection === 'asc' ? 'crescente' : 'decrescente'}`}
+        data-active={active || undefined}
+        onClick={() => onSortChange({ key: column, direction: nextDirection })}
+        type="button"
+      >
+        {squadColumnLabels[column]}
+        {active && <span aria-hidden="true">{sortState.direction === 'asc' ? ' ↑' : ' ↓'}</span>}
+      </button>
+    </th>
+  );
+}
+
+const renderReadiness = (value: number): ReactNode => (
+  <span className="condition-cell" data-attention={value < 90 || undefined}>
+    <i aria-hidden="true">
+      <b style={{ '--condition': `${value}%` } as CSSProperties} />
+    </i>
+    <strong>{value}%</strong>
+  </span>
+);
+
+const renderOptionalPlayerValue = (player: Player, column: OptionalColumn): ReactNode => {
+  switch (column) {
+    case 'age':
+      return player.age;
+    case 'nationality':
+      return player.nationality;
+    case 'heightCm':
+      return `${Math.floor(player.heightCm / 100)},${String(player.heightCm % 100).padStart(2, '0')} m`;
+    case 'preferredFoot':
+      return preferredFootLabels[player.preferredFoot];
+    case 'squadRole':
+      return (
+        <span className="importance-label" data-level={squadRoleLabels[player.squadRole]}>
+          {squadRoleLabels[player.squadRole]}
+        </span>
+      );
+    case 'rating':
+      return <strong className="rating-value">{player.rating}</strong>;
+    case 'potentialRating':
+      return <strong className="rating-value">{player.potentialRating}</strong>;
+    case 'matchFitness':
+      return renderReadiness(player.matchFitness);
+    case 'morale':
+      return `${player.morale}%`;
+    case 'condition':
+      return renderReadiness(player.condition);
+    case 'appearances':
+      return player.appearances;
+    case 'goals':
+      return player.goals;
+    case 'assists':
+      return player.assists;
+    case 'averageRating':
+      return averageRatingFormatter.format(player.averageRating);
+  }
+};
+
+interface SquadWorkspaceProps {
+  readonly state: MatchdayState;
+  readonly players: readonly Player[];
+  readonly selectedIds: readonly string[];
+  readonly focusedPlayerId: string | null;
+  readonly query: string;
+  readonly squadFilter: SquadFilter;
+  readonly sortState: SquadSortState;
+  readonly roleFilter: RoleFilter;
+  readonly statusFilter: StatusFilter;
+  readonly positionFilter: 'all' | Player['position'];
+  readonly positionFilterVisible: boolean;
+  readonly preferences: UiPreferences;
+  readonly dirty: boolean;
+  readonly message: string;
+  readonly error: string;
+  readonly saving: boolean;
+  readonly onFocusPlayer: (playerId: string) => void;
+  readonly onTogglePlayer: (player: Player) => void;
+  readonly onSave: () => void;
+  readonly onClearFilters: () => void;
+  readonly onSquadFilterChange: (filter: SquadFilter) => void;
+  readonly onSortChange: (sort: SquadSortState) => void;
+  readonly onRoleFilterChange: (filter: RoleFilter) => void;
+  readonly onStatusFilterChange: (filter: StatusFilter) => void;
+  readonly onPositionFilterChange: (filter: 'all' | Player['position']) => void;
+  readonly onPositionFilterVisibleChange: (visible: boolean) => void;
+  readonly onDensityChange: (density: Density) => void;
+  readonly onToggleColumn: (column: OptionalColumn) => void;
+  readonly onResetView: () => void;
+}
+
+export function SquadWorkspace({
+  state,
+  players,
+  selectedIds,
+  focusedPlayerId,
+  query,
+  squadFilter,
+  sortState,
+  roleFilter,
+  statusFilter,
+  positionFilter,
+  positionFilterVisible,
+  preferences,
+  dirty,
+  message,
+  error,
+  saving,
+  onFocusPlayer,
+  onTogglePlayer,
+  onSave,
+  onClearFilters,
+  onSquadFilterChange,
+  onSortChange,
+  onRoleFilterChange,
+  onStatusFilterChange,
+  onPositionFilterChange,
+  onPositionFilterVisibleChange,
+  onDensityChange,
+  onToggleColumn,
+  onResetView,
+}: SquadWorkspaceProps) {
+  const focusedPlayer =
+    state.players.find((player) => player.id === focusedPlayerId) ?? state.players[0];
+  const focusedIndex = focusedPlayer
+    ? state.players.findIndex((player) => player.id === focusedPlayer.id)
+    : -1;
+  const focusedSelected = focusedPlayer ? selectedIds.includes(focusedPlayer.id) : false;
+  const activeSortPreset =
+    squadSortPresets.find(
+      ({ sort }) => sort.key === sortState.key && sort.direction === sortState.direction,
+    )?.id ?? 'custom';
+  const hasActiveFilters =
+    query.length > 0 ||
+    squadFilter !== 'all' ||
+    sortState.key !== defaultSquadSort.key ||
+    sortState.direction !== defaultSquadSort.direction ||
+    roleFilter !== 'all' ||
+    statusFilter !== 'all' ||
+    positionFilterVisible;
+
+  return (
+    <section className="screen-view squad-view" aria-labelledby="squad-screen-title">
+      <header className="screen-heading">
+        <div>
+          <span>ELENCO · PLANTEL PRINCIPAL</span>
+          <h1 id="squad-screen-title">Visão geral do elenco</h1>
+        </div>
+        <div
+          className="fixture-summary"
+          aria-label={`${state.club.name} contra ${state.opponent.name}`}
+        >
+          <span>Próximo jogo · Rodada {state.round}</span>
+          <strong>
+            {state.club.shortName} <i>20:30</i> {state.opponent.shortName}
+          </strong>
+        </div>
+      </header>
+
+      <nav aria-label="Seções do elenco" className="section-tabs">
+        <button aria-current="page" type="button">
+          Jogadores
+        </button>
+        <button disabled title="Em breve" type="button">
+          Internacional
+        </button>
+        <button disabled title="Em breve" type="button">
+          Empréstimos
+        </button>
+        <button disabled title="Em breve" type="button">
+          Numeração
+        </button>
+        <button disabled title="Em breve" type="button">
+          Planejamento
+        </button>
+      </nav>
+
+      <section aria-label="Filtros do elenco" className="squad-toolbar">
+        <label className="toolbar-field toolbar-field--accent">
+          <Icon name="filter" size={16} />
+          <span>Visualização</span>
+          <select
+            aria-label="Filtro rápido"
+            onChange={(event) => onSquadFilterChange(event.target.value as SquadFilter)}
+            value={squadFilter}
+          >
+            <option value="all">Todos</option>
+            <option value="selected">Titulares</option>
+            <option value="reserve">Reservas</option>
+          </select>
+        </label>
+        <label className="toolbar-field">
+          <span>Ordenar</span>
+          <select
+            aria-label="Ordenar elenco"
+            onChange={(event) => {
+              const preset = squadSortPresets.find(({ id }) => id === event.target.value);
+              if (preset) onSortChange(preset.sort);
+            }}
+            value={activeSortPreset}
+          >
+            {activeSortPreset === 'custom' && <option value="custom">Personalizada</option>}
+            {squadSortPresets.map((preset) => (
+              <option key={preset.id} value={preset.id}>
+                {preset.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="toolbar-field">
+          <span>Setor</span>
+          <select
+            aria-label="Filtrar por setor"
+            onChange={(event) => onRoleFilterChange(event.target.value as RoleFilter)}
+            value={roleFilter}
+          >
+            <option value="all">Todos</option>
+            <option value="goalkeepers">Goleiros</option>
+            <option value="defenders">Defesa</option>
+            <option value="midfielders">Meio-campo</option>
+            <option value="attackers">Ataque</option>
+          </select>
+        </label>
+        <label className="toolbar-field">
+          <span>Status</span>
+          <select
+            aria-label="Filtrar por condição"
+            onChange={(event) => onStatusFilterChange(event.target.value as StatusFilter)}
+            value={statusFilter}
+          >
+            <option value="all">Todos</option>
+            <option value="ready">Prontos</option>
+            <option value="attention">Atenção</option>
+          </select>
+        </label>
+        {positionFilterVisible && (
+          <label className="toolbar-field toolbar-field--position">
+            <span>Posição</span>
+            <select
+              aria-label="Filtrar por posição"
+              onChange={(event) =>
+                onPositionFilterChange(event.target.value as 'all' | Player['position'])
+              }
+              value={positionFilter}
+            >
+              <option value="all">Todas</option>
+              {Object.entries(positionLabels).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <span className="squad-toolbar__spacer" />
+        <button
+          className="toolbar-action"
+          disabled={!hasActiveFilters}
+          onClick={onClearFilters}
+          type="button"
+        >
+          <Icon name="close" size={16} />
+          Limpar
+        </button>
+        <button
+          className="toolbar-action toolbar-action--accent"
+          onClick={() => {
+            if (positionFilterVisible) onPositionFilterChange('all');
+            onPositionFilterVisibleChange(!positionFilterVisible);
+          }}
+          type="button"
+        >
+          <Icon name={positionFilterVisible ? 'close' : 'add'} size={16} />
+          {positionFilterVisible ? 'Remover posição' : 'Adicionar filtro'}
+        </button>
+      </section>
+
+      <div
+        className="squad-layout"
+        data-details={(preferences.showPlayerDetails && Boolean(focusedPlayer)) || undefined}
+        data-density={preferences.density}
+      >
+        <section className="squad-panel" aria-labelledby="players-title">
+          <header className="squad-panel__header">
+            <div>
+              <h2 id="players-title">{players.length} jogadores</h2>
+              <span>{state.club.name} · plantel principal</span>
+            </div>
+            <div className="table-controls">
+              <span>Densidade</span>
+              {(['compact', 'standard', 'comfortable'] as const).map((density) => (
+                <button
+                  aria-label={`Densidade ${density === 'compact' ? 'compacta' : density === 'standard' ? 'padrão' : 'confortável'}`}
+                  aria-pressed={preferences.density === density}
+                  className="density-control"
+                  key={density}
+                  onClick={() => onDensityChange(density)}
+                  type="button"
+                >
+                  <i data-lines={density} />
+                </button>
+              ))}
+              <details className="column-picker">
+                <summary>
+                  <Icon name="columns" size={16} /> Colunas
+                </summary>
+                <div className="column-picker__menu">
+                  <strong>Colunas visíveis</strong>
+                  {optionalColumns.map((column) => (
+                    <button
+                      aria-pressed={preferences.visibleColumns.includes(column)}
+                      key={column}
+                      onClick={() => onToggleColumn(column)}
+                      type="button"
+                    >
+                      <span>{optionalColumnLabels[column]}</span>
+                      <b>{preferences.visibleColumns.includes(column) ? 'Visível' : 'Oculta'}</b>
+                    </button>
+                  ))}
+                </div>
+              </details>
+              <button className="reset-view" onClick={onResetView} type="button">
+                Restaurar
+              </button>
+            </div>
+          </header>
+
+          <div className="squad-table-wrap">
+            <table className="squad-table">
+              <thead>
+                <tr>
+                  <SortableColumnHeader
+                    column="shirtNumber"
+                    onSortChange={onSortChange}
+                    sortState={sortState}
+                  />
+                  <SortableColumnHeader
+                    column="info"
+                    onSortChange={onSortChange}
+                    sortState={sortState}
+                  />
+                  <SortableColumnHeader
+                    column="name"
+                    onSortChange={onSortChange}
+                    sortState={sortState}
+                  />
+                  <SortableColumnHeader
+                    column="position"
+                    onSortChange={onSortChange}
+                    sortState={sortState}
+                  />
+                  {optionalColumns.map(
+                    (column) =>
+                      preferences.visibleColumns.includes(column) && (
+                        <SortableColumnHeader
+                          column={column}
+                          key={column}
+                          onSortChange={onSortChange}
+                          sortState={sortState}
+                        />
+                      ),
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {players.map((player) => {
+                  const playerIndex = state.players.findIndex(
+                    (candidate) => candidate.id === player.id,
+                  );
+                  const selected = selectedIds.includes(player.id);
+                  const focused = player.id === focusedPlayerId;
+                  return (
+                    <tr
+                      data-focused={focused || undefined}
+                      key={player.id}
+                      onClick={() => onFocusPlayer(player.id)}
+                    >
+                      <td className="squad-number">{player.shirtNumber}</td>
+                      <td>
+                        <button
+                          aria-label={`${selected ? 'Retirar' : 'Escalar'} ${player.name}`}
+                          aria-pressed={selected}
+                          className="lineup-control"
+                          onFocus={() => onFocusPlayer(player.id)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onFocusPlayer(player.id);
+                            onTogglePlayer(player);
+                          }}
+                          title={selected ? 'Retirar do XI' : 'Escalar no primeiro espaço livre'}
+                          type="button"
+                        >
+                          {selected ? 'XI' : '+'}
+                        </button>
+                      </td>
+                      <th scope="row">
+                        <PlayerFace decorative index={playerIndex} name={player.name} size={36} />
+                        <span className="player-identity">
+                          <strong>{player.name}</strong>
+                          <small>{positionLongLabels[player.position]}</small>
+                        </span>
+                      </th>
+                      <td>
+                        <span className="position-badge">{positionLabels[player.position]}</span>
+                      </td>
+                      {optionalColumns.map(
+                        (column) =>
+                          preferences.visibleColumns.includes(column) && (
+                            <td data-column={column} key={column}>
+                              {renderOptionalPlayerValue(player, column)}
+                            </td>
+                          ),
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {players.length === 0 && (
+              <div className="squad-empty">
+                <Icon name="search" size={20} />
+                <strong>Nenhum jogador encontrado</strong>
+                <span>Ajuste a busca ou os filtros acima.</span>
+              </div>
+            )}
+          </div>
+
+          <footer className="squad-panel__footer">
+            <span>
+              <i data-tone="starter" /> XI atual
+            </span>
+            <span>
+              <i data-tone="attention" /> Atenção física
+            </span>
+            <span>
+              <i data-tone="available" /> Disponível
+            </span>
+            <span
+              className="save-state"
+              data-dirty={dirty || undefined}
+              data-error={Boolean(error) || undefined}
+              role={error ? 'alert' : 'status'}
+              title={error || message || undefined}
+            >
+              {error || message || (dirty ? 'Alterações não salvas' : 'Escalação salva localmente')}
+            </span>
+          </footer>
+        </section>
+
+        {preferences.showPlayerDetails && focusedPlayer && (
+          <aside className="player-dossier" aria-label={`Resumo de ${focusedPlayer.name}`}>
+            <header>
+              <PlayerFace decorative index={focusedIndex} name={focusedPlayer.name} size={96} />
+              <div>
+                <span>{positionLongLabels[focusedPlayer.position]}</span>
+                <h2>{focusedPlayer.name}</h2>
+                <small>
+                  Camisa {focusedPlayer.shirtNumber} · {focusedPlayer.age} anos ·{' '}
+                  {focusedPlayer.nationality}
+                </small>
+              </div>
+              <strong className="dossier-rating">
+                <b>{focusedPlayer.rating}</b>
+                <small>OVR</small>
+              </strong>
+            </header>
+            <section className="dossier-readiness">
+              <div>
+                <span>Condição para o jogo</span>
+                <strong>{focusedPlayer.condition}%</strong>
+              </div>
+              <i aria-hidden="true">
+                <b style={{ '--condition': `${focusedPlayer.condition}%` } as CSSProperties} />
+              </i>
+              <p>
+                {focusedPlayer.condition >= 90
+                  ? 'Pronto para iniciar'
+                  : 'Requer atenção da comissão'}
+              </p>
+            </section>
+            <dl className="dossier-facts">
+              <div>
+                <dt>Posição natural</dt>
+                <dd>{positionLabels[focusedPlayer.position]}</dd>
+              </div>
+              <div>
+                <dt>Papel no elenco</dt>
+                <dd>{squadRoleLabels[focusedPlayer.squadRole]}</dd>
+              </div>
+              <div>
+                <dt>Temporada</dt>
+                <dd>
+                  {focusedPlayer.appearances} J · {focusedPlayer.goals} G · {focusedPlayer.assists}{' '}
+                  A
+                </dd>
+              </div>
+              <div>
+                <dt>Status</dt>
+                <dd>{focusedSelected ? 'No XI inicial' : 'Disponível no banco'}</dd>
+              </div>
+            </dl>
+            <section className="dossier-note">
+              <Icon name="information" size={16} />
+              <p>Selecione o jogador e ajuste sua posição detalhada na tela de Táticas.</p>
+            </section>
+            <footer>
+              <Button
+                leadingIcon={focusedSelected ? 'close' : 'add'}
+                onClick={() => onTogglePlayer(focusedPlayer)}
+                variant="secondary"
+              >
+                {focusedSelected ? 'Retirar do XI' : 'Escalar no XI'}
+              </Button>
+              <Button
+                disabled={!dirty}
+                leadingIcon="save"
+                loading={saving}
+                loadingLabel="Salvando…"
+                onClick={onSave}
+                variant="primary"
+              >
+                Salvar escalação
+              </Button>
+            </footer>
+          </aside>
+        )}
+      </div>
+    </section>
+  );
+}
