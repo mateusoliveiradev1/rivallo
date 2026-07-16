@@ -129,6 +129,21 @@ const tableRepositoryState = (
   legacyImportReceipts: [],
 });
 
+const expectOnlyNonTablePreferences = (storageKey: string): void => {
+  const raw = window.localStorage.getItem(storageKey);
+  expect(raw).not.toBeNull();
+
+  const stored = JSON.parse(raw ?? '{}') as Record<string, unknown>;
+  expect(stored).toMatchObject({
+    activeScreen: 'squad',
+    pitchMode: 'roles',
+    showPlayerDetails: true,
+    sidebarCollapsed: false,
+  });
+  expect(stored).not.toHaveProperty('density');
+  expect(stored).not.toHaveProperty('visibleColumns');
+};
+
 describe('MatchdayScreen', () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -236,15 +251,20 @@ describe('MatchdayScreen', () => {
 
     render(<MatchdayScreen serviceOwnership="owned" />);
 
-    expect(await screen.findByRole('heading', { name: '2 jogadores' })).toBeInstanceOf(
-      HTMLHeadingElement,
+    await screen.findByRole('heading', { name: 'Visão geral do elenco' });
+    await waitFor(() =>
+      expect(screen.getAllByRole('heading').map((heading) => heading.textContent)).toContain(
+        '2 jogadores',
+      ),
     );
     expect(clientMock.loadTableViews).toHaveBeenCalledOnce();
     expect((screen.getByLabelText('Filtro rápido') as HTMLSelectElement).value).toBe('selected');
     expect((screen.getByLabelText('Filtrar por setor') as HTMLSelectElement).value).toBe(
       'midfielders',
     );
-    expect((screen.getByLabelText('Filtrar por status') as HTMLSelectElement).value).toBe('ready');
+    expect((screen.getByLabelText('Filtrar por condição') as HTMLSelectElement).value).toBe(
+      'ready',
+    );
     expect((screen.getByLabelText('Filtrar por posição') as HTMLSelectElement).value).toBe('CM');
     expect((screen.getByLabelText('Ordenar elenco') as HTMLSelectElement).value).toBe('age');
     expect(
@@ -346,7 +366,7 @@ describe('MatchdayScreen', () => {
       HTMLButtonElement,
     );
     await waitFor(() => expect(clientMock.importLegacyTablePreferences).toHaveBeenCalledOnce());
-    expect(window.localStorage.getItem('rivallo.squad-ui.v4')).toBeNull();
+    expectOnlyNonTablePreferences('rivallo.squad-ui.v4');
   });
 
   it('migrates valid legacy column identifiers without restoring unknown columns', async () => {
@@ -364,7 +384,7 @@ describe('MatchdayScreen', () => {
     expect(screen.queryByRole('button', { name: /Ordenar por potencial/u })).toBeNull();
     await waitFor(() => expect(clientMock.importLegacyTablePreferences).toHaveBeenCalledOnce());
     expect(window.localStorage.getItem('rivallo.squad-ui.v3')).toBeNull();
-    expect(window.localStorage.getItem('rivallo.squad-ui.v4')).toBeNull();
+    expectOnlyNonTablePreferences('rivallo.squad-ui.v4');
   });
 
   it('restores default columns when a legacy view contains only unknown identifiers', async () => {

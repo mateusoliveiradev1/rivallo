@@ -394,6 +394,87 @@ export const createSquadDurableFilter = ({
   };
 };
 
+export const SQUAD_DURABLE_FILTER_DEFAULTS: SquadDurableFilterSelection = {
+  lineup: 'all',
+  sector: 'all',
+  status: 'all',
+  positions: [],
+};
+
+const sameValues = (left: readonly string[], right: readonly string[]): boolean =>
+  left.length === right.length && left.every((value) => right.includes(value));
+
+export const readSquadDurableFilter = (
+  filter: TableViewFilterGroup,
+): SquadDurableFilterSelection => {
+  let lineup: SquadFilter = 'all';
+  let sector: RoleFilter = 'all';
+  let status: StatusFilter = 'all';
+  let positions: readonly Position[] = [];
+
+  for (const node of filter.children) {
+    if (
+      node.kind === 'clause' &&
+      node.filterId === 'filter.lineup' &&
+      node.value.kind === 'enum-set'
+    ) {
+      const candidate = node.value.value[0];
+      if (candidate === 'selected' || candidate === 'reserve') lineup = candidate;
+      continue;
+    }
+    if (
+      node.kind === 'clause' &&
+      node.filterId === 'filter.sector' &&
+      node.value.kind === 'enum-set'
+    ) {
+      const matchingSector = Object.entries(sectorPositions).find(([, values]) =>
+        sameValues(values, node.value.kind === 'enum-set' ? node.value.value : []),
+      )?.[0] as Exclude<RoleFilter, 'all'> | undefined;
+      if (matchingSector !== undefined) sector = matchingSector;
+      continue;
+    }
+    if (
+      node.kind === 'clause' &&
+      node.filterId === 'filter.positions' &&
+      node.value.kind === 'enum-set'
+    ) {
+      positions = POSITION_SORT_ORDER.filter((position) =>
+        node.value.kind === 'enum-set' ? node.value.value.includes(position) : false,
+      );
+      continue;
+    }
+    if (node.kind === 'group' && node.groupId === 'filters.status-ready') {
+      status = 'ready';
+      continue;
+    }
+    if (node.kind === 'group' && node.groupId === 'filters.status-attention') {
+      status = 'attention';
+    }
+  }
+
+  return { lineup, sector, status, positions };
+};
+
+const isSquadQuickFilterNode = (node: TableViewFilterNode): boolean =>
+  (node.kind === 'clause' &&
+    ['filter.lineup', 'filter.sector', 'filter.positions'].includes(node.filterId)) ||
+  (node.kind === 'group' &&
+    ['filters.status-ready', 'filters.status-attention'].includes(node.groupId));
+
+export const mergeSquadDurableFilter = (
+  filter: TableViewFilterGroup,
+  selection: SquadDurableFilterSelection,
+): TableViewFilterGroup => {
+  const quickFilter = createSquadDurableFilter(selection);
+  return {
+    ...filter,
+    children: [
+      ...filter.children.filter((node) => !isSquadQuickFilterNode(node)),
+      ...quickFilter.children,
+    ],
+  };
+};
+
 const normalizeSearchText = (value: string) =>
   value
     .normalize('NFD')

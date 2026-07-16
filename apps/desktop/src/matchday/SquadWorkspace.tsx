@@ -20,11 +20,15 @@ import {
   type RoleFilter,
   type SquadFilter,
   type StatusFilter,
-  type UiPreferences,
 } from './matchday-ui.js';
 import { PlayerFace } from './PlayerFace.js';
 import type { SortKey, SquadSortState } from './squad-sort.js';
 import type { MatchdayState, Player } from './types.js';
+import type {
+  SquadTableViewCommandStatus,
+  SquadTableViewPersistenceStatus,
+  SquadTableViewRepositoryStatus,
+} from './use-squad-table-view.js';
 
 const descendingFirstColumns = new Set<SortKey>([
   'rating',
@@ -163,7 +167,12 @@ interface SquadWorkspaceProps {
   readonly statusFilter: StatusFilter;
   readonly positionFilter: 'all' | Player['position'];
   readonly positionFilterVisible: boolean;
-  readonly preferences: UiPreferences;
+  readonly density: Density;
+  readonly visibleColumns: readonly OptionalColumn[];
+  readonly showPlayerDetails: boolean;
+  readonly tableViewRepositoryStatus: SquadTableViewRepositoryStatus;
+  readonly tableViewPersistenceStatus: SquadTableViewPersistenceStatus;
+  readonly tableViewCommandStatus: SquadTableViewCommandStatus;
   readonly dirty: boolean;
   readonly message: string;
   readonly error: string;
@@ -195,7 +204,12 @@ export function SquadWorkspace({
   statusFilter,
   positionFilter,
   positionFilterVisible,
-  preferences,
+  density,
+  visibleColumns,
+  showPlayerDetails,
+  tableViewRepositoryStatus,
+  tableViewPersistenceStatus,
+  tableViewCommandStatus,
   dirty,
   message,
   error,
@@ -233,11 +247,29 @@ export function SquadWorkspace({
     roleFilter !== 'all' ||
     statusFilter !== 'all' ||
     positionFilterVisible;
+  const tableViewStatusText =
+    tableViewCommandStatus.status === 'rejected'
+      ? `${tableViewCommandStatus.heading}: ${tableViewCommandStatus.reason.path} — ${tableViewCommandStatus.reason.code}${tableViewCommandStatus.reason.detail === undefined ? '' : ` (${tableViewCommandStatus.reason.detail})`}`
+      : tableViewPersistenceStatus.status === 'saving' ||
+          tableViewPersistenceStatus.status === 'failed'
+        ? tableViewPersistenceStatus.heading
+        : tableViewRepositoryStatus.heading;
+  const tableViewBusy =
+    tableViewRepositoryStatus.status === 'loading' ||
+    tableViewPersistenceStatus.status === 'saving';
   const updateTableControl = (control: 'density' | 'columns', open: boolean) =>
     setOpenTableControl((current) => (open ? control : current === control ? null : current));
 
   return (
-    <section className="screen-view squad-view" aria-labelledby="squad-screen-title">
+    <section
+      aria-busy={tableViewBusy || undefined}
+      aria-labelledby="squad-screen-title"
+      className="screen-view squad-view"
+      data-table-view-status={tableViewRepositoryStatus.status}
+    >
+      <p className="sr-only" role="status">
+        {tableViewStatusText}
+      </p>
       <header className="screen-heading">
         <div>
           <span>ELENCO · PLANTEL PRINCIPAL</span>
@@ -374,8 +406,8 @@ export function SquadWorkspace({
 
       <div
         className="squad-layout"
-        data-details={(preferences.showPlayerDetails && Boolean(focusedPlayer)) || undefined}
-        data-density={preferences.density}
+        data-details={(showPlayerDetails && Boolean(focusedPlayer)) || undefined}
+        data-density={density}
       >
         <section className="squad-panel" aria-labelledby="players-title">
           <header className="squad-panel__header">
@@ -391,33 +423,33 @@ export function SquadWorkspace({
                 onOpenChange={(open) => updateTableControl('density', open)}
                 open={openTableControl === 'density'}
                 title="Densidade do elenco"
-                triggerAccessibleLabel={`Alterar densidade da tabela: ${densityLabels[preferences.density]}`}
+                triggerAccessibleLabel={`Alterar densidade da tabela: ${densityLabels[density]}`}
                 triggerClassName="density-picker__trigger"
                 triggerContent={
                   <>
-                    <i aria-hidden="true" data-lines={preferences.density} />
-                    <span>{densityLabels[preferences.density]}</span>
+                    <i aria-hidden="true" data-lines={density} />
+                    <span>{densityLabels[density]}</span>
                   </>
                 }
                 triggerLabel="Densidade"
                 triggerTooltip="Alterar espaçamento das linhas"
               >
                 <div aria-label="Densidade da tabela" className="density-picker__menu" role="group">
-                  {(['compact', 'standard', 'comfortable'] as const).map((density) => (
+                  {(['compact', 'standard', 'comfortable'] as const).map((densityOption) => (
                     <button
-                      aria-label={`Densidade ${density === 'compact' ? 'compacta' : density === 'standard' ? 'padrão' : 'confortável'}`}
-                      aria-pressed={preferences.density === density}
+                      aria-label={`Densidade ${densityOption === 'compact' ? 'compacta' : densityOption === 'standard' ? 'padrão' : 'confortável'}`}
+                      aria-pressed={density === densityOption}
                       className="density-option"
-                      key={density}
+                      key={densityOption}
                       onClick={() => {
-                        onDensityChange(density);
+                        onDensityChange(densityOption);
                         setOpenTableControl(null);
                       }}
                       type="button"
                     >
-                      <i aria-hidden="true" data-lines={density} />
-                      <span>{densityLabels[density]}</span>
-                      <b>{preferences.density === density ? 'Atual' : 'Selecionar'}</b>
+                      <i aria-hidden="true" data-lines={densityOption} />
+                      <span>{densityLabels[densityOption]}</span>
+                      <b>{density === densityOption ? 'Atual' : 'Selecionar'}</b>
                     </button>
                   ))}
                 </div>
@@ -441,13 +473,13 @@ export function SquadWorkspace({
                 <div className="column-picker__menu">
                   {optionalColumns.map((column) => (
                     <button
-                      aria-pressed={preferences.visibleColumns.includes(column)}
+                      aria-pressed={visibleColumns.includes(column)}
                       key={column}
                       onClick={() => onToggleColumn(column)}
                       type="button"
                     >
                       <span>{optionalColumnLabels[column]}</span>
-                      <b>{preferences.visibleColumns.includes(column) ? 'Visível' : 'Oculta'}</b>
+                      <b>{visibleColumns.includes(column) ? 'Visível' : 'Oculta'}</b>
                     </button>
                   ))}
                 </div>
@@ -486,7 +518,7 @@ export function SquadWorkspace({
                   />
                   {optionalColumns.map(
                     (column) =>
-                      preferences.visibleColumns.includes(column) && (
+                      visibleColumns.includes(column) && (
                         <SortableColumnHeader
                           column={column}
                           key={column}
@@ -543,7 +575,7 @@ export function SquadWorkspace({
                       </td>
                       {optionalColumns.map(
                         (column) =>
-                          preferences.visibleColumns.includes(column) && (
+                          visibleColumns.includes(column) && (
                             <td data-column={column} key={column}>
                               {renderOptionalPlayerValue(player, column)}
                             </td>
@@ -585,7 +617,7 @@ export function SquadWorkspace({
           </footer>
         </section>
 
-        {preferences.showPlayerDetails && focusedPlayer && (
+        {showPlayerDetails && focusedPlayer && (
           <aside className="player-dossier" aria-label={`Resumo de ${focusedPlayer.name}`}>
             <header>
               <PlayerFace decorative index={focusedIndex} name={focusedPlayer.name} size={96} />

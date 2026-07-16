@@ -8,10 +8,7 @@ import { Skeleton } from '../ui/primitives/feedback.js';
 import { loadMatchday, playNextMatch, saveMatchdayLineup } from './client.js';
 import {
   defaultSquadSort,
-  optionalColumnLabels,
   optionalColumns,
-  positionLabels,
-  rolePositions,
   type ActiveScreen,
   type Density,
   type OptionalColumn,
@@ -23,7 +20,13 @@ import {
   type UiPreferences,
 } from './matchday-ui.js';
 import { RivalloBrand } from './RivalloBrand.js';
-import { sortSquadPlayers, type SquadSortState } from './squad-sort.js';
+import type { SortKey, SquadSortState } from './squad-sort.js';
+import {
+  applySquadTableView,
+  createSquadDurableFilter,
+  mergeSquadDurableFilter,
+  readSquadDurableFilter,
+} from './squad-table-schema.js';
 import { SquadWorkspace } from './SquadWorkspace.js';
 import {
   addPlayerToFirstOpenSlot,
@@ -36,6 +39,7 @@ import {
 } from './tactics-model.js';
 import { TacticsWorkspace } from './TacticsWorkspace.js';
 import type { MatchResult, MatchdayState, Player, TacticalApproach } from './types.js';
+import { useSquadTableView } from './use-squad-table-view.js';
 import { WindowControls } from './WindowControls.js';
 
 import './matchday.css';
@@ -58,8 +62,6 @@ const TACTICS_LAYOUT_KEY = 'rivallo.tactics-layout.v1';
 
 const defaultPreferences = (): UiPreferences => ({
   sidebarCollapsed: typeof window !== 'undefined' && window.innerWidth < 1240,
-  density: 'compact',
-  visibleColumns: optionalColumns,
   activeScreen: 'squad',
   showPlayerDetails: typeof window === 'undefined' || window.innerWidth >= 1120,
   pitchMode: 'roles',
@@ -74,17 +76,6 @@ const readPreferences = (): UiPreferences => {
       LEGACY_UI_PREFERENCES_KEYS.map((key) => window.localStorage.getItem(key)).find(Boolean);
     if (!raw) return defaults;
     const stored = JSON.parse(raw) as Partial<UiPreferences> & { workspaceView?: string };
-    const storedVisibleColumns = Array.isArray(stored.visibleColumns)
-      ? stored.visibleColumns
-      : null;
-    const hasStoredVisibleColumns = storedVisibleColumns !== null;
-    const columns = hasStoredVisibleColumns
-      ? storedVisibleColumns.filter((column): column is OptionalColumn =>
-          optionalColumns.includes(column as OptionalColumn),
-        )
-      : defaults.visibleColumns;
-    const hasUsableStoredColumns =
-      hasStoredVisibleColumns && (storedVisibleColumns.length === 0 || columns.length > 0);
     const activeScreen: ActiveScreen =
       stored.activeScreen === 'tactics' || stored.workspaceView === 'tactics' ? 'tactics' : 'squad';
     return {
@@ -92,10 +83,6 @@ const readPreferences = (): UiPreferences => {
         typeof stored.sidebarCollapsed === 'boolean'
           ? stored.sidebarCollapsed
           : defaults.sidebarCollapsed,
-      density: ['compact', 'standard', 'comfortable'].includes(String(stored.density))
-        ? (stored.density as Density)
-        : defaults.density,
-      visibleColumns: hasUsableStoredColumns ? columns : defaults.visibleColumns,
       activeScreen,
       showPlayerDetails:
         typeof stored.showPlayerDetails === 'boolean'
@@ -107,6 +94,24 @@ const readPreferences = (): UiPreferences => {
     };
   } catch {
     return defaults;
+  }
+};
+
+const writePreferences = (preferences: UiPreferences): void => {
+  try {
+    const targetKey =
+      [UI_PREFERENCES_KEY, ...LEGACY_UI_PREFERENCES_KEYS].find(
+        (key) => window.localStorage.getItem(key) !== null,
+      ) ?? UI_PREFERENCES_KEY;
+    const raw = window.localStorage.getItem(targetKey);
+    const parsed = raw === null ? null : (JSON.parse(raw) as unknown);
+    const current =
+      typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : {};
+    window.localStorage.setItem(targetKey, JSON.stringify({ ...current, ...preferences }));
+  } catch {
+    // Preferences remain active for this session when storage is unavailable.
   }
 };
 
@@ -163,12 +168,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
   const [error, setError] = useState('');
   const [resultOpen, setResultOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [squadFilter, setSquadFilter] = useState<SquadFilter>('all');
-  const [squadSort, setSquadSort] = useState<SquadSortState>(defaultSquadSort);
-  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [positionFilter, setPositionFilter] = useState<'all' | Player['position']>('all');
-  const [positionFilterVisible, setPositionFilterVisible] = useState(false);
+  const [positionFilterControlVisible, setPositionFilterControlVisible] = useState(false);
   const [focusedPlayerId, setFocusedPlayerId] = useState<string | null>(null);
   const [activeTacticalTool, setActiveTacticalTool] = useState<TacticalTool>('tactics');
   const [preferences, setPreferences] = useState<UiPreferences>(readPreferences);
@@ -177,16 +177,42 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
   const settingsReturnFocusRef = useRef<HTMLButtonElement>(null);
   const resultDialogRef = useRef<HTMLDialogElement>(null);
   const resultReturnFocusRef = useRef<HTMLButtonElement>(null);
+  const tableView = useSquadTableView();
 
   const selectedIds = useMemo(() => selectedIdsFromSlots(lineupSlots), [lineupSlots]);
+  const durableFilters = useMemo(
+    () => readSquadDurableFilter(tableView.proposal.filter),
+    [tableView.proposal.filter],
+  );
+  const squadFilter = durableFilters.lineup;
+  const roleFilter = durableFilters.sector;
+  const statusFilter = durableFilters.status;
+  const positionFilter: 'all' | Player['position'] = durableFilters.positions[0] ?? 'all';
+  const positionFilterVisible = positionFilterControlVisible || durableFilters.positions.length > 0;
+  const primarySort = tableView.proposal.sort[0];
+  const squadSort: SquadSortState =
+    primarySort === undefined
+      ? defaultSquadSort
+      : {
+          key: primarySort.columnId as SortKey,
+          direction: primarySort.direction,
+        };
+  const density = tableView.proposal.density as Density;
+  const visibleColumns = tableView.proposal.columns
+    .filter(
+      ({ visible, columnId }) => visible && optionalColumns.includes(columnId as OptionalColumn),
+    )
+    .map(({ columnId }) => columnId as OptionalColumn);
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem(UI_PREFERENCES_KEY, JSON.stringify(preferences));
-    } catch {
-      // Preferences remain active for this session when storage is unavailable.
+    if (
+      tableView.legacyStatus.status === 'pending' ||
+      tableView.legacyStatus.status === 'importing'
+    ) {
+      return;
     }
-  }, [preferences]);
+    writePreferences(preferences);
+  }, [preferences, tableView.legacyStatus.status]);
 
   const applyServerState = (
     nextState: MatchdayState,
@@ -255,36 +281,71 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
   const updatePreference = <Key extends keyof UiPreferences>(key: Key, value: UiPreferences[Key]) =>
     setPreferences((current) => ({ ...current, [key]: value }));
 
-  const setActiveScreen = (activeScreen: ActiveScreen) =>
+  const setActiveScreen = (activeScreen: ActiveScreen) => {
+    if (preferences.activeScreen === 'squad' && activeScreen !== 'squad' && tableView.dirty) {
+      void tableView.guardTransition();
+      return;
+    }
     updatePreference('activeScreen', activeScreen);
-
-  const toggleColumn = (column: OptionalColumn) => {
-    const visible = preferences.visibleColumns.includes(column);
-    updatePreference(
-      'visibleColumns',
-      visible
-        ? preferences.visibleColumns.filter((candidate) => candidate !== column)
-        : [...preferences.visibleColumns, column],
-    );
   };
 
-  const resetTableView = () =>
-    setPreferences((current) => ({
-      ...current,
-      density: 'compact',
-      visibleColumns: optionalColumns,
-    }));
+  const updateDurableFilters = (
+    changes: Partial<{
+      readonly lineup: SquadFilter;
+      readonly sector: RoleFilter;
+      readonly status: StatusFilter;
+      readonly positions: readonly Player['position'][];
+    }>,
+  ) => {
+    const current = readSquadDurableFilter(tableView.proposal.filter);
+    tableView.dispatch({
+      type: 'filter.set',
+      filter: mergeSquadDurableFilter(tableView.proposal.filter, {
+        ...current,
+        ...changes,
+      }),
+    });
+  };
+
+  const setSquadFilter = (lineup: SquadFilter) => updateDurableFilters({ lineup });
+  const setRoleFilter = (sector: RoleFilter) => updateDurableFilters({ sector });
+  const setStatusFilter = (status: StatusFilter) => updateDurableFilters({ status });
+  const setPositionFilter = (position: 'all' | Player['position']) =>
+    updateDurableFilters({ positions: position === 'all' ? [] : [position] });
+  const setPositionFilterVisible = (visible: boolean) => {
+    setPositionFilterControlVisible(visible);
+    if (!visible) updateDurableFilters({ positions: [] });
+  };
+  const setSquadSort = (sort: SquadSortState) => {
+    tableView.dispatch({
+      type: 'sort.set',
+      sort: [{ columnId: sort.key, direction: sort.direction, nulls: 'last' }],
+    });
+  };
+
+  const toggleColumn = (column: OptionalColumn) => {
+    const visible =
+      tableView.proposal.columns.find(({ columnId }) => columnId === column)?.visible ?? false;
+    tableView.dispatch({ type: 'column.visibility', columnId: column, visible: !visible });
+  };
+
+  const resetTableView = () => tableView.reset();
 
   const resetPreferences = () => setPreferences(defaultPreferences());
 
   const clearFilters = () => {
     setQuery('');
-    setSquadFilter('all');
+    tableView.dispatch({
+      type: 'filter.set',
+      filter: createSquadDurableFilter({
+        lineup: 'all',
+        sector: 'all',
+        status: 'all',
+        positions: [],
+      }),
+    });
     setSquadSort(defaultSquadSort);
-    setRoleFilter('all');
-    setStatusFilter('all');
-    setPositionFilter('all');
-    setPositionFilterVisible(false);
+    setPositionFilterControlVisible(false);
   };
 
   const togglePlayer = (player: Player) => {
@@ -381,34 +442,19 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
     );
   }
 
-  const normalizedQuery = query.trim().toLocaleLowerCase('pt-BR');
-  const filteredPlayers = state.players.filter((player) => {
-    const selected = selectedIds.includes(player.id);
-    const matchesSquad =
-      squadFilter === 'all' ||
-      (squadFilter === 'selected' && selected) ||
-      (squadFilter === 'reserve' && !selected);
-    const matchesRole = roleFilter === 'all' || rolePositions[roleFilter].includes(player.position);
-    const matchesStatus =
-      statusFilter === 'all' ||
-      (statusFilter === 'ready' && player.condition >= 90) ||
-      (statusFilter === 'attention' && player.condition < 90);
-    const matchesPosition =
-      !positionFilterVisible || positionFilter === 'all' || player.position === positionFilter;
-    const matchesQuery =
-      normalizedQuery.length === 0 ||
-      player.name.toLocaleLowerCase('pt-BR').includes(normalizedQuery) ||
-      positionLabels[player.position].toLocaleLowerCase('pt-BR').includes(normalizedQuery);
-    return matchesSquad && matchesRole && matchesStatus && matchesPosition && matchesQuery;
-  });
-  const visiblePlayers = sortSquadPlayers(
-    filteredPlayers.map((player) => ({
+  const tableResult = applySquadTableView(
+    state.players.map((player) => ({
       ...player,
       selected: selectedIds.includes(player.id),
     })),
-    squadSort.key,
-    squadSort.direction,
+    tableView.proposal,
+    {
+      nameQuery: query,
+      focusedPlayerId,
+      selectedPlayerIds: selectedIds,
+    },
   );
+  const visiblePlayers = tableResult.rows;
 
   const dirty =
     formation !== state.formation ||
@@ -558,12 +604,15 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
         <main className="manager-main">
           {preferences.activeScreen === 'squad' ? (
             <SquadWorkspace
+              density={density}
               dirty={dirty}
               error={error}
               focusedPlayerId={focusedPlayerId}
               message={message}
               onClearFilters={clearFilters}
-              onDensityChange={(density) => updatePreference('density', density)}
+              onDensityChange={(nextDensity) =>
+                tableView.dispatch({ type: 'density.set', density: nextDensity })
+              }
               onFocusPlayer={setFocusedPlayerId}
               onPositionFilterChange={setPositionFilter}
               onPositionFilterVisibleChange={setPositionFilterVisible}
@@ -578,15 +627,19 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
               players={visiblePlayers}
               positionFilter={positionFilter}
               positionFilterVisible={positionFilterVisible}
-              preferences={preferences}
               query={query}
               roleFilter={roleFilter}
               saving={busyAction === 'save'}
               selectedIds={selectedIds}
+              showPlayerDetails={preferences.showPlayerDetails}
               sortState={squadSort}
               squadFilter={squadFilter}
               state={state}
               statusFilter={statusFilter}
+              tableViewCommandStatus={tableView.commandStatus}
+              tableViewPersistenceStatus={tableView.persistenceStatus}
+              tableViewRepositoryStatus={tableView.repositoryStatus}
+              visibleColumns={visibleColumns}
             />
           ) : (
             <TacticsWorkspace
@@ -660,25 +713,6 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
             </div>
           </section>
           <section>
-            <h3>Densidade do elenco</h3>
-            <div className="preference-options">
-              {(['compact', 'standard', 'comfortable'] as const).map((density) => (
-                <button
-                  aria-pressed={preferences.density === density}
-                  key={density}
-                  onClick={() => updatePreference('density', density)}
-                  type="button"
-                >
-                  {density === 'compact'
-                    ? 'Compacta'
-                    : density === 'standard'
-                      ? 'Padrão'
-                      : 'Confortável'}
-                </button>
-              ))}
-            </div>
-          </section>
-          <section>
             <h3>Painel do jogador</h3>
             <div className="preference-options">
               <button
@@ -708,21 +742,6 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
                   type="button"
                 >
                   {mode === 'roles' ? 'Funções' : mode === 'condition' ? 'Condição' : 'Encaixe'}
-                </button>
-              ))}
-            </div>
-          </section>
-          <section>
-            <h3>Colunas visíveis</h3>
-            <div className="preference-options preference-options--columns">
-              {optionalColumns.map((column) => (
-                <button
-                  aria-pressed={preferences.visibleColumns.includes(column)}
-                  key={column}
-                  onClick={() => toggleColumn(column)}
-                  type="button"
-                >
-                  {optionalColumnLabels[column]}
                 </button>
               ))}
             </div>

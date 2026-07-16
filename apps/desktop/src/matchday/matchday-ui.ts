@@ -21,8 +21,6 @@ export type PitchMode = 'roles' | 'condition' | 'familiarity';
 
 export interface UiPreferences {
   readonly sidebarCollapsed: boolean;
-  readonly density: Density;
-  readonly visibleColumns: readonly OptionalColumn[];
   readonly activeScreen: ActiveScreen;
   readonly showPlayerDetails: boolean;
   readonly pitchMode: PitchMode;
