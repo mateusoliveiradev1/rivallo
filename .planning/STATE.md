@@ -6,8 +6,8 @@ current_phase: 06.1
 current_phase_name: SM-2 Table View Engine and Durable Views
 current_plan: 1
 status: executing
-stopped_at: Phase 06.1 context gathered; autonomous execution continues
-last_updated: "2026-07-16T06:39:59.081Z"
+stopped_at: Phase 06.1 UI-SPEC approved
+last_updated: "2026-07-16T07:00:36.918Z"
 last_activity: 2026-07-16
 last_activity_desc: Phase 06.1 execution started
 progress:
@@ -49,9 +49,9 @@ Last activity: 2026-07-16 — Phase 06.1 execution started
 
 ## Session
 
-**Last session:** 2026-07-16T06:39:59.077Z
-**Stopped at:** Phase 06.1 context gathered; autonomous execution continues
-**Resume file:** None
+**Last session:** 2026-07-16T07:00:36.914Z
+**Stopped at:** Phase 06.1 UI-SPEC approved
+**Resume file:** .planning/phases/06.1-sm-2-table-view-engine-and-durable-views/06.1-UI-SPEC.md
 
 ## Accumulated Context
 
