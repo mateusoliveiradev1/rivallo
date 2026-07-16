@@ -7,9 +7,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatchdayScreen } from './MatchdayScreen.js';
 import type {
   ImportLegacyTablePreferencesRequest,
+  SavedTableView,
   SaveTableViewsRequest,
   TableViewRepositoryState,
 } from './client.js';
+import { SavedViewSelector } from './SavedViewSelector.js';
 import { createSquadDurableFilter, SQUAD_SYSTEM_VIEW } from './squad-table-schema.js';
 import type { MatchdayState, Player } from './types.js';
 
@@ -490,5 +492,257 @@ describe('MatchdayScreen', () => {
     const [selectedIds] = clientMock.saveMatchdayLineup.mock.calls[0] as [string[]];
     expect(selectedIds).toContain('p12');
     expect(selectedIds).not.toContain('p1');
+  });
+});
+
+const selectorView = (
+  viewId: string,
+  label: string,
+  provenance: SavedTableView['state']['provenance'],
+  mutability: SavedTableView['mutability'],
+): SavedTableView => ({
+  mutability,
+  state: {
+    ...structuredClone(SQUAD_SYSTEM_VIEW),
+    viewId,
+    baselineViewId: provenance === 'system-default' ? viewId : SQUAD_SYSTEM_VIEW.viewId,
+    provenance,
+    label,
+  },
+});
+
+const selectorCallbacks = () => ({
+  onActivate: vi.fn(),
+  onCreate: vi.fn(),
+  onDelete: vi.fn(),
+  onDuplicate: vi.fn(),
+  onRename: vi.fn(),
+  onReset: vi.fn(),
+  onSave: vi.fn(),
+  onSetDefault: vi.fn(),
+});
+
+describe('SavedViewSelector', () => {
+  const longViewName =
+    'Análise de desenvolvimento e disponibilidade do elenco para a próxima rodada';
+  const systemView = selectorView(
+    SQUAD_SYSTEM_VIEW.viewId,
+    'Padrão do elenco',
+    'system-default',
+    'immutable',
+  );
+  const alphaView = selectorView(
+    'squad.user.alpha',
+    longViewName,
+    'user-owned',
+    'mutable',
+  );
+  const zuluView = selectorView(
+    'squad.user.zulu',
+    'Zagueiros disponíveis',
+    'user-owned',
+    'mutable',
+  );
+  const sharedView = selectorView(
+    'squad.shared.analysis',
+    'Análise da comissão',
+    'shared-read-only',
+    'read-only',
+  );
+  const views = [sharedView, zuluView, systemView, alphaView] as const;
+
+  it('orders stable views by provenance and exposes full names plus textual state', async () => {
+    const user = userEvent.setup();
+    render(
+      <SavedViewSelector
+        activeViewId={alphaView.state.viewId}
+        defaultViewId={systemView.state.viewId}
+        dirty
+        views={views}
+        {...selectorCallbacks()}
+      />,
+    );
+
+    const trigger = screen.getByRole('button', {
+      name: `Visualização da tabela: ${longViewName}`,
+    });
+    await user.click(trigger);
+
+    const selector = screen.getByRole('dialog', { name: 'Visualização da tabela' });
+    const viewButtons = within(selector).getAllByRole('button', {
+      name: /^Abrir visualização/u,
+    });
+    expect(viewButtons.map((button) => button.getAttribute('data-view-id'))).toEqual([
+      systemView.state.viewId,
+      alphaView.state.viewId,
+      zuluView.state.viewId,
+      sharedView.state.viewId,
+    ]);
+
+    const longNameButton = within(selector).getByRole('button', {
+      name: new RegExp(longViewName, 'u'),
+    });
+    expect(longNameButton.getAttribute('aria-label')).toContain(longViewName);
+    expect(longNameButton.getAttribute('title')).toBe(longViewName);
+    expect(longNameButton.getAttribute('aria-current')).toBe('true');
+    expect(within(selector).getByText('Alterações não salvas')).toBeInstanceOf(HTMLElement);
+    expect(within(selector).getByText('Padrão do sistema')).toBeInstanceOf(HTMLElement);
+    expect(within(selector).getAllByText('Minha visualização')).toHaveLength(2);
+    expect(within(selector).getByText('Somente leitura')).toBeInstanceOf(HTMLElement);
+    expect(within(selector).getByText('Visualização padrão')).toBeInstanceOf(HTMLElement);
+    expect(within(selector).getByText('Visualização ativa')).toBeInstanceOf(HTMLElement);
+  });
+
+  it('shows only lifecycle actions allowed by the active provenance', async () => {
+    const user = userEvent.setup();
+    const callbacks = selectorCallbacks();
+    const { rerender } = render(
+      <SavedViewSelector
+        activeViewId={systemView.state.viewId}
+        defaultViewId={systemView.state.viewId}
+        dirty={false}
+        views={views}
+        {...callbacks}
+      />,
+    );
+
+    const openSelector = async () => {
+      await user.click(screen.getByRole('button', { name: /Visualização da tabela:/u }));
+      return screen.getByRole('dialog', { name: 'Visualização da tabela' });
+    };
+
+    let selector = await openSelector();
+    expect(within(selector).getByRole('button', { name: 'Duplicar visualização' })).toBeInstanceOf(
+      HTMLButtonElement,
+    );
+    expect(
+      within(selector).getByRole('button', { name: 'Definir como visualização padrão' }),
+    ).toBeInstanceOf(HTMLButtonElement);
+    expect(within(selector).queryByRole('button', { name: 'Renomear visualização' })).toBeNull();
+    expect(within(selector).queryByRole('button', { name: 'Excluir visualização' })).toBeNull();
+    expect(within(selector).queryByRole('button', { name: 'Salvar visualização' })).toBeNull();
+    await user.keyboard('{Escape}');
+
+    rerender(
+      <SavedViewSelector
+        activeViewId={alphaView.state.viewId}
+        defaultViewId={systemView.state.viewId}
+        dirty
+        views={views}
+        {...callbacks}
+      />,
+    );
+    selector = await openSelector();
+    for (const actionName of [
+      'Duplicar visualização',
+      'Renomear visualização',
+      'Excluir visualização',
+      'Definir como visualização padrão',
+      'Restaurar visualização',
+      'Salvar visualização',
+    ]) {
+      expect(within(selector).getByRole('button', { name: actionName })).toBeInstanceOf(
+        HTMLButtonElement,
+      );
+    }
+    await user.keyboard('{Escape}');
+
+    rerender(
+      <SavedViewSelector
+        activeViewId={sharedView.state.viewId}
+        defaultViewId={systemView.state.viewId}
+        dirty={false}
+        views={views}
+        {...callbacks}
+      />,
+    );
+    selector = await openSelector();
+    expect(within(selector).getByRole('button', { name: 'Duplicar visualização' })).toBeInstanceOf(
+      HTMLButtonElement,
+    );
+    for (const forbiddenAction of [
+      'Renomear visualização',
+      'Excluir visualização',
+      'Definir como visualização padrão',
+      'Restaurar visualização',
+      'Salvar visualização',
+    ]) {
+      expect(within(selector).queryByRole('button', { name: forbiddenAction })).toBeNull();
+    }
+  });
+
+  it('keeps the system view selectable and offers the first-view action when none are owned', async () => {
+    const user = userEvent.setup();
+    const callbacks = selectorCallbacks();
+    render(
+      <SavedViewSelector
+        activeViewId={systemView.state.viewId}
+        defaultViewId={systemView.state.viewId}
+        dirty={false}
+        views={[systemView]}
+        {...callbacks}
+      />,
+    );
+
+    const trigger = screen.getByRole('button', {
+      name: 'Visualização da tabela: Padrão do elenco',
+    });
+    await user.click(trigger);
+    const selector = screen.getByRole('dialog', { name: 'Visualização da tabela' });
+    expect(
+      within(selector).getByRole('button', { name: /Abrir visualização Padrão do elenco/u }),
+    ).toBeInstanceOf(HTMLButtonElement);
+    expect(within(selector).getByText('Você ainda não criou visualizações')).toBeInstanceOf(
+      HTMLElement,
+    );
+    await user.click(
+      within(selector).getByRole('button', { name: 'Criar primeira visualização' }),
+    );
+    expect(callbacks.onCreate).toHaveBeenCalledOnce();
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Visualização da tabela' })).toBeNull(),
+    );
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('opens with Enter and Space, restores focus on Escape and selection, and activates stable IDs', async () => {
+    const user = userEvent.setup();
+    const callbacks = selectorCallbacks();
+    render(
+      <SavedViewSelector
+        activeViewId={systemView.state.viewId}
+        defaultViewId={systemView.state.viewId}
+        dirty={false}
+        views={views}
+        {...callbacks}
+      />,
+    );
+
+    const trigger = screen.getByRole('button', {
+      name: 'Visualização da tabela: Padrão do elenco',
+    });
+    trigger.focus();
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('dialog', { name: 'Visualização da tabela' })).toBeInstanceOf(
+      HTMLElement,
+    );
+    await user.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Visualização da tabela' })).toBeNull(),
+    );
+    expect(document.activeElement).toBe(trigger);
+
+    await user.keyboard('{Space}');
+    const selector = screen.getByRole('dialog', { name: 'Visualização da tabela' });
+    const sharedOption = within(selector).getByRole('button', {
+      name: /Abrir visualização Análise da comissão/u,
+    });
+    sharedOption.focus();
+    await user.keyboard('{Enter}');
+    expect(callbacks.onActivate).toHaveBeenCalledWith(sharedView.state.viewId);
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Visualização da tabela' })).toBeNull(),
+    );
+    expect(document.activeElement).toBe(trigger);
   });
 });
