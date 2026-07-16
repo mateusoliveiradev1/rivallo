@@ -1,7 +1,9 @@
 import { Icon } from '@rivallo/icons';
-import type { CSSProperties, ReactNode } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 
 import { Button } from '../ui/primitives/actions.js';
+import { NationalityDisplay } from '../ui/Nationality/index.js';
+import { Popover, Tooltip } from '../ui/primitives/disclosure.js';
 import {
   defaultSquadSort,
   optionalColumnLabels,
@@ -36,10 +38,33 @@ const descendingFirstColumns = new Set<SortKey>([
   'averageRating',
 ]);
 
+const abbreviatedColumns = new Set<SortKey>([
+  'shirtNumber',
+  'info',
+  'position',
+  'nationality',
+  'heightCm',
+  'preferredFoot',
+  'rating',
+  'potentialRating',
+  'matchFitness',
+  'condition',
+  'appearances',
+  'goals',
+  'assists',
+  'averageRating',
+]);
+
 const averageRatingFormatter = new Intl.NumberFormat('pt-BR', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
+
+const densityLabels: Record<Density, string> = {
+  compact: 'Compacta',
+  standard: 'Padrão',
+  comfortable: 'Confortável',
+};
 
 interface SortableColumnHeaderProps {
   readonly column: SortKey;
@@ -57,18 +82,25 @@ function SortableColumnHeader({ column, sortState, onSortChange }: SortableColum
       ? 'desc'
       : 'asc';
   const ariaSort = active ? (sortState.direction === 'asc' ? 'ascending' : 'descending') : 'none';
+  const sortButton = (
+    <button
+      aria-label={`Ordenar por ${squadColumnSortLabels[column]} em ordem ${nextDirection === 'asc' ? 'crescente' : 'decrescente'}`}
+      data-active={active || undefined}
+      onClick={() => onSortChange({ key: column, direction: nextDirection })}
+      type="button"
+    >
+      {squadColumnLabels[column]}
+      {active && <span aria-hidden="true">{sortState.direction === 'asc' ? ' ↑' : ' ↓'}</span>}
+    </button>
+  );
 
   return (
     <th aria-sort={ariaSort} data-column={column} scope="col">
-      <button
-        aria-label={`Ordenar por ${squadColumnSortLabels[column]} em ordem ${nextDirection === 'asc' ? 'crescente' : 'decrescente'}`}
-        data-active={active || undefined}
-        onClick={() => onSortChange({ key: column, direction: nextDirection })}
-        type="button"
-      >
-        {squadColumnLabels[column]}
-        {active && <span aria-hidden="true">{sortState.direction === 'asc' ? ' ↑' : ' ↓'}</span>}
-      </button>
+      {abbreviatedColumns.has(column) ? (
+        <Tooltip content={squadColumnSortLabels[column]}>{sortButton}</Tooltip>
+      ) : (
+        sortButton
+      )}
     </th>
   );
 }
@@ -87,7 +119,7 @@ const renderOptionalPlayerValue = (player: Player, column: OptionalColumn): Reac
     case 'age':
       return player.age;
     case 'nationality':
-      return player.nationality;
+      return <NationalityDisplay codes={[player.nationality]} />;
     case 'heightCm':
       return `${Math.floor(player.heightCm / 100)},${String(player.heightCm % 100).padStart(2, '0')} m`;
     case 'preferredFoot':
@@ -182,6 +214,7 @@ export function SquadWorkspace({
   onToggleColumn,
   onResetView,
 }: SquadWorkspaceProps) {
+  const [openTableControl, setOpenTableControl] = useState<'density' | 'columns' | null>(null);
   const focusedPlayer =
     state.players.find((player) => player.id === focusedPlayerId) ?? state.players[0];
   const focusedIndex = focusedPlayer
@@ -200,6 +233,8 @@ export function SquadWorkspace({
     roleFilter !== 'all' ||
     statusFilter !== 'all' ||
     positionFilterVisible;
+  const updateTableControl = (control: 'density' | 'columns', open: boolean) =>
+    setOpenTableControl((current) => (open ? control : current === control ? null : current));
 
   return (
     <section className="screen-view squad-view" aria-labelledby="squad-screen-title">
@@ -350,24 +385,60 @@ export function SquadWorkspace({
             </div>
             <div className="table-controls">
               <span>Densidade</span>
-              {(['compact', 'standard', 'comfortable'] as const).map((density) => (
-                <button
-                  aria-label={`Densidade ${density === 'compact' ? 'compacta' : density === 'standard' ? 'padrão' : 'confortável'}`}
-                  aria-pressed={preferences.density === density}
-                  className="density-control"
-                  key={density}
-                  onClick={() => onDensityChange(density)}
-                  type="button"
-                >
-                  <i data-lines={density} />
-                </button>
-              ))}
-              <details className="column-picker">
-                <summary>
-                  <Icon name="columns" size={16} /> Colunas
-                </summary>
+              <Popover
+                align="end"
+                contentClassName="table-control-popover density-picker"
+                onOpenChange={(open) => updateTableControl('density', open)}
+                open={openTableControl === 'density'}
+                title="Densidade do elenco"
+                triggerAccessibleLabel={`Alterar densidade da tabela: ${densityLabels[preferences.density]}`}
+                triggerClassName="density-picker__trigger"
+                triggerContent={
+                  <>
+                    <i aria-hidden="true" data-lines={preferences.density} />
+                    <span>{densityLabels[preferences.density]}</span>
+                  </>
+                }
+                triggerLabel="Densidade"
+                triggerTooltip="Alterar espaçamento das linhas"
+              >
+                <div aria-label="Densidade da tabela" className="density-picker__menu" role="group">
+                  {(['compact', 'standard', 'comfortable'] as const).map((density) => (
+                    <button
+                      aria-label={`Densidade ${density === 'compact' ? 'compacta' : density === 'standard' ? 'padrão' : 'confortável'}`}
+                      aria-pressed={preferences.density === density}
+                      className="density-option"
+                      key={density}
+                      onClick={() => {
+                        onDensityChange(density);
+                        setOpenTableControl(null);
+                      }}
+                      type="button"
+                    >
+                      <i aria-hidden="true" data-lines={density} />
+                      <span>{densityLabels[density]}</span>
+                      <b>{preferences.density === density ? 'Atual' : 'Selecionar'}</b>
+                    </button>
+                  ))}
+                </div>
+              </Popover>
+              <Popover
+                align="end"
+                contentClassName="table-control-popover column-picker"
+                onOpenChange={(open) => updateTableControl('columns', open)}
+                open={openTableControl === 'columns'}
+                title="Colunas visíveis"
+                triggerAccessibleLabel="Configurar colunas"
+                triggerClassName="column-picker__trigger"
+                triggerContent={
+                  <>
+                    <Icon name="columns" size={16} /> Colunas
+                  </>
+                }
+                triggerLabel="Colunas"
+                triggerTooltip="Escolher colunas visíveis"
+              >
                 <div className="column-picker__menu">
-                  <strong>Colunas visíveis</strong>
                   {optionalColumns.map((column) => (
                     <button
                       aria-pressed={preferences.visibleColumns.includes(column)}
@@ -380,10 +451,12 @@ export function SquadWorkspace({
                     </button>
                   ))}
                 </div>
-              </details>
-              <button className="reset-view" onClick={onResetView} type="button">
-                Restaurar
-              </button>
+              </Popover>
+              <Tooltip content="Restaurar densidade e colunas padrão">
+                <button className="reset-view" onClick={onResetView} type="button">
+                  Restaurar
+                </button>
+              </Tooltip>
             </div>
           </header>
 
@@ -439,21 +512,24 @@ export function SquadWorkspace({
                     >
                       <td className="squad-number">{player.shirtNumber}</td>
                       <td>
-                        <button
-                          aria-label={`${selected ? 'Retirar' : 'Escalar'} ${player.name}`}
-                          aria-pressed={selected}
-                          className="lineup-control"
-                          onFocus={() => onFocusPlayer(player.id)}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onFocusPlayer(player.id);
-                            onTogglePlayer(player);
-                          }}
-                          title={selected ? 'Retirar do XI' : 'Escalar no primeiro espaço livre'}
-                          type="button"
+                        <Tooltip
+                          content={selected ? 'Retirar do XI' : 'Escalar no primeiro espaço livre'}
                         >
-                          {selected ? 'XI' : '+'}
-                        </button>
+                          <button
+                            aria-label={`${selected ? 'Retirar' : 'Escalar'} ${player.name}`}
+                            aria-pressed={selected}
+                            className="lineup-control"
+                            onFocus={() => onFocusPlayer(player.id)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onFocusPlayer(player.id);
+                              onTogglePlayer(player);
+                            }}
+                            type="button"
+                          >
+                            {selected ? 'XI' : '+'}
+                          </button>
+                        </Tooltip>
                       </td>
                       <th scope="row">
                         <PlayerFace decorative index={playerIndex} name={player.name} size={36} />
@@ -516,9 +592,11 @@ export function SquadWorkspace({
               <div>
                 <span>{positionLongLabels[focusedPlayer.position]}</span>
                 <h2>{focusedPlayer.name}</h2>
-                <small>
-                  Camisa {focusedPlayer.shirtNumber} · {focusedPlayer.age} anos ·{' '}
-                  {focusedPlayer.nationality}
+                <small className="dossier-meta">
+                  <span>
+                    Camisa {focusedPlayer.shirtNumber} · {focusedPlayer.age} anos ·
+                  </span>
+                  <NationalityDisplay codes={[focusedPlayer.nationality]} enableKeyboardTooltip />
                 </small>
               </div>
               <strong className="dossier-rating">

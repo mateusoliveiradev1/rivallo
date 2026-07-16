@@ -98,6 +98,7 @@
 
 .rv-button:focus-visible,
 .rv-icon-button:focus-visible,
+.rv-popover button:focus-visible,
 .rv-field__control:focus-visible,
 .rv-checkbox__input:focus-visible,
 .rv-radio input:focus-visible {
@@ -466,7 +467,7 @@
   border-radius: var(--rv-radius-control);
   font-size: var(--rv-type-12-size);
   line-height: var(--rv-type-12-line-height);
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .rv-popover,

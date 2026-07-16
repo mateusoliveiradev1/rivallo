@@ -4,7 +4,7 @@ import { createElement, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { IconButton, type IconButtonProps } from './actions.js';
-import { Menu, Popover } from './disclosure.js';
+import { Menu, Popover, Tooltip, TooltipProvider } from './disclosure.js';
 import { AlertDialogProof, Dialog } from './dialogs.js';
 import { RadioGroup, Switch, Tabs } from './selection.js';
 import { Toast } from './toast.js';
@@ -55,6 +55,43 @@ describe('Tooltip and stable IconButton composition', () => {
       void typedBoundary;
     }
   });
+
+  it('shares provider timing across sibling tooltips while preserving their button names', async () => {
+    const user = userEvent.setup();
+    render(
+      <TooltipProvider delayDuration={0} skipDelayDuration={0}>
+        <Tooltip content="Primeira ajuda">
+          <button type="button">Primeiro controle</button>
+        </Tooltip>
+        <Tooltip content="Segunda ajuda">
+          <button type="button">Segundo controle</button>
+        </Tooltip>
+      </TooltipProvider>,
+    );
+
+    await user.tab();
+    expect((await screen.findByRole('tooltip')).textContent).toBe('Primeira ajuda');
+    await user.keyboard('{Escape}');
+    await user.tab();
+    expect((await screen.findByRole('tooltip')).textContent).toBe('Segunda ajuda');
+    expect(screen.getByRole('button', { name: 'Segundo controle' })).toBe(document.activeElement);
+  });
+
+  it('keeps supplemental content visible while the pointer moves from trigger to tooltip', async () => {
+    const user = userEvent.setup();
+    render(
+      <TooltipProvider delayDuration={0} skipDelayDuration={0}>
+        <Tooltip content="Ajuda persistente">
+          <button type="button">Controle com ajuda</button>
+        </Tooltip>
+      </TooltipProvider>,
+    );
+
+    await user.hover(screen.getByRole('button', { name: 'Controle com ajuda' }));
+    const tooltip = await screen.findByRole('tooltip');
+    await user.hover(tooltip);
+    expect(screen.getByRole('tooltip').textContent).toBe('Ajuda persistente');
+  });
 });
 
 describe('Popover disclosure boundary', () => {
@@ -79,9 +116,57 @@ describe('Popover disclosure boundary', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(document.activeElement).toBe(trigger);
 
+    const outsideButton = screen.getByRole('button', { name: 'Fora do contexto' });
     await user.click(trigger);
-    await user.click(screen.getByRole('button', { name: 'Fora do contexto' }));
+    await user.click(outsideButton);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(document.activeElement).toBe(outsideButton);
+
+    await user.click(trigger);
+    await user.click(screen.getByRole('button', { name: 'Fechar contexto' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('supports a controlled customized trigger and restores it after an internal close', async () => {
+    function ControlledPopoverFixture() {
+      const [open, setOpen] = useState(false);
+      return (
+        <TooltipProvider delayDuration={0} skipDelayDuration={0}>
+          <Popover
+            align="end"
+            contentClassName="custom-popover"
+            onOpenChange={setOpen}
+            open={open}
+            title="Preferência contextual"
+            triggerAccessibleLabel="Configurar visualização"
+            triggerClassName="custom-trigger"
+            triggerContent={<span>Densidade padrão</span>}
+            triggerLabel="Densidade"
+            triggerTooltip="Alterar densidade"
+          >
+            <button onClick={() => setOpen(false)} type="button">
+              Aplicar preferência
+            </button>
+          </Popover>
+        </TooltipProvider>
+      );
+    }
+
+    const user = userEvent.setup();
+    render(<ControlledPopoverFixture />);
+    const trigger = screen.getByRole('button', { name: 'Configurar visualização' });
+    expect(trigger.classList.contains('custom-trigger')).toBe(true);
+    expect(trigger.textContent).toContain('Densidade padrão');
+
+    await user.click(trigger);
+    const dialog = screen.getByRole('dialog', { name: 'Preferência contextual' });
+    expect(dialog.classList.contains('rv-popover')).toBe(true);
+    expect(dialog.classList.contains('custom-popover')).toBe(true);
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Aplicar preferência' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(document.activeElement).toBe(trigger);
   });
 });
 

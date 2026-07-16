@@ -1,6 +1,7 @@
 import { StrictMode, type ComponentType } from 'react';
 import { createRoot } from 'react-dom/client';
 
+import { TooltipProvider } from './ui/primitives/disclosure.js';
 import './styles.css';
 
 const root = document.querySelector('#root');
@@ -29,7 +30,9 @@ async function mountDesktopSurface() {
 
   createRoot(desktopRoot).render(
     <StrictMode>
-      <Surface />
+      <TooltipProvider>
+        <Surface />
+      </TooltipProvider>
     </StrictMode>,
   );
 }

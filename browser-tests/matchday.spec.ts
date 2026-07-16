@@ -1,9 +1,23 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 import type { MatchdayState, Player } from '../apps/desktop/src/matchday/types.js';
 
 const developmentUrl = 'http://127.0.0.1:4173/';
 const bridgeStateKey = 'rivallo.browser-test.matchday-state';
+const browserErrorsByPage = new WeakMap<Page, string[]>();
+
+test.beforeEach(({ page }) => {
+  const browserErrors: string[] = [];
+  browserErrorsByPage.set(page, browserErrors);
+  page.on('console', (message) => {
+    if (message.type() === 'error') browserErrors.push(`console: ${message.text()}`);
+  });
+  page.on('pageerror', (error) => browserErrors.push(`page: ${error.message}`));
+});
+
+test.afterEach(({ page }) => {
+  expect(browserErrorsByPage.get(page) ?? []).toEqual([]);
+});
 
 const screenshotViewports = [
   { width: 1024, height: 768 },
@@ -220,7 +234,9 @@ test('opens Elenco as a dedicated table workspace without rendering the tactical
     'aria-current',
     'page',
   );
-  await expect(page.locator('.squad-table img')).toHaveCount(18);
+  await expect(page.locator('.squad-table .player-face')).toHaveCount(18);
+  await expect(page.locator('.squad-table img.rv-nationality__flag')).toHaveCount(18);
+  await expect(page.locator('.player-dossier img.rv-nationality__flag')).toHaveCount(1);
   await expect(page.locator('th[data-column="potentialRating"]')).toBeVisible();
   await expect(page.getByRole('row', { name: /Caio Brandão/u })).toContainText('1');
   await expect(page.getByRole('row', { name: /Davi Moura/u })).toContainText('22');
@@ -269,14 +285,128 @@ test('personalizes the squad workspace and persists the choices', async ({ page 
   await expect(page.locator('.manager-shell')).not.toHaveAttribute('data-sidebar-collapsed');
   await page.getByRole('button', { name: 'Recolher navegação' }).click();
   await expect(page.locator('.manager-shell')).toHaveAttribute('data-sidebar-collapsed', 'true');
+
+  const densityTrigger = page.getByRole('button', { name: /Alterar densidade da tabela/u });
+  const columnsTrigger = page.getByRole('button', { name: 'Configurar colunas' });
+  await densityTrigger.focus();
+  await expect(page.getByRole('tooltip')).toHaveText('Alterar espaçamento das linhas');
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('dialog', { name: 'Densidade do elenco' })).toBeVisible();
+  await expect(page.getByRole('tooltip')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(densityTrigger).toBeFocused();
+
+  for (let cycle = 0; cycle < 3; cycle += 1) {
+    await densityTrigger.click();
+    await expect(page.getByRole('dialog', { name: 'Densidade do elenco' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog', { name: 'Densidade do elenco' })).toBeHidden();
+    await expect(densityTrigger).toBeFocused();
+  }
+
+  await densityTrigger.click();
+  await page
+    .getByRole('dialog', { name: 'Densidade do elenco' })
+    .getByRole('button', { name: 'Fechar contexto' })
+    .click();
+  await expect(page.getByRole('dialog', { name: 'Densidade do elenco' })).toBeHidden();
+  await expect(densityTrigger).toBeFocused();
+
+  await densityTrigger.click();
+  await columnsTrigger.click();
+  await expect(page.getByRole('dialog', { name: 'Densidade do elenco' })).toBeHidden();
+  await expect(page.getByRole('dialog', { name: 'Colunas visíveis' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(columnsTrigger).toBeFocused();
+
+  await columnsTrigger.click();
+  await expect(page.getByRole('dialog', { name: 'Colunas visíveis' })).toBeVisible();
+  await densityTrigger.click();
+  await expect(page.getByRole('dialog', { name: 'Colunas visíveis' })).toBeHidden();
+  await expect(page.getByRole('dialog', { name: 'Densidade do elenco' })).toBeVisible();
+  await page.getByRole('button', { name: 'Densidade padrão' }).click();
+  await expect(page.getByRole('dialog', { name: 'Densidade do elenco' })).toBeHidden();
+
+  const readDensityGeometry = () =>
+    page
+      .locator('.squad-table tbody tr')
+      .first()
+      .evaluate((row) => {
+        const cell = row.querySelector('td');
+        const playerCell = row.querySelector('th');
+        if (!(cell instanceof HTMLElement) || !(playerCell instanceof HTMLElement)) {
+          throw new Error('A linha do elenco não possui as células esperadas.');
+        }
+        return {
+          height: row.getBoundingClientRect().height,
+          padding: Number.parseFloat(getComputedStyle(cell).paddingInlineStart),
+          gap: Number.parseFloat(getComputedStyle(playerCell).columnGap),
+        };
+      });
+
+  await densityTrigger.click();
+  await page.getByRole('button', { name: 'Densidade compacta' }).click();
+  const compactGeometry = await readDensityGeometry();
+  await densityTrigger.click();
+  await page.getByRole('button', { name: 'Densidade padrão' }).click();
+  const standardGeometry = await readDensityGeometry();
+  await densityTrigger.click();
   await page.getByRole('button', { name: 'Densidade confortável' }).click();
-  await page.getByText('Colunas', { exact: true }).click();
+  const comfortableGeometry = await readDensityGeometry();
+  expect(compactGeometry.height).toBeLessThan(standardGeometry.height);
+  expect(standardGeometry.height).toBeLessThan(comfortableGeometry.height);
+  expect(compactGeometry.padding).toBeLessThan(standardGeometry.padding);
+  expect(standardGeometry.padding).toBeLessThan(comfortableGeometry.padding);
+  expect(compactGeometry.gap).toBeLessThan(standardGeometry.gap);
+  expect(standardGeometry.gap).toBeLessThan(comfortableGeometry.gap);
+  await expect(page.getByRole('dialog', { name: 'Densidade do elenco' })).toBeHidden();
+  await expect(densityTrigger).toHaveAttribute('aria-label', /Confortável/u);
+  await expect(densityTrigger).toBeFocused();
+
+  await columnsTrigger.click();
+  await expect(page.getByRole('dialog', { name: 'Colunas visíveis' })).toBeVisible();
+  await page.keyboard.press('Tab');
+  const focusedPopoverControl = page.locator('.rv-popover button:focus-visible');
+  await expect(focusedPopoverControl).toHaveCount(1);
+  const focusStyle = await focusedPopoverControl.evaluate((element) => {
+    const styles = getComputedStyle(element);
+    const rootStyles = getComputedStyle(document.documentElement);
+    return {
+      outlineColor: styles.outlineColor,
+      focusColor: rootStyles.getPropertyValue('--rv-color-focus').trim(),
+      outlineWidth: Number.parseFloat(styles.outlineWidth),
+    };
+  });
+  expect(focusStyle.outlineColor).toBe(focusStyle.focusColor);
+  expect(focusStyle.outlineWidth).toBeGreaterThanOrEqual(2);
   await page.getByRole('button', { name: /Idade.*Visível/u }).click();
+  await expect(page.getByRole('dialog', { name: 'Colunas visíveis' })).toBeVisible();
+  await expect(page.locator('th[data-column="age"]')).toBeHidden();
+  await page.getByRole('button', { name: 'Fechar contexto' }).click();
+  await expect(page.getByRole('dialog', { name: 'Colunas visíveis' })).toBeHidden();
+  await expect(columnsTrigger).toBeFocused();
+
+  await columnsTrigger.click();
+  await page.getByRole('heading', { name: /jogadores$/u }).click();
+  await expect(page.getByRole('dialog', { name: 'Colunas visíveis' })).toBeHidden();
+  await expect(columnsTrigger).toBeFocused();
+  await expect(page.locator('.rv-popover')).toHaveCount(0);
+  await expect(page.locator('body')).not.toHaveAttribute('style', /(?:overflow|pointer-events)/u);
+
+  await page.getByRole('button', { name: 'Táticas', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Plano de jogo' })).toBeVisible();
+  await page.getByRole('button', { name: 'Elenco', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: /Alterar densidade da tabela: Confortável/u }),
+  ).toBeVisible();
   await expect(page.locator('th[data-column="age"]')).toBeHidden();
 
   await page.reload();
   await expect(page.locator('.manager-shell')).toHaveAttribute('data-sidebar-collapsed', 'true');
   await expect(page.locator('th[data-column="age"]')).toBeHidden();
+  await expect(
+    page.getByRole('button', { name: /Alterar densidade da tabela: Confortável/u }),
+  ).toBeVisible();
 });
 
 test('uses real squad filters and navigates between the separate workspaces', async ({ page }) => {

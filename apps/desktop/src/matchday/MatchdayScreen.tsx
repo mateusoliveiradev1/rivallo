@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 
 import { Button } from '../ui/primitives/actions.js';
+import { Tooltip } from '../ui/primitives/disclosure.js';
 import { Skeleton } from '../ui/primitives/feedback.js';
 import { loadMatchday, playNextMatch, saveMatchdayLineup } from './client.js';
 import {
@@ -73,12 +74,17 @@ const readPreferences = (): UiPreferences => {
       LEGACY_UI_PREFERENCES_KEYS.map((key) => window.localStorage.getItem(key)).find(Boolean);
     if (!raw) return defaults;
     const stored = JSON.parse(raw) as Partial<UiPreferences> & { workspaceView?: string };
-    const columns =
-      currentRaw && Array.isArray(stored.visibleColumns)
-        ? stored.visibleColumns.filter((column): column is OptionalColumn =>
-            optionalColumns.includes(column as OptionalColumn),
-          )
-        : defaults.visibleColumns;
+    const storedVisibleColumns = Array.isArray(stored.visibleColumns)
+      ? stored.visibleColumns
+      : null;
+    const hasStoredVisibleColumns = storedVisibleColumns !== null;
+    const columns = hasStoredVisibleColumns
+      ? storedVisibleColumns.filter((column): column is OptionalColumn =>
+          optionalColumns.includes(column as OptionalColumn),
+        )
+      : defaults.visibleColumns;
+    const hasUsableStoredColumns =
+      hasStoredVisibleColumns && (storedVisibleColumns.length === 0 || columns.length > 0);
     const activeScreen: ActiveScreen =
       stored.activeScreen === 'tactics' || stored.workspaceView === 'tactics' ? 'tactics' : 'squad';
     return {
@@ -89,7 +95,7 @@ const readPreferences = (): UiPreferences => {
       density: ['compact', 'standard', 'comfortable'].includes(String(stored.density))
         ? (stored.density as Density)
         : defaults.density,
-      visibleColumns: columns.length > 0 ? columns : defaults.visibleColumns,
+      visibleColumns: hasUsableStoredColumns ? columns : defaults.visibleColumns,
       activeScreen,
       showPlayerDetails:
         typeof stored.showPlayerDetails === 'boolean'
@@ -466,17 +472,22 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
             <Icon name="settings" size={20} />
             <span>Personalizar</span>
           </button>
-          <button
-            aria-label={preferences.sidebarCollapsed ? 'Expandir navegação' : 'Recolher navegação'}
-            onClick={() => updatePreference('sidebarCollapsed', !preferences.sidebarCollapsed)}
-            title={preferences.sidebarCollapsed ? 'Expandir navegação' : 'Recolher navegação'}
-            type="button"
+          <Tooltip
+            content={preferences.sidebarCollapsed ? 'Expandir navegação' : 'Recolher navegação'}
           >
-            <Icon
-              name={preferences.sidebarCollapsed ? 'expand-navigation' : 'collapse-navigation'}
-              size={20}
-            />
-          </button>
+            <button
+              aria-label={
+                preferences.sidebarCollapsed ? 'Expandir navegação' : 'Recolher navegação'
+              }
+              onClick={() => updatePreference('sidebarCollapsed', !preferences.sidebarCollapsed)}
+              type="button"
+            >
+              <Icon
+                name={preferences.sidebarCollapsed ? 'expand-navigation' : 'collapse-navigation'}
+                size={20}
+              />
+            </button>
+          </Tooltip>
         </div>
       </aside>
 

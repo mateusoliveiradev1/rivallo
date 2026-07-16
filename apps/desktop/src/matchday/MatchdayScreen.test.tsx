@@ -1,6 +1,7 @@
 import '@testing-library/dom';
 
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { userEvent } from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MatchdayScreen } from './MatchdayScreen.js';
@@ -125,6 +126,35 @@ describe('MatchdayScreen', () => {
     expect(
       within(screen.getByRole('table')).getAllByRole('button', { name: /Retirar|Escalar/u }),
     ).toHaveLength(12);
+    expect(within(screen.getByRole('table')).getAllByLabelText('Brasil, código BRA')).toHaveLength(
+      12,
+    );
+    expect(
+      within(screen.getByLabelText('Resumo de Caio Brandão')).getByLabelText('Brasil, código BRA'),
+    ).toBeInstanceOf(HTMLElement);
+  });
+
+  it('keeps an unknown nationality readable in the real table and dossier', async () => {
+    clientMock.loadMatchday.mockResolvedValue({
+      ...state,
+      players: state.players.map((player, index) =>
+        index === 0 ? { ...player, nationality: 'código-corrompido-comprido' } : player,
+      ),
+    });
+
+    render(<MatchdayScreen serviceOwnership="owned" />);
+    await screen.findByRole('heading', { name: 'Visão geral do elenco' });
+
+    const playerRow = screen.getByRole('row', { name: /Caio Brandão/u });
+    expect(within(playerRow).getByLabelText('Nacionalidade não identificada').textContent).toBe(
+      '—',
+    );
+    expect(playerRow.querySelector('.rv-nationality__flag')).toBeNull();
+    expect(
+      within(screen.getByLabelText('Resumo de Caio Brandão')).getByLabelText(
+        'Nacionalidade não identificada',
+      ).textContent,
+    ).toBe('—');
   });
 
   it('lets the manager replace the goalkeeper and save a valid XI', async () => {
@@ -158,6 +188,7 @@ describe('MatchdayScreen', () => {
     expect(screen.getByRole('button', { name: 'Expandir navegação' })).toBeInstanceOf(
       HTMLButtonElement,
     );
+    fireEvent.click(screen.getByRole('button', { name: /Alterar densidade da tabela/u }));
     fireEvent.click(screen.getByRole('button', { name: 'Densidade confortável' }));
 
     await waitFor(() => {
@@ -165,6 +196,129 @@ describe('MatchdayScreen', () => {
       expect(stored).toContain('"sidebarCollapsed":true');
       expect(stored).toContain('"density":"comfortable"');
     });
+  });
+
+  it('restores an intentionally minimal optional-column view without treating it as corrupt', async () => {
+    window.localStorage.setItem(
+      'rivallo.squad-ui.v4',
+      JSON.stringify({ density: 'standard', visibleColumns: [] }),
+    );
+
+    render(<MatchdayScreen serviceOwnership="owned" />);
+    await screen.findByRole('heading', { name: 'Visão geral do elenco' });
+
+    expect(screen.queryByRole('button', { name: /Ordenar por idade/u })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: /Alterar densidade da tabela: Padrão/u }),
+    ).toBeInstanceOf(HTMLButtonElement);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Configurar colunas' }));
+    expect(screen.getByRole('button', { name: /Idade.*Oculta/u })).toBeInstanceOf(
+      HTMLButtonElement,
+    );
+  });
+
+  it('migrates valid legacy column identifiers without restoring unknown columns', async () => {
+    window.localStorage.setItem(
+      'rivallo.squad-ui.v3',
+      JSON.stringify({ density: 'standard', visibleColumns: ['age', 'removedColumn'] }),
+    );
+
+    render(<MatchdayScreen serviceOwnership="owned" />);
+    await screen.findByRole('heading', { name: 'Visão geral do elenco' });
+
+    expect(screen.getByRole('button', { name: /Ordenar por idade/u })).toBeInstanceOf(
+      HTMLButtonElement,
+    );
+    expect(screen.queryByRole('button', { name: /Ordenar por potencial/u })).toBeNull();
+    await waitFor(() =>
+      expect(window.localStorage.getItem('rivallo.squad-ui.v4')).toContain(
+        '"visibleColumns":["age"]',
+      ),
+    );
+  });
+
+  it('restores default columns when a legacy view contains only unknown identifiers', async () => {
+    window.localStorage.setItem(
+      'rivallo.squad-ui.v3',
+      JSON.stringify({ density: 'standard', visibleColumns: ['removedColumn'] }),
+    );
+
+    render(<MatchdayScreen serviceOwnership="owned" />);
+    await screen.findByRole('heading', { name: 'Visão geral do elenco' });
+
+    expect(screen.getByRole('button', { name: /Ordenar por idade/u })).toBeInstanceOf(
+      HTMLButtonElement,
+    );
+    expect(screen.getByRole('button', { name: /Ordenar por potencial/u })).toBeInstanceOf(
+      HTMLButtonElement,
+    );
+    await waitFor(() => {
+      const stored = JSON.parse(window.localStorage.getItem('rivallo.squad-ui.v4') ?? '{}') as {
+        visibleColumns?: unknown[];
+      };
+      expect(stored.visibleColumns?.length).toBeGreaterThan(0);
+    });
+  });
+
+  it('closes table view popovers without stale layers and restores focus across repeated use', async () => {
+    const user = userEvent.setup();
+    render(<MatchdayScreen serviceOwnership="owned" />);
+    await screen.findByRole('heading', { name: 'Visão geral do elenco' });
+
+    let densityTrigger = screen.getByRole('button', { name: /Alterar densidade da tabela/u });
+    for (let cycle = 0; cycle < 3; cycle += 1) {
+      await user.click(densityTrigger);
+      expect(screen.getByRole('dialog', { name: 'Densidade do elenco' })).toBeInstanceOf(
+        HTMLElement,
+      );
+      await user.keyboard('{Escape}');
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: 'Densidade do elenco' })).toBeNull(),
+      );
+      expect(document.activeElement).toBe(densityTrigger);
+    }
+
+    await user.click(densityTrigger);
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Densidade do elenco' })).getByRole('button', {
+        name: 'Fechar contexto',
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Densidade do elenco' })).toBeNull(),
+    );
+    expect(document.activeElement).toBe(densityTrigger);
+
+    await user.click(densityTrigger);
+    await user.click(screen.getByRole('button', { name: 'Densidade confortável' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Densidade do elenco' })).toBeNull(),
+    );
+    densityTrigger = screen.getByRole('button', { name: /Alterar densidade da tabela/u });
+    expect(densityTrigger.getAttribute('aria-label')).toContain('Confortável');
+    expect(document.activeElement).toBe(densityTrigger);
+
+    const columnsTrigger = screen.getByRole('button', { name: 'Configurar colunas' });
+    await user.click(columnsTrigger);
+    const columnsPopover = screen.getByRole('dialog', { name: 'Colunas visíveis' });
+    await user.click(within(columnsPopover).getByRole('button', { name: /Idade.*Visível/u }));
+    expect(screen.getByRole('dialog', { name: 'Colunas visíveis' })).toBeInstanceOf(HTMLElement);
+    await user.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Colunas visíveis' })).toBeNull(),
+    );
+    expect(document.activeElement).toBe(columnsTrigger);
+
+    await user.click(columnsTrigger);
+    await user.click(screen.getByRole('heading', { name: '12 jogadores' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Colunas visíveis' })).toBeNull(),
+    );
+    expect(document.activeElement).toBe(columnsTrigger);
+    expect(document.body.style.overflow).toBe('');
+    expect(document.body.style.pointerEvents).toBe('');
+    expect(document.querySelectorAll('.rv-popover')).toHaveLength(0);
   });
 
   it('opens Tactics as a dedicated screen and substitutes through the accessible field flow', async () => {

@@ -5,6 +5,7 @@ import { Button } from '../primitives/actions.js';
 import { Menu, Tooltip, type MenuItem } from '../primitives/disclosure.js';
 import { EmptyState, ErrorState, Skeleton } from '../primitives/feedback.js';
 import { ScrollArea } from '../primitives/layout.js';
+import { ResolvedNationalityDisplay } from '../Nationality/NationalityDisplay.js';
 import './DenseTable.css';
 
 export type DenseTableDensity = 'compact' | 'comfortable';
@@ -71,32 +72,26 @@ export interface DenseTableNationalityProps {
 }
 
 export function DenseTableNationality({ code, countryName, flagSrc }: DenseTableNationalityProps) {
-  const [flagFailed, setFlagFailed] = useState(false);
-  if (code.trim().length === 0 || countryName.trim().length === 0) {
-    throw new Error('DenseTableNationality requires a country code and full country name.');
-  }
+  const displayCode = code.trim().toLocaleUpperCase('en-US') || '—';
+  const displayName = countryName.trim() || 'Nacionalidade não informada';
 
   return (
-    <span className="rv-dense-table__nationality">
-      {!flagFailed && (
-        <img
-          alt=""
-          aria-hidden="true"
-          className="rv-dense-table__flag"
-          onError={() => setFlagFailed(true)}
-          src={flagSrc}
-        />
-      )}
-      <Tooltip content={countryName}>
-        <abbr
-          aria-label={`${countryName}, código ${code}`}
-          className="rv-dense-table__country-code"
-          tabIndex={0}
-        >
-          {code}
-        </abbr>
-      </Tooltip>
-    </span>
+    <ResolvedNationalityDisplay
+      className="rv-dense-table__nationality"
+      enableKeyboardTooltip
+      countries={[
+        {
+          key: `custom:${displayCode}:${displayName}`,
+          normalizedInput: displayCode === '—' ? '' : displayCode,
+          iso2: null,
+          iso3: null,
+          displayCode,
+          countryName: displayName,
+          flagSrc: flagSrc.trim() || null,
+          known: displayCode !== '—' && countryName.trim().length > 0,
+        },
+      ]}
+    />
   );
 }
 

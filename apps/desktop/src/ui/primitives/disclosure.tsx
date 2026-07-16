@@ -2,7 +2,34 @@ import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { Icon } from '@rivallo/icons';
-import { useId, type ReactElement, type ReactNode } from 'react';
+import { createContext, useContext, useId, useRef, type ReactElement, type ReactNode } from 'react';
+
+const TOOLTIP_DELAY_DURATION = 300;
+const TOOLTIP_SKIP_DELAY_DURATION = 100;
+const TooltipProviderBoundary = createContext(false);
+
+export interface TooltipProviderProps {
+  readonly children: ReactNode;
+  readonly delayDuration?: number;
+  readonly skipDelayDuration?: number;
+}
+
+export function TooltipProvider({
+  children,
+  delayDuration = TOOLTIP_DELAY_DURATION,
+  skipDelayDuration = TOOLTIP_SKIP_DELAY_DURATION,
+}: TooltipProviderProps) {
+  return (
+    <TooltipProviderBoundary.Provider value>
+      <TooltipPrimitive.Provider
+        delayDuration={delayDuration}
+        skipDelayDuration={skipDelayDuration}
+      >
+        {children}
+      </TooltipPrimitive.Provider>
+    </TooltipProviderBoundary.Provider>
+  );
+}
 
 export interface TooltipProps {
   readonly children: ReactElement;
@@ -10,44 +37,87 @@ export interface TooltipProps {
 }
 
 export function Tooltip({ children, content }: TooltipProps) {
+  const hasSharedProvider = useContext(TooltipProviderBoundary);
   if (content.trim().length === 0) {
     throw new Error('Tooltip content must be non-empty supplemental text.');
   }
 
-  return (
-    <TooltipPrimitive.Provider delayDuration={0} skipDelayDuration={0}>
-      <TooltipPrimitive.Root>
-        <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
-        <TooltipPrimitive.Portal>
-          <TooltipPrimitive.Content className="rv-tooltip" sideOffset={4}>
-            {content}
-          </TooltipPrimitive.Content>
-        </TooltipPrimitive.Portal>
-      </TooltipPrimitive.Root>
-    </TooltipPrimitive.Provider>
+  const tooltip = (
+    <TooltipPrimitive.Root>
+      <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
+      <TooltipPrimitive.Portal>
+        <TooltipPrimitive.Content className="rv-tooltip" sideOffset={4}>
+          {content}
+        </TooltipPrimitive.Content>
+      </TooltipPrimitive.Portal>
+    </TooltipPrimitive.Root>
   );
+
+  return hasSharedProvider ? tooltip : <TooltipProvider>{tooltip}</TooltipProvider>;
 }
 
 export interface PopoverProps {
   readonly triggerLabel: string;
   readonly title: string;
   readonly children: ReactNode;
+  readonly align?: 'start' | 'center' | 'end';
+  readonly contentClassName?: string;
+  readonly open?: boolean;
+  readonly onOpenChange?: (open: boolean) => void;
+  readonly triggerAccessibleLabel?: string;
+  readonly triggerClassName?: string;
+  readonly triggerContent?: ReactNode;
+  readonly triggerTooltip?: string;
 }
 
-export function Popover({ triggerLabel, title, children }: PopoverProps) {
+export function Popover({
+  triggerLabel,
+  title,
+  children,
+  align = 'center',
+  contentClassName,
+  open,
+  onOpenChange,
+  triggerAccessibleLabel,
+  triggerClassName,
+  triggerContent,
+  triggerTooltip,
+}: PopoverProps) {
   const titleId = `rv-popover-${useId()}`;
+  const contentRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const trigger = (
+    <PopoverPrimitive.Trigger asChild>
+      <button
+        aria-label={triggerAccessibleLabel}
+        className={triggerClassName ?? 'rv-button'}
+        data-variant={triggerClassName ? undefined : 'secondary'}
+        ref={triggerRef}
+        type="button"
+      >
+        <span className="rv-button__label">{triggerContent ?? triggerLabel}</span>
+      </button>
+    </PopoverPrimitive.Trigger>
+  );
 
   return (
-    <PopoverPrimitive.Root>
-      <PopoverPrimitive.Trigger asChild>
-        <button className="rv-button" data-variant="secondary" type="button">
-          <span className="rv-button__label">{triggerLabel}</span>
-        </button>
-      </PopoverPrimitive.Trigger>
+    <PopoverPrimitive.Root modal={false} onOpenChange={onOpenChange} open={open}>
+      {triggerTooltip ? <Tooltip content={triggerTooltip}>{trigger}</Tooltip> : trigger}
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
+          align={align}
           aria-labelledby={titleId}
-          className="rv-popover"
+          className={['rv-popover', contentClassName].filter(Boolean).join(' ')}
+          ref={contentRef}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            const activeElement = document.activeElement;
+            const focusMovedOutside =
+              activeElement instanceof HTMLElement &&
+              activeElement !== document.body &&
+              !contentRef.current?.contains(activeElement);
+            if (!focusMovedOutside) triggerRef.current?.focus();
+          }}
           role="dialog"
           sideOffset={4}
         >
