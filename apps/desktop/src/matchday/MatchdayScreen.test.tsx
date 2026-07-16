@@ -351,7 +351,7 @@ describe('MatchdayScreen', () => {
     expect(
       screen.getByRole('button', { name: /Alterar densidade da tabela: Padrão/u }),
     ).toBeInstanceOf(HTMLButtonElement);
-    expect(screen.queryByRole('button', { name: /Ordenar por idade/u })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Ordenar por Idade/u })).toBeNull();
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Buscar jogador no elenco' }), {
       target: { value: 'Luan' },
@@ -437,13 +437,13 @@ describe('MatchdayScreen', () => {
     render(<MatchdayScreen serviceOwnership="owned" />);
     await screen.findByRole('heading', { name: 'Visão geral do elenco' });
 
-    expect(screen.queryByRole('button', { name: /Ordenar por idade/u })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Ordenar por Idade/u })).toBeNull();
     expect(
       screen.getByRole('button', { name: /Alterar densidade da tabela: Padrão/u }),
     ).toBeInstanceOf(HTMLButtonElement);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Configurar colunas' }));
-    expect(screen.getByRole('button', { name: /Idade.*Oculta/u })).toBeInstanceOf(
+    fireEvent.click(screen.getByRole('button', { name: 'Configurar tabela' }));
+    expect(screen.getByRole('button', { name: 'Mostrar Idade' })).toBeInstanceOf(
       HTMLButtonElement,
     );
     await waitFor(() => expect(clientMock.importLegacyTablePreferences).toHaveBeenCalledOnce());
@@ -459,10 +459,10 @@ describe('MatchdayScreen', () => {
     render(<MatchdayScreen serviceOwnership="owned" />);
     await screen.findByRole('heading', { name: 'Visão geral do elenco' });
 
-    expect(screen.getByRole('button', { name: /Ordenar por idade/u })).toBeInstanceOf(
+    expect(screen.getByRole('button', { name: /Ordenar por Idade/u })).toBeInstanceOf(
       HTMLButtonElement,
     );
-    expect(screen.queryByRole('button', { name: /Ordenar por potencial/u })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Ordenar por PA/u })).toBeNull();
     await waitFor(() => expect(clientMock.importLegacyTablePreferences).toHaveBeenCalledOnce());
     expect(window.localStorage.getItem('rivallo.squad-ui.v3')).toBeNull();
     expectOnlyNonTablePreferences('rivallo.squad-ui.v4');
@@ -477,10 +477,10 @@ describe('MatchdayScreen', () => {
     render(<MatchdayScreen serviceOwnership="owned" />);
     await screen.findByRole('heading', { name: 'Visão geral do elenco' });
 
-    expect(screen.getByRole('button', { name: /Ordenar por idade/u })).toBeInstanceOf(
+    expect(screen.getByRole('button', { name: /Ordenar por Idade/u })).toBeInstanceOf(
       HTMLButtonElement,
     );
-    expect(screen.getByRole('button', { name: /Ordenar por potencial/u })).toBeInstanceOf(
+    expect(screen.getByRole('button', { name: /Ordenar por PA/u })).toBeInstanceOf(
       HTMLButtonElement,
     );
     await waitFor(() => expect(clientMock.loadTableViews).toHaveBeenCalledOnce());
@@ -527,21 +527,21 @@ describe('MatchdayScreen', () => {
     expect(densityTrigger.getAttribute('aria-label')).toContain('Confortável');
     expect(document.activeElement).toBe(densityTrigger);
 
-    const columnsTrigger = screen.getByRole('button', { name: 'Configurar colunas' });
+    const columnsTrigger = screen.getByRole('button', { name: 'Configurar tabela' });
     await user.click(columnsTrigger);
-    const columnsPopover = screen.getByRole('dialog', { name: 'Colunas visíveis' });
-    await user.click(within(columnsPopover).getByRole('button', { name: /Idade.*Visível/u }));
-    expect(screen.getByRole('dialog', { name: 'Colunas visíveis' })).toBeInstanceOf(HTMLElement);
+    const columnsPopover = screen.getByRole('dialog', { name: 'Configurar tabela' });
+    await user.click(within(columnsPopover).getByRole('button', { name: 'Ocultar Idade' }));
+    expect(screen.getByRole('dialog', { name: 'Configurar tabela' })).toBeInstanceOf(HTMLElement);
     await user.keyboard('{Escape}');
     await waitFor(() =>
-      expect(screen.queryByRole('dialog', { name: 'Colunas visíveis' })).toBeNull(),
+      expect(screen.queryByRole('dialog', { name: 'Configurar tabela' })).toBeNull(),
     );
     expect(document.activeElement).toBe(columnsTrigger);
 
     await user.click(columnsTrigger);
     await user.click(screen.getByRole('heading', { name: '12 jogadores' }));
     await waitFor(() =>
-      expect(screen.queryByRole('dialog', { name: 'Colunas visíveis' })).toBeNull(),
+      expect(screen.queryByRole('dialog', { name: 'Configurar tabela' })).toBeNull(),
     );
     expect(document.activeElement).toBe(columnsTrigger);
     expect(document.body.style.overflow).toBe('');
@@ -1093,7 +1093,7 @@ describe('MatchdayScreen', () => {
     });
     const tableHeader = selectorTrigger.closest('.squad-panel__header');
     expect(tableHeader).toBeInstanceOf(HTMLElement);
-    expect(tableHeader?.contains(screen.getByRole('button', { name: 'Configurar colunas' }))).toBe(
+    expect(tableHeader?.contains(screen.getByRole('button', { name: 'Configurar tabela' }))).toBe(
       true,
     );
     expect(tableHeader?.compareDocumentPosition(table) ?? 0).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
@@ -1283,7 +1283,7 @@ describe('MatchdayScreen', () => {
     await user.click(screen.getByRole('button', { name: 'Revisar visualização importada' }));
     await waitFor(() =>
       expect(document.activeElement).toBe(
-        screen.getByRole('button', { name: 'Configurar colunas' }),
+        screen.getByRole('button', { name: 'Configurar tabela' }),
       ),
     );
     expect(clientMock.importLegacyTablePreferences).toHaveBeenCalledOnce();

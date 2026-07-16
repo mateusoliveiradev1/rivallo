@@ -1,5 +1,22 @@
 import { Icon } from '@rivallo/icons';
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type DragEvent,
+  type KeyboardEvent,
+  type PointerEvent,
+  type ReactNode,
+} from 'react';
+
+import {
+  type TableViewColumnSchema,
+  type TableViewColumnState,
+  type TableViewCommand,
+  type TableViewCommandResult,
+  type TableViewState,
+} from '../table-view/table-view-engine.js';
 
 import { Button } from '../ui/primitives/actions.js';
 import { NationalityDisplay } from '../ui/Nationality/index.js';
@@ -7,7 +24,6 @@ import { Popover, Tooltip } from '../ui/primitives/disclosure.js';
 import { Skeleton } from '../ui/primitives/feedback.js';
 import {
   defaultSquadSort,
-  optionalColumnLabels,
   optionalColumns,
   positionLabels,
   positionLongLabels,
@@ -23,6 +39,8 @@ import {
   type StatusFilter,
 } from './matchday-ui.js';
 import { PlayerFace } from './PlayerFace.js';
+import { SQUAD_TABLE_SCHEMA, type SquadColumnId } from './squad-table-schema.js';
+import { TableViewCustomizer } from './TableViewCustomizer.js';
 import type { SortKey, SquadSortState } from './squad-sort.js';
 import type { MatchdayState, Player } from './types.js';
 import type {
@@ -68,6 +86,44 @@ const densityLabels: Record<Density, string> = {
   compact: 'Compacta',
   standard: 'Padrão',
   comfortable: 'Confortável',
+};
+
+interface HeaderOperationSession {
+  readonly kind: 'move' | 'resize';
+  readonly input: 'keyboard' | 'pointer';
+  readonly columnId: string;
+  readonly snapshot: TableViewState;
+  readonly startX?: number;
+  readonly startWidth?: number;
+}
+
+const asResetBaseline = (snapshot: TableViewState, current: TableViewState): TableViewState => ({
+  ...snapshot,
+  viewId: current.baselineViewId,
+  baselineViewId: current.baselineViewId,
+});
+
+const calculatePinOffsets = (
+  columns: readonly TableViewColumnState[],
+): ReadonlyMap<string, number> => {
+  const offsets = new Map<string, number>();
+
+  for (const side of ['start', 'end'] as const) {
+    let offset = 0;
+    const pinned = columns
+      .filter((column) => column.visible && column.pinning.side === side)
+      .sort(
+        (left, right) =>
+          (left.pinning.order ?? Number.MAX_SAFE_INTEGER) -
+          (right.pinning.order ?? Number.MAX_SAFE_INTEGER),
+      );
+    for (const column of pinned) {
+      offsets.set(column.columnId, offset);
+      offset += column.width;
+    }
+  }
+
+  return offsets;
 };
 
 interface SortableColumnHeaderProps {
@@ -173,6 +229,9 @@ interface SquadWorkspaceProps {
   readonly tableViewRepositoryStatus: SquadTableViewRepositoryStatus;
   readonly tableViewPersistenceStatus: SquadTableViewPersistenceStatus;
   readonly tableHeader: ReactNode;
+  readonly tableViewState: TableViewState;
+  readonly tableViewBaseline: TableViewState;
+  readonly tableViewDirty: boolean;
   readonly tableViewLoading: boolean;
   readonly dirty: boolean;
   readonly message: string;
@@ -191,6 +250,8 @@ interface SquadWorkspaceProps {
   readonly onDensityChange: (density: Density) => void;
   readonly onToggleColumn: (column: OptionalColumn) => void;
   readonly onResetView: () => void;
+  readonly onTableViewCommand: (command: TableViewCommand) => TableViewCommandResult;
+  readonly onSaveTableView: () => boolean | void | Promise<boolean | void>;
 }
 
 export function SquadWorkspace({
@@ -211,6 +272,9 @@ export function SquadWorkspace({
   tableViewRepositoryStatus,
   tableViewPersistenceStatus,
   tableHeader,
+  tableViewState,
+  tableViewBaseline,
+  tableViewDirty,
   tableViewLoading,
   dirty,
   message,
@@ -227,10 +291,10 @@ export function SquadWorkspace({
   onPositionFilterChange,
   onPositionFilterVisibleChange,
   onDensityChange,
-  onToggleColumn,
-  onResetView,
+  onTableViewCommand,
+  onSaveTableView,
 }: SquadWorkspaceProps) {
-  const [openTableControl, setOpenTableControl] = useState<'density' | 'columns' | null>(null);
+  const [openTableControl, setOpenTableControl] = useState<'density' | null>(null);
   const focusedPlayer =
     state.players.find((player) => player.id === focusedPlayerId) ?? state.players[0];
   const focusedIndex = focusedPlayer
@@ -244,16 +308,305 @@ export function SquadWorkspace({
   const hasActiveFilters =
     query.length > 0 ||
     squadFilter !== 'all' ||
-    sortState.key !== defaultSquadSort.key ||
-    sortState.direction !== defaultSquadSort.direction ||
     roleFilter !== 'all' ||
     statusFilter !== 'all' ||
     positionFilterVisible;
   const tableViewBusy =
     tableViewRepositoryStatus.status === 'loading' ||
     tableViewPersistenceStatus.status === 'saving';
-  const updateTableControl = (control: 'density' | 'columns', open: boolean) =>
+  const updateTableControl = (control: 'density', open: boolean) =>
     setOpenTableControl((current) => (open ? control : current === control ? null : current));
+  const [tableAnnouncement, setTableAnnouncement] = useState('');
+  const [headerOperation, setHeaderOperation] = useState<HeaderOperationSession | null>(null);
+  const headerOperationRef = useRef<HeaderOperationSession | null>(null);
+  const tableViewStateRef = useRef(tableViewState);
+  const schemaById = new Map(
+    SQUAD_TABLE_SCHEMA.columns.map((column) => [column.columnId, column]),
+  );
+  const visibleColumnStates = tableViewState.columns.filter(({ visible }) => visible);
+  const pinOffsets = calculatePinOffsets(visibleColumnStates);
+
+  useEffect(() => {
+    tableViewStateRef.current = tableViewState;
+  }, [tableViewState]);
+
+  const announceTable = (message: string) => {
+    setTableAnnouncement((current) => (current === message ? current : message));
+  };
+
+  const dispatchTableView = (command: TableViewCommand): TableViewCommandResult => {
+    const result = onTableViewCommand(command);
+    if (result.accepted) tableViewStateRef.current = result.state;
+    return result;
+  };
+
+  const setHeaderSession = (session: HeaderOperationSession | null) => {
+    headerOperationRef.current = session;
+    setHeaderOperation(session);
+  };
+
+  const beginHeaderSession = (
+    kind: HeaderOperationSession['kind'],
+    input: HeaderOperationSession['input'],
+    columnId: string,
+    pointer?: { readonly startX: number; readonly startWidth: number },
+  ) => {
+    if (headerOperationRef.current !== null) return;
+    setHeaderSession({
+      kind,
+      input,
+      columnId,
+      snapshot: tableViewStateRef.current,
+      ...(pointer === undefined ? {} : pointer),
+    });
+  };
+
+  const restoreHeaderOperation = () => {
+    const activeOperation = headerOperationRef.current;
+    if (activeOperation === null) return;
+    const focusTarget =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const label = schemaById.get(activeOperation.columnId)?.label ?? activeOperation.columnId;
+    const result = dispatchTableView({
+      type: 'view.reset',
+      baseline: asResetBaseline(activeOperation.snapshot, tableViewStateRef.current),
+    });
+    if (result.accepted) announceTable(`${label}, operação desfeita.`);
+    setHeaderSession(null);
+    focusTarget?.focus();
+  };
+
+  const moveHeader = (columnId: string, toIndex: number) => {
+    const result = dispatchTableView({ type: 'column.reorder', columnId, toIndex });
+    const label = schemaById.get(columnId)?.label ?? columnId;
+    if (result.accepted) {
+      const position = result.state.columns.findIndex(
+        (column) => column.columnId === columnId,
+      );
+      announceTable(`${label}, posição ${position + 1} de ${result.state.columns.length}.`);
+    } else {
+      announceTable(`${label}: esta posição não pode ser aplicada.`);
+    }
+  };
+
+  const handleHeaderMoveKeyDown = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    columnId: string,
+  ) => {
+    const active = headerOperationRef.current;
+    const moving = active?.kind === 'move' && active.columnId === columnId;
+    if (!moving && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      beginHeaderSession('move', 'keyboard', columnId);
+      return;
+    }
+    if (!moving) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      setHeaderSession(null);
+      return;
+    }
+    if (
+      !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(
+        event.key,
+      )
+    ) {
+      return;
+    }
+    event.preventDefault();
+    const currentIndex = tableViewStateRef.current.columns.findIndex(
+      (column) => column.columnId === columnId,
+    );
+    const lastIndex = tableViewStateRef.current.columns.length - 1;
+    const nextIndex =
+      event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? lastIndex
+          : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+            ? Math.max(0, currentIndex - 1)
+            : Math.min(lastIndex, currentIndex + 1);
+    moveHeader(columnId, nextIndex);
+  };
+
+  const handleHeaderMovePointerDown = (
+    event: PointerEvent<HTMLButtonElement>,
+    columnId: string,
+  ) => {
+    beginHeaderSession('move', 'pointer', columnId);
+    event.currentTarget.focus();
+  };
+
+  const movePointerToHeader = (targetColumnId: string) => {
+    const active = headerOperationRef.current;
+    if (active?.kind !== 'move' || active.input !== 'pointer') return;
+    const targetIndex = tableViewStateRef.current.columns.findIndex(
+      (column) => column.columnId === targetColumnId,
+    );
+    if (targetIndex >= 0) moveHeader(active.columnId, targetIndex);
+  };
+
+  const finishHeaderPointerMove = () => {
+    if (
+      headerOperationRef.current?.kind === 'move' &&
+      headerOperationRef.current.input === 'pointer'
+    ) {
+      setHeaderSession(null);
+    }
+  };
+
+  const handleHeaderDragStart = (
+    event: DragEvent<HTMLButtonElement>,
+    columnId: string,
+  ) => {
+    beginHeaderSession('move', 'pointer', columnId);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', columnId);
+  };
+
+  const resizeHeader = (columnId: string, width: number) => {
+    const result = dispatchTableView({ type: 'column.resize', columnId, width });
+    const label = schemaById.get(columnId)?.label ?? columnId;
+    if (result.accepted) {
+      const nextWidth =
+        result.state.columns.find((column) => column.columnId === columnId)?.width ?? width;
+      announceTable(`${label}, largura ${nextWidth} pixels.`);
+    } else {
+      announceTable(`${label}: esta largura não pode ser aplicada.`);
+    }
+  };
+
+  const handleHeaderResizeKeyDown = (
+    event: KeyboardEvent<HTMLSpanElement>,
+    columnSchema: TableViewColumnSchema,
+  ) => {
+    if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+      event.preventDefault();
+      if (
+        headerOperationRef.current?.kind !== 'resize' ||
+        headerOperationRef.current.columnId !== columnSchema.columnId
+      ) {
+        beginHeaderSession('resize', 'keyboard', columnSchema.columnId);
+      }
+      const currentWidth =
+        tableViewStateRef.current.columns.find(
+          (column) => column.columnId === columnSchema.columnId,
+        )?.width ?? columnSchema.width.default;
+      const step = event.shiftKey ? 24 : 8;
+      const width =
+        event.key === 'Home'
+          ? columnSchema.width.min
+          : event.key === 'End'
+            ? columnSchema.width.max
+            : event.key === 'ArrowLeft'
+              ? currentWidth - step
+              : currentWidth + step;
+      resizeHeader(columnSchema.columnId, width);
+      return;
+    }
+    if (
+      event.key === 'Enter' &&
+      headerOperationRef.current?.kind === 'resize' &&
+      headerOperationRef.current.columnId === columnSchema.columnId
+    ) {
+      event.preventDefault();
+      setHeaderSession(null);
+    }
+  };
+
+  const handleHeaderResizePointerDown = (
+    event: PointerEvent<HTMLSpanElement>,
+    columnSchema: TableViewColumnSchema,
+  ) => {
+    const currentWidth =
+      tableViewStateRef.current.columns.find(
+        (column) => column.columnId === columnSchema.columnId,
+      )?.width ?? columnSchema.width.default;
+    beginHeaderSession('resize', 'pointer', columnSchema.columnId, {
+      startX: event.clientX,
+      startWidth: currentWidth,
+    });
+    event.currentTarget.focus();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const handleHeaderResizePointerMove = (event: PointerEvent<HTMLSpanElement>) => {
+    const active = headerOperationRef.current;
+    if (
+      active?.kind !== 'resize' ||
+      active.input !== 'pointer' ||
+      active.startX === undefined ||
+      active.startWidth === undefined
+    ) {
+      return;
+    }
+    resizeHeader(active.columnId, active.startWidth + event.clientX - active.startX);
+  };
+
+  const finishHeaderPointerResize = (event: PointerEvent<HTMLSpanElement>) => {
+    if (
+      headerOperationRef.current?.kind !== 'resize' ||
+      headerOperationRef.current.input !== 'pointer'
+    ) {
+      return;
+    }
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    setHeaderSession(null);
+  };
+
+  const cycleHeaderSort = (
+    columnSchema: TableViewColumnSchema,
+    shiftKey: boolean,
+  ) => {
+    const currentSort = tableViewStateRef.current.sort;
+    const currentIndex = currentSort.findIndex(
+      (clause) => clause.columnId === columnSchema.columnId,
+    );
+    const currentClause = currentSort[currentIndex];
+    const descendingFirst = descendingFirstColumns.has(columnSchema.columnId as SortKey);
+    const nextDirection: 'asc' | 'desc' | null =
+      currentClause === undefined
+        ? descendingFirst
+          ? 'desc'
+          : 'asc'
+        : currentClause.direction === (descendingFirst ? 'desc' : 'asc')
+          ? descendingFirst
+            ? 'asc'
+            : 'desc'
+          : null;
+    let nextSort = shiftKey ? [...currentSort] : [];
+
+    if (shiftKey && currentIndex >= 0) nextSort.splice(currentIndex, 1);
+    if (nextDirection !== null) {
+      const nextClause = {
+        columnId: columnSchema.columnId,
+        direction: nextDirection,
+        nulls: 'last' as const,
+      };
+      if (shiftKey) nextSort.splice(currentIndex >= 0 ? currentIndex : nextSort.length, 0, nextClause);
+      else nextSort = [nextClause];
+    }
+
+    const result = dispatchTableView({ type: 'sort.set', sort: nextSort });
+    if (!result.accepted) {
+      announceTable(
+        `${columnSchema.label}: use no máximo três critérios de ordenação.`,
+      );
+      return;
+    }
+
+    const nextIndex = result.state.sort.findIndex(
+      (clause) => clause.columnId === columnSchema.columnId,
+    );
+    if (nextIndex < 0) {
+      announceTable(`${columnSchema.label}, ordenação removida.`);
+      return;
+    }
+    const clause = result.state.sort[nextIndex];
+    announceTable(
+      `${columnSchema.label}, ordem ${clause.direction === 'asc' ? 'crescente' : 'decrescente'}, prioridade ${nextIndex + 1} de ${result.state.sort.length}.`,
+    );
+  };
 
   return (
     <section
@@ -374,15 +727,15 @@ export function SquadWorkspace({
           </label>
         )}
         <span className="squad-toolbar__spacer" />
-        <button
-          className="toolbar-action"
-          disabled={!hasActiveFilters}
-          onClick={onClearFilters}
-          type="button"
-        >
-          <Icon name="close" size={16} />
-          Limpar
-        </button>
+          <button
+            className="toolbar-action"
+            disabled={!hasActiveFilters}
+            onClick={onClearFilters}
+            type="button"
+          >
+            <Icon name="close" size={16} />
+            Limpar filtros do elenco
+          </button>
         <button
           className="toolbar-action toolbar-action--accent"
           onClick={() => {
@@ -447,82 +800,23 @@ export function SquadWorkspace({
                   ))}
                 </div>
               </Popover>
-              <Popover
-                align="end"
-                contentClassName="table-control-popover column-picker"
-                onOpenChange={(open) => updateTableControl('columns', open)}
-                open={openTableControl === 'columns'}
-                title="Colunas visíveis"
-                triggerAccessibleLabel="Configurar colunas"
-                triggerClassName="column-picker__trigger"
-                triggerContent={
-                  <>
-                    <Icon name="columns" size={16} /> Colunas
-                  </>
-                }
-                triggerLabel="Colunas"
-                triggerTooltip="Escolher colunas visíveis"
-              >
-                <div className="column-picker__menu">
-                  {optionalColumns.map((column) => (
-                    <button
-                      aria-pressed={visibleColumns.includes(column)}
-                      key={column}
-                      onClick={() => onToggleColumn(column)}
-                      type="button"
-                    >
-                      <span>{optionalColumnLabels[column]}</span>
-                      <b>{visibleColumns.includes(column) ? 'Visível' : 'Oculta'}</b>
-                    </button>
-                  ))}
-                </div>
-              </Popover>
-              <Tooltip content="Restaurar densidade e colunas padrão">
-                <button className="reset-view" onClick={onResetView} type="button">
-                  Restaurar
-                </button>
-              </Tooltip>
+              <TableViewCustomizer
+                baseline={tableViewBaseline}
+                busy={tableViewBusy}
+                dirty={tableViewDirty}
+                dispatch={dispatchTableView}
+                onSave={onSaveTableView}
+                schema={SQUAD_TABLE_SCHEMA}
+                state={tableViewState}
+              />
             </div>
           </header>
 
           <div className="squad-table-wrap">
-            <table className="squad-table">
-              <thead>
-                <tr>
-                  <SortableColumnHeader
-                    column="shirtNumber"
-                    onSortChange={onSortChange}
-                    sortState={sortState}
-                  />
-                  <SortableColumnHeader
-                    column="info"
-                    onSortChange={onSortChange}
-                    sortState={sortState}
-                  />
-                  <SortableColumnHeader
-                    column="name"
-                    onSortChange={onSortChange}
-                    sortState={sortState}
-                  />
-                  <SortableColumnHeader
-                    column="position"
-                    onSortChange={onSortChange}
-                    sortState={sortState}
-                  />
-                  {optionalColumns.map(
-                    (column) =>
-                      visibleColumns.includes(column) && (
-                        <SortableColumnHeader
-                          column={column}
-                          key={column}
-                          onSortChange={onSortChange}
-                          sortState={sortState}
-                        />
-                      ),
-                  )}
-                </tr>
-              </thead>
-              <tbody>
+            {false && (
+              <>
+                <table className="squad-table">
+                  <tbody>
                 {tableViewLoading
                   ? Array.from({ length: 5 }, (_, index) => (
                       <tr
@@ -607,6 +901,296 @@ export function SquadWorkspace({
                 <span>Ajuste a busca ou os filtros acima.</span>
               </div>
             )}
+              </>
+            )}
+
+            <table
+              aria-busy={tableViewLoading || undefined}
+              className="squad-table squad-table--controlled"
+              data-density={density}
+              style={
+                {
+                  '--squad-row-height': `${
+                    SQUAD_TABLE_SCHEMA.densities.find(
+                      ({ densityId }) => densityId === density,
+                    )?.rowHeight ?? 44
+                  }px`,
+                } as CSSProperties
+              }
+              onKeyDownCapture={(event) => {
+                if (event.key !== 'Escape' || headerOperationRef.current === null) return;
+                event.preventDefault();
+                event.stopPropagation();
+                restoreHeaderOperation();
+              }}
+            >
+              <caption className="sr-only">Elenco principal</caption>
+              <colgroup>
+                {visibleColumnStates.map((column) => (
+                  <col
+                    data-column-id={column.columnId}
+                    key={column.columnId}
+                    style={{ width: `${column.width}px` }}
+                    width={column.width}
+                  />
+                ))}
+              </colgroup>
+              <thead>
+                <tr>
+                  {visibleColumnStates.map((columnState) => {
+                    const columnSchema = schemaById.get(columnState.columnId);
+                    if (columnSchema === undefined) return null;
+                    const sortIndex = tableViewState.sort.findIndex(
+                      (clause) => clause.columnId === columnState.columnId,
+                    );
+                    const activeSort = tableViewState.sort[sortIndex];
+                    const pinned = columnState.pinning.side;
+                    const pinOffset = pinOffsets.get(columnState.columnId) ?? 0;
+                    const moving =
+                      headerOperation?.kind === 'move' &&
+                      headerOperation.columnId === columnState.columnId;
+                    const resizing =
+                      headerOperation?.kind === 'resize' &&
+                      headerOperation.columnId === columnState.columnId;
+                    const columnId = columnState.columnId as SquadColumnId;
+
+                    return (
+                      <th
+                        aria-sort={
+                          activeSort === undefined
+                            ? undefined
+                            : activeSort.direction === 'asc'
+                              ? 'ascending'
+                              : 'descending'
+                        }
+                        data-column={columnState.columnId}
+                        data-column-id={columnState.columnId}
+                        data-moving={moving || undefined}
+                        data-pinned={pinned === 'none' ? undefined : pinned}
+                        data-resizing={resizing || undefined}
+                        key={columnState.columnId}
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          movePointerToHeader(columnState.columnId);
+                          finishHeaderPointerMove();
+                        }}
+                        onPointerEnter={() => movePointerToHeader(columnState.columnId)}
+                        scope="col"
+                        style={
+                          {
+                            '--squad-column-width': `${columnState.width}px`,
+                            '--squad-pin-offset': `${pinOffset}px`,
+                          } as CSSProperties
+                        }
+                      >
+                        <div className="squad-table__header">
+                          <button
+                            aria-label={`Ordenar por ${columnSchema.label}`}
+                            className="squad-table__sort"
+                            data-active={activeSort !== undefined || undefined}
+                            onClick={(event) =>
+                              cycleHeaderSort(columnSchema, event.shiftKey)
+                            }
+                            title={squadColumnSortLabels[columnId]}
+                            type="button"
+                          >
+                            <span>{squadColumnLabels[columnId]}</span>
+                            {activeSort !== undefined && (
+                              <span aria-hidden="true">
+                                {activeSort.direction === 'asc' ? '↑' : '↓'}
+                                {tableViewState.sort.length > 1 ? sortIndex + 1 : ''}
+                              </span>
+                            )}
+                          </button>
+                          <button
+                            aria-label={`Mover coluna ${columnSchema.label}`}
+                            aria-pressed={moving}
+                            className="squad-table__move"
+                            draggable
+                            onDragEnd={finishHeaderPointerMove}
+                            onDragStart={(event) =>
+                              handleHeaderDragStart(event, columnState.columnId)
+                            }
+                            onKeyDown={(event) =>
+                              handleHeaderMoveKeyDown(event, columnState.columnId)
+                            }
+                            onPointerDown={(event) =>
+                              handleHeaderMovePointerDown(event, columnState.columnId)
+                            }
+                            onPointerUp={finishHeaderPointerMove}
+                            type="button"
+                          >
+                            <span aria-hidden="true">↔</span>
+                          </button>
+                          <span
+                            aria-label={`Redimensionar coluna ${columnSchema.label}`}
+                            aria-orientation="vertical"
+                            aria-valuemax={columnSchema.width.max}
+                            aria-valuemin={columnSchema.width.min}
+                            aria-valuenow={columnState.width}
+                            className="squad-table__resize"
+                            onKeyDown={(event) =>
+                              handleHeaderResizeKeyDown(event, columnSchema)
+                            }
+                            onPointerDown={(event) =>
+                              handleHeaderResizePointerDown(event, columnSchema)
+                            }
+                            onPointerMove={handleHeaderResizePointerMove}
+                            onPointerUp={finishHeaderPointerResize}
+                            role="separator"
+                            tabIndex={0}
+                          />
+                        </div>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {tableViewLoading
+                  ? Array.from({ length: 5 }, (_, index) => (
+                      <tr
+                        aria-hidden="true"
+                        className="squad-table__skeleton-row"
+                        key={`table-view-loading-controlled-${index}`}
+                      >
+                        <td colSpan={visibleColumnStates.length}>
+                          <Skeleton />
+                        </td>
+                      </tr>
+                    ))
+                  : players.map((player) => {
+                      const playerIndex = state.players.findIndex(
+                        (candidate) => candidate.id === player.id,
+                      );
+                      const selected = selectedIds.includes(player.id);
+                      const focused = player.id === focusedPlayerId;
+
+                      return (
+                        <tr
+                          data-focused={focused || undefined}
+                          data-player-id={player.id}
+                          key={player.id}
+                          onClick={() => onFocusPlayer(player.id)}
+                        >
+                          {visibleColumnStates.map((columnState) => {
+                            const columnId = columnState.columnId as SquadColumnId;
+                            const pinned = columnState.pinning.side;
+                            const pinOffset = pinOffsets.get(columnState.columnId) ?? 0;
+                            const cellProps = {
+                              'data-column-id': columnState.columnId,
+                              'data-pinned': pinned === 'none' ? undefined : pinned,
+                              style: {
+                                '--squad-column-width': `${columnState.width}px`,
+                                '--squad-pin-offset': `${pinOffset}px`,
+                              } as CSSProperties,
+                            };
+
+                            if (columnId === 'shirtNumber') {
+                              return (
+                                <td
+                                  {...cellProps}
+                                  className="squad-number"
+                                  key={columnId}
+                                >
+                                  {player.shirtNumber}
+                                </td>
+                              );
+                            }
+                            if (columnId === 'info') {
+                              return (
+                                <td {...cellProps} key={columnId}>
+                                  <Tooltip
+                                    content={
+                                      selected
+                                        ? 'Retirar do XI'
+                                        : 'Escalar no primeiro espaço livre'
+                                    }
+                                  >
+                                    <button
+                                      aria-label={`${selected ? 'Retirar' : 'Escalar'} ${player.name}`}
+                                      aria-pressed={selected}
+                                      className="lineup-control"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        onFocusPlayer(player.id);
+                                        onTogglePlayer(player);
+                                      }}
+                                      onFocus={() => onFocusPlayer(player.id)}
+                                      type="button"
+                                    >
+                                      {selected ? 'XI' : '+'}
+                                    </button>
+                                  </Tooltip>
+                                </td>
+                              );
+                            }
+                            if (columnId === 'name') {
+                              return (
+                                <th {...cellProps} key={columnId} scope="row">
+                                  <PlayerFace
+                                    decorative
+                                    index={playerIndex}
+                                    name={player.name}
+                                    size={36}
+                                  />
+                                  <span className="player-identity">
+                                    <strong>{player.name}</strong>
+                                    <small>{positionLongLabels[player.position]}</small>
+                                  </span>
+                                </th>
+                              );
+                            }
+                            if (columnId === 'position') {
+                              return (
+                                <td {...cellProps} key={columnId}>
+                                  <span className="position-badge">
+                                    {positionLabels[player.position]}
+                                  </span>
+                                </td>
+                              );
+                            }
+
+                            return (
+                              <td {...cellProps} key={columnId}>
+                                {renderOptionalPlayerValue(
+                                  player,
+                                  columnId as OptionalColumn,
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+
+                {!tableViewLoading && players.length === 0 && (
+                  <tr className="squad-table__state-row">
+                    <td colSpan={visibleColumnStates.length}>
+                      <section className="squad-empty">
+                        <Icon name="search" size={20} />
+                        <h3>Nenhum jogador corresponde a estes filtros</h3>
+                        <p>Revise os filtros ativos para voltar a exibir o plantel.</p>
+                        <Button onClick={onClearFilters} variant="secondary">
+                          Limpar filtros do elenco
+                        </Button>
+                      </section>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            <p
+              aria-atomic="true"
+              aria-label="Resultado da tabela"
+              aria-live="polite"
+              className="sr-only"
+              role="status"
+            >
+              {tableAnnouncement}
+            </p>
           </div>
 
           <footer className="squad-panel__footer">

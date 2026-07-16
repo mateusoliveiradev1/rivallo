@@ -468,7 +468,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
 
   const focusTableConfiguration = () => {
     const focus = () => {
-      document.querySelector<HTMLButtonElement>('[aria-label="Configurar colunas"]')?.focus();
+      document.querySelector<HTMLButtonElement>('[aria-label="Configurar tabela"]')?.focus();
     };
     queueMicrotask(focus);
     window.requestAnimationFrame(focus);
@@ -674,7 +674,11 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
     const successMessage = `Visualização “${activeSavedView.state.label}” salva.`;
     savedViewRetryRef.current = { successMessage };
     const result = await tableView.save();
-    if (result.status === 'confirmed') finishSavedViewAction(successMessage);
+    if (result.status === 'confirmed') {
+      finishSavedViewAction(successMessage);
+      return true;
+    }
+    return false;
   };
 
   const restoreActiveView = async () => {
@@ -1360,12 +1364,17 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
                 squadFilter={squadFilter}
                 state={state}
                 statusFilter={statusFilter}
-                tableHeader={savedViewHeader}
-                tableViewLoading={tableView.repositoryStatus.status === 'loading'}
-                tableViewPersistenceStatus={tableView.persistenceStatus}
-                tableViewRepositoryStatus={tableView.repositoryStatus}
-                visibleColumns={visibleColumns}
-              />
+            tableHeader={savedViewHeader}
+            tableViewBaseline={tableView.baseline}
+            tableViewDirty={tableView.dirty}
+            tableViewLoading={tableView.repositoryStatus.status === 'loading'}
+            tableViewPersistenceStatus={tableView.persistenceStatus}
+            tableViewRepositoryStatus={tableView.repositoryStatus}
+            tableViewState={tableView.proposal}
+            onSaveTableView={saveActiveView}
+            onTableViewCommand={tableView.dispatch}
+            visibleColumns={visibleColumns}
+          />
             </>
           ) : (
             <TacticsWorkspace
