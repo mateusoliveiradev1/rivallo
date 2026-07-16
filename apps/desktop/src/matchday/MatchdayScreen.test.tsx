@@ -732,7 +732,7 @@ describe('SavedViewSelector', () => {
     );
     expect(document.activeElement).toBe(trigger);
 
-    await user.keyboard('{Space}');
+    await user.keyboard(' ');
     const selector = screen.getByRole('dialog', { name: 'Visualização da tabela' });
     const sharedOption = within(selector).getByRole('button', {
       name: /Abrir visualização Análise da comissão/u,
