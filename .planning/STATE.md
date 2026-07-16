@@ -4,17 +4,17 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 06.1
 current_phase_name: SM-2 Table View Engine and Durable Views
-current_plan: 6
+current_plan: 7
 status: executing
-stopped_at: Completed 06.1-05-PLAN.md
-last_updated: "2026-07-16T12:41:47.228Z"
+stopped_at: Completed 06.1-06-PLAN.md
+last_updated: "2026-07-16T13:58:31.554Z"
 last_activity: 2026-07-16
-last_activity_desc: Completed screen-level table-view controller and preference-boundary integration
+last_activity_desc: Completed provenance-safe saved-view lifecycle and repository-state Elenco header integration
 progress:
   total_phases: 18
   completed_phases: 4
   total_plans: 45
-  completed_plans: 39
+  completed_plans: 40
   percent: 22
 ---
 
@@ -29,17 +29,17 @@ See `.planning/PROJECT.md` (updated 2026-07-13).
 **Current phase name:** SM-2 Table View Engine and Durable Views
 **Current gate:** SM-2 durable table views.
 **Gate 0:** APPROVED by Mateus.
-**Next action:** Execute Phase 06.1 Plan 06 saved-view lifecycle and repository-state UI.
+**Next action:** Execute Phase 06.1 Plan 07 column customizer and advanced table interactions.
 
 ## Current Position
 
 Current Phase: 06.1
 Current Phase Name: SM-2 Table View Engine and Durable Views
-Current Plan: 6
+Current Plan: 7
 Total Plans in Phase: 8
 Status: Ready to execute
-Progress: 5/8 Phase 06.1 plans complete; Plan 06 next.
-Last activity: 2026-07-16 — Completed screen-level table-view controller and preference-boundary integration
+Progress: 6/8 Phase 06.1 plans complete; Plan 07 next.
+Last activity: 2026-07-16 — Completed provenance-safe saved-view lifecycle and repository-state Elenco header integration
 
 ## Gate History
 
@@ -49,8 +49,8 @@ Last activity: 2026-07-16 — Completed screen-level table-view controller and p
 
 ## Session
 
-**Last session:** 2026-07-16T12:40:42.255Z
-**Stopped at:** Completed 06.1-05-PLAN.md
+**Last session:** 2026-07-16T13:58:31.549Z
+**Stopped at:** Completed 06.1-06-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -103,6 +103,7 @@ Last activity: 2026-07-16 — Completed screen-level table-view controller and p
 | Phase 06.1 P03 | 18min | 2 tasks | 2 files |
 | Phase 06.1 P04 | 33min | 3 tasks | 6 files |
 | Phase 06.1 P05 | 48min | 2 tasks | 7 files |
+| Phase 06.1 P06 | 1h 2m | 3 tasks | 7 files |
 
 ## Decisions
 
@@ -195,3 +196,5 @@ Last activity: 2026-07-16 — Completed screen-level table-view controller and p
 - [Phase 06.1]: Mount one squad table-view controller for the full MatchdayScreen lifetime. — Elenco and Táticas navigation must not remount repository coordination or duplicate StrictMode legacy import work.
 - [Phase 06.1]: Keep only non-table fields in UiPreferences while receipt-gated legacy retirement owns historical table fields. — Preserves DATA-01 compatibility without letting the screen preference effect reacquire density, columns, migration, or repository authority.
 - [Phase 06.1]: Keep player-name search transient and map existing squad controls onto ordinary durable filter clauses. — Stable football semantics stay in the squad schema while unrelated durable clauses survive screen-control edits and global search never dirties a saved view.
+- [Phase 06.1]: Derive saved-view lifecycle authority solely from validated provenance, mutability, controller capabilities, and confirmed repository outcomes. — Immutable system and read-only views never acquire rename, delete, or direct-save controls.
+- [Phase 06.1]: Translate table-command rejection codes into bounded Portuguese product copy and expose one canonical live outcome per repository event. — Internal paths, codes, details, and duplicate screen-reader announcements stay outside the UI.
