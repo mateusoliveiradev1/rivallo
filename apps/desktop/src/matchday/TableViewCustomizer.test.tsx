@@ -43,7 +43,9 @@ function Harness({ initialState = SQUAD_SYSTEM_VIEW, onSave = () => true }: Harn
         schema={SQUAD_TABLE_SCHEMA}
         state={state}
       />
-      <output data-testid="table-state">{JSON.stringify(state)}</output>
+      <pre aria-hidden="true" data-testid="table-state">
+        {JSON.stringify(state)}
+      </pre>
     </div>
   );
 }

@@ -69,6 +69,9 @@ export interface PopoverProps {
   readonly triggerContent?: ReactNode;
   readonly triggerDisabled?: boolean;
   readonly triggerTooltip?: string;
+  readonly closeLabel?: string;
+  readonly initialFocusId?: string;
+  readonly onEscapeKeyDown?: (event: KeyboardEvent) => void;
 }
 
 export function Popover({
@@ -84,6 +87,9 @@ export function Popover({
   triggerContent,
   triggerDisabled,
   triggerTooltip,
+  closeLabel = 'Fechar contexto',
+  initialFocusId,
+  onEscapeKeyDown,
 }: PopoverProps) {
   const titleId = `rv-popover-${useId()}`;
   const contentRef = useRef<HTMLDivElement>(null);
@@ -112,6 +118,14 @@ export function Popover({
           aria-labelledby={titleId}
           className={['rv-popover', contentClassName].filter(Boolean).join(' ')}
           ref={contentRef}
+          onOpenAutoFocus={(event) => {
+            if (initialFocusId === undefined) return;
+            const initialFocus = document.getElementById(initialFocusId);
+            if (!(initialFocus instanceof HTMLElement)) return;
+            event.preventDefault();
+            initialFocus.focus();
+          }}
+          onEscapeKeyDown={onEscapeKeyDown}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             const activeElement = document.activeElement;
@@ -127,7 +141,7 @@ export function Popover({
           <div className="rv-overlay__header">
             <h3 id={titleId}>{title}</h3>
             <PopoverPrimitive.Close asChild>
-              <button aria-label="Fechar contexto" className="rv-icon-button" type="button">
+              <button aria-label={closeLabel} className="rv-icon-button" type="button">
                 <Icon name="close" />
               </button>
             </PopoverPrimitive.Close>
