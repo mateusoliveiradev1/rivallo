@@ -321,9 +321,7 @@ describe('Table View Engine schema and state validation', () => {
     const duplicateOrder: TableViewState = {
       ...state,
       columns: state.columns.map((column) =>
-        column.columnId === 'name'
-          ? { ...column, pinning: { side: 'start', order: 0 } }
-          : column,
+        column.columnId === 'name' ? { ...column, pinning: { side: 'start', order: 0 } } : column,
       ),
     };
     const excessiveCount: TableViewState = {
@@ -341,6 +339,8 @@ describe('Table View Engine schema and state validation', () => {
       columns: state.columns.map((column, index) => ({
         ...column,
         visible: index < 2,
+        width:
+          column.columnId === 'shirtNumber' ? 80 : column.columnId === 'name' ? 240 : column.width,
         pinning:
           index < 2
             ? { side: 'start' as const, order: index }
@@ -698,9 +698,11 @@ describe('Table View Engine canonical normalization and dirty comparison', () =>
     } as TableViewState & { readonly announcement: string };
 
     const normalized = normalizeTableViewState(schema, left);
-    expect(normalized.filter.children.map((child) =>
-      child.kind === 'clause' ? child.filterId : child.groupId,
-    )).toEqual(['filter.goals', 'filter.positions']);
+    expect(
+      normalized.filter.children.map((child) =>
+        child.kind === 'clause' ? child.filterId : child.groupId,
+      ),
+    ).toEqual(['filter.goals', 'filter.positions']);
     expect(
       normalized.filter.children.find(
         (child) => child.kind === 'clause' && child.filterId === 'filter.positions',

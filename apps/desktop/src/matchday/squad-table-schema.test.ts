@@ -17,11 +17,7 @@ import {
 import { POSITION_SORT_ORDER } from './squad-sort.js';
 import type { Player, Position } from './types.js';
 
-const player = (
-  id: string,
-  name: string,
-  overrides: Partial<Player> = {},
-): Player => ({
+const player = (id: string, name: string, overrides: Partial<Player> = {}): Player => ({
   id,
   name,
   shortName: name,
@@ -151,15 +147,7 @@ describe('Elenco table schema', () => {
     ]);
     expect(
       SQUAD_TABLE_SCHEMA.columns.map(
-        ({
-          columnId,
-          label,
-          required,
-          requiredReason,
-          defaultVisible,
-          width,
-          defaultPinning,
-        }) => ({
+        ({ columnId, label, required, requiredReason, defaultVisible, width, defaultPinning }) => ({
           columnId,
           label,
           required,
@@ -414,9 +402,7 @@ describe('Elenco table schema', () => {
     expect(normalizeTableViewState(translatedSchema, SQUAD_SYSTEM_VIEW)).toEqual(
       normalizeTableViewState(SQUAD_TABLE_SCHEMA, SQUAD_SYSTEM_VIEW),
     );
-    expect(
-      isTableViewDirty(translatedSchema, SQUAD_SYSTEM_VIEW, SQUAD_SYSTEM_VIEW),
-    ).toBe(false);
+    expect(isTableViewDirty(translatedSchema, SQUAD_SYSTEM_VIEW, SQUAD_SYSTEM_VIEW)).toBe(false);
   });
 });
 
@@ -427,9 +413,7 @@ describe('Elenco ordinary football pipeline', () => {
       selectedPlayerIds: ['player.cm', 'player.st'],
     });
 
-    const positionRanks = result.rows.map(({ position }) =>
-      POSITION_SORT_ORDER.indexOf(position),
-    );
+    const positionRanks = result.rows.map(({ position }) => POSITION_SORT_ORDER.indexOf(position));
     expect(positionRanks).toEqual([...positionRanks].sort((left, right) => left - right));
     expect(result.rows.map(({ id }) => id)).toEqual([
       'player.gk',
@@ -566,9 +550,7 @@ describe('Elenco ordinary football pipeline', () => {
     });
 
     expect(
-      scorersView.columns
-        .filter(({ visible }) => visible)
-        .map(({ columnId }) => columnId),
+      scorersView.columns.filter(({ visible }) => visible).map(({ columnId }) => columnId),
     ).toEqual(['shirtNumber', 'info', 'name', 'position', 'goals']);
     expect(scorersView.sort).toEqual([
       { columnId: 'goals', direction: 'desc', nulls: 'last' },
@@ -592,11 +574,7 @@ describe('Elenco ordinary football pipeline', () => {
       focusedPlayerId: 'player.st',
       selectedPlayerIds: ['player.cm', 'player.st'],
     });
-    expect(result.rows.map(({ id }) => id)).toEqual([
-      'player.cm',
-      'player.st',
-      'player.cb',
-    ]);
+    expect(result.rows.map(({ id }) => id)).toEqual(['player.cm', 'player.st', 'player.cb']);
     expect(result.rows.map(({ goals }) => goals)).toEqual([8, 8, 1]);
     expect(result.focusedPlayerId).toBe('player.st');
     expect(result.selectedPlayerIds).toEqual(['player.cm', 'player.st']);
@@ -629,9 +607,7 @@ describe('Elenco ordinary football pipeline', () => {
     expect(result.rows.map(({ id }) => id).sort()).toEqual(['player.cm', 'player.st']);
     expect(result.focusedPlayerId).toBe('player.cm');
     expect(result.selectedPlayerIds).toEqual(['player.st', 'player.cm']);
-    expect(
-      result.rows.map(({ id, selected }) => ({ id, selected })),
-    ).toEqual([
+    expect(result.rows.map(({ id, selected }) => ({ id, selected }))).toEqual([
       { id: 'player.cm', selected: true },
       { id: 'player.st', selected: true },
     ]);
@@ -643,9 +619,7 @@ describe('Elenco ordinary football pipeline', () => {
     );
 
     expect(
-      applySquadTableView(reversedPlayers, SQUAD_SYSTEM_VIEW).rows.map(
-        ({ position }) => position,
-      ),
+      applySquadTableView(reversedPlayers, SQUAD_SYSTEM_VIEW).rows.map(({ position }) => position),
     ).toEqual(POSITION_SORT_ORDER as readonly Position[]);
   });
 });

@@ -4,12 +4,7 @@ export type TableViewSortDirection = 'asc' | 'desc';
 export type TableViewNullOrder = 'first' | 'last';
 export type TableViewFilterLogic = 'and' | 'or';
 export type TableViewFilterValueKind =
-  | 'text'
-  | 'number'
-  | 'boolean'
-  | 'enum'
-  | 'enum-set'
-  | 'number-range';
+  'text' | 'number' | 'boolean' | 'enum' | 'enum-set' | 'number-range';
 
 export interface TableViewPinning {
   readonly side: TableViewPinSide;
@@ -112,6 +107,7 @@ export interface TableViewColumnSchema {
     readonly max: number;
   };
   readonly defaultPinning: TableViewPinning;
+  readonly pinningLocked?: boolean;
   readonly capabilities: TableViewColumnCapabilities;
 }
 
@@ -207,8 +203,7 @@ export interface TableViewRejectionReason {
 }
 
 export type TableViewValidationResult =
-  | { readonly valid: true }
-  | { readonly valid: false; readonly reason: TableViewRejectionReason };
+  { readonly valid: true } | { readonly valid: false; readonly reason: TableViewRejectionReason };
 
 export type TableViewCommand =
   | {
@@ -363,21 +358,17 @@ const validatePinCollection = (
     }
   }
 
-  const visibleColumns = columns.filter(({ visible }) => visible);
-  const visibleWidth = visibleColumns.reduce((total, column) => total + column.width, 0);
-  const visiblePinnedWidth = visibleColumns
+  const schemaWidthBasis = schema.columns
+    .filter(({ defaultVisible }) => defaultVisible)
+    .reduce((total, column) => total + column.width.default, 0);
+  const pinnedWidth = columns
     .filter(({ pinning }) => pinning.side !== 'none')
     .reduce((total, column) => total + column.width, 0);
   if (
-    visibleWidth > 0 &&
-    visiblePinnedWidth / visibleWidth >
-      schema.constraints.maxPinnedWidthRatio + PIN_RATIO_EPSILON
+    schemaWidthBasis > 0 &&
+    pinnedWidth / schemaWidthBasis > schema.constraints.maxPinnedWidthRatio + PIN_RATIO_EPSILON
   ) {
-    return invalid(
-      'pinned-width-limit-exceeded',
-      'columns',
-      `${visiblePinnedWidth}/${visibleWidth}`,
-    );
+    return invalid('pinned-width-limit-exceeded', 'columns', `${pinnedWidth}/${schemaWidthBasis}`);
   }
 
   return { valid: true };
@@ -414,9 +405,7 @@ const validateFilterValue = (
     case 'enum-set': {
       const allowedValues = operator.allowedValues ?? [];
       return Array.isArray(value.value) &&
-        value.value.every(
-          (entry) => typeof entry === 'string' && allowedValues.includes(entry),
-        )
+        value.value.every((entry) => typeof entry === 'string' && allowedValues.includes(entry))
         ? { valid: true }
         : invalid('incompatible-filter-value', path);
     }
@@ -435,7 +424,11 @@ const validateFilterTree = (
   const groupIds = new Set<string>();
   let clauseCount = 0;
 
-  const visit = (node: TableViewFilterNode, depth: number, path: string): TableViewValidationResult => {
+  const visit = (
+    node: TableViewFilterNode,
+    depth: number,
+    path: string,
+  ): TableViewValidationResult => {
     if (node.kind === 'group') {
       if (depth > schema.constraints.maxFilterDepth) {
         return invalid('filter-depth-exceeded', path);
@@ -553,8 +546,18 @@ export const validateTableViewSchema = (schema: TableViewSchema): TableViewValid
     }
     const pinningResult = validatePinningShape(column.defaultPinning, `${path}.defaultPinning`);
     if (!pinningResult.valid) return invalid('invalid-default-pinning', path);
-    if (column.defaultPinning.side !== 'none' && !column.capabilities.pinnable) {
+    if (
+      column.defaultPinning.side !== 'none' &&
+      !column.capabilities.pinnable &&
+      !column.pinningLocked
+    ) {
       return invalid('invalid-column-capability', `${path}.capabilities.pinnable`);
+    }
+    if (
+      column.pinningLocked &&
+      (column.defaultPinning.side === 'none' || column.capabilities.pinnable)
+    ) {
+      return invalid('invalid-column-capability', `${path}.pinningLocked`);
     }
     if (!Array.isArray(column.capabilities.filterOperators)) {
       return invalid('invalid-column-capability', `${path}.capabilities.filterOperators`);
@@ -612,8 +615,7 @@ export const validateTableViewSchema = (schema: TableViewSchema): TableViewValid
     schema.dataWindow.pageSizeOptions.some(
       (pageSize) => !Number.isInteger(pageSize) || pageSize <= 0,
     ) ||
-    new Set(schema.dataWindow.pageSizeOptions).size !==
-      schema.dataWindow.pageSizeOptions.length ||
+    new Set(schema.dataWindow.pageSizeOptions).size !== schema.dataWindow.pageSizeOptions.length ||
     !schema.dataWindow.pageSizeOptions.includes(schema.dataWindow.defaultPageSize) ||
     !Number.isInteger(schema.dataWindow.maxPage) ||
     schema.dataWindow.maxPage <= 0
@@ -690,7 +692,18 @@ export const validateTableViewState = (
     }
     const pinningResult = validatePinningShape(column.pinning, `${path}.pinning`);
     if (!pinningResult.valid) return pinningResult;
-    if (column.pinning.side !== 'none' && !columnSchema.capabilities.pinnable) {
+    if (
+      columnSchema.pinningLocked &&
+      (column.pinning.side !== columnSchema.defaultPinning.side ||
+        column.pinning.order !== columnSchema.defaultPinning.order)
+    ) {
+      return invalid('column-pinning-unsupported', `${path}.pinning`);
+    }
+    if (
+      column.pinning.side !== 'none' &&
+      !columnSchema.capabilities.pinnable &&
+      !columnSchema.pinningLocked
+    ) {
       return invalid('column-pinning-unsupported', `${path}.pinning`);
     }
   }
@@ -778,7 +791,8 @@ export class TableViewStateValidationError extends Error {
   }
 }
 
-const compareCodePoints = (left: string, right: string) => (left < right ? -1 : left > right ? 1 : 0);
+const compareCodePoints = (left: string, right: string) =>
+  left < right ? -1 : left > right ? 1 : 0;
 
 const normalizeFilterValue = (value: TableViewFilterValue): TableViewFilterValue => {
   switch (value.kind) {
@@ -851,9 +865,7 @@ export const normalizeTableViewState = (
     label: state.label,
     density: state.density,
     columns: state.columns.map((column) => {
-      const columnSchema = schema.columns.find(
-        ({ columnId }) => columnId === column.columnId,
-      )!;
+      const columnSchema = schema.columns.find(({ columnId }) => columnId === column.columnId)!;
       return {
         columnId: column.columnId,
         visible: column.visible,
@@ -1053,9 +1065,7 @@ export const applyTableViewCommand = (
   let candidate: TableViewState;
   switch (command.type) {
     case 'column.visibility': {
-      const columnSchema = schema.columns.find(
-        ({ columnId }) => columnId === command.columnId,
-      );
+      const columnSchema = schema.columns.find(({ columnId }) => columnId === command.columnId);
       if (columnSchema === undefined) {
         return rejectedCommand(
           schema,
@@ -1083,17 +1093,13 @@ export const applyTableViewCommand = (
       candidate = {
         ...state,
         columns: state.columns.map((column) =>
-          column.columnId === command.columnId
-            ? { ...column, visible: command.visible }
-            : column,
+          column.columnId === command.columnId ? { ...column, visible: command.visible } : column,
         ),
       };
       break;
     }
     case 'column.reorder': {
-      const fromIndex = state.columns.findIndex(
-        ({ columnId }) => columnId === command.columnId,
-      );
+      const fromIndex = state.columns.findIndex(({ columnId }) => columnId === command.columnId);
       if (fromIndex < 0) {
         return rejectedCommand(
           schema,
@@ -1102,9 +1108,7 @@ export const applyTableViewCommand = (
           rejection('unknown-column-id', 'command.columnId'),
         );
       }
-      const columnSchema = schema.columns.find(
-        ({ columnId }) => columnId === command.columnId,
-      )!;
+      const columnSchema = schema.columns.find(({ columnId }) => columnId === command.columnId)!;
       if (!columnSchema.capabilities.reorderable) {
         return rejectedCommand(
           schema,
@@ -1132,9 +1136,7 @@ export const applyTableViewCommand = (
       break;
     }
     case 'column.resize': {
-      const columnSchema = schema.columns.find(
-        ({ columnId }) => columnId === command.columnId,
-      );
+      const columnSchema = schema.columns.find(({ columnId }) => columnId === command.columnId);
       if (columnSchema === undefined) {
         return rejectedCommand(
           schema,
@@ -1169,15 +1171,21 @@ export const applyTableViewCommand = (
       break;
     }
     case 'column.pin': {
-      const columnSchema = schema.columns.find(
-        ({ columnId }) => columnId === command.columnId,
-      );
+      const columnSchema = schema.columns.find(({ columnId }) => columnId === command.columnId);
       if (columnSchema === undefined) {
         return rejectedCommand(
           schema,
           state,
           command,
           rejection('unknown-column-id', 'command.columnId'),
+        );
+      }
+      if (columnSchema.pinningLocked) {
+        return rejectedCommand(
+          schema,
+          state,
+          command,
+          rejection('column-pinning-unsupported', 'command.columnId'),
         );
       }
       if (command.side !== 'none' && !columnSchema.capabilities.pinnable) {
@@ -1188,12 +1196,7 @@ export const applyTableViewCommand = (
           rejection('column-pinning-unsupported', 'command.columnId'),
         );
       }
-      const columns = updatePinning(
-        state.columns,
-        command.columnId,
-        command.side,
-        command.order,
-      );
+      const columns = updatePinning(state.columns, command.columnId, command.side, command.order);
       if (columns === null) {
         return rejectedCommand(
           schema,
