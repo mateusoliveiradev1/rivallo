@@ -278,6 +278,57 @@ mod tests {
     }
 
     #[test]
+    fn reopens_and_migrates_a_schema_two_career_with_the_legacy_plan_saved_event() {
+        let path = temporary_path("legacy-plan-saved-event");
+        let repository = FileMatchdayRepository::new(&path);
+        let mut payload = serde_json::to_value(MatchdayState::default()).expect("serialize seed");
+        let root = payload.as_object_mut().expect("matchday object");
+        let mut plan = root
+            .remove("tacticalLibrary")
+            .and_then(|library| library.get("variations")?.get(0).cloned())
+            .expect("seed variation");
+        let plan_object = plan.as_object_mut().expect("variation object");
+        plan_object.insert("schemaVersion".to_owned(), serde_json::json!(2));
+        let variation_id = plan_object
+            .remove("variationId")
+            .expect("variation identity");
+        plan_object.insert("planId".to_owned(), variation_id);
+        plan_object.remove("createdAt");
+        plan_object.remove("updatedAt");
+        root.insert("tacticalPlan".to_owned(), plan);
+        root.insert(
+            "lastTacticalEvent".to_owned(),
+            serde_json::json!({
+                "kind": "planSaved",
+                "plan_id": "tactical-plan.primary",
+                "accepted_revision": 4
+            }),
+        );
+        fs::write(
+            repository.path(),
+            serde_json::to_vec_pretty(&payload).expect("serialize legacy career"),
+        )
+        .expect("write legacy career");
+
+        let migrated = MatchdayCoordinator::new(&path)
+            .state()
+            .expect("open legacy career without deleting it");
+        let library = migrated
+            .tactical_library
+            .as_ref()
+            .expect("migrated library");
+        assert_eq!(library.variations.len(), 1);
+        assert_eq!(
+            library.variations[0].variation_id,
+            "tactical-variation.primary"
+        );
+        assert!(migrated.tactical_plan.is_none());
+        assert!(migrated.last_tactical_event.is_none());
+
+        cleanup(&repository);
+    }
+
+    #[test]
     fn interrupted_temporary_write_is_recovered_without_losing_the_plan() {
         let repository = FileMatchdayRepository::new(temporary_path("temporary-recovery"));
         let state = MatchdayState::default();

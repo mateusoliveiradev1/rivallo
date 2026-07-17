@@ -271,26 +271,58 @@ pub enum TacticalLibraryCommand {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase", tag = "kind")]
 pub enum TacticalPlanEvent {
+    #[serde(alias = "planSaved")]
     VariationSaved {
+        #[serde(
+            rename = "variationId",
+            alias = "planId",
+            alias = "variation_id",
+            alias = "plan_id"
+        )]
         variation_id: String,
+        #[serde(rename = "acceptedRevision", alias = "accepted_revision")]
         accepted_revision: u64,
     },
     ConflictDetected {
+        #[serde(
+            rename = "variationId",
+            alias = "planId",
+            alias = "variation_id",
+            alias = "plan_id"
+        )]
         variation_id: String,
+        #[serde(rename = "expectedRevision", alias = "expected_revision")]
         expected_revision: u64,
+        #[serde(rename = "actualRevision", alias = "actual_revision")]
         actual_revision: u64,
     },
     VariationActivated {
+        #[serde(rename = "variationId", alias = "variation_id")]
         variation_id: String,
+        #[serde(
+            rename = "acceptedLibraryRevision",
+            alias = "accepted_library_revision"
+        )]
         accepted_library_revision: u64,
     },
     PrimaryVariationChanged {
+        #[serde(rename = "variationId", alias = "variation_id")]
         variation_id: String,
+        #[serde(
+            rename = "acceptedLibraryRevision",
+            alias = "accepted_library_revision"
+        )]
         accepted_library_revision: u64,
     },
     VariationDeleted {
+        #[serde(rename = "variationId", alias = "variation_id")]
         variation_id: String,
+        #[serde(rename = "activeVariationId", alias = "active_variation_id")]
         active_variation_id: String,
+        #[serde(
+            rename = "acceptedLibraryRevision",
+            alias = "accepted_library_revision"
+        )]
         accepted_library_revision: u64,
     },
 }
