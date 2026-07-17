@@ -1586,7 +1586,7 @@ test('records the tactical drag hot path', async ({ page }, testInfo) => {
   expect(result.persistenceCalls).toBe(0);
   expect(result.readinessCalculations).toBe(0);
   expect(result.tooltipCreations).toBe(0);
-  expect(result.layoutReads).toBe(3);
+  expect(result.layoutReads).toBe(4);
   expect(result.averageFrameMs).toBeLessThanOrEqual(20);
   expect(result.p95FrameMs).toBeLessThanOrEqual(25);
   await page.mouse.up();
@@ -1602,6 +1602,111 @@ test('records the tactical drag hot path', async ({ page }, testInfo) => {
   expect(persistedPoint.x).toBeCloseTo(expectedX, 5);
   expect(persistedPoint.y).toBeCloseTo(expectedY, 5);
   expect(result.pointerMoves).toBeGreaterThanOrEqual(75);
+});
+
+test('keeps the tactical overlay locked to center and corner across zoom and movement speeds', async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== 'desktop-1366x768',
+    'The overlay fidelity contract only needs one desktop WebView-sized project.',
+  );
+
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setDeviceMetricsOverride', {
+    width: 1366,
+    height: 768,
+    deviceScaleFactor: 1.5,
+    mobile: false,
+  });
+  await page.goto(developmentUrl);
+  await page.getByRole('button', { name: 'Táticas' }).click();
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty('zoom', '1.1');
+    const workspace = document.querySelector<HTMLElement>('.tactics-view');
+    if (!workspace) throw new Error('Expected the tactical workspace.');
+    workspace.style.transform = 'translate3d(7.25px, 5.5px, 0)';
+    workspace.style.transformOrigin = 'top left';
+  });
+  expect(await page.evaluate(() => window.devicePixelRatio)).toBe(1.5);
+
+  const pitch = page.getByLabel('Escalação no 4-3-3');
+  const source = page.getByRole('button', { name: /Luan Seixas/u });
+  const sourceBox = await source.boundingBox();
+  const pitchBox = await pitch.boundingBox();
+  if (!sourceBox || !pitchBox) throw new Error('Expected transformed tactical geometry.');
+
+  const centerStart = {
+    x: sourceBox.x + sourceBox.width / 2,
+    y: sourceBox.y + sourceBox.height / 2,
+  };
+  await page.mouse.move(centerStart.x, centerStart.y);
+  await page.mouse.down();
+  const shortPoint = { x: centerStart.x + 6, y: centerStart.y + 5 };
+  await page.mouse.move(shortPoint.x, shortPoint.y);
+  const overlay = page.locator('.tactical-drag-overlay');
+  await expect(overlay).toBeVisible();
+  let overlayBox = await overlay.boundingBox();
+  if (!overlayBox) throw new Error('Expected the centered overlay.');
+  expect(overlayBox.x).toBeCloseTo(shortPoint.x - sourceBox.width / 2, 1);
+  expect(overlayBox.y).toBeCloseTo(shortPoint.y - sourceBox.height / 2, 1);
+
+  const longPoint = {
+    x: pitchBox.x + pitchBox.width * 0.64,
+    y: pitchBox.y + pitchBox.height * 0.46,
+  };
+  for (let step = 1; step <= 16; step += 1) {
+    await page.mouse.move(
+      shortPoint.x + ((longPoint.x - shortPoint.x) * step) / 16,
+      shortPoint.y + ((longPoint.y - shortPoint.y) * step) / 16,
+    );
+    await page.waitForTimeout(8);
+  }
+  overlayBox = await overlay.boundingBox();
+  if (!overlayBox) throw new Error('Expected the slowly moved overlay.');
+  expect(overlayBox.x).toBeCloseTo(longPoint.x - sourceBox.width / 2, 1);
+  expect(overlayBox.y).toBeCloseTo(longPoint.y - sourceBox.height / 2, 1);
+  expect(await overlay.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe('none');
+  expect(await overlay.evaluate((element) => getComputedStyle(element).transitionDuration)).toBe(
+    '0s',
+  );
+  const expectedCenter = {
+    x: (overlayBox.x + overlayBox.width / 2 - pitchBox.x) / pitchBox.width,
+    y: (overlayBox.y + overlayBox.height / 2 - pitchBox.y) / pitchBox.height,
+  };
+  await page.mouse.up();
+  await expect(overlay).toHaveCount(0);
+  const persistedCenter = await source.locator('xpath=..').evaluate((element) => ({
+    x: Number.parseFloat(element.style.getPropertyValue('--slot-x')) / 100,
+    y: Number.parseFloat(element.style.getPropertyValue('--slot-y')) / 100,
+  }));
+  expect(persistedCenter.x).toBeCloseTo(expectedCenter.x, 5);
+  expect(persistedCenter.y).toBeCloseTo(expectedCenter.y, 5);
+
+  const cornerSource = page.getByRole('button', { name: /Davi Moura/u });
+  const cornerBox = await cornerSource.boundingBox();
+  const currentPitchBox = await pitch.boundingBox();
+  if (!cornerBox || !currentPitchBox) throw new Error('Expected corner-drag geometry.');
+  const cornerOffset = { x: 6, y: 8 };
+  const cornerStart = {
+    x: cornerBox.x + cornerOffset.x,
+    y: cornerBox.y + cornerOffset.y,
+  };
+  const fastPoint = {
+    x: currentPitchBox.x + currentPitchBox.width * 0.72,
+    y: currentPitchBox.y + currentPitchBox.height * 0.72,
+  };
+  await page.mouse.move(cornerStart.x, cornerStart.y);
+  await page.mouse.down();
+  await page.mouse.move(fastPoint.x, fastPoint.y);
+  await expect(overlay).toBeVisible();
+  overlayBox = await overlay.boundingBox();
+  if (!overlayBox) throw new Error('Expected the corner-grab overlay.');
+  expect(overlayBox.x).toBeCloseTo(fastPoint.x - cornerOffset.x, 1);
+  expect(overlayBox.y).toBeCloseTo(fastPoint.y - cornerOffset.y, 1);
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+  await expect(overlay).toHaveCount(0);
 });
 
 test('keeps the formation library searchable, keyboard navigable and viewport bounded', async ({

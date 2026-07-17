@@ -71,9 +71,13 @@ interface PointerDragSession extends DragSession {
   readonly pointerId: number;
   readonly source: HTMLButtonElement;
   readonly sourceRect: DOMRect;
-  readonly pitchRect: DOMRect;
-  readonly benchRect: DOMRect | null;
+  pitchRect: DOMRect;
+  benchRect: DOMRect | null;
   readonly overlay: HTMLDivElement;
+  readonly overlayOriginX: number;
+  readonly overlayOriginY: number;
+  readonly overlayScaleX: number;
+  readonly overlayScaleY: number;
   readonly destinationLabel: HTMLSpanElement;
   readonly previousUserSelect: string;
   readonly startX: number;
@@ -86,6 +90,8 @@ interface PointerDragSession extends DragSession {
   dropTarget: HTMLElement | null;
   latestClientX: number;
   latestClientY: number;
+  overlayLeft: number;
+  overlayTop: number;
 }
 
 type DragDestination =
@@ -500,9 +506,17 @@ export function TacticsWorkspace({
     clientX: number,
     clientY: number,
   ) => {
-    const x = clientX - session.grabOffsetX;
-    const y = clientY - session.grabOffsetY;
-    session.overlay.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+    session.overlayLeft = clientX - session.grabOffsetX;
+    session.overlayTop = clientY - session.grabOffsetY;
+    const localX = (session.overlayLeft - session.overlayOriginX) / session.overlayScaleX;
+    const localY = (session.overlayTop - session.overlayOriginY) / session.overlayScaleY;
+    session.overlay.style.transform = `translate3d(${localX}px, ${localY}px, 0)`;
+  };
+
+  const latestPointerCoordinates = (pointerEvent: PointerEvent) => {
+    const samples = pointerEvent.getCoalescedEvents?.() ?? [];
+    const latest = samples.at(-1) ?? pointerEvent;
+    return { clientX: latest.clientX, clientY: latest.clientY };
   };
 
   const flushPointerFrame = (session: PointerDragSession) => {
@@ -527,9 +541,13 @@ export function TacticsWorkspace({
   const createDragOverlay = (source: HTMLButtonElement, sourceRect: DOMRect) => {
     const overlay = document.createElement('div');
     overlay.className = 'tactical-drag-overlay';
-    overlay.hidden = true;
-    overlay.style.width = `${sourceRect.width}px`;
-    overlay.style.height = `${sourceRect.height}px`;
+    overlay.style.width = '100px';
+    overlay.style.height = '100px';
+    overlay.style.pointerEvents = 'none';
+    overlay.style.transition = 'none';
+    overlay.style.animation = 'none';
+    overlay.style.transform = 'none';
+    overlay.style.visibility = 'hidden';
     const card = source.cloneNode(true) as HTMLButtonElement;
     card.classList.add('tactical-drag-overlay__card');
     card.removeAttribute('data-tactical-player-id');
@@ -543,7 +561,24 @@ export function TacticsWorkspace({
     destinationLabel.textContent = 'Movendo jogador';
     overlay.append(card, destinationLabel);
     document.body.append(overlay);
-    return { destinationLabel, overlay };
+    const calibrationRect = overlay.getBoundingClientRect();
+    const overlayScaleX = calibrationRect.width > 0 ? calibrationRect.width / 100 : 1;
+    const overlayScaleY = calibrationRect.height > 0 ? calibrationRect.height / 100 : 1;
+    const overlayOriginX = calibrationRect.left;
+    const overlayOriginY = calibrationRect.top;
+    overlay.style.width = `${sourceRect.width / overlayScaleX}px`;
+    overlay.style.height = `${sourceRect.height / overlayScaleY}px`;
+    overlay.style.transform = `translate3d(${(sourceRect.left - overlayOriginX) / overlayScaleX}px, ${(sourceRect.top - overlayOriginY) / overlayScaleY}px, 0)`;
+    overlay.style.visibility = '';
+    overlay.hidden = true;
+    return {
+      destinationLabel,
+      overlay,
+      overlayOriginX,
+      overlayOriginY,
+      overlayScaleX,
+      overlayScaleY,
+    };
   };
 
   const beginPointerDrag = (
@@ -569,9 +604,16 @@ export function TacticsWorkspace({
           );
     const pitchRect = pitchRef.current?.getBoundingClientRect();
     const benchRect = benchRef.current?.getBoundingClientRect() ?? null;
-    recordDragMetric('layoutReads', 3);
+    recordDragMetric('layoutReads', 4);
     if (!pitchRect) return;
-    const { destinationLabel, overlay } = createDragOverlay(event.currentTarget, sourceRect);
+    const {
+      destinationLabel,
+      overlay,
+      overlayOriginX,
+      overlayOriginY,
+      overlayScaleX,
+      overlayScaleY,
+    } = createDragOverlay(event.currentTarget, sourceRect);
 
     const session: PointerDragSession = {
       playerId,
@@ -582,6 +624,10 @@ export function TacticsWorkspace({
       pitchRect,
       benchRect,
       overlay,
+      overlayOriginX,
+      overlayOriginY,
+      overlayScaleX,
+      overlayScaleY,
       destinationLabel,
       previousUserSelect: document.documentElement.style.userSelect,
       startX: event.clientX,
@@ -594,6 +640,8 @@ export function TacticsWorkspace({
       dropTarget: null,
       latestClientX: event.clientX,
       latestClientY: event.clientY,
+      overlayLeft: sourceRect.left,
+      overlayTop: sourceRect.top,
     };
     pointerSessionRef.current = session;
     document.documentElement.style.userSelect = 'none';
@@ -602,15 +650,16 @@ export function TacticsWorkspace({
     const handlePointerMove = (pointerEvent: PointerEvent) => {
       if (pointerEvent.pointerId !== session.pointerId) return;
       recordDragMetric('pointerMoves');
-      session.latestClientX = pointerEvent.clientX;
-      session.latestClientY = pointerEvent.clientY;
-      const distance = Math.hypot(
-        pointerEvent.clientX - session.startX,
-        pointerEvent.clientY - session.startY,
-      );
+      const latest = latestPointerCoordinates(pointerEvent);
+      session.latestClientX = latest.clientX;
+      session.latestClientY = latest.clientY;
+      const distance = Math.hypot(latest.clientX - session.startX, latest.clientY - session.startY);
       if (!session.active && distance < POINTER_DRAG_THRESHOLD) return;
       pointerEvent.preventDefault();
-      activatePointerSession(session);
+      if (!session.active) {
+        updateDragOverlayPosition(session, latest.clientX, latest.clientY);
+        activatePointerSession(session);
+      }
       if (session.animationFrame === null) {
         session.animationFrame = window.requestAnimationFrame(() => flushPointerFrame(session));
       }
@@ -618,13 +667,14 @@ export function TacticsWorkspace({
 
     const handlePointerUp = (pointerEvent: PointerEvent) => {
       if (pointerEvent.pointerId !== session.pointerId) return;
-      session.latestClientX = pointerEvent.clientX;
-      session.latestClientY = pointerEvent.clientY;
-      const distance = Math.hypot(
-        pointerEvent.clientX - session.startX,
-        pointerEvent.clientY - session.startY,
-      );
-      if (!session.active && distance >= POINTER_DRAG_THRESHOLD) activatePointerSession(session);
+      const latest = latestPointerCoordinates(pointerEvent);
+      session.latestClientX = latest.clientX;
+      session.latestClientY = latest.clientY;
+      const distance = Math.hypot(latest.clientX - session.startX, latest.clientY - session.startY);
+      if (!session.active && distance >= POINTER_DRAG_THRESHOLD) {
+        updateDragOverlayPosition(session, latest.clientX, latest.clientY);
+        activatePointerSession(session);
+      }
       if (!session.active) {
         finishDrag();
         return;
@@ -634,13 +684,13 @@ export function TacticsWorkspace({
         window.cancelAnimationFrame(session.animationFrame);
         session.animationFrame = null;
       }
+      session.pitchRect = pitchRef.current?.getBoundingClientRect() ?? session.pitchRect;
+      session.benchRect = benchRef.current?.getBoundingClientRect() ?? session.benchRect;
       flushPointerFrame(session);
       suppressClickRef.current = session.playerId;
       const destination = session.destination;
-      const canonicalClientX =
-        pointerEvent.clientX - session.grabOffsetX + session.sourceRect.width / 2;
-      const canonicalClientY =
-        pointerEvent.clientY - session.grabOffsetY + session.sourceRect.height / 2;
+      const canonicalClientX = session.overlayLeft + session.sourceRect.width / 2;
+      const canonicalClientY = session.overlayTop + session.sourceRect.height / 2;
       finishDrag();
       setSelectedPlayerId(null);
       onFocusPlayer(session.playerId);

@@ -3002,14 +3002,15 @@
 .tactical-drag-overlay {
   position: fixed;
   z-index: var(--rv-layer-tooltip);
-  top: 0;
-  left: 0;
+  inset: 0 auto auto 0;
   display: block;
   overflow: visible;
   pointer-events: none;
   transform: translate3d(0, 0, 0);
   transform-origin: top left;
-  contain: layout paint style;
+  contain: layout style;
+  transition: none !important;
+  animation: none !important;
   will-change: transform;
 }
 
@@ -3026,6 +3027,7 @@
   cursor: grabbing;
   transform: none;
   transition: none;
+  animation: none;
   box-shadow: 0 4px 8px oklch(0.08 0.01 190 / 0.48);
 }
 
@@ -4654,7 +4656,6 @@
   }
 
   .tactical-drag-overlay {
-    transform: translate3d(var(--drag-x), var(--drag-y), 0);
     transition: none;
   }
 }

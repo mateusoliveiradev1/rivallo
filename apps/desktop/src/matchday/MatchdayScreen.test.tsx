@@ -808,6 +808,82 @@ describe('MatchdayScreen', () => {
     expect(reserveButtons[1]?.getAttribute('aria-label')).toBe('Selecionar reserva Ícaro Reis');
   });
 
+  it('locks the overlay to the grabbed corner before its first frame and commits its visual center', async () => {
+    const user = userEvent.setup();
+    render(<MatchdayScreen serviceOwnership="owned" />);
+    await screen.findByRole('heading', { name: 'Visão geral do elenco' });
+    await user.click(screen.getByRole('button', { name: 'Táticas' }));
+
+    const midfielder = screen.getByRole('button', { name: /Luan Seixas/u });
+    const midfielderSlot = midfielder.closest('li');
+    const pitch = screen.getByLabelText('Escalação no 4-3-3');
+    vi.spyOn(midfielder, 'getBoundingClientRect').mockReturnValue({
+      x: 200,
+      y: 250,
+      top: 250,
+      left: 200,
+      right: 328,
+      bottom: 322,
+      width: 128,
+      height: 72,
+      toJSON: () => ({}),
+    });
+    vi.spyOn(pitch, 'getBoundingClientRect').mockReturnValue({
+      x: 100,
+      y: 50,
+      top: 50,
+      left: 100,
+      right: 1100,
+      bottom: 650,
+      width: 1000,
+      height: 600,
+      toJSON: () => ({}),
+    });
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: vi.fn(() => pitch),
+    });
+
+    fireEvent.pointerDown(midfielder, {
+      button: 0,
+      clientX: 212,
+      clientY: 262,
+      isPrimary: true,
+      pointerId: 9,
+      pointerType: 'mouse',
+    });
+    const overlay = document.querySelector<HTMLElement>('.tactical-drag-overlay');
+    expect(overlay?.hidden).toBe(true);
+    expect(overlay?.style.transform).toBe('translate3d(200px, 250px, 0)');
+
+    fireEvent.pointerMove(window, {
+      clientX: 500,
+      clientY: 400,
+      isPrimary: true,
+      pointerId: 9,
+      pointerType: 'mouse',
+    });
+    expect(overlay?.hidden).toBe(false);
+    expect(overlay?.style.transform).toBe('translate3d(488px, 388px, 0)');
+    expect(getComputedStyle(overlay!).pointerEvents).toBe('none');
+    expect(overlay?.style.transition).toBe('none');
+
+    fireEvent.pointerUp(window, {
+      clientX: 500,
+      clientY: 400,
+      isPrimary: true,
+      pointerId: 9,
+      pointerType: 'mouse',
+    });
+    expect(document.querySelector('.tactical-drag-overlay')).toBeNull();
+    expect(
+      Number.parseFloat(midfielderSlot?.style.getPropertyValue('--slot-x') ?? '') / 100,
+    ).toBeCloseTo(0.452, 5);
+    expect(
+      Number.parseFloat(midfielderSlot?.style.getPropertyValue('--slot-y') ?? '') / 100,
+    ).toBeCloseTo(0.623_333, 5);
+  });
+
   it('uses pointer capture, a movement threshold and scaled field coordinates with safe cancellation', async () => {
     const user = userEvent.setup();
     render(<MatchdayScreen serviceOwnership="owned" />);
