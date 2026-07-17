@@ -29,7 +29,8 @@ describe('Phase 06.2 tactical-plan boundaries', () => {
   it('uses one draft and one pointer session for field and bench', async () => {
     const workspace = await read('apps/desktop/src/matchday/TacticsWorkspace.tsx');
 
-    expect(workspace.match(/useState<DragSession \| null>/gu)).toHaveLength(1);
+    expect(workspace.match(/useRef<PointerDragSession \| null>/gu)).toHaveLength(1);
+    expect(workspace).not.toMatch(/useState<(?:Pointer)?DragSession \| null>/u);
     expect(workspace).toMatch(/draft\.placements\.map/);
     expect(workspace).toMatch(/draft\.bench\.map/);
     expect(workspace.match(/const beginPointerDrag =/gu)).toHaveLength(1);

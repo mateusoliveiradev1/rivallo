@@ -32,6 +32,21 @@ type LifecycleStatus =
 const INITIAL_STATUS: LifecycleStatus = { state: 'initializing' };
 const STATUS_REFRESH_INTERVAL_MS = 500;
 
+const sameLifecycleStatus = (current: LifecycleStatus, next: LifecycleStatus) => {
+  if (current.state !== next.state) return false;
+  if (current.state === 'ready' && next.state === 'ready') {
+    return current.ownership === next.ownership;
+  }
+  if (current.state === 'recoverableFailure' && next.state === 'recoverableFailure') {
+    return (
+      current.failure.code === next.failure.code &&
+      current.failure.message === next.failure.message &&
+      current.failure.diagnostic === next.failure.diagnostic
+    );
+  }
+  return true;
+};
+
 const bridgeFailure = (): LifecycleStatus => ({
   state: 'recoverableFailure',
   failure: {
@@ -53,7 +68,7 @@ export function App() {
       try {
         const nextStatus = await invoke<LifecycleStatus>('lifecycle_status');
         if (active) {
-          setStatus(nextStatus);
+          setStatus((current) => (sameLifecycleStatus(current, nextStatus) ? current : nextStatus));
         }
       } catch {
         if (active) {

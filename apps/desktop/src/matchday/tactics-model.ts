@@ -51,6 +51,20 @@ export interface TacticalDraftValidation {
   readonly warnings: readonly string[];
 }
 
+export type PresetApplicationMode = 'geometry' | 'suggestion';
+
+export interface PresetApplicationPreview {
+  readonly formation: Formation;
+  readonly suggestion: TacticalPlanSnapshot;
+  readonly geometry: TacticalPlanSnapshot;
+  readonly keptPlayerIds: readonly string[];
+  readonly repositionedPlayerIds: readonly string[];
+  readonly roleChangedPlayerIds: readonly string[];
+  readonly ambiguousPlayerIds: readonly string[];
+  readonly promotedPlayerIds: readonly string[];
+  readonly demotedPlayerIds: readonly string[];
+}
+
 const defensiveFamiliarity: readonly Position[] = ['RB', 'CB', 'LB', 'DM'];
 const midfieldFamiliarity: readonly Position[] = ['DM', 'CM', 'AM'];
 const wideFamiliarity: readonly Position[] = ['RB', 'LB', 'AM', 'RW', 'LW'];
@@ -440,6 +454,136 @@ const placementFromSlot = (
   revision,
 });
 
+const naturalSideFor = (position: Position): TacticalSide | null => {
+  if (position === 'LB' || position === 'LW') return 'left';
+  if (position === 'RB' || position === 'RW') return 'right';
+  return null;
+};
+
+const assignmentCost = (
+  player: Player,
+  current: TacticalPlayerPlacement | null,
+  slot: TacticalSlot,
+  mode: PresetApplicationMode,
+) => {
+  if ((player.position === 'GK') !== (slot.position === 'GK')) return 1_000_000;
+  const distance = current
+    ? Math.hypot(current.normalizedX - slot.x, current.normalizedY - slot.y)
+    : 0.5;
+  if (mode === 'geometry') {
+    return distance * 10_000 + (current?.positionId === slot.position ? 0 : 1);
+  }
+  const familiarity = slot.naturalPositions.includes(player.position)
+    ? 0
+    : slot.familiarPositions.includes(player.position)
+      ? 1_200
+      : 7_000;
+  const nominalPosition = current?.positionId === slot.position ? 0 : 180;
+  const naturalSide = naturalSideFor(player.position);
+  const side = naturalSide === null || naturalSide === slot.side ? 0 : 650;
+  const currentSide = !current || current.side === slot.side ? 0 : 90;
+  const currentLine = !current || current.line === slot.line ? 0 : 120;
+  const benchPromotion = current ? 0 : 350;
+  return (
+    familiarity +
+    nominalPosition +
+    side +
+    currentSide +
+    currentLine +
+    benchPromotion +
+    distance * 500
+  );
+};
+
+const assignPlayersToSlots = (
+  draft: TacticalPlanSnapshot,
+  slots: readonly TacticalSlot[],
+  players: readonly Player[],
+  mode: PresetApplicationMode,
+) => {
+  const playerById = new Map(players.map((player) => [player.id, player] as const));
+  const currentByPlayer = new Map(
+    draft.placements.map((placement) => [placement.playerId, placement] as const),
+  );
+  const candidateIds =
+    mode === 'geometry'
+      ? draft.placements.map(({ playerId }) => playerId)
+      : [...new Set([...draft.placements.map(({ playerId }) => playerId), ...draft.bench])];
+  const candidates = candidateIds
+    .map((playerId) => ({
+      current: currentByPlayer.get(playerId) ?? null,
+      player: playerById.get(playerId),
+    }))
+    .filter(
+      (candidate): candidate is { current: TacticalPlayerPlacement | null; player: Player } =>
+        candidate.player !== undefined,
+    )
+    .sort((left, right) => left.player.id.localeCompare(right.player.id));
+  if (candidates.length < slots.length) {
+    throw new Error('O preset não pode ser aplicado sem onze jogadores válidos.');
+  }
+
+  const rowCount = slots.length;
+  const columnCount = candidates.length;
+  const rowPotential = Array.from({ length: rowCount + 1 }, () => 0);
+  const columnPotential = Array.from({ length: columnCount + 1 }, () => 0);
+  const columnMatch = Array.from({ length: columnCount + 1 }, () => 0);
+  const previousColumn = Array.from({ length: columnCount + 1 }, () => 0);
+
+  for (let row = 1; row <= rowCount; row += 1) {
+    columnMatch[0] = row;
+    let column = 0;
+    const minimum = Array.from({ length: columnCount + 1 }, () => Number.POSITIVE_INFINITY);
+    const used = Array.from({ length: columnCount + 1 }, () => false);
+    do {
+      used[column] = true;
+      const matchedRow = columnMatch[column]!;
+      let delta = Number.POSITIVE_INFINITY;
+      let nextColumn = 0;
+      for (let candidateColumn = 1; candidateColumn <= columnCount; candidateColumn += 1) {
+        if (used[candidateColumn]) continue;
+        const candidate = candidates[candidateColumn - 1]!;
+        const cost =
+          assignmentCost(candidate.player, candidate.current, slots[matchedRow - 1]!, mode) -
+          rowPotential[matchedRow]! -
+          columnPotential[candidateColumn]!;
+        if (cost < minimum[candidateColumn]!) {
+          minimum[candidateColumn] = cost;
+          previousColumn[candidateColumn] = column;
+        }
+        if (minimum[candidateColumn]! < delta) {
+          delta = minimum[candidateColumn]!;
+          nextColumn = candidateColumn;
+        }
+      }
+      for (let candidateColumn = 0; candidateColumn <= columnCount; candidateColumn += 1) {
+        if (used[candidateColumn]) {
+          rowPotential[columnMatch[candidateColumn]!] += delta;
+          columnPotential[candidateColumn] -= delta;
+        } else {
+          minimum[candidateColumn] -= delta;
+        }
+      }
+      column = nextColumn;
+    } while (columnMatch[column] !== 0);
+    do {
+      const nextColumn = previousColumn[column]!;
+      columnMatch[column] = columnMatch[nextColumn]!;
+      column = nextColumn;
+    } while (column !== 0);
+  }
+
+  const assignment = Array.from({ length: rowCount }, () => -1);
+  for (let column = 1; column <= columnCount; column += 1) {
+    const row = columnMatch[column]!;
+    if (row > 0 && row <= rowCount) assignment[row - 1] = column - 1;
+  }
+  if (assignment.some((candidateIndex) => candidateIndex < 0)) {
+    throw new Error('Não foi possível calcular uma escalação compatível.');
+  }
+  return assignment.map((candidateIndex) => candidates[candidateIndex]!);
+};
+
 export const createTacticalPlan = (
   players: readonly Player[],
   formation: Formation,
@@ -448,7 +592,7 @@ export const createTacticalPlan = (
   const selectedIds = new Set(selected.map((player) => player.id));
   const presetDefinition = getFormationPreset(formation);
   const createdAt = Date.now();
-  return {
+  const initial: TacticalPlanSnapshot = {
     schemaVersion: 3,
     variationId: 'tactical-variation.primary',
     name: formation,
@@ -473,6 +617,7 @@ export const createTacticalPlan = (
     createdAt,
     updatedAt: createdAt,
   };
+  return applyPresetToPlan(initial, formation, players, 'suggestion');
 };
 
 const newVariationId = () => {
@@ -518,27 +663,93 @@ export const applyPresetToPlan = (
   draft: TacticalPlanSnapshot,
   formation: Formation,
   players: readonly Player[],
+  mode: PresetApplicationMode = 'suggestion',
 ): TacticalPlanSnapshot => {
-  const playerById = new Map(players.map((player) => [player.id, player] as const));
   const slots = getFormationSlots(formation);
-  const placements = slots.map((slot, index) => {
-    const current = draft.placements[index];
-    const player = current ? playerById.get(current.playerId) : undefined;
-    if (!player) throw new Error('O preset não pode ser aplicado sem onze jogadores válidos.');
-    return placementFromSlot(player, slot, draft.revision);
-  });
+  const assignments = assignPlayersToSlots(draft, slots, players, mode);
+  const placements = slots.map((slot, index) =>
+    placementFromSlot(assignments[index]!.player, slot, draft.revision),
+  );
+  const assignedIds = new Set(placements.map(({ playerId }) => playerId));
+  const demoted = draft.placements
+    .map(({ playerId }) => playerId)
+    .filter((playerId) => !assignedIds.has(playerId));
+  const bench = draft.bench
+    .map((playerId) => {
+      if (!assignedIds.has(playerId)) return playerId;
+      return demoted.shift() ?? null;
+    })
+    .filter((playerId): playerId is string => playerId !== null);
+  bench.push(...demoted);
   return {
     ...draft,
-    name: formation,
     sourcePresetId: formation,
     formation,
     placements,
+    bench: bench.slice(0, 7),
     customFormation: {
       ...draft.customFormation,
-      name: formation,
+      name: draft.name,
       isCustom: false,
       origin: 'preset',
     },
+  };
+};
+
+export const previewPresetApplication = (
+  draft: TacticalPlanSnapshot,
+  formation: Formation,
+  players: readonly Player[],
+): PresetApplicationPreview => {
+  const suggestion = applyPresetToPlan(draft, formation, players, 'suggestion');
+  const geometry = applyPresetToPlan(draft, formation, players, 'geometry');
+  const currentByPlayer = new Map(
+    draft.placements.map((placement) => [placement.playerId, placement] as const),
+  );
+  const keptPlayerIds: string[] = [];
+  const repositionedPlayerIds: string[] = [];
+  const roleChangedPlayerIds: string[] = [];
+  for (const placement of suggestion.placements) {
+    const current = currentByPlayer.get(placement.playerId);
+    if (!current) continue;
+    if (
+      Math.abs(current.normalizedX - placement.normalizedX) < 0.000_001 &&
+      Math.abs(current.normalizedY - placement.normalizedY) < 0.000_001
+    ) {
+      keptPlayerIds.push(placement.playerId);
+    } else {
+      repositionedPlayerIds.push(placement.playerId);
+    }
+    if (current.positionId !== placement.positionId) roleChangedPlayerIds.push(placement.playerId);
+  }
+  const ambiguousPlayerIds = suggestion.placements
+    .filter((placement) => {
+      const slot = getFormationSlots(formation).find(
+        ({ id }) => id === placement.sourcePresetSlotId,
+      );
+      if (!slot) return false;
+      const compatible = draft.placements.filter((current) => {
+        const player = players.find(({ id }) => id === current.playerId);
+        return player && slot.naturalPositions.includes(player.position);
+      });
+      return compatible.length > 1;
+    })
+    .map(({ playerId }) => playerId);
+  const suggestedIds = new Set(suggestion.placements.map(({ playerId }) => playerId));
+  const promotedPlayerIds = draft.bench.filter((playerId) => suggestedIds.has(playerId));
+  const demotedPlayerIds = draft.placements
+    .map(({ playerId }) => playerId)
+    .filter((playerId) => !suggestedIds.has(playerId));
+  return {
+    formation,
+    suggestion,
+    geometry,
+    keptPlayerIds,
+    repositionedPlayerIds,
+    roleChangedPlayerIds,
+    ambiguousPlayerIds: [...new Set(ambiguousPlayerIds)],
+    promotedPlayerIds,
+    demotedPlayerIds,
   };
 };
 
@@ -716,22 +927,6 @@ export const validateTacticalDraft = (
     ({ playerId }) => playerById.get(playerId)?.position === 'GK',
   );
   if (goalkeepers.length !== 1) errors.push('A escalação precisa de exatamente um goleiro.');
-  else if ((goalkeepers[0]?.normalizedX ?? 1) > 0.25)
-    errors.push('O goleiro precisa permanecer no setor defensivo permitido.');
-  for (const [index, placement] of draft.placements.entries()) {
-    for (const other of draft.placements.slice(index + 1)) {
-      if (
-        Math.hypot(
-          placement.normalizedX - other.normalizedX,
-          placement.normalizedY - other.normalizedY,
-        ) < 0.01
-      )
-        errors.push('Dois jogadores estão sobrepostos e não podem ser operados.');
-    }
-    const player = playerById.get(placement.playerId);
-    if (player && getPositionFamiliarity(player.position, placement).score < 70)
-      warnings.push(`${player.shortName} atua fora da posição habitual.`);
-  }
   return { valid: errors.length === 0, errors: [...new Set(errors)], warnings };
 };
 

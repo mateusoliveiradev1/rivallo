@@ -15,7 +15,7 @@ import type {
 } from './client.js';
 import { SavedViewSelector } from './SavedViewSelector.js';
 import { createSquadDurableFilter, SQUAD_SYSTEM_VIEW } from './squad-table-schema.js';
-import type { MatchdayState, Player, TacticalPlanProposal, TacticalPlanUpdate } from './types.js';
+import type { MatchdayState, Player, TacticalPlanUpdate } from './types.js';
 
 const clientMock = vi.hoisted(() => ({
   loadMatchday: vi.fn(),
@@ -627,7 +627,7 @@ describe('MatchdayScreen', () => {
     expect(selectedIds).not.toContain('p1');
   });
 
-  it('moves freely by keyboard, announces cancellation, rejects an invalid goalkeeper drop and undoes', async () => {
+  it('moves freely by keyboard, announces cancellation, allows an unusual goalkeeper drop and undoes', async () => {
     const user = userEvent.setup();
     render(<MatchdayScreen serviceOwnership="owned" />);
     await screen.findByRole('heading', { name: 'Visão geral do elenco' });
@@ -637,9 +637,7 @@ describe('MatchdayScreen', () => {
     const goalkeeperSlot = goalkeeper.closest('li');
     const originalStyle = goalkeeperSlot?.getAttribute('style');
     fireEvent.keyDown(goalkeeper, { altKey: true, key: 'ArrowRight' });
-    expect(screen.getByLabelText('Nome da formação personalizada')).toBeInstanceOf(
-      HTMLInputElement,
-    );
+    expect(screen.getByText('Origem: 4-3-3')).toBeInstanceOf(HTMLElement);
     expect(goalkeeperSlot?.getAttribute('style')).not.toBe(originalStyle);
     expect(screen.getByText(/foi movido com o teclado/u)).toBeInstanceOf(HTMLElement);
 
@@ -681,9 +679,6 @@ describe('MatchdayScreen', () => {
       pointerId: 1,
       pointerType: 'mouse',
     });
-    await waitFor(() =>
-      expect(screen.getByText(/em movimento.*Escape cancela/u)).toBeInstanceOf(HTMLElement),
-    );
     expect(document.querySelector('.tactical-drag-overlay')).toBeInstanceOf(HTMLElement);
     fireEvent.pointerUp(window, {
       clientX: 700,
@@ -692,10 +687,8 @@ describe('MatchdayScreen', () => {
       pointerId: 1,
       pointerType: 'mouse',
     });
-    expect(screen.getAllByRole('alert').map((element) => element.textContent)).toContainEqual(
-      expect.stringMatching(/goleiro precisa permanecer no setor defensivo/u),
-    );
-    expect(goalkeeperSlot?.getAttribute('style')).toBe(originalStyle);
+    expect(screen.getByText(/foi movido para uma coordenada livre/u)).toBeInstanceOf(HTMLElement);
+    expect(goalkeeperSlot?.getAttribute('style')).not.toBe(originalStyle);
   });
 
   it('protects sidebar navigation while the tactical plan is being saved', async () => {
@@ -706,7 +699,7 @@ describe('MatchdayScreen', () => {
     await screen.findByRole('heading', { name: 'Visão geral do elenco' });
     await user.click(screen.getByRole('button', { name: 'Táticas' }));
 
-    const midfielder = screen.getByRole('button', { name: /^VOL: Luan Seixas/u });
+    const midfielder = screen.getByRole('button', { name: /Luan Seixas/u });
     fireEvent.keyDown(midfielder, { altKey: true, key: 'ArrowUp' });
     await user.click(screen.getByRole('button', { name: 'Salvar plano' }));
     await waitFor(() => expect(clientMock.saveTacticalPlan).toHaveBeenCalledOnce());
@@ -821,7 +814,7 @@ describe('MatchdayScreen', () => {
     await screen.findByRole('heading', { name: 'Visão geral do elenco' });
     await user.click(screen.getByRole('button', { name: 'Táticas' }));
 
-    const midfielder = screen.getByRole('button', { name: /^VOL: Luan Seixas/u });
+    const midfielder = screen.getByRole('button', { name: /Luan Seixas/u });
     const midfielderSlot = midfielder.closest('li');
     const originalStyle = midfielderSlot?.getAttribute('style');
     const pitch = screen.getByLabelText('Escalação no 4-3-3');
@@ -858,13 +851,13 @@ describe('MatchdayScreen', () => {
       pointerType: 'mouse',
     });
     fireEvent.pointerMove(window, {
-      clientX: 254,
-      clientY: 303,
+      clientX: 252,
+      clientY: 301,
       isPrimary: true,
       pointerId: 10,
       pointerType: 'mouse',
     });
-    expect(document.querySelector('.tactical-drag-overlay')).toBeNull();
+    expect(document.querySelector<HTMLElement>('.tactical-drag-overlay')?.hidden).toBe(true);
     fireEvent.pointerMove(window, {
       clientX: 700,
       clientY: 300,
@@ -874,8 +867,9 @@ describe('MatchdayScreen', () => {
     });
     const overlay = document.querySelector<HTMLElement>('.tactical-drag-overlay');
     expect(overlay).toBeInstanceOf(HTMLElement);
-    expect(overlay?.style.getPropertyValue('--drag-x')).toBe('700px');
-    expect(overlay?.style.getPropertyValue('--drag-y')).toBe('300px');
+    expect(overlay?.hidden).toBe(false);
+    expect(overlay?.style.width).toBe('128px');
+    expect(overlay?.style.height).toBe('72px');
     expect(overlay?.querySelector('.player-face')).toBeInstanceOf(HTMLElement);
     expect(setPointerCapture).toHaveBeenCalledWith(10);
     fireEvent.pointerMove(window, {
@@ -886,7 +880,6 @@ describe('MatchdayScreen', () => {
       pointerType: 'mouse',
     });
     expect(document.querySelector('.tactical-drag-overlay')).toBe(overlay);
-    expect(overlay?.style.getPropertyValue('--drag-x')).toBe('710px');
     fireEvent.pointerMove(window, {
       clientX: 700,
       clientY: 300,
@@ -908,7 +901,7 @@ describe('MatchdayScreen', () => {
     expect(document.querySelector('.tactical-drag-overlay')).toBeNull();
     expect(releasePointerCapture).toHaveBeenCalledWith(10);
 
-    const movedStyle = midfielderSlot?.getAttribute('style');
+    let movedStyle = midfielderSlot?.getAttribute('style');
     hitTarget = midfielder;
     fireEvent.pointerDown(midfielder, {
       button: 0,
@@ -932,8 +925,9 @@ describe('MatchdayScreen', () => {
       pointerId: 11,
       pointerType: 'mouse',
     });
-    expect(midfielderSlot?.getAttribute('style')).toBe(movedStyle);
-    expect(screen.getByText(/permaneceu no mesmo lugar/u)).toBeInstanceOf(HTMLElement);
+    expect(midfielderSlot?.getAttribute('style')).not.toBe(movedStyle);
+    expect(screen.getByText(/coordenada livre/u)).toBeInstanceOf(HTMLElement);
+    movedStyle = midfielderSlot?.getAttribute('style');
 
     hitTarget = document.body;
     fireEvent.pointerDown(midfielder, {
@@ -1049,11 +1043,14 @@ describe('MatchdayScreen', () => {
     fireEvent.keyDown(search, { key: 'ArrowDown' });
     expect(document.activeElement).toBe(targetPreset);
     await user.keyboard('{Enter}');
+    const firstPreview = screen.getByRole('alertdialog', { name: 'Aplicar 4-2-3-1?' });
+    expect(within(firstPreview).getByText('Titulares mantidos')).toBeInstanceOf(HTMLElement);
+    await user.click(within(firstPreview).getByRole('button', { name: 'Aplicar sugestão' }));
     expect(
       screen.getByRole('button', { name: 'Formação: 4-2-3-1. Abrir biblioteca' }),
     ).toBeInstanceOf(HTMLButtonElement);
 
-    const midfielder = screen.getByRole('button', { name: /^VOL: Luan Seixas/u });
+    const midfielder = screen.getByRole('button', { name: /Luan Seixas/u });
     fireEvent.keyDown(midfielder, { altKey: true, key: 'ArrowUp' });
     await user.click(screen.getByRole('button', { name: 'Formação: 4-2-3-1. Abrir biblioteca' }));
     await user.click(
@@ -1062,13 +1059,12 @@ describe('MatchdayScreen', () => {
       }),
     );
     const confirmation = screen.getByRole('alertdialog', { name: 'Aplicar 4-4-2?' });
-    expect(
-      (
-        within(confirmation).getByRole('button', {
-          name: 'Salvar atual e aplicar',
-        }) as HTMLButtonElement
-      ).disabled,
-    ).toBe(false);
+    expect(within(confirmation).getByRole('button', { name: 'Aplicar sugestão' })).toBeInstanceOf(
+      HTMLButtonElement,
+    );
+    expect(within(confirmation).getByRole('button', { name: 'Manter jogadores' })).toBeInstanceOf(
+      HTMLButtonElement,
+    );
     await user.click(within(confirmation).getByRole('button', { name: 'Cancelar' }));
     expect(
       screen.getByRole('button', { name: 'Formação: 4-2-3-1. Abrir biblioteca' }),
@@ -1080,34 +1076,9 @@ describe('MatchdayScreen', () => {
         name: /4-4-2/u,
       }),
     );
-    clientMock.saveTacticalPlan.mockImplementationOnce(async (proposal: TacticalPlanProposal) => {
-      const { approach, expectedRevision, ...snapshot } = proposal;
-      const tacticalPlan = {
-        ...snapshot,
-        schemaVersion: 3 as const,
-        revision: expectedRevision + 1,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      };
-      const tacticalLibrary = {
-        schemaVersion: 1 as const,
-        revision: 1,
-        activeVariationId: tacticalPlan.variationId,
-        primaryVariationId: tacticalPlan.variationId,
-        variations: [tacticalPlan],
-      };
-      return {
-        state: { ...state, approach, formation: tacticalPlan.formation, tacticalLibrary },
-        event: {
-          kind: 'variationSaved' as const,
-          variationId: tacticalPlan.variationId,
-          acceptedRevision: tacticalPlan.revision,
-        },
-      };
-    });
     await user.click(
       within(screen.getByRole('alertdialog', { name: 'Aplicar 4-4-2?' })).getByRole('button', {
-        name: 'Salvar atual e aplicar',
+        name: 'Manter jogadores',
       }),
     );
     await waitFor(() =>
@@ -1115,7 +1086,7 @@ describe('MatchdayScreen', () => {
         screen.getByRole('button', { name: 'Formação: 4-4-2. Abrir biblioteca' }),
       ).toBeInstanceOf(HTMLButtonElement),
     );
-    expect(clientMock.saveTacticalPlan).toHaveBeenCalledOnce();
+    expect(clientMock.saveTacticalPlan).not.toHaveBeenCalled();
   });
 
   it('activates validated system, owned and read-only views with confirmed focus and announcements', async () => {

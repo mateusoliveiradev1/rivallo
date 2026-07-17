@@ -266,7 +266,7 @@ mod tests {
             .as_mut()
             .expect("tactical plan")
             .placements[0]
-            .normalized_x = 0.7;
+            .normalized_x = 1.7;
         legacy.round = 12;
         let service = MatchdayService::new(MemoryRepository {
             state: RefCell::new(Some(legacy)),

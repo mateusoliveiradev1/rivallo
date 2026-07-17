@@ -10,8 +10,10 @@ import {
   getFormationSlots,
   getPositionFamiliarity,
   hasSameSelectedPlayers,
+  movePlayerFreely,
   normalizeStoredSlots,
   placePlayerInSlot,
+  previewPresetApplication,
   selectedIdsFromSlots,
   substitutePlayers,
   swapStarters,
@@ -127,5 +129,76 @@ describe('tactics model', () => {
     expect(substituted.placements.map(({ playerId }) => playerId)).toContain('p12');
     expect(substituted.bench).toContain('p1');
     expect(validateTacticalDraft(substituted, players).valid).toBe(true);
+  });
+
+  it('assigns preset slots deterministically by positional compatibility instead of array index', () => {
+    const positionalPlayers = getFormationSlots('4-3-3').map((slot, index) => ({
+      ...players[index]!,
+      id: `positional-${index}`,
+      position: slot.position,
+      selected: true,
+    }));
+    const reserveStriker = {
+      ...players[11]!,
+      id: 'reserve-striker',
+      position: 'ST' as const,
+      selected: false,
+    };
+    const availablePlayers = [...positionalPlayers, reserveStriker];
+    const plan = createTacticalPlan(availablePlayers, '4-3-3');
+    const shuffled = { ...plan, placements: [...plan.placements].reverse() };
+    const expected = applyPresetToPlan(plan, '4-4-2', availablePlayers);
+    const actual = applyPresetToPlan(shuffled, '4-4-2', availablePlayers);
+    const assignment = (snapshot: typeof actual) =>
+      Object.fromEntries(
+        snapshot.placements.map(({ playerId, sourcePresetSlotId }) => [
+          sourcePresetSlotId,
+          playerId,
+        ]),
+      );
+    expect(assignment(actual)).toEqual(assignment(expected));
+    const goalkeeperId = actual.placements.find(({ positionId }) => positionId === 'GK')?.playerId;
+    expect(positionalPlayers.find(({ id }) => id === goalkeeperId)?.position).toBe('GK');
+    const centreBacks = actual.placements.filter(
+      ({ playerId }) => positionalPlayers.find(({ id }) => id === playerId)?.position === 'CB',
+    );
+    expect(centreBacks.every(({ line }) => line === 'defence')).toBe(true);
+    const leftBack = actual.placements.find(
+      ({ playerId }) => positionalPlayers.find(({ id }) => id === playerId)?.position === 'LB',
+    );
+    const rightBack = actual.placements.find(
+      ({ playerId }) => positionalPlayers.find(({ id }) => id === playerId)?.position === 'RB',
+    );
+    expect(leftBack?.side).toBe('left');
+    expect(rightBack?.side).toBe('right');
+    expect(actual.placements.map(({ playerId }) => playerId)).toContain(reserveStriker.id);
+    expect(actual.bench).not.toContain(reserveStriker.id);
+  });
+
+  it('previews suggestion and geometry modes without changing the starters or bench', () => {
+    const plan = createTacticalPlan(players, '4-3-3');
+    const preview = previewPresetApplication(plan, '4-4-2', players);
+    expect(preview.suggestion.formation).toBe('4-4-2');
+    expect(preview.geometry.formation).toBe('4-4-2');
+    expect(new Set(preview.suggestion.placements.map(({ playerId }) => playerId))).toEqual(
+      new Set(plan.placements.map(({ playerId }) => playerId)),
+    );
+    expect(preview.suggestion.bench).toEqual(plan.bench);
+  });
+
+  it('preserves precise free coordinates and allows unusual or overlapping tactical choices', () => {
+    const plan = createTacticalPlan(players, '4-3-3');
+    const goalkeeperId = plan.placements.find(({ playerId }) => playerId === 'p1')!.playerId;
+    const moved = movePlayerFreely(plan, goalkeeperId, 0.873_421, 0.517_389);
+    const crowded = movePlayerFreely(moved, moved.placements[1]!.playerId, 0.873_421, 0.517_389);
+    expect(crowded.placements.find(({ playerId }) => playerId === goalkeeperId)).toMatchObject({
+      normalizedX: 0.873_421,
+      normalizedY: 0.517_389,
+    });
+    expect(validateTacticalDraft(crowded, players)).toEqual({
+      valid: true,
+      errors: [],
+      warnings: [],
+    });
   });
 });

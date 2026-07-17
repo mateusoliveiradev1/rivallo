@@ -1196,18 +1196,6 @@ impl MatchdayState {
             }
         }
 
-        for (index, placement) in plan.placements.iter().enumerate() {
-            for other in plan.placements.iter().skip(index + 1) {
-                let distance = (placement.normalized_x - other.normalized_x)
-                    .hypot(placement.normalized_y - other.normalized_y);
-                if distance < 0.01 {
-                    return Err(MatchdayError::InvalidTacticalPlan(
-                        "Dois jogadores estão sobrepostos e não podem ser operados.".to_owned(),
-                    ));
-                }
-            }
-        }
-
         let goalkeepers: Vec<_> = plan
             .placements
             .iter()
@@ -1222,12 +1210,6 @@ impl MatchdayState {
                 "A escalação precisa de exatamente um goleiro.".to_owned(),
             ));
         }
-        if goalkeepers[0].normalized_x > 0.25 {
-            return Err(MatchdayError::InvalidTacticalPlan(
-                "O goleiro precisa permanecer no setor defensivo permitido.".to_owned(),
-            ));
-        }
-
         Ok(())
     }
 
@@ -1742,17 +1724,13 @@ mod tests {
     }
 
     #[test]
-    fn tactical_plan_rejects_duplicate_overlap_invalid_goalkeeper_and_unknown_players() {
+    fn tactical_plan_rejects_duplicate_out_of_bounds_and_unknown_players() {
         type ProposalMutation = Box<dyn Fn(&mut TacticalPlanProposal)>;
         let cases: Vec<ProposalMutation> = vec![
             Box::new(|proposal| {
                 proposal.placements[1].player_id = proposal.placements[0].player_id.clone();
             }),
-            Box::new(|proposal| {
-                proposal.placements[1].normalized_x = proposal.placements[0].normalized_x;
-                proposal.placements[1].normalized_y = proposal.placements[0].normalized_y;
-            }),
-            Box::new(|proposal| proposal.placements[0].normalized_x = 0.6),
+            Box::new(|proposal| proposal.placements[0].normalized_x = 1.1),
             Box::new(|proposal| proposal.placements[2].player_id = "player.unknown".to_owned()),
         ];
 
@@ -1770,6 +1748,32 @@ mod tests {
                 "invalid proposal must not partially mutate state"
             );
         }
+    }
+
+    #[test]
+    fn tactical_plan_accepts_unusual_goalkeeper_and_overlapping_coordinates() {
+        let mut state = MatchdayState::default();
+        let mut proposal = proposal_from(&state);
+        proposal.placements[0].normalized_x = 0.873_421;
+        proposal.placements[0].normalized_y = 0.517_389;
+        proposal.placements[1].normalized_x = 0.873_421;
+        proposal.placements[1].normalized_y = 0.517_389;
+
+        state
+            .apply_tactical_plan(proposal)
+            .expect("unusual tactical choice remains technically valid");
+        let saved = state
+            .tactical_library
+            .as_ref()
+            .and_then(|library| {
+                library
+                    .variations
+                    .iter()
+                    .find(|variation| variation.variation_id == library.active_variation_id)
+            })
+            .expect("saved unusual variation");
+        assert_eq!(saved.placements[0].normalized_x, 0.873_421);
+        assert_eq!(saved.placements[1].normalized_y, 0.517_389);
     }
 
     #[test]

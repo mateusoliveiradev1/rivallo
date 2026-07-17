@@ -59,23 +59,20 @@ const pointerDragTo = async (
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
   await page.mouse.move(start.x + 3, start.y + 2);
-  await expect(page.locator('.tactical-drag-overlay')).toHaveCount(0);
+  await expect(page.locator('.tactical-drag-overlay')).toBeHidden();
   await page.mouse.move(end.x, end.y, { steps: 8 });
   await expect(page.locator('.tactical-drag-overlay')).toBeVisible();
   await page.mouse.up();
 };
 
-const chooseFormation = async (page: Page, formation: string, applyWithoutSaving = false) => {
+const chooseFormation = async (page: Page, formation: string) => {
   await page.getByRole('button', { name: /^Formação: .*Abrir biblioteca$/u }).click();
   const picker = page.getByRole('dialog', { name: 'Escolher formação' });
   await picker.getByRole('searchbox', { name: 'Buscar formação' }).fill(formation);
   await picker.getByRole('option', { name: new RegExp(`^${formation}`, 'u') }).click();
-  if (applyWithoutSaving) {
-    await page
-      .getByRole('alertdialog', { name: `Aplicar ${formation}?` })
-      .getByRole('button', { name: 'Aplicar sem salvar' })
-      .click();
-  }
+  const preview = page.getByRole('alertdialog', { name: `Aplicar ${formation}?` });
+  await expect(preview).toContainText('Titulares mantidos');
+  await preview.getByRole('button', { name: 'Aplicar sugestão' }).click();
 };
 
 const wcagStateInventory = [
@@ -1060,8 +1057,11 @@ test('creates, duplicates, switches and reopens independent variations from one 
     await page.getByRole('button', { name: /^Variação ativa:/u }).click();
     return page.getByRole('dialog', { name: 'Variações da formação' });
   };
-  const createNamedVariation = async (action: 'Nova da atual' | 'Duplicar', name: string) => {
+  const createNamedVariation = async (action: 'Salvar como' | 'Duplicar', name: string) => {
     const variations = await openVariations();
+    if (action === 'Duplicar') {
+      await variations.getByText('Mais ações').click();
+    }
     await variations.getByRole('button', { name: action }).click();
     const nameDialog = page.getByRole('alertdialog', { name: 'Nome da nova variação' });
     await nameDialog.getByRole('textbox', { name: 'Nome' }).fill(name);
@@ -1080,16 +1080,16 @@ test('creates, duplicates, switches and reopens independent variations from one 
 
   await page.goto(developmentUrl);
   await page.getByRole('button', { name: 'Táticas' }).click();
-  await createNamedVariation('Nova da atual', '4-3-3 Volante Alto');
+  await createNamedVariation('Salvar como', '4-3-3 Volante Alto');
 
-  const volante = page.getByRole('button', { name: /^VOL: Luan Seixas/u });
+  const volante = page.getByRole('button', { name: /Luan Seixas/u });
   await volante.press('Alt+ArrowRight');
   await page.getByRole('button', { name: 'Salvar plano' }).click();
   const volanteHighStyle = await volante.locator('xpath=..').getAttribute('style');
 
   await createNamedVariation('Duplicar', '4-3-3 Laterais Altos');
-  const leftBack = page.getByRole('button', { name: /^LE: Davi Moura/u });
-  const rightBack = page.getByRole('button', { name: /^LD: Nilo Azevedo/u });
+  const leftBack = page.getByRole('button', { name: /Nilo Azevedo/u });
+  const rightBack = page.getByRole('button', { name: /Davi Moura/u });
   const leftBackBefore = await leftBack.locator('xpath=..').getAttribute('style');
   await leftBack.press('Alt+ArrowRight');
   await rightBack.press('Alt+ArrowRight');
@@ -1328,7 +1328,7 @@ test('substitutes through the accessible field flow and persists the saved plan'
   await expect(page.getByRole('button', { name: /^GOL: Ícaro Reis/u })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Selecionar reserva Caio Brandão' })).toBeVisible();
 
-  await chooseFormation(page, '4-2-3-1', true);
+  await chooseFormation(page, '4-2-3-1');
   await page.getByRole('radio', { name: /Protagonista/u }).check();
   await page.getByRole('button', { name: 'Salvar plano' }).click();
   await expect(page.getByRole('button', { name: 'Salvar plano' })).toBeDisabled();
@@ -1371,18 +1371,15 @@ test('keeps field and bench in one drag session and persists a custom formation'
     x: 500,
     y: 260,
   });
-  await expect(page.locator('.pitch-save-state')).toContainText(
-    'O goleiro precisa permanecer no setor defensivo permitido.',
-  );
-  await expect(goalkeeperSlot).toHaveAttribute('style', goalkeeperStyle ?? '');
+  await expect(goalkeeperSlot).not.toHaveAttribute('style', goalkeeperStyle ?? '');
 
   await pointerDragTo(
     page,
-    page.getByRole('button', { name: /^LE: Davi Moura/u }),
+    page.getByRole('button', { name: /Davi Moura/u }),
     page.getByRole('button', { name: /^ZAG: Iago Serpa/u }),
   );
   await expect(page.getByRole('button', { name: /^ZAG: Davi Moura/u })).toBeVisible();
-  await expect(page.getByRole('button', { name: /^LE: Iago Serpa/u })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^LD: Iago Serpa/u })).toBeVisible();
 
   await pointerDragTo(
     page,
@@ -1400,7 +1397,7 @@ test('keeps field and bench in one drag session and persists a custom formation'
   await expect(page.getByRole('button', { name: /^ZAG: Davi Moura/u })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Selecionar reserva Breno Vidal' })).toBeVisible();
 
-  const midfielder = page.getByRole('button', { name: /^VOL: Luan Seixas/u });
+  const midfielder = page.getByRole('button', { name: /Luan Seixas/u });
   const midfielderSlot = midfielder.locator('xpath=..');
   const midfielderStyle = await midfielderSlot.getAttribute('style');
   const freePosition = await pitch.evaluate((element) => {
@@ -1422,9 +1419,7 @@ test('keeps field and bench in one drag session and persists a custom formation'
   await expect(midfielderSlot).not.toHaveAttribute('style', midfielderStyle ?? '');
   await midfielder.focus();
   await page.keyboard.press('Alt+ArrowUp');
-  const customName = page.getByLabel('Nome da formação personalizada');
-  await expect(customName).toBeVisible();
-  await customName.fill('Pressão assimétrica');
+  await expect(page.getByText('Origem: 4-3-3')).toBeVisible();
 
   const cancelSource = page.getByRole('button', { name: 'Selecionar reserva Ícaro Reis' });
   const cancelBox = await cancelSource.boundingBox();
@@ -1441,9 +1436,7 @@ test('keeps field and bench in one drag session and persists a custom formation'
   await expect(page.getByRole('button', { name: 'Salvar plano' })).toBeDisabled();
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Plano de jogo' })).toBeVisible();
-  await expect(page.getByLabel('Nome da formação personalizada')).toHaveValue(
-    'Pressão assimétrica',
-  );
+  await expect(page.getByText('Origem: 4-3-3')).toBeVisible();
   await expect(page.getByRole('button', { name: /^ZAG: Otávio Luz/u })).toBeVisible();
   await expect(page.getByRole('button', { name: /^ZAG: Davi Moura/u })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Selecionar reserva Breno Vidal' })).toBeVisible();
@@ -1467,7 +1460,7 @@ test('honors reduced motion in the tactical interaction surface', async ({ page 
   expect(seconds).toBeLessThanOrEqual(0.00001);
   await expect(page.locator('.tactical-drag-overlay')).toHaveCount(0);
 
-  const source = page.getByRole('button', { name: /^VOL: Luan Seixas/u });
+  const source = page.getByRole('button', { name: /Luan Seixas/u });
   const sourceBox = await source.boundingBox();
   if (!sourceBox) throw new Error('Expected a visible player card.');
   await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
@@ -1482,6 +1475,133 @@ test('honors reduced motion in the tactical interaction surface', async ({ page 
   await page.keyboard.press('Escape');
   await page.mouse.up();
   await expect(page.locator('.tactical-drag-overlay')).toHaveCount(0);
+});
+
+test('records the tactical drag hot path', async ({ page }, testInfo) => {
+  test.skip(
+    testInfo.project.name !== 'desktop-1366x768',
+    'The tactical drag performance contract only needs one desktop project.',
+  );
+
+  await page.goto(developmentUrl);
+  await page.getByRole('button', { name: 'Táticas' }).click();
+  const source = page.getByRole('button', { name: /Luan Seixas/u });
+  const pitch = page.getByLabel('Escalação no 4-3-3');
+  await expect(source.locator('.pitch-player-card__rating')).toContainText('OVR77');
+  const reserve = page.getByRole('button', { name: 'Selecionar reserva Ícaro Reis' });
+  await expect(reserve.locator(':scope > b')).toHaveText('68');
+  expect(
+    await reserve
+      .locator('small')
+      .evaluate((element) => element.scrollWidth <= element.clientWidth),
+  ).toBe(true);
+  expect(
+    await reserve
+      .locator(':scope > b')
+      .evaluate((element) => getComputedStyle(element).fontVariantNumeric),
+  ).toContain('tabular-nums');
+  const sourceBox = await source.boundingBox();
+  const pitchBox = await pitch.boundingBox();
+  if (!sourceBox || !pitchBox) throw new Error('Expected visible tactical drag geometry.');
+
+  await page.evaluate(() => {
+    window.__RIVALLO_TACTICS_DRAG_METRICS__ = {
+      authoritativeValidations: 0,
+      collisionCalculations: 0,
+      fieldCardRenders: 0,
+      layoutReads: 0,
+      pointerMoves: 0,
+      readinessCalculations: 0,
+      reactStateUpdates: 0,
+      persistenceCalls: 0,
+      tooltipCreations: 0,
+      draggedCardRenders: 0,
+      inspectorRenders: 0,
+      workspaceRenders: 0,
+    };
+    const samples: number[] = [];
+    let previous = performance.now();
+    let active = true;
+    Object.assign(window, { __RIVALLO_TACTICS_FRAME_SAMPLES__: samples });
+    const sample = (now: number) => {
+      samples.push(now - previous);
+      previous = now;
+      if (active) requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+    Object.assign(window, { __RIVALLO_STOP_TACTICS_FRAME_SAMPLES__: () => (active = false) });
+  });
+
+  const startX = sourceBox.x + sourceBox.width * 0.2;
+  const startY = sourceBox.y + sourceBox.height * 0.35;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  let lastX = startX;
+  let lastY = startY;
+  for (let index = 0; index < 80; index += 1) {
+    const angle = (Math.PI * 2 * index) / 80;
+    lastX = pitchBox.x + pitchBox.width * (0.55 + Math.cos(angle) * 0.14);
+    lastY = pitchBox.y + pitchBox.height * (0.5 + Math.sin(angle) * 0.18);
+    await page.mouse.move(lastX, lastY);
+  }
+
+  await expect(page.locator('.tactical-drag-overlay')).toBeVisible();
+  const overlayBox = await page.locator('.tactical-drag-overlay').boundingBox();
+  if (!overlayBox) throw new Error('Expected visible overlay geometry.');
+  expect(overlayBox.width).toBeCloseTo(sourceBox.width, 1);
+  expect(overlayBox.height).toBeCloseTo(sourceBox.height, 1);
+  expect(overlayBox.x).toBeCloseTo(lastX - sourceBox.width * 0.2, 1);
+  expect(overlayBox.y).toBeCloseTo(lastY - sourceBox.height * 0.35, 1);
+  await expect(page.getByRole('tooltip')).toHaveCount(0);
+  const result = await page.evaluate(() => {
+    const stop = (
+      window as typeof window & {
+        __RIVALLO_STOP_TACTICS_FRAME_SAMPLES__?: () => void;
+        __RIVALLO_TACTICS_FRAME_SAMPLES__?: number[];
+      }
+    ).__RIVALLO_STOP_TACTICS_FRAME_SAMPLES__;
+    stop?.();
+    const frames =
+      (window as typeof window & { __RIVALLO_TACTICS_FRAME_SAMPLES__?: number[] })
+        .__RIVALLO_TACTICS_FRAME_SAMPLES__ ?? [];
+    const stableFrames = frames.slice(2).sort((a, b) => a - b);
+    const averageFrameMs =
+      stableFrames.reduce((total, frame) => total + frame, 0) / Math.max(stableFrames.length, 1);
+    const p95FrameMs = stableFrames[Math.floor(stableFrames.length * 0.95)] ?? 0;
+    return {
+      ...window.__RIVALLO_TACTICS_DRAG_METRICS__,
+      averageFrameMs: Number(averageFrameMs.toFixed(2)),
+      p95FrameMs: Number(p95FrameMs.toFixed(2)),
+      sampledFrames: stableFrames.length,
+    };
+  });
+  console.log(`TACTICAL_DRAG_METRICS ${JSON.stringify(result)}`);
+  expect(result.workspaceRenders).toBe(0);
+  expect(result.fieldCardRenders).toBe(0);
+  expect(result.draggedCardRenders).toBe(0);
+  expect(result.inspectorRenders).toBe(0);
+  expect(result.reactStateUpdates).toBe(0);
+  expect(result.authoritativeValidations).toBe(0);
+  expect(result.collisionCalculations).toBe(0);
+  expect(result.persistenceCalls).toBe(0);
+  expect(result.readinessCalculations).toBe(0);
+  expect(result.tooltipCreations).toBe(0);
+  expect(result.layoutReads).toBe(3);
+  expect(result.averageFrameMs).toBeLessThanOrEqual(20);
+  expect(result.p95FrameMs).toBeLessThanOrEqual(25);
+  await page.mouse.up();
+  await expect(page.locator('.tactical-drag-overlay')).toHaveCount(0);
+  const persistedPoint = await source.locator('xpath=..').evaluate((element) => ({
+    x: Number.parseFloat(element.style.getPropertyValue('--slot-x')) / 100,
+    y: Number.parseFloat(element.style.getPropertyValue('--slot-y')) / 100,
+  }));
+  const expectedX =
+    (lastX - sourceBox.width * 0.2 + sourceBox.width / 2 - pitchBox.x) / pitchBox.width;
+  const expectedY =
+    (lastY - sourceBox.height * 0.35 + sourceBox.height / 2 - pitchBox.y) / pitchBox.height;
+  expect(persistedPoint.x).toBeCloseTo(expectedX, 5);
+  expect(persistedPoint.y).toBeCloseTo(expectedY, 5);
+  expect(result.pointerMoves).toBeGreaterThanOrEqual(75);
 });
 
 test('keeps the formation library searchable, keyboard navigable and viewport bounded', async ({
