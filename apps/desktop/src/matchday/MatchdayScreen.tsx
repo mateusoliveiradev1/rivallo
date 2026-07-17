@@ -1462,7 +1462,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
               }}
               onFocusPlayer={setFocusedPlayerId}
               onPitchModeChange={(pitchMode) => updatePreference('pitchMode', pitchMode)}
-              onSave={() => void saveLineup()}
+              onSave={async () => (await saveLineup())?.tacticalPlan ?? null}
               onUndo={() => {
                 const previous = tacticalHistory.at(-1);
                 if (!previous) return;

@@ -1,6 +1,6 @@
 import '@testing-library/dom';
 
-import { createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,7 +15,7 @@ import type {
 } from './client.js';
 import { SavedViewSelector } from './SavedViewSelector.js';
 import { createSquadDurableFilter, SQUAD_SYSTEM_VIEW } from './squad-table-schema.js';
-import type { MatchdayState, Player, TacticalPlanUpdate } from './types.js';
+import type { MatchdayState, Player, TacticalPlanProposal, TacticalPlanUpdate } from './types.js';
 
 const clientMock = vi.hoisted(() => ({
   loadMatchday: vi.fn(),
@@ -649,22 +649,36 @@ describe('MatchdayScreen', () => {
       height: 600,
       toJSON: () => ({}),
     });
-    const dataTransfer = {
-      dropEffect: 'move',
-      effectAllowed: 'move',
-      getData: vi.fn(() => 'p1'),
-      setData: vi.fn(),
-    } as unknown as DataTransfer;
-    fireEvent.dragStart(goalkeeper, { dataTransfer });
-    await waitFor(() =>
-      expect(screen.getByText(/em movimento, origem campo/u)).toBeInstanceOf(HTMLElement),
-    );
-    const dropEvent = createEvent.drop(pitch, { dataTransfer });
-    Object.defineProperties(dropEvent, {
-      clientX: { value: 700 },
-      clientY: { value: 300 },
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: vi.fn(() => pitch),
     });
-    fireEvent(pitch, dropEvent);
+    fireEvent.pointerDown(goalkeeper, {
+      button: 0,
+      clientX: 80,
+      clientY: 80,
+      isPrimary: true,
+      pointerId: 1,
+      pointerType: 'mouse',
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 700,
+      clientY: 300,
+      isPrimary: true,
+      pointerId: 1,
+      pointerType: 'mouse',
+    });
+    await waitFor(() =>
+      expect(screen.getByText(/em movimento.*Escape cancela/u)).toBeInstanceOf(HTMLElement),
+    );
+    expect(document.querySelector('.tactical-drag-overlay')).toBeInstanceOf(HTMLElement);
+    fireEvent.pointerUp(window, {
+      clientX: 700,
+      clientY: 300,
+      isPrimary: true,
+      pointerId: 1,
+      pointerType: 'mouse',
+    });
     expect(screen.getAllByRole('alert').map((element) => element.textContent)).toContainEqual(
       expect.stringMatching(/goleiro precisa permanecer no setor defensivo/u),
     );
@@ -722,32 +736,360 @@ describe('MatchdayScreen', () => {
     const serpa = screen.getByRole('button', { name: /^ZAG.*Iago Serpa/u });
     const mouraStyle = moura.closest('li')?.getAttribute('style');
     const serpaStyle = serpa.closest('li')?.getAttribute('style');
-    const fieldTransfer = {
-      dropEffect: 'move',
-      effectAllowed: 'move',
-      getData: vi.fn(() => 'p2'),
-      setData: vi.fn(),
-    } as unknown as DataTransfer;
-    fireEvent.dragStart(moura, { dataTransfer: fieldTransfer });
-    fireEvent.dragEnter(serpa, { dataTransfer: fieldTransfer });
-    fireEvent.drop(serpa, { dataTransfer: fieldTransfer });
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: vi.fn(() => serpa),
+    });
+    fireEvent.pointerDown(moura.querySelector('strong') ?? moura, {
+      button: 0,
+      clientX: 100,
+      clientY: 100,
+      isPrimary: true,
+      pointerId: 2,
+      pointerType: 'mouse',
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 180,
+      clientY: 180,
+      isPrimary: true,
+      pointerId: 2,
+      pointerType: 'mouse',
+    });
+    fireEvent.pointerUp(window, {
+      clientX: 180,
+      clientY: 180,
+      isPrimary: true,
+      pointerId: 2,
+      pointerType: 'mouse',
+    });
     expect(moura.closest('li')?.getAttribute('style')).toBe(serpaStyle);
     expect(serpa.closest('li')?.getAttribute('style')).toBe(mouraStyle);
 
     const firstReserve = screen.getByRole('button', { name: 'Selecionar reserva Ícaro Reis' });
     const secondReserve = screen.getByRole('button', { name: 'Selecionar reserva Otávio Luz' });
-    const benchTransfer = {
-      dropEffect: 'move',
-      effectAllowed: 'move',
-      getData: vi.fn(() => 'p12'),
-      setData: vi.fn(),
-    } as unknown as DataTransfer;
-    fireEvent.dragStart(firstReserve, { dataTransfer: benchTransfer });
-    fireEvent.dragEnter(secondReserve, { dataTransfer: benchTransfer });
-    fireEvent.drop(secondReserve, { dataTransfer: benchTransfer });
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: vi.fn(() => secondReserve),
+    });
+    fireEvent.pointerDown(firstReserve, {
+      button: 0,
+      clientX: 100,
+      clientY: 700,
+      isPrimary: true,
+      pointerId: 3,
+      pointerType: 'mouse',
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 260,
+      clientY: 700,
+      isPrimary: true,
+      pointerId: 3,
+      pointerType: 'mouse',
+    });
+    fireEvent.pointerUp(window, {
+      clientX: 260,
+      clientY: 700,
+      isPrimary: true,
+      pointerId: 3,
+      pointerType: 'mouse',
+    });
     const reserveButtons = screen.getAllByRole('button', { name: /^Selecionar reserva/u });
     expect(reserveButtons[0]?.getAttribute('aria-label')).toBe('Selecionar reserva Otávio Luz');
     expect(reserveButtons[1]?.getAttribute('aria-label')).toBe('Selecionar reserva Ícaro Reis');
+  });
+
+  it('uses pointer capture, a movement threshold and scaled field coordinates with safe cancellation', async () => {
+    const user = userEvent.setup();
+    render(<MatchdayScreen serviceOwnership="owned" />);
+    await screen.findByRole('heading', { name: 'Visão geral do elenco' });
+    await user.click(screen.getByRole('button', { name: 'Táticas' }));
+
+    const midfielder = screen.getByRole('button', { name: /^VOL: Luan Seixas/u });
+    const midfielderSlot = midfielder.closest('li');
+    const originalStyle = midfielderSlot?.getAttribute('style');
+    const pitch = screen.getByLabelText('Escalação no 4-3-3');
+    vi.spyOn(pitch, 'getBoundingClientRect').mockReturnValue({
+      x: 100,
+      y: 50,
+      top: 50,
+      left: 100,
+      right: 1100,
+      bottom: 650,
+      width: 1000,
+      height: 600,
+      toJSON: () => ({}),
+    });
+    let hitTarget: Element = pitch;
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: vi.fn(() => hitTarget),
+    });
+    const setPointerCapture = vi.fn();
+    const releasePointerCapture = vi.fn();
+    Object.defineProperties(midfielder, {
+      setPointerCapture: { configurable: true, value: setPointerCapture },
+      hasPointerCapture: { configurable: true, value: vi.fn(() => true) },
+      releasePointerCapture: { configurable: true, value: releasePointerCapture },
+    });
+
+    fireEvent.pointerDown(midfielder.querySelector('strong') ?? midfielder, {
+      button: 0,
+      clientX: 250,
+      clientY: 300,
+      isPrimary: true,
+      pointerId: 10,
+      pointerType: 'mouse',
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 254,
+      clientY: 303,
+      isPrimary: true,
+      pointerId: 10,
+      pointerType: 'mouse',
+    });
+    expect(document.querySelector('.tactical-drag-overlay')).toBeNull();
+    fireEvent.pointerMove(window, {
+      clientX: 700,
+      clientY: 300,
+      isPrimary: true,
+      pointerId: 10,
+      pointerType: 'mouse',
+    });
+    const overlay = document.querySelector<HTMLElement>('.tactical-drag-overlay');
+    expect(overlay).toBeInstanceOf(HTMLElement);
+    expect(overlay?.style.getPropertyValue('--drag-x')).toBe('700px');
+    expect(overlay?.style.getPropertyValue('--drag-y')).toBe('300px');
+    expect(overlay?.querySelector('.player-face')).toBeInstanceOf(HTMLElement);
+    expect(setPointerCapture).toHaveBeenCalledWith(10);
+    fireEvent.pointerMove(window, {
+      clientX: 710,
+      clientY: 305,
+      isPrimary: true,
+      pointerId: 10,
+      pointerType: 'mouse',
+    });
+    expect(document.querySelector('.tactical-drag-overlay')).toBe(overlay);
+    expect(overlay?.style.getPropertyValue('--drag-x')).toBe('710px');
+    fireEvent.pointerMove(window, {
+      clientX: 700,
+      clientY: 300,
+      isPrimary: true,
+      pointerId: 10,
+      pointerType: 'mouse',
+    });
+    fireEvent.pointerUp(window, {
+      clientX: 700,
+      clientY: 300,
+      isPrimary: true,
+      pointerId: 10,
+      pointerType: 'mouse',
+    });
+    expect(midfielderSlot?.getAttribute('style')).toContain('--slot-x: 60%');
+    expect(midfielderSlot?.getAttribute('style')).not.toBe(originalStyle);
+    expect(screen.queryByText('Função livre')).toBeNull();
+    expect(document.activeElement).toBe(midfielder);
+    expect(document.querySelector('.tactical-drag-overlay')).toBeNull();
+    expect(releasePointerCapture).toHaveBeenCalledWith(10);
+
+    const movedStyle = midfielderSlot?.getAttribute('style');
+    hitTarget = midfielder;
+    fireEvent.pointerDown(midfielder, {
+      button: 0,
+      clientX: 700,
+      clientY: 300,
+      isPrimary: true,
+      pointerId: 11,
+      pointerType: 'mouse',
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 730,
+      clientY: 320,
+      isPrimary: true,
+      pointerId: 11,
+      pointerType: 'mouse',
+    });
+    fireEvent.pointerUp(window, {
+      clientX: 730,
+      clientY: 320,
+      isPrimary: true,
+      pointerId: 11,
+      pointerType: 'mouse',
+    });
+    expect(midfielderSlot?.getAttribute('style')).toBe(movedStyle);
+    expect(screen.getByText(/permaneceu no mesmo lugar/u)).toBeInstanceOf(HTMLElement);
+
+    hitTarget = document.body;
+    fireEvent.pointerDown(midfielder, {
+      button: 0,
+      clientX: 700,
+      clientY: 300,
+      isPrimary: true,
+      pointerId: 12,
+      pointerType: 'mouse',
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 10,
+      clientY: 10,
+      isPrimary: true,
+      pointerId: 12,
+      pointerType: 'mouse',
+    });
+    fireEvent.pointerUp(window, {
+      clientX: 10,
+      clientY: 10,
+      isPrimary: true,
+      pointerId: 12,
+      pointerType: 'mouse',
+    });
+    expect(midfielderSlot?.getAttribute('style')).toBe(movedStyle);
+    expect(screen.getByText(/cancelado fora da área tática/u)).toBeInstanceOf(HTMLElement);
+
+    fireEvent.pointerDown(midfielder, {
+      button: 0,
+      clientX: 700,
+      clientY: 300,
+      isPrimary: true,
+      pointerId: 13,
+      pointerType: 'mouse',
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 10,
+      clientY: 10,
+      isPrimary: true,
+      pointerId: 13,
+      pointerType: 'mouse',
+    });
+    fireEvent.keyDown(midfielder, { key: 'Escape' });
+    expect(document.querySelector('.tactical-drag-overlay')).toBeNull();
+    fireEvent.pointerUp(window, {
+      clientX: 10,
+      clientY: 10,
+      isPrimary: true,
+      pointerId: 13,
+      pointerType: 'mouse',
+    });
+    expect(midfielderSlot?.getAttribute('style')).toBe(movedStyle);
+    expect(screen.getByText(/Movimento cancelado/u)).toBeInstanceOf(HTMLElement);
+
+    fireEvent.pointerDown(midfielder, {
+      button: 0,
+      clientX: 700,
+      clientY: 300,
+      isPrimary: true,
+      pointerId: 14,
+      pointerType: 'mouse',
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 720,
+      clientY: 320,
+      isPrimary: true,
+      pointerId: 14,
+      pointerType: 'mouse',
+    });
+    fireEvent.pointerCancel(window, {
+      clientX: 720,
+      clientY: 320,
+      isPrimary: true,
+      pointerId: 14,
+      pointerType: 'mouse',
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 740,
+      clientY: 340,
+      isPrimary: true,
+      pointerId: 14,
+      pointerType: 'mouse',
+    });
+    expect(document.querySelector('.tactical-drag-overlay')).toBeNull();
+    expect(midfielderSlot?.getAttribute('style')).toBe(movedStyle);
+  });
+
+  it('searches grouped formation presets and confirms destructive preset changes', async () => {
+    const user = userEvent.setup();
+    render(<MatchdayScreen serviceOwnership="owned" />);
+    await screen.findByRole('heading', { name: 'Visão geral do elenco' });
+    await user.click(screen.getByRole('button', { name: 'Táticas' }));
+
+    const formationTrigger = screen.getByRole('button', {
+      name: 'Formação: 4-3-3. Abrir biblioteca',
+    });
+    await user.click(formationTrigger);
+    const picker = screen.getByRole('dialog', { name: 'Escolher formação' });
+    expect(within(picker).getByRole('heading', { name: 'Linha de quatro' })).toBeInstanceOf(
+      HTMLElement,
+    );
+    expect(within(picker).getByRole('heading', { name: 'Linha de três' })).toBeInstanceOf(
+      HTMLElement,
+    );
+    expect(within(picker).getByRole('heading', { name: 'Linha de cinco' })).toBeInstanceOf(
+      HTMLElement,
+    );
+    const search = within(picker).getByRole('searchbox', { name: 'Buscar formação' });
+    expect(document.activeElement).toBe(search);
+    await user.type(search, 'duplo volante');
+    const targetPreset = within(picker).getByRole('option', { name: /4-2-3-1/u });
+    expect(within(picker).getAllByRole('option')).toHaveLength(1);
+    fireEvent.keyDown(search, { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(targetPreset);
+    await user.keyboard('{Enter}');
+    expect(
+      screen.getByRole('button', { name: 'Formação: 4-2-3-1. Abrir biblioteca' }),
+    ).toBeInstanceOf(HTMLButtonElement);
+
+    const midfielder = screen.getByRole('button', { name: /^VOL: Luan Seixas/u });
+    fireEvent.keyDown(midfielder, { altKey: true, key: 'ArrowUp' });
+    await user.click(screen.getByRole('button', { name: 'Formação: 4-2-3-1. Abrir biblioteca' }));
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Escolher formação' })).getByRole('option', {
+        name: /4-4-2/u,
+      }),
+    );
+    const confirmation = screen.getByRole('alertdialog', { name: 'Aplicar 4-4-2?' });
+    expect(
+      (
+        within(confirmation).getByRole('button', {
+          name: 'Salvar atual e aplicar',
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+    await user.click(within(confirmation).getByRole('button', { name: 'Cancelar' }));
+    expect(
+      screen.getByRole('button', { name: 'Formação: 4-2-3-1. Abrir biblioteca' }),
+    ).toBeInstanceOf(HTMLButtonElement);
+
+    await user.click(screen.getByRole('button', { name: 'Formação: 4-2-3-1. Abrir biblioteca' }));
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Escolher formação' })).getByRole('option', {
+        name: /4-4-2/u,
+      }),
+    );
+    clientMock.saveTacticalPlan.mockImplementationOnce(async (proposal: TacticalPlanProposal) => {
+      const { approach, expectedRevision, ...snapshot } = proposal;
+      const tacticalPlan = {
+        ...snapshot,
+        schemaVersion: 2 as const,
+        revision: expectedRevision + 1,
+      };
+      return {
+        state: { ...state, approach, formation: tacticalPlan.formation, tacticalPlan },
+        event: {
+          kind: 'planSaved' as const,
+          planId: tacticalPlan.planId,
+          acceptedRevision: tacticalPlan.revision,
+        },
+      };
+    });
+    await user.click(
+      within(screen.getByRole('alertdialog', { name: 'Aplicar 4-4-2?' })).getByRole('button', {
+        name: 'Salvar atual e aplicar',
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Formação: 4-4-2. Abrir biblioteca' }),
+      ).toBeInstanceOf(HTMLButtonElement),
+    );
+    expect(clientMock.saveTacticalPlan).toHaveBeenCalledOnce();
   });
 
   it('activates validated system, owned and read-only views with confirmed focus and announcements', async () => {

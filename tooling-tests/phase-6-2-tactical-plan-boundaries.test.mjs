@@ -26,14 +26,20 @@ describe('Phase 06.2 tactical-plan boundaries', () => {
     );
   });
 
-  it('uses one draft and one drag session for field and bench', async () => {
+  it('uses one draft and one pointer session for field and bench', async () => {
     const workspace = await read('apps/desktop/src/matchday/TacticsWorkspace.tsx');
 
     expect(workspace.match(/useState<DragSession \| null>/gu)).toHaveLength(1);
     expect(workspace).toMatch(/draft\.placements\.map/);
     expect(workspace).toMatch(/draft\.bench\.map/);
-    expect(workspace.match(/const beginDrag =/gu)).toHaveLength(1);
-    expect(workspace.match(/const dropOnPlayer =/gu)).toHaveLength(1);
+    expect(workspace.match(/const beginPointerDrag =/gu)).toHaveLength(1);
+    expect(workspace.match(/const applyPlayerDrop =/gu)).toHaveLength(1);
+    expect(workspace).toMatch(/setPointerCapture/);
+    expect(workspace).toMatch(/document\.elementFromPoint/);
+    expect(workspace).toMatch(/addEventListener\('pointermove'/);
+    expect(workspace).toMatch(/addEventListener\('pointerup'/);
+    expect(workspace).toMatch(/addEventListener\('pointercancel'/);
+    expect(workspace).not.toMatch(/dataTransfer|draggable=|onDragStart|onDrop=/u);
   });
 
   it('submits field and bench atomically through the Rust-owned command', async () => {

@@ -1,8 +1,10 @@
 import { Icon } from '@rivallo/icons';
+import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, DragEvent, KeyboardEvent, MouseEvent } from 'react';
+import type { CSSProperties, KeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 
 import { Button } from '../ui/primitives/actions.js';
+import { Popover } from '../ui/primitives/disclosure.js';
 import { approachCopy, positionLabels, type PitchMode, type TacticalTool } from './matchday-ui.js';
 import { PlayerFace } from './PlayerFace.js';
 import {
@@ -45,13 +47,29 @@ interface TacticsWorkspaceProps {
   readonly onFocusPlayer: (playerId: string) => void;
   readonly onUndo: () => void;
   readonly onDiscard: () => void;
-  readonly onSave: () => void;
+  readonly onSave: () => Promise<TacticalPlanSnapshot | null>;
 }
 
 interface DragSession {
   readonly playerId: string;
   readonly origin: 'field' | 'bench';
 }
+
+interface PointerDragSession extends DragSession {
+  readonly pointerId: number;
+  readonly source: HTMLButtonElement;
+  readonly startX: number;
+  readonly startY: number;
+  readonly grabOffsetX: number;
+  readonly grabOffsetY: number;
+  active: boolean;
+}
+
+type DragDestination =
+  | { readonly kind: 'field' }
+  | { readonly kind: 'player'; readonly playerId: string }
+  | { readonly kind: 'bench' }
+  | { readonly kind: 'outside' };
 
 interface DragOverlayPosition {
   readonly x: number;
@@ -113,6 +131,7 @@ const tacticalTools: readonly [TacticalTool, TacticalTool, string][] = [
 ];
 
 const familyOrder: readonly FormationFamily[] = ['backFour', 'backThree', 'backFive'];
+const POINTER_DRAG_THRESHOLD = 6;
 const clamp = (value: number, min = 0.035, max = 0.965) => Math.min(max, Math.max(min, value));
 const average = (values: readonly number[]) =>
   Math.round(values.reduce((total, value) => total + value, 0) / Math.max(values.length, 1));
@@ -144,9 +163,12 @@ const pitchPlayerName = (player: Player) => {
   return parts[parts.length - 1] ?? player.shortName;
 };
 
-const compactRole = (role: string | null) =>
-  role?.split(' · ')[0]?.replace('Meia central', 'Meia').replace('Meia aberto', 'Meia') ??
-  'Função livre';
+const normalizeSearch = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/gu, '')
+    .toLocaleLowerCase('pt-BR')
+    .trim();
 
 export function TacticsWorkspace({
   state,
@@ -173,11 +195,20 @@ export function TacticsWorkspace({
   const [dragSession, setDragSession] = useState<DragSession | null>(null);
   const [dragOverlay, setDragOverlay] = useState<DragOverlayPosition | null>(null);
   const [dropTargetPlayerId, setDropTargetPlayerId] = useState<string | null>(null);
+  const [dragDestination, setDragDestination] = useState<DragDestination>({ kind: 'outside' });
+  const [formationPickerOpen, setFormationPickerOpen] = useState(false);
+  const [formationQuery, setFormationQuery] = useState('');
+  const [pendingFormation, setPendingFormation] = useState<Formation | null>(null);
+  const [formationSaving, setFormationSaving] = useState(false);
   const [interactionMessage, setInteractionMessage] = useState('');
   const [interactionError, setInteractionError] = useState('');
   const [instructions, setInstructions] = useState<TeamInstructions>(readInstructions);
-  const dropHandledRef = useRef(false);
   const pitchRef = useRef<HTMLOListElement>(null);
+  const benchRef = useRef<HTMLElement>(null);
+  const dragOverlayRef = useRef<HTMLDivElement>(null);
+  const pointerSessionRef = useRef<PointerDragSession | null>(null);
+  const pointerCleanupRef = useRef<() => void>(() => undefined);
+  const suppressClickRef = useRef<string | null>(null);
 
   const playerById = useMemo(
     () => new Map(state.players.map((player) => [player.id, player] as const)),
@@ -187,11 +218,27 @@ export function TacticsWorkspace({
     () => validateTacticalDraft(draft, state.players),
     [draft, state.players],
   );
+  const activePreset =
+    formationPresets.find(({ id }) => id === draft.formation) ?? formationPresets[0];
+  const normalizedFormationQuery = normalizeSearch(formationQuery);
+  const filteredFormationPresets = formationPresets.filter((preset) => {
+    if (!normalizedFormationQuery) return true;
+    return normalizeSearch(
+      [preset.name, preset.description, preset.familyLabel, ...preset.tags].join(' '),
+    ).includes(normalizedFormationQuery);
+  });
   const focusedPlayer =
     state.players.find((player) => player.id === focusedPlayerId) ??
     playerById.get(draft.placements[0]?.playerId ?? '') ??
     state.players[0];
   const selectedPlayer = selectedPlayerId ? playerById.get(selectedPlayerId) : undefined;
+  const draggedPlayer = dragSession ? playerById.get(dragSession.playerId) : undefined;
+  const draggedPlacement = dragSession
+    ? draft.placements.find(({ playerId }) => playerId === dragSession.playerId)
+    : undefined;
+  const draggedPlayerIndex = draggedPlayer
+    ? state.players.findIndex(({ id }) => id === draggedPlayer.id)
+    : -1;
   const fitScores = draft.placements.map((placement) => {
     const player = playerById.get(placement.playerId);
     return player ? getPositionFamiliarity(player.position, placement).score : 0;
@@ -212,9 +259,7 @@ export function TacticsWorkspace({
 
   useEffect(
     () => () => {
-      setDragSession(null);
-      setDragOverlay(null);
-      setDropTargetPlayerId(null);
+      pointerCleanupRef.current();
     },
     [],
   );
@@ -224,14 +269,14 @@ export function TacticsWorkspace({
     setInteractionError(rejected ? text : '');
   };
 
-  const commit = (next: TacticalPlanSnapshot, text: string) => {
+  const commit = (next: TacticalPlanSnapshot, text: string, preserveSelection = false) => {
     const nextValidation = validateTacticalDraft(next, state.players);
     if (!nextValidation.valid) {
       announce(nextValidation.errors[0] ?? 'Esse destino não é válido.', true);
       return false;
     }
     onDraftChange(next);
-    setSelectedPlayerId(null);
+    if (!preserveSelection) setSelectedPlayerId(null);
     announce(text);
     return true;
   };
@@ -283,14 +328,12 @@ export function TacticsWorkspace({
     }
   };
 
-  const pointFromEvent = (
-    event: Pick<DragEvent<HTMLElement> | MouseEvent<HTMLElement>, 'clientX' | 'clientY'>,
-  ) => {
+  const pointFromClient = (clientX: number, clientY: number) => {
     const rect = pitchRef.current?.getBoundingClientRect();
-    if (!rect) return null;
+    if (!rect || rect.width <= 0 || rect.height <= 0) return null;
     return {
-      x: clamp((event.clientX - rect.left) / rect.width),
-      y: clamp((event.clientY - rect.top) / rect.height),
+      x: clamp((clientX - rect.left) / rect.width),
+      y: clamp((clientY - rect.top) / rect.height),
     };
   };
 
@@ -319,68 +362,53 @@ export function TacticsWorkspace({
     );
   };
 
-  const beginDrag = (
-    event: DragEvent<HTMLElement>,
-    playerId: string,
-    origin: 'field' | 'bench',
-  ) => {
-    if (saving) {
-      event.preventDefault();
-      return;
-    }
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', playerId);
-    dropHandledRef.current = false;
-    setDragSession({ playerId, origin });
-    setSelectedPlayerId(null);
-    onFocusPlayer(playerId);
-    announce(
-      `${playerById.get(playerId)?.shortName ?? 'Jogador'} em movimento, origem ${origin === 'field' ? 'campo' : 'banco'}.`,
-    );
-  };
-
-  const finishDrag = (cancelled = false) => {
-    if (cancelled && dragSession && !dropHandledRef.current) {
-      announce('Movimento cancelado. O plano anterior foi preservado.');
-    }
+  const finishDrag = () => {
+    pointerCleanupRef.current();
+    pointerCleanupRef.current = () => undefined;
+    pointerSessionRef.current = null;
     setDragSession(null);
     setDragOverlay(null);
     setDropTargetPlayerId(null);
+    setDragDestination({ kind: 'outside' });
   };
 
-  const cancelUnfinishedDrag = () => finishDrag(true);
+  const resolveDragDestination = (clientX: number, clientY: number): DragDestination => {
+    const hit = document.elementFromPoint?.(clientX, clientY);
+    const playerTarget = hit?.closest<HTMLElement>('[data-tactical-player-id]');
+    const playerId = playerTarget?.dataset.tacticalPlayerId;
+    if (playerId) return { kind: 'player', playerId };
 
-  const dropOnField = (event: DragEvent<HTMLOListElement>) => {
-    event.preventDefault();
-    if (!dragSession || dropTargetPlayerId) return;
-    const point = pointFromEvent(event);
-    if (!point) return;
-    dropHandledRef.current = true;
-    applyFieldPoint(dragSession.playerId, point);
-    finishDrag();
+    const containsPoint = (element: Element | null) => {
+      if (!element) return false;
+      const rect = element.getBoundingClientRect();
+      return (
+        clientX >= rect.left &&
+        clientX <= rect.right &&
+        clientY >= rect.top &&
+        clientY <= rect.bottom
+      );
+    };
+    if (containsPoint(pitchRef.current)) return { kind: 'field' };
+    if (containsPoint(benchRef.current)) return { kind: 'bench' };
+    return { kind: 'outside' };
   };
 
-  const dropOnPlayer = (event: DragEvent<HTMLElement>, targetPlayerId: string) => {
-    event.preventDefault();
-    event.stopPropagation();
-    dropHandledRef.current = true;
-    if (!dragSession || dragSession.playerId === targetPlayerId) {
-      finishDrag();
+  const applyPlayerDrop = (session: DragSession, targetPlayerId: string) => {
+    if (session.playerId === targetPlayerId) {
+      announce('O jogador permaneceu no mesmo lugar. Nenhuma alteração foi feita.');
       return;
     }
-    const sourceName = playerById.get(dragSession.playerId)?.shortName ?? 'Jogador';
+    const sourceName = playerById.get(session.playerId)?.shortName ?? 'Jogador';
     const targetName = playerById.get(targetPlayerId)?.shortName ?? 'jogador';
-    const sourceIsStarter = draft.placements.some(
-      ({ playerId }) => playerId === dragSession.playerId,
-    );
+    const sourceIsStarter = draft.placements.some(({ playerId }) => playerId === session.playerId);
     const targetIsStarter = draft.placements.some(({ playerId }) => playerId === targetPlayerId);
     const next = sourceIsStarter
       ? targetIsStarter
-        ? swapStarters(draft, dragSession.playerId, targetPlayerId)
-        : substitutePlayers(draft, dragSession.playerId, targetPlayerId)
+        ? swapStarters(draft, session.playerId, targetPlayerId)
+        : substitutePlayers(draft, session.playerId, targetPlayerId)
       : targetIsStarter
-        ? substitutePlayers(draft, targetPlayerId, dragSession.playerId)
-        : reorderBench(draft, dragSession.playerId, targetPlayerId);
+        ? substitutePlayers(draft, targetPlayerId, session.playerId)
+        : reorderBench(draft, session.playerId, targetPlayerId);
     const text =
       sourceIsStarter === targetIsStarter
         ? `${sourceName} e ${targetName} trocaram de lugar.`
@@ -388,7 +416,128 @@ export function TacticsWorkspace({
           ? `${targetName} entrou; ${sourceName} foi para o banco.`
           : `${sourceName} entrou; ${targetName} foi para o banco.`;
     commit(next, text);
-    finishDrag();
+  };
+
+  const updateDragFeedback = (destination: DragDestination) => {
+    setDragDestination((current) => {
+      if (current.kind !== destination.kind) return destination;
+      if (
+        current.kind === 'player' &&
+        destination.kind === 'player' &&
+        current.playerId !== destination.playerId
+      )
+        return destination;
+      return current;
+    });
+    const nextPlayerId = destination.kind === 'player' ? destination.playerId : null;
+    setDropTargetPlayerId((current) => (current === nextPlayerId ? current : nextPlayerId));
+  };
+
+  const updateDragOverlayPosition = (
+    session: PointerDragSession,
+    clientX: number,
+    clientY: number,
+  ) => {
+    const x = clientX - session.grabOffsetX;
+    const y = clientY - session.grabOffsetY;
+    const overlay = dragOverlayRef.current;
+    if (!overlay) {
+      setDragOverlay({ x, y });
+      return;
+    }
+    overlay.style.setProperty('--drag-x', `${x}px`);
+    overlay.style.setProperty('--drag-y', `${y}px`);
+  };
+
+  const beginPointerDrag = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    playerId: string,
+    origin: 'field' | 'bench',
+  ) => {
+    if (saving || !event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    event.preventDefault();
+    event.currentTarget.focus();
+    pointerCleanupRef.current();
+    const sourceRect = event.currentTarget.getBoundingClientRect();
+
+    const session: PointerDragSession = {
+      playerId,
+      origin,
+      pointerId: event.pointerId,
+      source: event.currentTarget,
+      startX: event.clientX,
+      startY: event.clientY,
+      grabOffsetX: sourceRect.width > 0 ? event.clientX - sourceRect.left : 0,
+      grabOffsetY: sourceRect.height > 0 ? event.clientY - sourceRect.top : 0,
+      active: false,
+    };
+    pointerSessionRef.current = session;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+
+    const handlePointerMove = (pointerEvent: PointerEvent) => {
+      if (pointerEvent.pointerId !== session.pointerId) return;
+      const distance = Math.hypot(
+        pointerEvent.clientX - session.startX,
+        pointerEvent.clientY - session.startY,
+      );
+      if (!session.active && distance < POINTER_DRAG_THRESHOLD) return;
+      pointerEvent.preventDefault();
+      if (!session.active) {
+        session.active = true;
+        setDragSession({ playerId: session.playerId, origin: session.origin });
+        setSelectedPlayerId(null);
+        onFocusPlayer(session.playerId);
+        announce(
+          `${playerById.get(session.playerId)?.shortName ?? 'Jogador'} em movimento. Solte no campo ou sobre outro jogador; Escape cancela.`,
+        );
+      }
+      updateDragOverlayPosition(session, pointerEvent.clientX, pointerEvent.clientY);
+      updateDragFeedback(resolveDragDestination(pointerEvent.clientX, pointerEvent.clientY));
+    };
+
+    const handlePointerUp = (pointerEvent: PointerEvent) => {
+      if (pointerEvent.pointerId !== session.pointerId) return;
+      if (!session.active) {
+        finishDrag();
+        return;
+      }
+      pointerEvent.preventDefault();
+      suppressClickRef.current = session.playerId;
+      const destination = resolveDragDestination(pointerEvent.clientX, pointerEvent.clientY);
+      if (destination.kind === 'player') {
+        applyPlayerDrop(session, destination.playerId);
+      } else if (destination.kind === 'field') {
+        const point = pointFromClient(pointerEvent.clientX, pointerEvent.clientY);
+        if (point) applyFieldPoint(session.playerId, point);
+        else announce('Não foi possível calcular o destino no campo.', true);
+      } else if (destination.kind === 'bench') {
+        announce('O banco está completo. Solte o titular sobre uma reserva para trocar.', true);
+      } else {
+        announce('Movimento cancelado fora da área tática. O plano anterior foi preservado.');
+      }
+      finishDrag();
+      window.setTimeout(() => {
+        if (suppressClickRef.current === session.playerId) suppressClickRef.current = null;
+      }, 0);
+    };
+
+    const handlePointerCancel = (pointerEvent: PointerEvent) => {
+      if (pointerEvent.pointerId !== session.pointerId) return;
+      if (session.active) announce('Movimento cancelado. O plano anterior foi preservado.');
+      finishDrag();
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, { capture: true, passive: false });
+    window.addEventListener('pointerup', handlePointerUp, { capture: true, passive: false });
+    window.addEventListener('pointercancel', handlePointerCancel, { capture: true });
+    pointerCleanupRef.current = () => {
+      window.removeEventListener('pointermove', handlePointerMove, true);
+      window.removeEventListener('pointerup', handlePointerUp, true);
+      window.removeEventListener('pointercancel', handlePointerCancel, true);
+      if (session.source.hasPointerCapture?.(session.pointerId)) {
+        session.source.releasePointerCapture?.(session.pointerId);
+      }
+    };
   };
 
   const handlePlayerKeyboard = (event: KeyboardEvent<HTMLButtonElement>, playerId: string) => {
@@ -416,23 +565,60 @@ export function TacticsWorkspace({
         : event.key === 'ArrowDown'
           ? placement.normalizedY + step
           : placement.normalizedY;
+    const nextX = clamp(x);
+    const nextY = clamp(y);
+    if (nextX === placement.normalizedX && nextY === placement.normalizedY) {
+      announce('Movimento inválido: o jogador já está no limite permitido do campo.', true);
+      return;
+    }
+    const horizontal = Math.round(nextX * 100);
+    const vertical = Math.round(nextY * 100);
     commit(
-      movePlayerFreely(draft, playerId, clamp(x), clamp(y)),
-      `${playerById.get(playerId)?.shortName ?? 'Jogador'} foi movido com o teclado.`,
+      movePlayerFreely(draft, playerId, nextX, nextY),
+      `${playerById.get(playerId)?.shortName ?? 'Jogador'} foi movido com o teclado para ${horizontal}% do comprimento e ${vertical}% da largura.`,
+      true,
     );
   };
 
-  const selectFormation = (formation: Formation) => {
-    if (formation === draft.formation && !draft.customFormation.isCustom) return;
-    if (dirty && !window.confirm('Aplicar este preset e descartar as alterações ainda não salvas?'))
-      return;
+  const applyFormation = (formation: Formation, baseDraft = draft) => {
+    if (formation === baseDraft.formation && !baseDraft.customFormation.isCustom) return true;
     try {
-      onDraftChange(applyPresetToPlan(draft, formation, state.players));
+      onDraftChange(applyPresetToPlan(baseDraft, formation, state.players));
       setSelectedPlayerId(null);
+      setFormationPickerOpen(false);
+      setFormationQuery('');
+      setPendingFormation(null);
       announce(`Preset ${formation} aplicado como ponto de partida editável.`);
+      return true;
     } catch (reason) {
       announce(reason instanceof Error ? reason.message : String(reason), true);
+      return false;
     }
+  };
+
+  const selectFormation = (formation: Formation) => {
+    if (formation === draft.formation && !draft.customFormation.isCustom) {
+      setFormationPickerOpen(false);
+      return;
+    }
+    if (dirty) {
+      setFormationPickerOpen(false);
+      setPendingFormation(formation);
+      return;
+    }
+    applyFormation(formation);
+  };
+
+  const saveBeforeApplyingFormation = async () => {
+    if (!pendingFormation) return;
+    setFormationSaving(true);
+    const savedDraft = await onSave();
+    setFormationSaving(false);
+    if (!savedDraft) {
+      announce('Não foi possível salvar o plano atual. O novo preset não foi aplicado.', true);
+      return;
+    }
+    applyFormation(pendingFormation, savedDraft);
   };
 
   const restoreSourcePreset = () => {
@@ -460,12 +646,14 @@ export function TacticsWorkspace({
       aria-labelledby="tactics-screen-title"
       className="screen-view tactics-view"
       onKeyDownCapture={(event) => {
-        if (event.key !== 'Escape' || (!selectedPlayerId && !dragSession)) return;
+        if (
+          event.key !== 'Escape' ||
+          (!selectedPlayerId && !dragSession && !pointerSessionRef.current?.active)
+        )
+          return;
         event.preventDefault();
         setSelectedPlayerId(null);
-        setDragSession(null);
-        setDragOverlay(null);
-        setDropTargetPlayerId(null);
+        finishDrag();
         announce('Movimento cancelado. O plano anterior foi preservado.');
       }}
     >
@@ -486,28 +674,119 @@ export function TacticsWorkspace({
       </header>
 
       <section aria-label="Comandos táticos" className="tactics-commandbar">
-        <label className="tactics-select tactics-select--formation">
-          <span>Formação</span>
-          <select
-            aria-label="Formação"
-            disabled={saving}
-            onChange={(event) => selectFormation(event.target.value as Formation)}
-            value={draft.formation}
+        <div className="formation-picker">
+          <span className="formation-picker__label">Formação</span>
+          <Popover
+            align="start"
+            closeLabel="Fechar formações"
+            contentClassName="formation-picker__popover"
+            initialFocusId="formation-search"
+            onOpenChange={(open) => {
+              setFormationPickerOpen(open);
+              if (!open) setFormationQuery('');
+            }}
+            open={formationPickerOpen}
+            title="Escolher formação"
+            triggerAccessibleLabel={`Formação: ${draft.formation}. Abrir biblioteca`}
+            triggerClassName="formation-picker__trigger"
+            triggerContent={
+              <>
+                <strong>{draft.formation}</strong>
+                <span aria-hidden="true">⌄</span>
+              </>
+            }
+            triggerDisabled={saving}
+            triggerLabel={draft.formation}
           >
-            {familyOrder.map((family) => {
-              const options = formationPresets.filter((item) => item.family === family);
-              return (
-                <optgroup key={family} label={options[0]?.familyLabel}>
-                  {options.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.name} · {option.description}
-                    </option>
-                  ))}
-                </optgroup>
-              );
-            })}
-          </select>
-        </label>
+            <div className="formation-picker__search">
+              <Icon name="search" size={16} />
+              <input
+                aria-label="Buscar formação"
+                autoComplete="off"
+                id="formation-search"
+                onChange={(event) => setFormationQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== 'ArrowDown') return;
+                  event.preventDefault();
+                  document.querySelector<HTMLButtonElement>('.formation-picker__option')?.focus();
+                }}
+                placeholder="Buscar por nome ou estilo"
+                type="search"
+                value={formationQuery}
+              />
+            </div>
+            <div
+              aria-label="Formações disponíveis"
+              className="formation-picker__list"
+              onKeyDown={(event) => {
+                if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+                const options = [
+                  ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
+                    '.formation-picker__option',
+                  ),
+                ];
+                if (options.length === 0) return;
+                event.preventDefault();
+                const index = options.indexOf(document.activeElement as HTMLButtonElement);
+                const nextIndex =
+                  event.key === 'Home'
+                    ? 0
+                    : event.key === 'End'
+                      ? options.length - 1
+                      : event.key === 'ArrowDown'
+                        ? (index + 1 + options.length) % options.length
+                        : (index - 1 + options.length) % options.length;
+                options[nextIndex]?.focus();
+              }}
+              role="listbox"
+            >
+              {familyOrder.map((family) => {
+                const options = filteredFormationPresets.filter(
+                  (preset) => preset.family === family,
+                );
+                if (options.length === 0) return null;
+                return (
+                  <section className="formation-picker__family" key={family}>
+                    <h4>{options[0]?.familyLabel}</h4>
+                    {options.map((option) => (
+                      <button
+                        aria-selected={option.id === draft.formation}
+                        className="formation-picker__option"
+                        key={option.id}
+                        onClick={() => selectFormation(option.id)}
+                        role="option"
+                        type="button"
+                      >
+                        <span className="formation-picker__option-copy">
+                          <strong>{option.name}</strong>
+                          <small>{option.description}</small>
+                        </span>
+                        <span aria-hidden="true" className="formation-preview">
+                          {option.slots.map((slot) => (
+                            <i
+                              key={slot.id}
+                              style={
+                                {
+                                  '--preview-x': `${slot.x * 100}%`,
+                                  '--preview-y': `${slot.y * 100}%`,
+                                } as CSSProperties
+                              }
+                            />
+                          ))}
+                        </span>
+                        {option.id === draft.formation && <Icon name="check" size={16} />}
+                      </button>
+                    ))}
+                  </section>
+                );
+              })}
+              {filteredFormationPresets.length === 0 && (
+                <p className="formation-picker__empty">Nenhuma formação encontrada.</p>
+              )}
+            </div>
+          </Popover>
+          <small title={activePreset?.description}>{activePreset?.description}</small>
+        </div>
         <label className="tactics-select">
           <span>Leitura do campo</span>
           <select
@@ -515,7 +794,7 @@ export function TacticsWorkspace({
             onChange={(event) => onPitchModeChange(event.target.value as PitchMode)}
             value={pitchMode}
           >
-            <option value="roles">Funções</option>
+            <option value="roles">Posição nominal</option>
             <option value="condition">Condição</option>
             <option value="familiarity">Encaixe</option>
           </select>
@@ -551,12 +830,57 @@ export function TacticsWorkspace({
           leadingIcon="save"
           loading={saving}
           loadingLabel="Salvando…"
-          onClick={onSave}
+          onClick={() => void onSave()}
           variant="primary"
         >
           Salvar plano
         </Button>
       </section>
+
+      <AlertDialogPrimitive.Root
+        onOpenChange={(open) => {
+          if (!open && !formationSaving) setPendingFormation(null);
+        }}
+        open={pendingFormation !== null}
+      >
+        <AlertDialogPrimitive.Portal>
+          <AlertDialogPrimitive.Overlay className="rv-modal-backdrop" />
+          <AlertDialogPrimitive.Content className="rv-dialog rv-alert-dialog formation-change-dialog">
+            <AlertDialogPrimitive.Title>Aplicar {pendingFormation}?</AlertDialogPrimitive.Title>
+            <AlertDialogPrimitive.Description className="rv-dialog__description">
+              Este preset substitui os ajustes livres ainda não salvos. Você pode salvar o plano
+              atual antes, aplicar sem salvar ou cancelar.
+            </AlertDialogPrimitive.Description>
+            <div className="rv-dialog__actions formation-change-dialog__actions">
+              <AlertDialogPrimitive.Cancel asChild>
+                <Button disabled={formationSaving} variant="secondary">
+                  Cancelar
+                </Button>
+              </AlertDialogPrimitive.Cancel>
+              <AlertDialogPrimitive.Action asChild>
+                <Button
+                  disabled={formationSaving}
+                  onClick={() => {
+                    if (pendingFormation) applyFormation(pendingFormation);
+                  }}
+                  variant="secondary"
+                >
+                  Aplicar sem salvar
+                </Button>
+              </AlertDialogPrimitive.Action>
+              <Button
+                disabled={formationSaving}
+                loading={formationSaving}
+                loadingLabel="Salvando plano…"
+                onClick={() => void saveBeforeApplyingFormation()}
+                variant="primary"
+              >
+                Salvar atual e aplicar
+              </Button>
+            </div>
+          </AlertDialogPrimitive.Content>
+        </AlertDialogPrimitive.Portal>
+      </AlertDialogPrimitive.Root>
 
       <div className="tactics-layout">
         <section className="pitch-workspace" aria-labelledby="pitch-title">
@@ -564,8 +888,8 @@ export function TacticsWorkspace({
             <div>
               <h2 id="pitch-title">Campo tático livre</h2>
               <p>
-                Arraste para mover ou trocar. No teclado, selecione dois jogadores ou use Alt +
-                setas.
+                Clique para selecionar; arraste para mover ou trocar. Alt + setas reposiciona e
+                Escape cancela.
               </p>
             </div>
             <span
@@ -609,19 +933,13 @@ export function TacticsWorkspace({
               aria-label={`Escalação no ${draft.formation}`}
               className="tactics-pitch"
               data-dragging={Boolean(dragSession) || undefined}
+              data-drop-valid={dragDestination.kind === 'field' || undefined}
               data-pitch-mode={pitchMode}
               onClick={(event) => {
                 if (!selectedPlayerId || event.target !== event.currentTarget) return;
-                const point = pointFromEvent(event);
+                const point = pointFromClient(event.clientX, event.clientY);
                 if (point) applyFieldPoint(selectedPlayerId, point);
               }}
-              onDragOver={(event) => {
-                event.preventDefault();
-                event.dataTransfer.dropEffect = 'move';
-                if (event.clientX > 0 && event.clientY > 0)
-                  setDragOverlay({ x: event.clientX, y: event.clientY });
-              }}
-              onDrop={dropOnField}
               ref={pitchRef}
             >
               <li aria-hidden="true" className="pitch-markings">
@@ -649,7 +967,7 @@ export function TacticsWorkspace({
                     ? `Físico ${player.condition}%`
                     : pitchMode === 'familiarity'
                       ? `${fit.score}% ${fit.label}`
-                      : compactRole(placement.roleId);
+                      : positionLabels[player.position];
                 const meterValue = pitchMode === 'condition' ? player.condition : fit.score;
                 return (
                   <li
@@ -661,10 +979,6 @@ export function TacticsWorkspace({
                     data-drop-active={dropTargetPlayerId === player.id || undefined}
                     data-fit={pitchMode === 'familiarity' ? fit.tone : undefined}
                     key={player.id}
-                    onDragEnter={() => setDropTargetPlayerId(player.id)}
-                    onDragLeave={() => setDropTargetPlayerId(null)}
-                    onDragOver={(event) => event.preventDefault()}
-                    onDrop={(event) => dropOnPlayer(event, player.id)}
                     style={style}
                   >
                     <span className="pitch-slot__position">
@@ -674,19 +988,16 @@ export function TacticsWorkspace({
                       aria-label={`${positionLabels[placement.positionId]}: ${player.name}, ${fit.label}. Selecione para mover.`}
                       aria-pressed={selectedPlayerId === player.id}
                       className="pitch-player-card"
+                      data-tactical-player-id={player.id}
+                      data-tactical-player-origin="field"
                       disabled={saving}
-                      draggable={!saving}
                       onClick={(event) => {
                         event.stopPropagation();
+                        if (suppressClickRef.current === player.id) return;
                         choosePlayer(player.id);
                       }}
-                      onDrag={(event) => {
-                        if (event.clientX > 0 && event.clientY > 0)
-                          setDragOverlay({ x: event.clientX, y: event.clientY });
-                      }}
-                      onDragEnd={cancelUnfinishedDrag}
-                      onDragStart={(event) => beginDrag(event, player.id, 'field')}
                       onKeyDown={(event) => handlePlayerKeyboard(event, player.id)}
+                      onPointerDown={(event) => beginPointerDrag(event, player.id, 'field')}
                       type="button"
                     >
                       <span className="pitch-player-card__face">
@@ -711,18 +1022,8 @@ export function TacticsWorkspace({
             aria-labelledby="bench-title"
             className="bench-tray"
             data-dragging={dragSession?.origin === 'field' || undefined}
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={(event) => {
-              event.preventDefault();
-              dropHandledRef.current = true;
-              if (dragSession?.origin === 'field') {
-                announce(
-                  'O banco está completo. Solte o titular sobre uma reserva para trocar.',
-                  true,
-                );
-              }
-              finishDrag();
-            }}
+            data-drop-invalid={dragDestination.kind === 'bench' || undefined}
+            ref={benchRef}
           >
             <header>
               <div>
@@ -750,24 +1051,19 @@ export function TacticsWorkspace({
                       data-drag-source={dragSession?.playerId === player.id || undefined}
                       data-drop-active={dropTargetPlayerId === player.id || undefined}
                       key={player.id}
-                      onDragEnter={() => setDropTargetPlayerId(player.id)}
-                      onDragLeave={() => setDropTargetPlayerId(null)}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={(event) => dropOnPlayer(event, player.id)}
                     >
                       <button
                         aria-label={`Selecionar reserva ${player.name}`}
                         aria-pressed={selectedPlayerId === player.id}
                         className="bench-player"
+                        data-tactical-player-id={player.id}
+                        data-tactical-player-origin="bench"
                         disabled={saving}
-                        draggable={!saving}
-                        onClick={() => choosePlayer(player.id)}
-                        onDrag={(event) => {
-                          if (event.clientX > 0 && event.clientY > 0)
-                            setDragOverlay({ x: event.clientX, y: event.clientY });
+                        onClick={() => {
+                          if (suppressClickRef.current === player.id) return;
+                          choosePlayer(player.id);
                         }}
-                        onDragEnd={cancelUnfinishedDrag}
-                        onDragStart={(event) => beginDrag(event, player.id, 'bench')}
+                        onPointerDown={(event) => beginPointerDrag(event, player.id, 'bench')}
                         type="button"
                       >
                         <PlayerFace decorative index={playerIndex} name={player.name} size={44} />
@@ -785,19 +1081,45 @@ export function TacticsWorkspace({
             )}
           </section>
 
-          {dragSession && dragOverlay && (
+          {dragSession && dragOverlay && draggedPlayer && (
             <div
               aria-hidden="true"
               className="tactical-drag-overlay"
-              style={{ left: dragOverlay.x, top: dragOverlay.y }}
+              data-origin={dragSession.origin}
+              ref={dragOverlayRef}
+              style={
+                {
+                  '--drag-x': `${dragOverlay.x}px`,
+                  '--drag-y': `${dragOverlay.y}px`,
+                } as CSSProperties
+              }
             >
-              <strong>{playerById.get(dragSession.playerId)?.shortName}</strong>
-              <span>
-                {dropTargetPlayerId
-                  ? `Trocar com ${playerById.get(dropTargetPlayerId)?.shortName}`
-                  : dragSession.origin === 'field'
-                    ? 'Mover para coordenada livre'
-                    : 'Substituir o jogador mais próximo'}
+              <span className="tactical-drag-overlay__face">
+                <PlayerFace
+                  decorative
+                  index={draggedPlayerIndex}
+                  name={draggedPlayer.name}
+                  size={44}
+                />
+                <b>{draggedPlayer.shirtNumber}</b>
+              </span>
+              <span className="tactical-drag-overlay__copy">
+                <strong>{pitchPlayerName(draggedPlayer)}</strong>
+                <small>
+                  {positionLabels[draggedPlacement?.positionId ?? draggedPlayer.position]} ·
+                  Condição {draggedPlayer.condition}%
+                </small>
+              </span>
+              <span className="tactical-drag-overlay__destination">
+                {dragDestination.kind === 'player'
+                  ? `Trocar com ${playerById.get(dragDestination.playerId)?.shortName}`
+                  : dragDestination.kind === 'field'
+                    ? dragSession.origin === 'field'
+                      ? 'Mover para coordenada livre'
+                      : 'Substituir o titular mais próximo'
+                    : dragDestination.kind === 'bench'
+                      ? 'Solte sobre uma reserva'
+                      : 'Fora da área — solte para cancelar'}
               </span>
             </div>
           )}
