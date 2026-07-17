@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 
 use rivallo_application::{
-    LineupSelection, MatchdayRepository, MatchdayService, MatchdayState, TacticalPlanProposal,
-    TacticalPlanUpdate,
+    LineupSelection, MatchdayRepository, MatchdayService, MatchdayState, TacticalLibraryCommand,
+    TacticalPlanProposal, TacticalPlanUpdate,
 };
 
 pub struct FileMatchdayRepository {
@@ -150,6 +150,15 @@ impl MatchdayCoordinator {
             .map_err(|error| error.to_string())
     }
 
+    pub fn update_tactical_library(
+        &self,
+        command: TacticalLibraryCommand,
+    ) -> Result<TacticalPlanUpdate, String> {
+        self.service()?
+            .update_tactical_library(command)
+            .map_err(|error| error.to_string())
+    }
+
     pub fn play_next_match(&self) -> Result<MatchdayState, String> {
         self.service()?
             .play_next_match()
@@ -190,6 +199,82 @@ mod tests {
         repository.save(&state).expect("save state");
         assert_eq!(repository.load().expect("load state"), Some(state));
         cleanup(&repository);
+    }
+
+    #[test]
+    fn coordinator_reopens_multiple_independent_variations_from_disk() {
+        let path = temporary_path("variation-library-round-trip");
+        let coordinator = MatchdayCoordinator::new(&path);
+        let initial = coordinator.state().expect("initial career");
+        let library = initial.tactical_library.as_ref().expect("tactical library");
+        let original = library.variations[0].clone();
+        let first_id = original.variation_id.clone();
+        let mut first = TacticalPlanProposal {
+            expected_revision: original.revision,
+            variation_id: first_id.clone(),
+            name: "4-3-3 Volante Alto".to_owned(),
+            source_preset_id: original.source_preset_id.clone(),
+            formation: original.formation,
+            placements: original.placements.clone(),
+            bench: original.bench.clone(),
+            custom_formation: original.custom_formation.clone(),
+            approach: initial.approach,
+        };
+        first.placements[5].normalized_x = 0.58;
+        let saved_first = coordinator
+            .update_tactical_plan(first)
+            .expect("save first variation");
+        let first_snapshot = saved_first
+            .state
+            .tactical_library
+            .as_ref()
+            .expect("library")
+            .variations[0]
+            .clone();
+        let mut second = TacticalPlanProposal {
+            expected_revision: 0,
+            variation_id: "tactical-variation.laterais-altos".to_owned(),
+            name: "4-3-3 Laterais Altos".to_owned(),
+            source_preset_id: first_snapshot.source_preset_id.clone(),
+            formation: first_snapshot.formation,
+            placements: first_snapshot.placements.clone(),
+            bench: first_snapshot.bench.clone(),
+            custom_formation: first_snapshot.custom_formation.clone(),
+            approach: saved_first.state.approach,
+        };
+        second.placements[1].normalized_x = 0.43;
+        second.placements[4].normalized_x = 0.43;
+        coordinator
+            .update_tactical_plan(second)
+            .expect("save second variation");
+        drop(coordinator);
+
+        let reopened = MatchdayCoordinator::new(&path)
+            .state()
+            .expect("reopen career from disk");
+        let library = reopened
+            .tactical_library
+            .as_ref()
+            .expect("reopened library");
+        assert_eq!(library.variations.len(), 2);
+        let first = library
+            .variations
+            .iter()
+            .find(|variation| variation.variation_id == first_id)
+            .expect("first variation");
+        let second = library
+            .variations
+            .iter()
+            .find(|variation| variation.variation_id == "tactical-variation.laterais-altos")
+            .expect("second variation");
+        assert_eq!(first.placements[5].normalized_x, 0.58);
+        assert_eq!(second.placements[1].normalized_x, 0.43);
+        assert_ne!(
+            first.placements[1].normalized_x,
+            second.placements[1].normalized_x
+        );
+
+        cleanup(&FileMatchdayRepository::new(path));
     }
 
     #[test]

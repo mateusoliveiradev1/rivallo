@@ -10,6 +10,7 @@ import {
   saveMatchdayLineup,
   saveTacticalPlan,
   saveTableViews,
+  updateTacticalLibrary,
   type ImportLegacyTablePreferencesRequest,
   type LegacyImportReceipt,
   type TableViewRepositoryState,
@@ -116,10 +117,10 @@ describe('existing matchday client commands', () => {
   });
 
   it('sends the complete versioned tactical proposal through one atomic command', async () => {
-    invoke.mockResolvedValue({ state: { round: 1 }, event: { kind: 'planSaved' } });
+    invoke.mockResolvedValue({ state: { round: 1 }, event: { kind: 'variationSaved' } });
     const proposal: TacticalPlanProposal = {
       expectedRevision: 4,
-      planId: 'tactical-plan.primary',
+      variationId: 'tactical-variation.primary',
       name: 'Assimetria Aurora',
       sourcePresetId: '4-3-3',
       formation: '4-3-3',
@@ -150,6 +151,19 @@ describe('existing matchday client commands', () => {
     await saveTacticalPlan(proposal);
 
     expect(invoke).toHaveBeenCalledWith('update_tactical_plan', { proposal });
+  });
+
+  it('sends versioned lifecycle commands through the tactical library boundary', async () => {
+    invoke.mockResolvedValue({ state: { round: 1 }, event: { kind: 'variationActivated' } });
+    const command = {
+      kind: 'activate' as const,
+      expectedLibraryRevision: 7,
+      variationId: 'tactical-variation.laterais-altos',
+    };
+
+    await updateTacticalLibrary(command);
+
+    expect(invoke).toHaveBeenCalledWith('update_tactical_library', { request: command });
   });
 });
 

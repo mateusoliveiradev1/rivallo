@@ -91,7 +91,7 @@ export interface MatchdayState {
   readonly players: readonly Player[];
   readonly formation: Formation;
   readonly approach: TacticalApproach;
-  readonly tacticalPlan?: TacticalPlanSnapshot;
+  readonly tacticalLibrary?: TacticalVariationLibrarySnapshot;
   readonly lastTacticalEvent?: TacticalPlanEvent | null;
   readonly record: SeasonRecord;
   readonly lastResult: MatchResult | null;
@@ -124,8 +124,8 @@ export interface CustomFormationIdentity {
 }
 
 export interface TacticalPlanSnapshot {
-  readonly schemaVersion: 2;
-  readonly planId: string;
+  readonly schemaVersion: 3;
+  readonly variationId: string;
   readonly name: string;
   readonly sourcePresetId: Formation | null;
   readonly formation: Formation;
@@ -133,23 +133,70 @@ export interface TacticalPlanSnapshot {
   readonly bench: readonly string[];
   readonly customFormation: CustomFormationIdentity;
   readonly revision: number;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+}
+
+export interface TacticalVariationLibrarySnapshot {
+  readonly schemaVersion: 1;
+  readonly revision: number;
+  readonly activeVariationId: string;
+  readonly primaryVariationId: string;
+  readonly variations: readonly TacticalPlanSnapshot[];
 }
 
 export interface TacticalPlanProposal extends Omit<
   TacticalPlanSnapshot,
-  'schemaVersion' | 'revision'
+  'schemaVersion' | 'revision' | 'createdAt' | 'updatedAt'
 > {
   readonly expectedRevision: number;
   readonly approach: TacticalApproach;
 }
 
 export type TacticalPlanEvent =
-  | { readonly kind: 'planSaved'; readonly planId: string; readonly acceptedRevision: number }
+  | {
+      readonly kind: 'variationSaved';
+      readonly variationId: string;
+      readonly acceptedRevision: number;
+    }
   | {
       readonly kind: 'conflictDetected';
-      readonly planId: string;
+      readonly variationId: string;
       readonly expectedRevision: number;
       readonly actualRevision: number;
+    }
+  | {
+      readonly kind: 'variationActivated';
+      readonly variationId: string;
+      readonly acceptedLibraryRevision: number;
+    }
+  | {
+      readonly kind: 'primaryVariationChanged';
+      readonly variationId: string;
+      readonly acceptedLibraryRevision: number;
+    }
+  | {
+      readonly kind: 'variationDeleted';
+      readonly variationId: string;
+      readonly activeVariationId: string;
+      readonly acceptedLibraryRevision: number;
+    };
+
+export type TacticalLibraryCommand =
+  | {
+      readonly kind: 'activate';
+      readonly expectedLibraryRevision: number;
+      readonly variationId: string;
+    }
+  | {
+      readonly kind: 'setPrimary';
+      readonly expectedLibraryRevision: number;
+      readonly variationId: string;
+    }
+  | {
+      readonly kind: 'delete';
+      readonly expectedLibraryRevision: number;
+      readonly variationId: string;
     };
 
 export interface TacticalPlanUpdate {

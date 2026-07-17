@@ -13,8 +13,8 @@ use rivallo_platform::{
     TableDataWindow, TableDensity, TableFilterClause, TableFilterGroup, TableFilterNode, TableId,
     TableSort, TableViewCoordinator, TableViewEnvelopeMetadata, TableViewLoadOutcome,
     TableViewPolicyError, TableViewRecoveryReason, TableViewRepositoryState, TableViewServiceError,
-    TableViewState, TableViewValidationError, TacticalApproach, TacticalPlanProposal,
-    TacticalPlanUpdate, ViewId, ViewMutability, ViewProvenance, WindowId,
+    TableViewState, TableViewValidationError, TacticalApproach, TacticalLibraryCommand,
+    TacticalPlanProposal, TacticalPlanUpdate, ViewId, ViewMutability, ViewProvenance, WindowId,
     squad_system_default_repository_state, validate_readiness_response,
 };
 use serde::{Deserialize, Serialize};
@@ -1404,6 +1404,14 @@ fn update_tactical_plan(
 }
 
 #[tauri::command]
+fn update_tactical_library(
+    request: TacticalLibraryCommand,
+    gameplay: State<'_, Arc<MatchdayCoordinator>>,
+) -> Result<TacticalPlanUpdate, String> {
+    gameplay.update_tactical_library(request)
+}
+
+#[tauri::command]
 fn play_next_match(gameplay: State<'_, Arc<MatchdayCoordinator>>) -> Result<MatchdayState, String> {
     gameplay.play_next_match()
 }
@@ -1458,6 +1466,7 @@ fn main() {
             matchday_state,
             update_matchday_lineup,
             update_tactical_plan,
+            update_tactical_library,
             play_next_match,
             load_table_views,
             save_table_views,

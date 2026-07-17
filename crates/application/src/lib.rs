@@ -9,9 +9,9 @@ pub use persistence::{LocalPersistenceError, LocalPersistencePort};
 pub use rivallo_domain::{
     Club, CustomFormationIdentity, Formation, LineupSelection, MatchEvent, MatchResult,
     MatchdayState, Player, Position, PreferredFoot, SeasonRecord, SquadRole,
-    TACTICAL_PLAN_SCHEMA_VERSION, TacticalApproach, TacticalLine, TacticalPlanEvent,
-    TacticalPlanProposal, TacticalPlanSnapshot, TacticalPlanUpdate, TacticalPlayerPlacement,
-    TacticalSide, TacticalZone,
+    TACTICAL_PLAN_SCHEMA_VERSION, TacticalApproach, TacticalLibraryCommand, TacticalLine,
+    TacticalPlanEvent, TacticalPlanProposal, TacticalPlanSnapshot, TacticalPlanUpdate,
+    TacticalPlayerPlacement, TacticalSide, TacticalVariationLibrarySnapshot, TacticalZone,
 };
 pub use table_view::{
     CURRENT_ENVELOPE_VERSION, ColumnId, ColumnPinning, ColumnPinningSide, CreateTableViewRequest,

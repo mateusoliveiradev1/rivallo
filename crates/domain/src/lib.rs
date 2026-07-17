@@ -5,9 +5,10 @@ mod matchday;
 pub use matchday::{
     Club, CustomFormationIdentity, Formation, LineupSelection, MatchEvent, MatchResult,
     MatchdayError, MatchdayState, Player, Position, PreferredFoot, SeasonRecord, SquadRole,
-    TACTICAL_PLAN_SCHEMA_VERSION, TacticalApproach, TacticalLine, TacticalPlanEvent,
-    TacticalPlanProposal, TacticalPlanSnapshot, TacticalPlanUpdate, TacticalPlayerPlacement,
-    TacticalSide, TacticalZone,
+    TACTICAL_LIBRARY_SCHEMA_VERSION, TACTICAL_PLAN_SCHEMA_VERSION, TacticalApproach,
+    TacticalLibraryCommand, TacticalLine, TacticalPlanEvent, TacticalPlanProposal,
+    TacticalPlanSnapshot, TacticalPlanUpdate, TacticalPlayerPlacement, TacticalSide,
+    TacticalVariationLibrarySnapshot, TacticalZone,
 };
 
 /// A neutral identifier for a module participating in contract preparation.

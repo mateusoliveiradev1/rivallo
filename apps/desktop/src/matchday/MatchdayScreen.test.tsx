@@ -21,6 +21,7 @@ const clientMock = vi.hoisted(() => ({
   loadMatchday: vi.fn(),
   saveMatchdayLineup: vi.fn(),
   saveTacticalPlan: vi.fn(),
+  updateTacticalLibrary: vi.fn(),
   playNextMatch: vi.fn(),
   loadTableViews: vi.fn(),
   saveTableViews: vi.fn(),
@@ -266,7 +267,19 @@ describe('MatchdayScreen', () => {
     clientMock.saveMatchdayLineup.mockReset().mockResolvedValue(state);
     clientMock.saveTacticalPlan.mockReset().mockResolvedValue({
       state,
-      event: { kind: 'planSaved', planId: 'tactical-plan.primary', acceptedRevision: 1 },
+      event: {
+        kind: 'variationSaved',
+        variationId: 'tactical-variation.primary',
+        acceptedRevision: 1,
+      },
+    });
+    clientMock.updateTacticalLibrary.mockReset().mockResolvedValue({
+      state,
+      event: {
+        kind: 'variationActivated',
+        variationId: 'tactical-variation.primary',
+        acceptedLibraryRevision: 1,
+      },
     });
     clientMock.playNextMatch.mockReset().mockResolvedValue(playedState);
     clientMock.loadTableViews.mockReset().mockResolvedValue({
@@ -707,7 +720,11 @@ describe('MatchdayScreen', () => {
 
     pendingSave.resolve({
       state,
-      event: { kind: 'planSaved', planId: 'tactical-plan.primary', acceptedRevision: 1 },
+      event: {
+        kind: 'variationSaved',
+        variationId: 'tactical-variation.primary',
+        acceptedRevision: 1,
+      },
     });
     await waitFor(() => expect(squadNavigation.disabled).toBe(false));
   });
@@ -1067,14 +1084,23 @@ describe('MatchdayScreen', () => {
       const { approach, expectedRevision, ...snapshot } = proposal;
       const tacticalPlan = {
         ...snapshot,
-        schemaVersion: 2 as const,
+        schemaVersion: 3 as const,
         revision: expectedRevision + 1,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      const tacticalLibrary = {
+        schemaVersion: 1 as const,
+        revision: 1,
+        activeVariationId: tacticalPlan.variationId,
+        primaryVariationId: tacticalPlan.variationId,
+        variations: [tacticalPlan],
       };
       return {
-        state: { ...state, approach, formation: tacticalPlan.formation, tacticalPlan },
+        state: { ...state, approach, formation: tacticalPlan.formation, tacticalLibrary },
         event: {
-          kind: 'planSaved' as const,
-          planId: tacticalPlan.planId,
+          kind: 'variationSaved' as const,
+          variationId: tacticalPlan.variationId,
           acceptedRevision: tacticalPlan.revision,
         },
       };

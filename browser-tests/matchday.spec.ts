@@ -2,7 +2,12 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import type { TableViewRepositoryState } from '../apps/desktop/src/matchday/client.js';
 import { SQUAD_SYSTEM_VIEW } from '../apps/desktop/src/matchday/squad-table-schema.js';
-import type { MatchdayState, Player } from '../apps/desktop/src/matchday/types.js';
+import { createTacticalPlan } from '../apps/desktop/src/matchday/tactics-model.js';
+import type {
+  MatchdayState,
+  Player,
+  TacticalPlanProposal,
+} from '../apps/desktop/src/matchday/types.js';
 import {
   requiredContrastRatio,
   sampleComputedContrast,
@@ -553,7 +558,7 @@ const players: Player[] = playerRows.map(
   }),
 );
 
-const initialState: MatchdayState = {
+const initialStateBase: MatchdayState = {
   club: {
     id: 'aurora-fc',
     name: 'Aurora Futebol Clube',
@@ -582,6 +587,21 @@ const initialState: MatchdayState = {
     points: 0,
   },
   lastResult: null,
+};
+
+const initialTacticalVariation = createTacticalPlan(
+  initialStateBase.players,
+  initialStateBase.formation,
+);
+const initialState: MatchdayState = {
+  ...initialStateBase,
+  tacticalLibrary: {
+    schemaVersion: 1,
+    revision: 0,
+    activeVariationId: initialTacticalVariation.variationId,
+    primaryVariationId: initialTacticalVariation.variationId,
+    variations: [initialTacticalVariation],
+  },
 };
 
 test.beforeEach(async ({ page }) => {
@@ -774,42 +794,61 @@ test.beforeEach(async ({ page }) => {
             return state;
           }
           if (command === 'update_tactical_plan') {
-            const proposal = args.proposal as NonNullable<MatchdayState['tacticalPlan']> & {
-              expectedRevision: number;
-              approach: MatchdayState['approach'];
-            };
-            const actualRevision = state.tacticalPlan?.revision ?? 0;
+            const proposal = args.proposal as TacticalPlanProposal;
+            const library = state.tacticalLibrary;
+            const existing = library?.variations.find(
+              ({ variationId }) => variationId === proposal.variationId,
+            );
+            const actualRevision = existing?.revision ?? 0;
             if (proposal.expectedRevision !== actualRevision) {
               throw new Error(
                 `tactical_plan_conflict:${proposal.expectedRevision}:${actualRevision}`,
               );
             }
             const acceptedRevision = actualRevision + 1;
+            const now = Date.now();
             const selected = new Set(proposal.placements.map(({ playerId }) => playerId));
+            const variation = {
+              schemaVersion: 3 as const,
+              variationId: proposal.variationId,
+              name: proposal.name,
+              sourcePresetId: proposal.sourcePresetId,
+              formation: proposal.formation,
+              placements: proposal.placements.map((placement) => ({
+                ...placement,
+                revision: acceptedRevision,
+              })),
+              bench: proposal.bench,
+              customFormation: {
+                ...proposal.customFormation,
+                updatedAtRevision: acceptedRevision,
+              },
+              revision: acceptedRevision,
+              createdAt: existing?.createdAt ?? now,
+              updatedAt: now,
+            };
+            const variations = library
+              ? [
+                  ...library.variations.filter(
+                    ({ variationId }) => variationId !== proposal.variationId,
+                  ),
+                  variation,
+                ]
+              : [variation];
             state = {
               ...state,
               formation: proposal.formation,
               approach: proposal.approach,
-              tacticalPlan: {
-                schemaVersion: 2,
-                planId: proposal.planId,
-                name: proposal.name,
-                sourcePresetId: proposal.sourcePresetId,
-                formation: proposal.formation,
-                placements: proposal.placements.map((placement) => ({
-                  ...placement,
-                  revision: acceptedRevision,
-                })),
-                bench: proposal.bench,
-                customFormation: {
-                  ...proposal.customFormation,
-                  updatedAtRevision: acceptedRevision,
-                },
-                revision: acceptedRevision,
+              tacticalLibrary: {
+                schemaVersion: 1,
+                revision: (library?.revision ?? 0) + (existing ? 0 : 1),
+                activeVariationId: proposal.variationId,
+                primaryVariationId: library?.primaryVariationId ?? proposal.variationId,
+                variations,
               },
               lastTacticalEvent: {
-                kind: 'planSaved',
-                planId: proposal.planId,
+                kind: 'variationSaved',
+                variationId: proposal.variationId,
                 acceptedRevision,
               },
               players: state.players.map((player) => ({
@@ -822,6 +861,68 @@ test.beforeEach(async ({ page }) => {
               state,
               event: state.lastTacticalEvent,
             };
+          }
+          if (command === 'update_tactical_library') {
+            const commandProposal = args.request as {
+              kind: 'activate' | 'setPrimary' | 'delete';
+              expectedLibraryRevision: number;
+              variationId: string;
+            };
+            const library = state.tacticalLibrary;
+            if (!library) throw new Error('Biblioteca tática ausente.');
+            if (commandProposal.expectedLibraryRevision !== library.revision) {
+              throw new Error(
+                `tactical_library_conflict:${commandProposal.expectedLibraryRevision}:${library.revision}`,
+              );
+            }
+            const variations =
+              commandProposal.kind === 'delete'
+                ? library.variations.filter(
+                    ({ variationId }) => variationId !== commandProposal.variationId,
+                  )
+                : library.variations;
+            const primaryVariationId =
+              commandProposal.kind === 'setPrimary'
+                ? commandProposal.variationId
+                : library.primaryVariationId === commandProposal.variationId &&
+                    commandProposal.kind === 'delete'
+                  ? variations[0]!.variationId
+                  : library.primaryVariationId;
+            const activeVariationId =
+              commandProposal.kind === 'activate'
+                ? commandProposal.variationId
+                : library.activeVariationId === commandProposal.variationId &&
+                    commandProposal.kind === 'delete'
+                  ? primaryVariationId
+                  : library.activeVariationId;
+            const active = variations.find(({ variationId }) => variationId === activeVariationId)!;
+            state = {
+              ...state,
+              formation: active.formation,
+              tacticalLibrary: {
+                ...library,
+                revision: library.revision + 1,
+                activeVariationId,
+                primaryVariationId,
+                variations,
+              },
+              players: state.players.map((player) => ({
+                ...player,
+                selected: active.placements.some(({ playerId }) => playerId === player.id),
+              })),
+              lastTacticalEvent: {
+                kind:
+                  commandProposal.kind === 'activate'
+                    ? 'variationActivated'
+                    : commandProposal.kind === 'setPrimary'
+                      ? 'primaryVariationChanged'
+                      : 'variationDeleted',
+                variationId: commandProposal.variationId,
+                acceptedLibraryRevision: library.revision + 1,
+              } as MatchdayState['lastTacticalEvent'],
+            };
+            persistState();
+            return { state, event: state.lastTacticalEvent };
           }
           if (command === 'play_next_match') {
             state = {
@@ -945,6 +1046,83 @@ test('changes the dedicated tactical plan, plays the match, and reveals the resu
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toBeHidden();
   await expect(playButton).toBeFocused();
+});
+
+test('creates, duplicates, switches and reopens independent variations from one preset', async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== 'desktop-1366x768',
+    'The complete variation lifecycle only needs one desktop project.',
+  );
+
+  const openVariations = async () => {
+    await page.getByRole('button', { name: /^Variação ativa:/u }).click();
+    return page.getByRole('dialog', { name: 'Variações da formação' });
+  };
+  const createNamedVariation = async (action: 'Nova da atual' | 'Duplicar', name: string) => {
+    const variations = await openVariations();
+    await variations.getByRole('button', { name: action }).click();
+    const nameDialog = page.getByRole('alertdialog', { name: 'Nome da nova variação' });
+    await nameDialog.getByRole('textbox', { name: 'Nome' }).fill(name);
+    await nameDialog.getByRole('button', { name: 'Criar variação' }).click();
+    await expect(
+      page.getByRole('button', { name: new RegExp(`^Variação ativa: ${name}`) }),
+    ).toBeVisible();
+  };
+  const switchTo = async (name: string) => {
+    const variations = await openVariations();
+    await variations.getByRole('option', { name: new RegExp(`^${name}`) }).click();
+    await expect(
+      page.getByRole('button', { name: new RegExp(`^Variação ativa: ${name}`) }),
+    ).toBeVisible();
+  };
+
+  await page.goto(developmentUrl);
+  await page.getByRole('button', { name: 'Táticas' }).click();
+  await createNamedVariation('Nova da atual', '4-3-3 Volante Alto');
+
+  const volante = page.getByRole('button', { name: /^VOL: Luan Seixas/u });
+  await volante.press('Alt+ArrowRight');
+  await page.getByRole('button', { name: 'Salvar plano' }).click();
+  const volanteHighStyle = await volante.locator('xpath=..').getAttribute('style');
+
+  await createNamedVariation('Duplicar', '4-3-3 Laterais Altos');
+  const leftBack = page.getByRole('button', { name: /^LE: Davi Moura/u });
+  const rightBack = page.getByRole('button', { name: /^LD: Nilo Azevedo/u });
+  const leftBackBefore = await leftBack.locator('xpath=..').getAttribute('style');
+  await leftBack.press('Alt+ArrowRight');
+  await rightBack.press('Alt+ArrowRight');
+  await page.getByRole('button', { name: 'Salvar plano' }).click();
+  const leftBackHighStyle = await leftBack.locator('xpath=..').getAttribute('style');
+  expect(leftBackHighStyle).not.toBe(leftBackBefore);
+
+  await switchTo('4-3-3 Volante Alto');
+  await expect(volante.locator('xpath=..')).toHaveAttribute('style', volanteHighStyle ?? '');
+  await expect(leftBack.locator('xpath=..')).toHaveAttribute('style', leftBackBefore ?? '');
+
+  await switchTo('4-3-3 Laterais Altos');
+  await expect(leftBack.locator('xpath=..')).toHaveAttribute('style', leftBackHighStyle ?? '');
+
+  await leftBack.press('Alt+ArrowRight');
+  const variations = await openVariations();
+  await variations.getByRole('option', { name: /^4-3-3 Volante Alto/u }).click();
+  const dirtySwitch = page.getByRole('alertdialog', { name: 'Trocar para 4-3-3 Volante Alto?' });
+  await expect(dirtySwitch).toContainText('alterações pendentes');
+  await dirtySwitch.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(
+    page.getByRole('button', { name: /^Variação ativa: 4-3-3 Laterais Altos/u }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Restaurar salvo' }).click();
+
+  await page.reload();
+  await expect(
+    page.getByRole('button', { name: /^Variação ativa: 4-3-3 Laterais Altos/u }),
+  ).toBeVisible();
+  await expect(leftBack.locator('xpath=..')).toHaveAttribute('style', leftBackHighStyle ?? '');
+  await switchTo('4-3-3 Volante Alto');
+  await expect(volante.locator('xpath=..')).toHaveAttribute('style', volanteHighStyle ?? '');
+  await expect(leftBack.locator('xpath=..')).toHaveAttribute('style', leftBackBefore ?? '');
 });
 
 test('personalizes the squad workspace and persists the choices', async ({ page }) => {
@@ -1414,7 +1592,7 @@ test('captures Elenco and Táticas at 1024, 1366, 1440, 1920 and 2560 pixels', a
       await bench.scrollIntoViewIfNeeded();
       await expect(bench).toBeInViewport();
       await expect(page.getByRole('button', { name: 'Salvar plano' })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Descartar' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Restaurar salvo' })).toBeVisible();
     }
   }
 });

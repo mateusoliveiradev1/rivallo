@@ -15,6 +15,7 @@ import type {
   Formation,
   MatchdayState,
   TacticalApproach,
+  TacticalLibraryCommand,
   TacticalPlanProposal,
   TacticalPlanUpdate,
 } from './types.js';
@@ -34,6 +35,9 @@ export const saveMatchdayLineup = (
 
 export const saveTacticalPlan = (proposal: TacticalPlanProposal) =>
   invoke<TacticalPlanUpdate>('update_tactical_plan', { proposal });
+
+export const updateTacticalLibrary = (command: TacticalLibraryCommand) =>
+  invoke<TacticalPlanUpdate>('update_tactical_library', { request: command });
 
 export const playNextMatch = () => invoke<MatchdayState>('play_next_match');
 

@@ -15,10 +15,10 @@ pub use rivallo_application::{
     TableFilterClause, TableFilterGroup, TableFilterNode, TableId, TableSort,
     TableViewEnvelopeMetadata, TableViewLoadOutcome, TableViewPolicyError, TableViewRecoveryReason,
     TableViewRepositoryError, TableViewRepositoryState, TableViewServiceError, TableViewState,
-    TableViewValidationError, TacticalApproach, TacticalLine, TacticalPlanEvent,
-    TacticalPlanProposal, TacticalPlanSnapshot, TacticalPlanUpdate, TacticalPlayerPlacement,
-    TacticalSide, TacticalZone, ViewId, ViewMutability, ViewProvenance, WindowId,
-    squad_system_default_repository_state,
+    TableViewValidationError, TacticalApproach, TacticalLibraryCommand, TacticalLine,
+    TacticalPlanEvent, TacticalPlanProposal, TacticalPlanSnapshot, TacticalPlanUpdate,
+    TacticalPlayerPlacement, TacticalSide, TacticalVariationLibrarySnapshot, TacticalZone, ViewId,
+    ViewMutability, ViewProvenance, WindowId, squad_system_default_repository_state,
 };
 pub use table_view::{FileTableViewRepository, TableViewCoordinator};
 

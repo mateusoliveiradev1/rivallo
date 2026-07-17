@@ -1,6 +1,6 @@
 use rivallo_domain::{
-    LineupSelection, MatchResult, MatchdayError, MatchdayState, TacticalPlanProposal,
-    TacticalPlanUpdate,
+    LineupSelection, MatchResult, MatchdayError, MatchdayState, TacticalLibraryCommand,
+    TacticalPlanProposal, TacticalPlanUpdate,
 };
 
 pub trait MatchdayRepository {
@@ -13,6 +13,10 @@ pub enum MatchdayServiceError {
     InvalidLineup(String),
     InvalidTacticalPlan(String),
     TacticalPlanConflict {
+        expected_revision: u64,
+        actual_revision: u64,
+    },
+    TacticalLibraryConflict {
         expected_revision: u64,
         actual_revision: u64,
     },
@@ -32,6 +36,13 @@ impl std::fmt::Display for MatchdayServiceError {
                 formatter,
                 "tactical_plan_conflict:{expected_revision}:{actual_revision}"
             ),
+            Self::TacticalLibraryConflict {
+                expected_revision,
+                actual_revision,
+            } => write!(
+                formatter,
+                "tactical_library_conflict:{expected_revision}:{actual_revision}"
+            ),
         }
     }
 }
@@ -47,6 +58,13 @@ impl From<MatchdayError> for MatchdayServiceError {
                 expected_revision,
                 actual_revision,
             } => Self::TacticalPlanConflict {
+                expected_revision,
+                actual_revision,
+            },
+            MatchdayError::TacticalLibraryConflict {
+                expected_revision,
+                actual_revision,
+            } => Self::TacticalLibraryConflict {
                 expected_revision,
                 actual_revision,
             },
@@ -113,6 +131,18 @@ impl<R: MatchdayRepository> MatchdayService<R> {
         Ok(TacticalPlanUpdate { state, event })
     }
 
+    pub fn update_tactical_library(
+        &self,
+        command: TacticalLibraryCommand,
+    ) -> Result<TacticalPlanUpdate, MatchdayServiceError> {
+        let mut state = self.state()?;
+        let event = state.apply_tactical_library_command(command)?;
+        self.repository
+            .save(&state)
+            .map_err(MatchdayServiceError::Persistence)?;
+        Ok(TacticalPlanUpdate { state, event })
+    }
+
     pub fn play_next_match(&self) -> Result<MatchdayState, MatchdayServiceError> {
         let mut state = self.state()?;
         let _: MatchResult = state.play_next_match()?;
@@ -130,10 +160,16 @@ mod tests {
     use super::*;
 
     fn proposal_from(state: &MatchdayState) -> TacticalPlanProposal {
-        let plan = state.tactical_plan.clone().expect("tactical plan");
+        let library = state.tactical_library.as_ref().expect("tactical library");
+        let plan = library
+            .variations
+            .iter()
+            .find(|variation| variation.variation_id == library.active_variation_id)
+            .cloned()
+            .expect("active tactical variation");
         TacticalPlanProposal {
             expected_revision: plan.revision,
-            plan_id: plan.plan_id,
+            variation_id: plan.variation_id,
             name: plan.name,
             source_preset_id: plan.source_preset_id,
             formation: plan.formation,
@@ -201,9 +237,10 @@ mod tests {
         assert_eq!(
             update
                 .state
-                .tactical_plan
+                .tactical_library
                 .as_ref()
-                .expect("saved tactical plan")
+                .expect("saved tactical library")
+                .variations[0]
                 .revision,
             1
         );
@@ -220,6 +257,10 @@ mod tests {
     #[test]
     fn recovers_one_invalid_tactical_record_without_discarding_the_career() {
         let mut legacy = MatchdayState::default();
+        legacy.tactical_plan = legacy
+            .tactical_library
+            .take()
+            .and_then(|library| library.variations.into_iter().next());
         legacy
             .tactical_plan
             .as_mut()
@@ -235,9 +276,10 @@ mod tests {
         assert_eq!(recovered.round, 12);
         assert_eq!(
             recovered
-                .tactical_plan
+                .tactical_library
                 .as_ref()
-                .expect("recovered plan")
+                .expect("recovered library")
+                .variations[0]
                 .placements[0]
                 .normalized_x,
             0.09

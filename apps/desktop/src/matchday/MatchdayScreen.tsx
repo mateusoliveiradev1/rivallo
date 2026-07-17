@@ -7,7 +7,7 @@ import { Button } from '../ui/primitives/actions.js';
 import { Tooltip } from '../ui/primitives/disclosure.js';
 import { Skeleton, Status } from '../ui/primitives/feedback.js';
 import { Toast } from '../ui/primitives/toast.js';
-import { loadMatchday, playNextMatch, saveTacticalPlan } from './client.js';
+import { loadMatchday, playNextMatch, saveTacticalPlan, updateTacticalLibrary } from './client.js';
 import {
   defaultSquadSort,
   type ActiveScreen,
@@ -40,6 +40,7 @@ import {
   addPlayerToFirstOpenSlot,
   createLineupSlots,
   createTacticalPlan,
+  forkTacticalVariation,
   hasSameSelectedPlayers,
   normalizeStoredSlots,
   removePlayerFromSlots,
@@ -47,6 +48,7 @@ import {
   syncPlanWithLineupSlots,
   toTacticalPlanProposal,
   validateTacticalDraft,
+  variationFromPreset,
   type LineupSlots,
 } from './tactics-model.js';
 import { TacticsWorkspace } from './TacticsWorkspace.js';
@@ -313,7 +315,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
   const [tacticalHistory, setTacticalHistory] = useState<readonly TacticalPlanSnapshot[]>([]);
   const [formation, setFormation] = useState<MatchdayState['formation']>('4-3-3');
   const [approach, setApproach] = useState<TacticalApproach>('balanced');
-  const [busyAction, setBusyAction] = useState<'save' | 'play' | null>(null);
+  const [busyAction, setBusyAction] = useState<'save' | 'play' | 'library' | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [resultOpen, setResultOpen] = useState(false);
@@ -414,14 +416,28 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
         : stored && hasSameSelectedPlayers(stored, serverIds)
           ? stored
           : serverSlots;
+    const legacyPlan = (
+      nextState as MatchdayState & { readonly tacticalPlan?: TacticalPlanSnapshot }
+    ).tacticalPlan;
+    const fallbackPlan = legacyPlan ?? createTacticalPlan(nextState.players, nextState.formation);
+    const fallbackLibrary = {
+      schemaVersion: 1 as const,
+      revision: 0,
+      activeVariationId: fallbackPlan.variationId,
+      primaryVariationId: fallbackPlan.variationId,
+      variations: [fallbackPlan],
+    };
+    const library = nextState.tacticalLibrary ?? fallbackLibrary;
     const basePlan =
-      nextState.tacticalPlan ?? createTacticalPlan(nextState.players, nextState.formation);
-    const plan = nextState.tacticalPlan
+      library.variations.find(({ variationId }) => variationId === library.activeVariationId) ??
+      library.variations[0] ??
+      fallbackPlan;
+    const plan = nextState.tacticalLibrary
       ? basePlan
       : syncPlanWithLineupSlots(basePlan, legacyLayout, nextState.players);
     const layout = plan.placements.map(({ playerId }) => playerId);
 
-    setState(nextState);
+    setState({ ...nextState, tacticalLibrary: library });
     setLineupSlots(layout);
     setSavedLineupSlots(layout);
     setTacticalDraft(plan);
@@ -870,26 +886,31 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
     setMessage(`${player.shortName} foi adicionado ao primeiro espaço livre.`);
   };
 
-  const saveLineup = async () => {
-    if (!state || !tacticalDraft) return null;
-    const candidate = syncPlanWithLineupSlots(tacticalDraft, lineupSlots, state.players);
+  const persistTacticalCandidate = async (
+    candidate: TacticalPlanSnapshot,
+    successMessage: string,
+    action: 'save' | 'play' = 'save',
+  ) => {
+    if (!state) return null;
     const validation = validateTacticalDraft(candidate, state.players);
     if (!validation.valid) {
       setError(validation.errors[0] ?? 'O plano tático é inválido.');
       return null;
     }
     const operation = ++tacticalSaveOperationRef.current;
-    setBusyAction('save');
+    setBusyAction(action);
     setMessage('');
     setError('');
     try {
       const update = await saveTacticalPlan(toTacticalPlanProposal(candidate, approach));
       if (operation !== tacticalSaveOperationRef.current) return null;
       applyServerState(update.state);
-      setMessage(
-        `Plano salvo no dispositivo · revisão ${update.state.tacticalPlan?.revision ?? 0}.`,
+      const library = update.state.tacticalLibrary;
+      const saved = library?.variations.find(
+        ({ variationId }) => variationId === library.activeVariationId,
       );
-      return update.state;
+      setMessage(`${successMessage} · revisão ${saved?.revision ?? candidate.revision + 1}.`);
+      return saved ?? null;
     } catch (reason) {
       if (operation !== tacticalSaveOperationRef.current) return null;
       const detail = reason instanceof Error ? reason.message : String(reason);
@@ -902,6 +923,69 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
     } finally {
       if (operation === tacticalSaveOperationRef.current) setBusyAction(null);
     }
+  };
+
+  const saveLineup = async () => {
+    if (!state || !tacticalDraft) return null;
+    const candidate = syncPlanWithLineupSlots(tacticalDraft, lineupSlots, state.players);
+    return persistTacticalCandidate(candidate, `${candidate.name} salva no dispositivo`);
+  };
+
+  const runTacticalLibraryCommand = async (
+    kind: 'activate' | 'setPrimary' | 'delete',
+    variationId: string,
+    successMessage: string,
+  ) => {
+    const library = state?.tacticalLibrary;
+    if (!library) return false;
+    const operation = ++tacticalSaveOperationRef.current;
+    setBusyAction('library');
+    setMessage('');
+    setError('');
+    try {
+      const update = await updateTacticalLibrary({
+        kind,
+        variationId,
+        expectedLibraryRevision: library.revision,
+      });
+      if (operation !== tacticalSaveOperationRef.current) return false;
+      applyServerState(update.state);
+      setMessage(successMessage);
+      return true;
+    } catch (reason) {
+      if (operation !== tacticalSaveOperationRef.current) return false;
+      const detail = reason instanceof Error ? reason.message : String(reason);
+      setError(
+        detail.includes('tactical_library_conflict')
+          ? 'A biblioteca mudou desde a última leitura. Recarregue antes de continuar.'
+          : detail,
+      );
+      return false;
+    } finally {
+      if (operation === tacticalSaveOperationRef.current) setBusyAction(null);
+    }
+  };
+
+  const createVariation = async (mode: 'preset' | 'current' | 'duplicate', name: string) => {
+    if (!state || !tacticalDraft) return false;
+    const base = syncPlanWithLineupSlots(tacticalDraft, lineupSlots, state.players);
+    const candidate =
+      mode === 'preset'
+        ? variationFromPreset(base, state.players, name)
+        : forkTacticalVariation(base, name, mode);
+    return Boolean(
+      await persistTacticalCandidate(candidate, `${name} criada como variação independente`),
+    );
+  };
+
+  const renameVariation = async (name: string) => {
+    if (!tacticalDraft) return false;
+    const candidate = {
+      ...tacticalDraft,
+      name,
+      customFormation: { ...tacticalDraft.customFormation, name },
+    };
+    return Boolean(await persistTacticalCandidate(candidate, `Variação renomeada para ${name}`));
   };
 
   const playMatch = async () => {
@@ -1431,7 +1515,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
                 onTableViewCommand={tableView.dispatch}
               />
             </>
-          ) : tacticalDraft && savedTacticalPlan ? (
+          ) : tacticalDraft && savedTacticalPlan && state.tacticalLibrary ? (
             <TacticsWorkspace
               activeTool={activeTacticalTool}
               approach={approach}
@@ -1441,6 +1525,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
               error={error}
               focusedPlayerId={focusedPlayerId}
               message={message}
+              library={state.tacticalLibrary}
               onActiveToolChange={setActiveTacticalTool}
               onApproachChange={setApproach}
               onDiscard={() => {
@@ -1460,9 +1545,32 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
                 setError('');
                 setMessage('');
               }}
+              onCreateVariation={createVariation}
+              onDeleteVariation={(variationId) =>
+                runTacticalLibraryCommand(
+                  'delete',
+                  variationId,
+                  'Variação excluída; as demais foram preservadas.',
+                )
+              }
               onFocusPlayer={setFocusedPlayerId}
               onPitchModeChange={(pitchMode) => updatePreference('pitchMode', pitchMode)}
-              onSave={async () => (await saveLineup())?.tacticalPlan ?? null}
+              onRenameVariation={renameVariation}
+              onSave={saveLineup}
+              onSetPrimaryVariation={(variationId) =>
+                runTacticalLibraryCommand(
+                  'setPrimary',
+                  variationId,
+                  'Variação definida como principal.',
+                )
+              }
+              onSwitchVariation={(variationId) =>
+                runTacticalLibraryCommand(
+                  'activate',
+                  variationId,
+                  `Variação ${state.tacticalLibrary?.variations.find((item) => item.variationId === variationId)?.name ?? ''} restaurada.`,
+                )
+              }
               onUndo={() => {
                 const previous = tacticalHistory.at(-1);
                 if (!previous) return;

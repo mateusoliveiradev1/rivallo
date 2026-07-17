@@ -447,9 +447,10 @@ export const createTacticalPlan = (
   const selected = players.filter((player) => player.selected).slice(0, 11);
   const selectedIds = new Set(selected.map((player) => player.id));
   const presetDefinition = getFormationPreset(formation);
+  const createdAt = Date.now();
   return {
-    schemaVersion: 2,
-    planId: 'tactical-plan.primary',
+    schemaVersion: 3,
+    variationId: 'tactical-variation.primary',
     name: formation,
     sourcePresetId: formation,
     formation,
@@ -469,8 +470,49 @@ export const createTacticalPlan = (
       updatedAtRevision: 0,
     },
     revision: 0,
+    createdAt,
+    updatedAt: createdAt,
   };
 };
+
+const newVariationId = () => {
+  const uuid = globalThis.crypto?.randomUUID?.();
+  return `tactical-variation.${uuid ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`}`;
+};
+
+export const forkTacticalVariation = (
+  draft: TacticalPlanSnapshot,
+  name: string,
+  origin: 'current' | 'duplicate' | 'preset',
+): TacticalPlanSnapshot => {
+  const createdAt = Date.now();
+  const variationId = newVariationId();
+  return {
+    ...draft,
+    variationId,
+    name: name.trim(),
+    placements: draft.placements.map((placement) => ({ ...placement, revision: 0 })),
+    bench: [...draft.bench],
+    customFormation: {
+      ...draft.customFormation,
+      id: `formation.${variationId}`,
+      name: name.trim(),
+      origin,
+      createdAtRevision: 0,
+      updatedAtRevision: 0,
+    },
+    revision: 0,
+    createdAt,
+    updatedAt: createdAt,
+  };
+};
+
+export const variationFromPreset = (
+  draft: TacticalPlanSnapshot,
+  players: readonly Player[],
+  name: string,
+): TacticalPlanSnapshot =>
+  forkTacticalVariation(applyPresetToPlan(draft, draft.formation, players), name, 'preset');
 
 export const applyPresetToPlan = (
   draft: TacticalPlanSnapshot,
@@ -651,7 +693,7 @@ export const validateTacticalDraft = (
   const warnings: string[] = [];
   const playerById = new Map(players.map((player) => [player.id, player] as const));
   const allIds = [...selectedIdsFromPlan(draft), ...draft.bench];
-  if (draft.schemaVersion !== 2) errors.push('Versão do plano incompatível.');
+  if (draft.schemaVersion !== 3) errors.push('Versão do plano incompatível.');
   if (draft.placements.length !== 11) errors.push('O campo precisa de exatamente 11 titulares.');
   if (draft.bench.length > 7) errors.push('O banco excede o limite de 7 jogadores.');
   if (new Set(allIds).size !== allIds.length)
@@ -698,7 +740,7 @@ export const toTacticalPlanProposal = (
   approach: TacticalPlanProposal['approach'],
 ): TacticalPlanProposal => ({
   expectedRevision: draft.revision,
-  planId: draft.planId,
+  variationId: draft.variationId,
   name: draft.name,
   sourcePresetId: draft.sourcePresetId,
   formation: draft.formation,

@@ -26,10 +26,12 @@ import type {
   Player,
   TacticalApproach,
   TacticalPlanSnapshot,
+  TacticalVariationLibrarySnapshot,
 } from './types.js';
 
 interface TacticsWorkspaceProps {
   readonly state: MatchdayState;
+  readonly library: TacticalVariationLibrarySnapshot;
   readonly draft: TacticalPlanSnapshot;
   readonly approach: TacticalApproach;
   readonly pitchMode: PitchMode;
@@ -48,7 +50,17 @@ interface TacticsWorkspaceProps {
   readonly onUndo: () => void;
   readonly onDiscard: () => void;
   readonly onSave: () => Promise<TacticalPlanSnapshot | null>;
+  readonly onCreateVariation: (
+    mode: 'preset' | 'current' | 'duplicate',
+    name: string,
+  ) => Promise<boolean>;
+  readonly onDeleteVariation: (variationId: string) => Promise<boolean>;
+  readonly onRenameVariation: (name: string) => Promise<boolean>;
+  readonly onSetPrimaryVariation: (variationId: string) => Promise<boolean>;
+  readonly onSwitchVariation: (variationId: string) => Promise<boolean>;
 }
+
+type VariationNameMode = 'preset' | 'current' | 'duplicate' | 'rename';
 
 interface DragSession {
   readonly playerId: string;
@@ -172,6 +184,7 @@ const normalizeSearch = (value: string) =>
 
 export function TacticsWorkspace({
   state,
+  library,
   draft,
   approach,
   pitchMode,
@@ -190,6 +203,11 @@ export function TacticsWorkspace({
   onUndo,
   onDiscard,
   onSave,
+  onCreateVariation,
+  onDeleteVariation,
+  onRenameVariation,
+  onSetPrimaryVariation,
+  onSwitchVariation,
 }: TacticsWorkspaceProps) {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [dragSession, setDragSession] = useState<DragSession | null>(null);
@@ -200,6 +218,12 @@ export function TacticsWorkspace({
   const [formationQuery, setFormationQuery] = useState('');
   const [pendingFormation, setPendingFormation] = useState<Formation | null>(null);
   const [formationSaving, setFormationSaving] = useState(false);
+  const [variationPickerOpen, setVariationPickerOpen] = useState(false);
+  const [variationNameMode, setVariationNameMode] = useState<VariationNameMode | null>(null);
+  const [variationName, setVariationName] = useState('');
+  const [variationActionBusy, setVariationActionBusy] = useState(false);
+  const [pendingVariationId, setPendingVariationId] = useState<string | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [interactionMessage, setInteractionMessage] = useState('');
   const [interactionError, setInteractionError] = useState('');
   const [instructions, setInstructions] = useState<TeamInstructions>(readInstructions);
@@ -629,6 +653,90 @@ export function TacticsWorkspace({
     announce(`Preset ${draft.sourcePresetId} restaurado.`);
   };
 
+  const openVariationNameDialog = (mode: VariationNameMode) => {
+    const defaults: Record<VariationNameMode, string> = {
+      preset: `${draft.formation} Base`,
+      current: `${draft.name} Variação`,
+      duplicate: `${draft.name} Cópia`,
+      rename: draft.name,
+    };
+    setVariationName(defaults[mode]);
+    setVariationNameMode(mode);
+    setVariationPickerOpen(false);
+  };
+
+  const normalizedVariationName = variationName.trim();
+  const variationNameTaken = library.variations.some(
+    (variation) =>
+      variation.name.toLocaleLowerCase('pt-BR') ===
+        normalizedVariationName.toLocaleLowerCase('pt-BR') &&
+      (variationNameMode !== 'rename' || variation.variationId !== draft.variationId),
+  );
+  const variationNameError =
+    normalizedVariationName.length === 0
+      ? 'Informe um nome para a variação.'
+      : normalizedVariationName.length > 80
+        ? 'Use no máximo 80 caracteres.'
+        : variationNameTaken
+          ? 'Já existe uma variação com esse nome.'
+          : '';
+
+  const submitVariationName = async () => {
+    if (!variationNameMode || variationNameError) return;
+    setVariationActionBusy(true);
+    const succeeded =
+      variationNameMode === 'rename'
+        ? await onRenameVariation(normalizedVariationName)
+        : await onCreateVariation(variationNameMode, normalizedVariationName);
+    setVariationActionBusy(false);
+    if (succeeded) setVariationNameMode(null);
+  };
+
+  const switchVariation = async (variationId: string) => {
+    if (variationId === library.activeVariationId || saving) return;
+    setVariationPickerOpen(false);
+    if (dirty) {
+      setPendingVariationId(variationId);
+      return;
+    }
+    setVariationActionBusy(true);
+    await onSwitchVariation(variationId);
+    setVariationActionBusy(false);
+  };
+
+  const completePendingSwitch = async (saveFirst: boolean) => {
+    if (!pendingVariationId) return;
+    setVariationActionBusy(true);
+    if (saveFirst) {
+      const saved = await onSave();
+      if (!saved) {
+        setVariationActionBusy(false);
+        return;
+      }
+    } else {
+      onDiscard();
+    }
+    const switched = await onSwitchVariation(pendingVariationId);
+    setVariationActionBusy(false);
+    if (switched) setPendingVariationId(null);
+  };
+
+  const deleteVariation = async () => {
+    if (!pendingDeleteId) return;
+    setVariationActionBusy(true);
+    const deleted = await onDeleteVariation(pendingDeleteId);
+    setVariationActionBusy(false);
+    if (deleted) setPendingDeleteId(null);
+  };
+
+  const activeIsPrimary = library.primaryVariationId === draft.variationId;
+  const pendingVariation = library.variations.find(
+    ({ variationId }) => variationId === pendingVariationId,
+  );
+  const pendingDelete = library.variations.find(
+    ({ variationId }) => variationId === pendingDeleteId,
+  );
+
   const statusText =
     error ||
     interactionError ||
@@ -638,8 +746,8 @@ export function TacticsWorkspace({
       : !validation.valid
         ? 'Proposta inválida — corrija antes de salvar'
         : dirty
-          ? 'Plano modificado — ainda não salvo'
-          : 'Plano salvo no dispositivo');
+          ? `${draft.name} modificada — ainda não salva`
+          : `${draft.name} salva no dispositivo`);
 
   return (
     <section
@@ -658,9 +766,96 @@ export function TacticsWorkspace({
       }}
     >
       <header className="screen-heading tactics-heading">
-        <div>
-          <span>TÁTICAS · PLANO PRINCIPAL</span>
-          <h1 id="tactics-screen-title">Plano de jogo</h1>
+        <div className="variation-heading">
+          <span>TÁTICAS · {activeIsPrimary ? 'VARIAÇÃO PRINCIPAL' : 'VARIAÇÃO SECUNDÁRIA'}</span>
+          <div className="variation-heading__title">
+            <h1 id="tactics-screen-title">Plano de jogo</h1>
+            <Popover
+              align="start"
+              closeLabel="Fechar variações"
+              contentClassName="variation-picker__popover"
+              initialFocusId={`variation-${library.activeVariationId}`}
+              onOpenChange={setVariationPickerOpen}
+              open={variationPickerOpen}
+              title="Variações da formação"
+              triggerAccessibleLabel={`Variação ativa: ${draft.name}. Alternar ou gerenciar`}
+              triggerClassName="variation-picker__trigger"
+              triggerContent={
+                <>
+                  <strong>{draft.name}</strong>
+                  <span>{library.variations.length}</span>
+                  <span aria-hidden="true">⌄</span>
+                </>
+              }
+              triggerDisabled={saving || variationActionBusy}
+              triggerLabel="Gerenciar"
+            >
+              <div aria-label="Variações salvas" className="variation-picker__list" role="listbox">
+                {library.variations.map((variation) => {
+                  const isActive = variation.variationId === library.activeVariationId;
+                  const isPrimary = variation.variationId === library.primaryVariationId;
+                  return (
+                    <button
+                      aria-selected={isActive}
+                      className="variation-picker__option"
+                      id={`variation-${variation.variationId}`}
+                      key={variation.variationId}
+                      onClick={() => void switchVariation(variation.variationId)}
+                      role="option"
+                      type="button"
+                    >
+                      <span>
+                        <strong>{variation.name}</strong>
+                        <small>
+                          {variation.formation} · revisão {variation.revision} ·{' '}
+                          {new Date(variation.updatedAt).toLocaleDateString('pt-BR')}
+                        </small>
+                      </span>
+                      {isPrimary && <em>Principal</em>}
+                      {isActive && <Icon name="check" size={16} />}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="variation-picker__actions">
+                <button onClick={() => openVariationNameDialog('preset')} type="button">
+                  Nova do preset
+                </button>
+                <button onClick={() => openVariationNameDialog('current')} type="button">
+                  Nova da atual
+                </button>
+                <button onClick={() => openVariationNameDialog('duplicate')} type="button">
+                  Duplicar
+                </button>
+              </div>
+              <div className="variation-picker__management">
+                <button onClick={() => openVariationNameDialog('rename')} type="button">
+                  Renomear
+                </button>
+                <button
+                  disabled={activeIsPrimary}
+                  onClick={() => {
+                    setVariationPickerOpen(false);
+                    void onSetPrimaryVariation(draft.variationId);
+                  }}
+                  type="button"
+                >
+                  Definir principal
+                </button>
+                <button
+                  disabled={dirty || library.variations.length === 1}
+                  onClick={() => {
+                    setVariationPickerOpen(false);
+                    setPendingDeleteId(draft.variationId);
+                  }}
+                  title={dirty ? 'Salve ou restaure as alterações antes de excluir.' : undefined}
+                  type="button"
+                >
+                  Excluir
+                </button>
+              </div>
+            </Popover>
+          </div>
         </div>
         <div
           className="fixture-summary"
@@ -823,7 +1018,7 @@ export function TacticsWorkspace({
           onClick={onDiscard}
           type="button"
         >
-          Descartar
+          Restaurar salvo
         </button>
         <Button
           disabled={!dirty || !validation.valid}
@@ -836,6 +1031,146 @@ export function TacticsWorkspace({
           Salvar plano
         </Button>
       </section>
+
+      <AlertDialogPrimitive.Root
+        onOpenChange={(open) => {
+          if (!open && !variationActionBusy) setVariationNameMode(null);
+        }}
+        open={variationNameMode !== null}
+      >
+        <AlertDialogPrimitive.Portal>
+          <AlertDialogPrimitive.Overlay className="rv-modal-backdrop" />
+          <AlertDialogPrimitive.Content className="rv-dialog rv-alert-dialog variation-name-dialog">
+            <AlertDialogPrimitive.Title>
+              {variationNameMode === 'rename' ? 'Renomear variação' : 'Nome da nova variação'}
+            </AlertDialogPrimitive.Title>
+            <AlertDialogPrimitive.Description className="rv-dialog__description">
+              {variationNameMode === 'preset'
+                ? `Cria uma geometria limpa a partir do preset ${draft.formation}.`
+                : variationNameMode === 'current'
+                  ? 'Cria uma identidade nova preservando exatamente o campo, titulares e banco atuais.'
+                  : variationNameMode === 'duplicate'
+                    ? 'Duplica esta variação com revisão e datas independentes.'
+                    : 'O novo nome será salvo apenas nesta variação.'}
+            </AlertDialogPrimitive.Description>
+            <label className="variation-name-dialog__field">
+              <span>Nome</span>
+              <input
+                aria-describedby={variationNameError ? 'variation-name-error' : undefined}
+                autoComplete="off"
+                autoFocus
+                maxLength={80}
+                onChange={(event) => setVariationName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !variationNameError) {
+                    event.preventDefault();
+                    void submitVariationName();
+                  }
+                }}
+                value={variationName}
+              />
+            </label>
+            <p
+              aria-live="polite"
+              className="variation-name-dialog__error"
+              id="variation-name-error"
+            >
+              {variationNameError}
+            </p>
+            <div className="rv-dialog__actions">
+              <AlertDialogPrimitive.Cancel asChild>
+                <Button disabled={variationActionBusy} variant="secondary">
+                  Cancelar
+                </Button>
+              </AlertDialogPrimitive.Cancel>
+              <Button
+                disabled={Boolean(variationNameError)}
+                loading={variationActionBusy}
+                loadingLabel="Salvando…"
+                onClick={() => void submitVariationName()}
+                variant="primary"
+              >
+                {variationNameMode === 'rename' ? 'Salvar nome' : 'Criar variação'}
+              </Button>
+            </div>
+          </AlertDialogPrimitive.Content>
+        </AlertDialogPrimitive.Portal>
+      </AlertDialogPrimitive.Root>
+
+      <AlertDialogPrimitive.Root
+        onOpenChange={(open) => {
+          if (!open && !variationActionBusy) setPendingVariationId(null);
+        }}
+        open={pendingVariationId !== null}
+      >
+        <AlertDialogPrimitive.Portal>
+          <AlertDialogPrimitive.Overlay className="rv-modal-backdrop" />
+          <AlertDialogPrimitive.Content className="rv-dialog rv-alert-dialog variation-switch-dialog">
+            <AlertDialogPrimitive.Title>
+              Trocar para {pendingVariation?.name}?
+            </AlertDialogPrimitive.Title>
+            <AlertDialogPrimitive.Description className="rv-dialog__description">
+              {draft.name} possui alterações pendentes. Salve esta variação, restaure a última
+              versão salva ou cancele a troca.
+            </AlertDialogPrimitive.Description>
+            <div className="rv-dialog__actions variation-switch-dialog__actions">
+              <AlertDialogPrimitive.Cancel asChild>
+                <Button disabled={variationActionBusy} variant="secondary">
+                  Cancelar
+                </Button>
+              </AlertDialogPrimitive.Cancel>
+              <Button
+                disabled={variationActionBusy}
+                onClick={() => void completePendingSwitch(false)}
+                variant="secondary"
+              >
+                Restaurar e trocar
+              </Button>
+              <Button
+                loading={variationActionBusy}
+                loadingLabel="Salvando…"
+                onClick={() => void completePendingSwitch(true)}
+                variant="primary"
+              >
+                Salvar e trocar
+              </Button>
+            </div>
+          </AlertDialogPrimitive.Content>
+        </AlertDialogPrimitive.Portal>
+      </AlertDialogPrimitive.Root>
+
+      <AlertDialogPrimitive.Root
+        onOpenChange={(open) => {
+          if (!open && !variationActionBusy) setPendingDeleteId(null);
+        }}
+        open={pendingDeleteId !== null}
+      >
+        <AlertDialogPrimitive.Portal>
+          <AlertDialogPrimitive.Overlay className="rv-modal-backdrop" />
+          <AlertDialogPrimitive.Content className="rv-dialog rv-alert-dialog variation-delete-dialog">
+            <AlertDialogPrimitive.Title>Excluir {pendingDelete?.name}?</AlertDialogPrimitive.Title>
+            <AlertDialogPrimitive.Description className="rv-dialog__description">
+              Campo, titulares, banco e histórico de revisão desta variação serão removidos. As
+              outras variações permanecem intactas.
+            </AlertDialogPrimitive.Description>
+            <div className="rv-dialog__actions">
+              <AlertDialogPrimitive.Cancel asChild>
+                <Button disabled={variationActionBusy} variant="secondary">
+                  Cancelar
+                </Button>
+              </AlertDialogPrimitive.Cancel>
+              <Button
+                loading={variationActionBusy}
+                loadingLabel="Excluindo…"
+                onClick={() => void deleteVariation()}
+                variant="destructive-proof"
+              >
+                Excluir variação
+              </Button>
+            </div>
+          </AlertDialogPrimitive.Content>
+        </AlertDialogPrimitive.Portal>
+      </AlertDialogPrimitive.Root>
 
       <AlertDialogPrimitive.Root
         onOpenChange={(open) => {
