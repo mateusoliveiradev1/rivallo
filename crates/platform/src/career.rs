@@ -909,15 +909,26 @@ impl CareerCoordinator {
     fn read_envelope(&self, path: &Path) -> Result<SlotEnvelope, CareerFailure> {
         let bytes = fs::read(path)
             .map_err(|error| CareerFailure::new("career.slot_read_failed", error.to_string()))?;
-        let envelope: SlotEnvelope = serde_json::from_slice(&bytes)
+        let persisted: serde_json::Value = serde_json::from_slice(&bytes)
             .map_err(|error| CareerFailure::new("career.slot_corrupt", error.to_string()))?;
-        let checksum = slot_checksum(&envelope.slot)?;
-        if checksum != envelope.checksum {
+        let persisted_checksum = persisted
+            .get("checksum")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| {
+                CareerFailure::new("career.slot_corrupt", "O checksum do save é inválido.")
+            })?;
+        let raw_slot = raw_slot_json(&bytes).ok_or_else(|| {
+            CareerFailure::new("career.slot_corrupt", "O conteúdo do save é inválido.")
+        })?;
+        let checksum = raw_slot_checksum(raw_slot);
+        if checksum != persisted_checksum {
             return Err(CareerFailure::new(
                 "career.slot_checksum_mismatch",
                 "A integridade do save não pôde ser confirmada.",
             ));
         }
+        let envelope: SlotEnvelope = serde_json::from_slice(&bytes)
+            .map_err(|error| CareerFailure::new("career.slot_corrupt", error.to_string()))?;
         Ok(envelope)
     }
 
@@ -1296,6 +1307,77 @@ fn slot_checksum(slot: &CareerSlot) -> Result<String, CareerFailure> {
     Ok(format!("sha256:{}", hex(&Sha256::digest(bytes))))
 }
 
+fn raw_slot_json(envelope: &[u8]) -> Option<&[u8]> {
+    let key = b"\"slot\"";
+    let key_start = envelope
+        .windows(key.len())
+        .position(|window| window == key)?;
+    let mut cursor = key_start + key.len();
+    while envelope.get(cursor)?.is_ascii_whitespace() {
+        cursor += 1;
+    }
+    if *envelope.get(cursor)? != b':' {
+        return None;
+    }
+    cursor += 1;
+    while envelope.get(cursor)?.is_ascii_whitespace() {
+        cursor += 1;
+    }
+    if *envelope.get(cursor)? != b'{' {
+        return None;
+    }
+
+    let start = cursor;
+    let mut depth = 0_u32;
+    let mut in_string = false;
+    let mut escaped = false;
+    for (offset, byte) in envelope[start..].iter().copied().enumerate() {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == b'"' {
+                in_string = false;
+            }
+        } else if byte == b'"' {
+            in_string = true;
+        } else if byte == b'{' {
+            depth = depth.checked_add(1)?;
+        } else if byte == b'}' {
+            depth = depth.checked_sub(1)?;
+            if depth == 0 {
+                return envelope.get(start..=start + offset);
+            }
+        }
+    }
+    None
+}
+
+fn raw_slot_checksum(raw: &[u8]) -> String {
+    let mut compact = Vec::with_capacity(raw.len());
+    let mut in_string = false;
+    let mut escaped = false;
+    for byte in raw.iter().copied() {
+        if in_string {
+            compact.push(byte);
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == b'"' {
+                in_string = false;
+            }
+        } else if byte == b'"' {
+            in_string = true;
+            compact.push(byte);
+        } else if !byte.is_ascii_whitespace() {
+            compact.push(byte);
+        }
+    }
+    format!("sha256:{}", hex(&Sha256::digest(compact)))
+}
+
 fn atomic_write_json<T: Serialize>(
     path: &Path,
     value: &T,
@@ -1464,6 +1546,49 @@ mod tests {
         let id = career_id("operation:one", 42);
         assert!(safe_component(&id));
         assert_eq!(id, career_id("operation:one", 42));
+    }
+
+    #[test]
+    fn verifies_the_persisted_slot_shape_before_schema_defaults_are_applied() {
+        #[derive(Deserialize, Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct EvolvedSlot {
+            identity: String,
+            legacy_nested: LegacyNested,
+            #[serde(default)]
+            added_after_the_save_was_created: Option<String>,
+        }
+
+        #[derive(Deserialize, Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct LegacyNested {
+            present_before_schema_evolution: bool,
+            copy: String,
+        }
+
+        let envelope = br#"{
+            "checksum": "kept outside the payload",
+            "slot": {
+                "identity": "career.fixture",
+                "legacyNested": {
+                    "presentBeforeSchemaEvolution": true,
+                    "copy": "whitespace and { braces } inside strings stay intact"
+                }
+            }
+        }"#;
+        let raw = raw_slot_json(envelope).expect("extracts the raw slot");
+        let compact = br#"{"identity":"career.fixture","legacyNested":{"presentBeforeSchemaEvolution":true,"copy":"whitespace and { braces } inside strings stay intact"}}"#;
+        let expected = format!("sha256:{}", hex(&Sha256::digest(compact)));
+        let evolved: EvolvedSlot = serde_json::from_slice(raw).expect("applies the new default");
+        let evolved_checksum = format!(
+            "sha256:{}",
+            hex(&Sha256::digest(
+                serde_json::to_vec(&evolved).expect("serializes the evolved shape")
+            ))
+        );
+
+        assert_eq!(raw_slot_checksum(raw), expected);
+        assert_ne!(evolved_checksum, expected);
     }
 
     #[test]
