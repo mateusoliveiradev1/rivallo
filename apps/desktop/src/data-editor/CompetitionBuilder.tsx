@@ -129,7 +129,7 @@ export function CompetitionBuilder({
     const competition: StudioCompetition = {
       id,
       name: name.trim(),
-      shortName: shortName.trim().toUpperCase(),
+      shortName: shortName.trim(),
       nationId,
       category: 'league',
       level: 1,
@@ -251,12 +251,14 @@ export function CompetitionBuilder({
                 <input onChange={(event) => setName(event.target.value)} value={name} />
               </label>
               <label>
-                Sigla
+                Nome curto ou sigla
                 <input
-                  maxLength={8}
+                  maxLength={32}
                   onChange={(event) => setShortName(event.target.value)}
+                  placeholder="Ex.: Brasileirão"
                   value={shortName}
                 />
+                <small>Pode ser uma sigla ou o nome popular da competição.</small>
               </label>
               <label>
                 País ou região

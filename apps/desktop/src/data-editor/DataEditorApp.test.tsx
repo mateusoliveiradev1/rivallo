@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { userEvent } from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DataEditorApp } from './DataEditorApp.js';
@@ -161,6 +162,67 @@ describe('DataEditorApp', () => {
       ).toBeInstanceOf(HTMLElement);
     });
     expect(clientMock.loadDataPackageCatalog).toHaveBeenCalledTimes(2);
+  });
+
+  it('opens project and installed-mod actions in unclipped accessible menus', async () => {
+    const user = userEvent.setup();
+    clientMock.loadCreatorProjects.mockResolvedValue([
+      {
+        projectId: 'project.meu-mod',
+        name: 'Meu projeto',
+        mode: 'quickMod',
+        status: 'draft',
+        basePackageId: 'official.rivallo.foundation',
+        packageId: 'community.lia.meu-mod',
+        version: '1.0.0',
+        updatedAt: 1,
+        lastExportedAt: null,
+        entityCount: 2,
+      },
+    ]);
+    clientMock.loadDataPackageCatalog.mockResolvedValue([
+      {
+        manifest: {
+          packageId: 'official.rivallo.foundation',
+          name: 'Rivallo Foundation',
+          version: '1.0.0',
+          contentType: 'base',
+        },
+        active: true,
+        validation: validReport,
+      },
+      {
+        manifest: {
+          packageId: 'community.lia.meu-mod',
+          name: 'Meu mod instalado',
+          version: '1.0.0',
+          contentType: 'mod',
+        },
+        active: false,
+        validation: validReport,
+      },
+    ]);
+
+    render(<DataEditorApp />);
+    await screen.findByText('Meu projeto');
+
+    await user.click(screen.getByRole('button', { name: 'Ações de Meu projeto' }));
+    const projectMenu = await screen.findByRole('menu', { name: 'Ações de Meu projeto' });
+    expect(screen.getByRole('menuitem', { name: 'Continuar edição' })).toBeInstanceOf(HTMLElement);
+    expect(document.querySelector('.data-editor-catalog')?.contains(projectMenu)).toBe(false);
+
+    await user.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(screen.queryByRole('menuitem', { name: 'Continuar edição' })).toBeNull();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Ações de Meu mod instalado' }));
+    expect(await screen.findByRole('menuitem', { name: 'Criar nova versão' })).toBeInstanceOf(
+      HTMLElement,
+    );
+    expect(screen.getByRole('menuitem', { name: 'Ver histórico e rollback' })).toBeInstanceOf(
+      HTMLElement,
+    );
   });
 
   it('suppresses the browser prompt on a confirmed branded exit', async () => {

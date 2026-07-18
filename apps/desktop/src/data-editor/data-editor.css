@@ -1213,7 +1213,7 @@
   align-items: flex-start;
 }
 
-.creator-library-group li > button {
+.creator-library-group li > .creator-library-entry {
   min-width: 0;
   flex: 1;
   display: grid;
@@ -1226,42 +1226,17 @@
   cursor: pointer;
 }
 
-.creator-library-group li details summary {
+.creator-library-group li > .rv-icon-button {
+  flex: 0 0 auto;
   width: 28px;
   height: 28px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--rv-radius-control);
-  cursor: pointer;
-  list-style: none;
+  margin: -2px -2px 0 0;
 }
 
-.creator-library-group li details[open] > div {
-  position: absolute;
-  z-index: var(--rv-layer-popover);
-  top: 38px;
-  right: 0;
-  min-width: 190px;
-  display: grid;
-  border: var(--rv-stroke-border) solid var(--rv-color-border-default);
-  border-radius: var(--rv-radius-panel);
-  background: var(--rv-color-surface-elevated);
-  box-shadow: 0 18px 48px rgb(0 0 0 / 34%);
-  padding: var(--rv-space-2);
-}
-
-.creator-library-group li details button {
-  border: 0;
-  border-radius: var(--rv-radius-control);
-  color: var(--rv-color-text);
-  background: transparent;
-  padding: var(--rv-space-2) var(--rv-space-3);
-  text-align: left;
-  cursor: pointer;
-}
-
-.creator-library-group li details button:hover {
-  background: var(--rv-color-surface-raised);
+.creator-library-group li > .rv-icon-button[data-state='open'] {
+  border-color: var(--rv-color-border-default);
+  color: var(--rv-color-text-strong);
+  background: var(--rv-color-selection);
 }
 
 .data-editor-workspace__tools {
@@ -1548,6 +1523,13 @@
   color: var(--rv-color-text);
   font-size: var(--rv-type-12-size);
   font-weight: var(--rv-font-weight-semibold);
+}
+
+.studio-form-grid label > small {
+  color: var(--rv-color-text-muted);
+  font-size: var(--rv-type-12-size);
+  font-weight: var(--rv-font-weight-regular);
+  line-height: var(--rv-type-12-line-height);
 }
 
 .studio-form-grid input,

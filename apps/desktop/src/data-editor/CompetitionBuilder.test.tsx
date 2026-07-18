@@ -43,4 +43,19 @@ describe('CompetitionBuilder', () => {
       participantCount: 20,
     });
   });
+
+  it('accepts Brasileirão as the competition short name without forcing an acronym', () => {
+    const onUpsert = vi.fn();
+    render(<CompetitionBuilder author="Lia" onUpsert={onUpsert} world={world} />);
+    fireEvent.change(screen.getByRole('textbox', { name: /Nome curto ou sigla/u }), {
+      target: { value: 'Brasileirão' },
+    });
+    for (const checkbox of screen.getAllByRole('checkbox')) fireEvent.click(checkbox);
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar competição' }));
+
+    const change = onUpsert.mock.calls[0]?.[0] as {
+      patches: Array<{ entity: { value: { shortName: string } } }>;
+    };
+    expect(change.patches[0]?.entity.value.shortName).toBe('Brasileirão');
+  });
 });

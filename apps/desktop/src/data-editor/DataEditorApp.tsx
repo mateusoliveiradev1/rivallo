@@ -5,6 +5,7 @@ import { exitApplication } from '../career/client.js';
 import { RivalloBrand } from '../matchday/RivalloBrand.js';
 import { WindowControls } from '../matchday/WindowControls.js';
 import { Button } from '../ui/primitives/actions.js';
+import { Menu } from '../ui/primitives/disclosure.js';
 import { Skeleton, Status } from '../ui/primitives/feedback.js';
 import {
   exportDataPackageSource,
@@ -593,7 +594,11 @@ export function DataEditorApp() {
                   <ul>
                     {projects.map((project) => (
                       <li key={project.projectId}>
-                        <button onClick={() => void openProject(project.projectId)} type="button">
+                        <button
+                          className="creator-library-entry"
+                          onClick={() => void openProject(project.projectId)}
+                          type="button"
+                        >
                           <strong>{project.name}</strong>
                           <span>
                             {project.mode === 'quickMod' ? 'Mod rápido' : 'Data Studio'} · v
@@ -609,33 +614,32 @@ export function DataEditorApp() {
                                   : 'Rascunho'}
                           </em>
                         </button>
-                        <details>
-                          <summary aria-label={`Ações de ${project.name}`}>•••</summary>
-                          <div>
-                            <button
-                              onClick={() => void openProject(project.projectId, 'quick')}
-                              type="button"
-                            >
-                              Continuar edição
-                            </button>
-                            <button
-                              onClick={() => void openProject(project.projectId, 'studio')}
-                              type="button"
-                            >
-                              Abrir no Data Studio
-                            </button>
-                            <button
-                              onClick={() =>
+                        <Menu
+                          items={[
+                            {
+                              id: `${project.projectId}.continue`,
+                              label: 'Continuar edição',
+                              onSelect: () => void openProject(project.projectId, 'quick'),
+                              type: 'command',
+                            },
+                            {
+                              id: `${project.projectId}.studio`,
+                              label: 'Abrir no Data Studio',
+                              onSelect: () => void openProject(project.projectId, 'studio'),
+                              type: 'command',
+                            },
+                            {
+                              id: `${project.projectId}.delete`,
+                              label: 'Excluir rascunho',
+                              onSelect: () =>
                                 void deleteCreatorProject(project.projectId).then(async () =>
                                   setProjects(await loadCreatorProjects()),
-                                )
-                              }
-                              type="button"
-                            >
-                              Excluir rascunho
-                            </button>
-                          </div>
-                        </details>
+                                ),
+                              type: 'command',
+                            },
+                          ]}
+                          triggerLabel={`Ações de ${project.name}`}
+                        />
                       </li>
                     ))}
                   </ul>
@@ -659,23 +663,29 @@ export function DataEditorApp() {
                         </em>
                       </div>
                       {entry.manifest.contentType === 'mod' && (
-                        <details>
-                          <summary aria-label={`Ações de ${entry.manifest.name}`}>•••</summary>
-                          <div>
-                            <button onClick={() => void forkPackage(entry, false)} type="button">
-                              Criar nova versão
-                            </button>
-                            <button onClick={() => void forkPackage(entry, true)} type="button">
-                              Duplicar como novo mod
-                            </button>
-                            <button
-                              onClick={() => void showHistory(entry.manifest.packageId)}
-                              type="button"
-                            >
-                              Ver histórico e rollback
-                            </button>
-                          </div>
-                        </details>
+                        <Menu
+                          items={[
+                            {
+                              id: `${entry.manifest.packageId}.new-version`,
+                              label: 'Criar nova versão',
+                              onSelect: () => void forkPackage(entry, false),
+                              type: 'command',
+                            },
+                            {
+                              id: `${entry.manifest.packageId}.duplicate`,
+                              label: 'Duplicar como novo mod',
+                              onSelect: () => void forkPackage(entry, true),
+                              type: 'command',
+                            },
+                            {
+                              id: `${entry.manifest.packageId}.history`,
+                              label: 'Ver histórico e rollback',
+                              onSelect: () => void showHistory(entry.manifest.packageId),
+                              type: 'command',
+                            },
+                          ]}
+                          triggerLabel={`Ações de ${entry.manifest.name}`}
+                        />
                       )}
                     </li>
                   ))}
