@@ -16,10 +16,15 @@ interface CommunityEntityEditorProps {
   readonly world: ModAuthoringWorld;
   readonly author: string;
   readonly onUpsert: (change: CommunityChange) => void;
+  readonly initialKind?: EntityKind;
+  readonly initialEntityId?: string | null;
+  readonly initialMode?: EditorMode;
+  readonly embedded?: boolean;
+  readonly staffMode?: boolean;
 }
 
-type EntityKind = CommunityChange['kind'];
-type EditorMode = CommunityChange['operation'];
+type EntityKind = 'club' | 'player' | 'coach';
+type EditorMode = 'create' | 'edit';
 
 const positions: readonly Position[] = ['GK', 'RB', 'CB', 'LB', 'DM', 'CM', 'AM', 'RW', 'LW', 'ST'];
 const coachAttributeLabels: Readonly<Record<string, string>> = {
@@ -286,13 +291,13 @@ interface CoachDraft {
 
 const defaultCoachAttributes = () =>
   Object.fromEntries(Object.keys(coachAttributeLabels).map((key) => [key, 50]));
-const defaultCoach = (clubId: string): CoachDraft => ({
+const defaultCoach = (clubId: string, staffMode = false): CoachDraft => ({
   fullName: '',
   knownName: '',
   clubId,
   nationality: 'BRA',
   birthDate: '1985-01-01',
-  role: 'Treinador principal',
+  role: staffMode ? 'Auxiliar técnico' : 'Treinador principal',
   reputation: 50,
   qualification: 'Licença nacional',
   experienceYears: 5,
@@ -347,15 +352,33 @@ function AttributeGrid({
   );
 }
 
-export function CommunityEntityEditor({ world, author, onUpsert }: CommunityEntityEditorProps) {
-  const [kind, setKind] = useState<EntityKind>('club');
-  const [mode, setMode] = useState<EditorMode>('create');
-  const [selectedClubId, setSelectedClubId] = useState(world.clubs[0]?.id ?? '');
-  const [selectedPlayerId, setSelectedPlayerId] = useState(world.players[0]?.id ?? '');
-  const [selectedCoachId, setSelectedCoachId] = useState(world.coaches[0]?.identity.entityId ?? '');
+export function CommunityEntityEditor({
+  world,
+  author,
+  onUpsert,
+  initialKind = 'club',
+  initialEntityId = null,
+  initialMode = 'create',
+  embedded = false,
+  staffMode = false,
+}: CommunityEntityEditorProps) {
+  const [kind, setKind] = useState<EntityKind>(initialKind);
+  const [mode, setMode] = useState<EditorMode>(initialMode);
+  const [selectedClubId, setSelectedClubId] = useState(
+    initialKind === 'club' && initialEntityId ? initialEntityId : (world.clubs[0]?.id ?? ''),
+  );
+  const [selectedPlayerId, setSelectedPlayerId] = useState(
+    initialKind === 'player' && initialEntityId ? initialEntityId : (world.players[0]?.id ?? ''),
+  );
+  const [selectedCoachId, setSelectedCoachId] = useState(
+    initialKind === 'coach' && initialEntityId
+      ? initialEntityId
+      : (world.coaches[0]?.identity.entityId ?? ''),
+  );
   const [club, setClub] = useState<Club>(defaultClub());
   const [player, setPlayer] = useState<PlayerDraft>(defaultPlayer(world.activeClubId));
-  const [coach, setCoach] = useState<CoachDraft>(defaultCoach(world.activeClubId));
+  const [coach, setCoach] = useState<CoachDraft>(defaultCoach(world.activeClubId, staffMode));
+  const [includeContract, setIncludeContract] = useState(false);
   const [asset, setAsset] = useState<AuthoringAssetUpload | null>(null);
   const canEditKind =
     kind === 'club'
@@ -363,6 +386,15 @@ export function CommunityEntityEditor({ world, author, onUpsert }: CommunityEnti
       : kind === 'player'
         ? world.players.length > 0
         : world.coaches.length > 0;
+
+  useEffect(() => {
+    setKind(initialKind);
+    setMode(initialMode);
+    if (!initialEntityId) return;
+    if (initialKind === 'club') setSelectedClubId(initialEntityId);
+    if (initialKind === 'player') setSelectedPlayerId(initialEntityId);
+    if (initialKind === 'coach') setSelectedCoachId(initialEntityId);
+  }, [initialEntityId, initialKind, initialMode]);
 
   useEffect(() => {
     if (mode === 'edit' && !canEditKind) setMode('create');
@@ -373,7 +405,8 @@ export function CommunityEntityEditor({ world, author, onUpsert }: CommunityEnti
     if (mode === 'create') {
       setClub(defaultClub());
       setPlayer(defaultPlayer(world.activeClubId));
-      setCoach(defaultCoach(world.activeClubId));
+      setCoach(defaultCoach(world.activeClubId, staffMode));
+      setIncludeContract(false);
       return;
     }
     const nextClub = world.clubs.find((candidate) => candidate.id === selectedClubId);
@@ -383,19 +416,19 @@ export function CommunityEntityEditor({ world, author, onUpsert }: CommunityEnti
     );
     if (kind === 'club' && nextClub) setClub(nextClub);
     if (kind === 'player' && nextPlayer) {
-      setPlayer(
-        playerDraftFrom(
-          nextPlayer,
-          world.activeClubId,
-          world.playerProfiles.find((candidate) => candidate.identity.entityId === nextPlayer.id),
-        ),
+      const nextProfile = world.playerProfiles.find(
+        (candidate) => candidate.identity.entityId === nextPlayer.id,
       );
+      setPlayer(playerDraftFrom(nextPlayer, world.activeClubId, nextProfile));
+      setIncludeContract(Boolean(nextProfile?.contract));
     }
-    if (kind === 'coach' && nextCoach) setCoach(coachDraftFrom(nextCoach));
-  }, [kind, mode, selectedClubId, selectedCoachId, selectedPlayerId, world]);
+    if (kind === 'coach' && nextCoach) {
+      setCoach(coachDraftFrom(nextCoach));
+      setIncludeContract(Boolean(nextCoach.contract));
+    }
+  }, [kind, mode, selectedClubId, selectedCoachId, selectedPlayerId, staffMode, world]);
 
-  const selectedClub = (clubId: string) =>
-    world.clubs.find((candidate) => candidate.id === clubId) ?? world.clubs[0];
+  const selectedClub = (clubId: string) => world.clubs.find((candidate) => candidate.id === clubId);
   const entityId =
     mode === 'edit'
       ? kind === 'club'
@@ -435,7 +468,6 @@ export function CommunityEntityEditor({ world, author, onUpsert }: CommunityEnti
 
   const addPlayer = () => {
     const targetClub = selectedClub(player.clubId);
-    if (!targetClub) return;
     const age = ageFromBirthDate(player.birthDate);
     const matchdayPlayer: Player = {
       id: entityId,
@@ -467,10 +499,10 @@ export function CommunityEntityEditor({ world, author, onUpsert }: CommunityEnti
         nationality: player.nationality,
         birthDate: player.birthDate,
         age,
-        clubId: targetClub.id,
-        clubName: targetClub.name,
-        clubShortName: targetClub.shortName,
-        clubPrimaryColor: targetClub.primaryColor,
+        clubId: targetClub?.id ?? '',
+        clubName: targetClub?.name ?? '',
+        clubShortName: targetClub?.shortName ?? '',
+        clubPrimaryColor: targetClub?.primaryColor ?? '#596579',
       },
       shirtNumber: player.shirtNumber,
       heightCm: player.heightCm,
@@ -483,16 +515,19 @@ export function CommunityEntityEditor({ world, author, onUpsert }: CommunityEnti
         ...player.attributes,
       },
       internalPotential: player.potential,
-      contract: {
-        clubId: targetClub.id,
-        startedAt: `${new Date().getFullYear()}-01-01`,
-        expiresAt: `${new Date().getFullYear() + 3}-12-31`,
-        squadStatus: player.squadRole,
-      },
+      contract:
+        includeContract && targetClub
+          ? {
+              clubId: targetClub.id,
+              startedAt: `${new Date().getFullYear()}-01-01`,
+              expiresAt: `${new Date().getFullYear() + 3}-12-31`,
+              squadStatus: player.squadRole,
+            }
+          : null,
     };
     const operation = mode === 'create' ? 'add' : 'replace';
     const patches =
-      targetClub.id === world.activeClubId
+      targetClub?.id === world.activeClubId
         ? [
             patch(
               operation,
@@ -528,7 +563,7 @@ export function CommunityEntityEditor({ world, author, onUpsert }: CommunityEnti
       operation: mode,
       targetId: entityId,
       label: player.knownName.trim(),
-      summary: `${targetClub.name} · ${player.position} · ${player.currentAbility}/${player.potential}${asset ? ' · com foto' : ''}`,
+      summary: `${targetClub?.name ?? 'Clube pendente'} · ${player.position} · ${player.currentAbility}/${player.potential}${asset ? ' · com foto' : ''}`,
       patches,
       asset: asset
         ? {
@@ -543,7 +578,6 @@ export function CommunityEntityEditor({ world, author, onUpsert }: CommunityEnti
 
   const addCoach = () => {
     const targetClub = selectedClub(coach.clubId);
-    if (!targetClub) return;
     const profile = {
       identity: {
         entityId,
@@ -552,10 +586,10 @@ export function CommunityEntityEditor({ world, author, onUpsert }: CommunityEnti
         nationality: coach.nationality,
         birthDate: coach.birthDate,
         age: ageFromBirthDate(coach.birthDate),
-        clubId: targetClub.id,
-        clubName: targetClub.name,
-        clubShortName: targetClub.shortName,
-        clubPrimaryColor: targetClub.primaryColor,
+        clubId: targetClub?.id ?? '',
+        clubName: targetClub?.name ?? '',
+        clubShortName: targetClub?.shortName ?? '',
+        clubPrimaryColor: targetClub?.primaryColor ?? '#596579',
       },
       role: coach.role,
       reputation: coach.reputation,
@@ -571,12 +605,15 @@ export function CommunityEntityEditor({ world, author, onUpsert }: CommunityEnti
         .split(',')
         .map((item) => item.trim())
         .filter(Boolean),
-      contract: {
-        clubId: targetClub.id,
-        startedAt: `${new Date().getFullYear()}-01-01`,
-        expiresAt: `${new Date().getFullYear() + 2}-12-31`,
-        squadStatus: coach.role,
-      },
+      contract:
+        includeContract && targetClub
+          ? {
+              clubId: targetClub.id,
+              startedAt: `${new Date().getFullYear()}-01-01`,
+              expiresAt: `${new Date().getFullYear() + 2}-12-31`,
+              squadStatus: coach.role,
+            }
+          : null,
     };
     onUpsert({
       id: `coach:${entityId}`,
@@ -584,7 +621,7 @@ export function CommunityEntityEditor({ world, author, onUpsert }: CommunityEnti
       operation: mode,
       targetId: entityId,
       label: coach.knownName.trim(),
-      summary: `${targetClub.name} · ${coach.role}${asset ? ' · com foto' : ''}`,
+      summary: `${targetClub?.name ?? 'Clube pendente'} · ${coach.role}${asset ? ' · com foto' : ''}`,
       patches: [
         patch(
           mode === 'create' ? 'add' : 'replace',
@@ -599,8 +636,9 @@ export function CommunityEntityEditor({ world, author, onUpsert }: CommunityEnti
         ? {
             ...asset,
             entityId,
-            id: `asset.${slug(entityId)}.coachPortrait`,
-            path: `assets/coachPortrait/${slug(entityId)}.${asset.mediaType === 'image/png' ? 'png' : asset.mediaType === 'image/jpeg' ? 'jpeg' : 'webp'}`,
+            id: `asset.${slug(entityId)}.${staffMode ? 'staffPortrait' : 'coachPortrait'}`,
+            kind: staffMode ? 'staffPortrait' : 'coachPortrait',
+            path: `assets/${staffMode ? 'staffPortrait' : 'coachPortrait'}/${slug(entityId)}.${asset.mediaType === 'image/png' ? 'png' : asset.mediaType === 'image/jpeg' ? 'jpeg' : 'webp'}`,
           }
         : null,
     });
@@ -611,59 +649,69 @@ export function CommunityEntityEditor({ world, author, onUpsert }: CommunityEnti
       ? { title: club.name || 'Novo clube', media: 'Escudo do clube' }
       : kind === 'player'
         ? { title: player.knownName || 'Novo jogador', media: 'Foto do jogador' }
-        : { title: coach.knownName || 'Novo treinador', media: 'Foto do treinador' };
+        : {
+            title: coach.knownName || (staffMode ? 'Novo profissional' : 'Novo treinador'),
+            media: staffMode ? 'Foto do profissional' : 'Foto do treinador',
+          };
   const valid =
     kind === 'club'
-      ? Boolean(club.name.trim() && club.shortName.trim() && club.city.trim())
+      ? Boolean(club.name.trim() && club.shortName.trim())
       : kind === 'player'
         ? Boolean(
             player.fullName.trim() &&
             player.knownName.trim() &&
-            player.clubId &&
             player.potential >= player.currentAbility,
           )
-        : Boolean(coach.fullName.trim() && coach.knownName.trim() && coach.clubId);
+        : Boolean(coach.fullName.trim() && coach.knownName.trim());
 
   return (
     <div className="community-studio">
-      <div className="community-studio__toolbar">
-        <div aria-label="Conteúdo que deseja criar" className="community-kind-tabs" role="tablist">
-          {(['club', 'player', 'coach'] as const).map((item) => (
+      {!embedded && (
+        <div className="community-studio__toolbar">
+          <div
+            aria-label="Conteúdo que deseja criar"
+            className="community-kind-tabs"
+            role="tablist"
+          >
+            {(['club', 'player', 'coach'] as const).map((item) => (
+              <button
+                aria-selected={kind === item}
+                key={item}
+                onClick={() => setKind(item)}
+                role="tab"
+                type="button"
+              >
+                <Icon name={item === 'club' ? 'club' : 'staff'} size={20} />
+                <span>
+                  {item === 'club' ? 'Clube' : item === 'player' ? 'Jogador' : 'Treinador'}
+                </span>
+              </button>
+            ))}
+          </div>
+          <div aria-label="Criar ou editar" className="community-mode-switch" role="radiogroup">
             <button
-              aria-selected={kind === item}
-              key={item}
-              onClick={() => setKind(item)}
-              role="tab"
+              aria-checked={mode === 'create'}
+              onClick={() => setMode('create')}
+              role="radio"
               type="button"
             >
-              <Icon name={item === 'club' ? 'club' : 'staff'} size={20} />
-              <span>{item === 'club' ? 'Clube' : item === 'player' ? 'Jogador' : 'Treinador'}</span>
+              Criar novo
             </button>
-          ))}
+            <button
+              aria-checked={mode === 'edit'}
+              disabled={!canEditKind}
+              onClick={() => setMode('edit')}
+              role="radio"
+              title={!canEditKind ? 'Não há itens desta categoria para editar' : undefined}
+              type="button"
+            >
+              Editar existente
+            </button>
+          </div>
         </div>
-        <div aria-label="Criar ou editar" className="community-mode-switch" role="radiogroup">
-          <button
-            aria-checked={mode === 'create'}
-            onClick={() => setMode('create')}
-            role="radio"
-            type="button"
-          >
-            Criar novo
-          </button>
-          <button
-            aria-checked={mode === 'edit'}
-            disabled={!canEditKind}
-            onClick={() => setMode('edit')}
-            role="radio"
-            title={!canEditKind ? 'Não há itens desta categoria para editar' : undefined}
-            type="button"
-          >
-            Editar existente
-          </button>
-        </div>
-      </div>
+      )}
 
-      {mode === 'edit' && (
+      {mode === 'edit' && !embedded && (
         <label className="community-target-picker">
           <span>Quem você quer editar?</span>
           {kind === 'club' ? (
@@ -709,7 +757,13 @@ export function CommunityEntityEditor({ world, author, onUpsert }: CommunityEnti
           author={author}
           entityId={entityId}
           kind={
-            kind === 'club' ? 'clubCrest' : kind === 'player' ? 'playerPortrait' : 'coachPortrait'
+            kind === 'club'
+              ? 'clubCrest'
+              : kind === 'player'
+                ? 'playerPortrait'
+                : staffMode
+                  ? 'staffPortrait'
+                  : 'coachPortrait'
           }
           label={labels.media}
           onChange={setAsset}
@@ -899,6 +953,7 @@ export function CommunityEntityEditor({ world, author, onUpsert }: CommunityEnti
                     onChange={(event) => setPlayer({ ...player, clubId: event.target.value })}
                     value={player.clubId}
                   >
+                    <option value="">Resolver vínculo depois</option>
                     {world.clubs.map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.name}
@@ -906,6 +961,16 @@ export function CommunityEntityEditor({ world, author, onUpsert }: CommunityEnti
                     ))}
                   </select>
                   {mode === 'edit' && <small>O clube de origem é preservado nesta edição.</small>}
+                </label>
+                <label className="data-editor-form-grid__wide studio-checkbox-field">
+                  <input
+                    checked={includeContract}
+                    disabled={!player.clubId}
+                    onChange={(event) => setIncludeContract(event.target.checked)}
+                    type="checkbox"
+                  />
+                  Criar contrato inicial agora
+                  <small>Opcional. O contrato pode ser criado depois no módulo Contratos.</small>
                 </label>
                 <label>
                   Nacionalidade
@@ -1069,15 +1134,27 @@ export function CommunityEntityEditor({ world, author, onUpsert }: CommunityEnti
                 <label>
                   Clube
                   <select
+                    aria-label="Clube"
                     onChange={(event) => setCoach({ ...coach, clubId: event.target.value })}
                     value={coach.clubId}
                   >
+                    <option value="">Resolver vínculo depois</option>
                     {world.clubs.map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.name}
                       </option>
                     ))}
                   </select>
+                </label>
+                <label className="data-editor-form-grid__wide studio-checkbox-field">
+                  <input
+                    checked={includeContract}
+                    disabled={!coach.clubId}
+                    onChange={(event) => setIncludeContract(event.target.checked)}
+                    type="checkbox"
+                  />
+                  Criar contrato inicial agora
+                  <small>Opcional. O vínculo pode ser completado no módulo Contratos.</small>
                 </label>
                 <label>
                   Nacionalidade
@@ -1102,10 +1179,20 @@ export function CommunityEntityEditor({ world, author, onUpsert }: CommunityEnti
                 </label>
                 <label>
                   Cargo
-                  <input
+                  <select
                     onChange={(event) => setCoach({ ...coach, role: event.target.value })}
                     value={coach.role}
-                  />
+                  >
+                    <option>Treinador principal</option>
+                    <option>Auxiliar técnico</option>
+                    <option>Preparador físico</option>
+                    <option>Treinador de goleiros</option>
+                    <option>Analista</option>
+                    <option>Médico</option>
+                    <option>Fisioterapeuta</option>
+                    <option>Olheiro</option>
+                    <option>Outro</option>
+                  </select>
                 </label>
                 <label>
                   Qualificação

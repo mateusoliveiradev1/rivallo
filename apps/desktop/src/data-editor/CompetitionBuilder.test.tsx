@@ -58,4 +58,31 @@ describe('CompetitionBuilder', () => {
     };
     expect(change.patches[0]?.entity.value.shortName).toBe('Brasileirão');
   });
+
+  it('saves a competition draft without participants and exposes every supported template', () => {
+    const onUpsert = vi.fn();
+    render(<CompetitionBuilder author="Lia" onUpsert={onUpsert} world={world} />);
+
+    for (const label of [
+      'Liga · turno único',
+      'Liga · turno e returno',
+      'Mata-mata',
+      'Mata-mata ida e volta',
+      'Grupos',
+      'Grupos + mata-mata',
+      'Múltiplos estágios',
+      'Template vazio',
+    ]) {
+      expect(screen.getByRole('radio', { name: label })).toBeInstanceOf(HTMLElement);
+    }
+
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar competição' }));
+    const change = onUpsert.mock.calls[0]?.[0] as {
+      patches: Array<{
+        entity: { value: { seasons: Array<{ participantClubIds: string[]; rules: object }> } };
+      }>;
+    };
+    expect(change.patches[0]?.entity.value.seasons[0]?.participantClubIds).toEqual([]);
+    expect(change.patches[0]?.entity.value.seasons[0]?.rules).not.toHaveProperty('fixtures');
+  });
 });

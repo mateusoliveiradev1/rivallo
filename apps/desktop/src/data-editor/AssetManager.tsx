@@ -32,7 +32,9 @@ export function AssetManager({
     ...world.coaches.map((item) => ({
       id: item.identity.entityId,
       label: item.identity.knownName,
-      kind: 'coachPortrait' as const,
+      kind: item.role.toLowerCase().includes('principal')
+        ? ('coachPortrait' as const)
+        : ('staffPortrait' as const),
     })),
   ];
   const entities = [
@@ -48,9 +50,13 @@ export function AssetManager({
   const [selectedPeople, setSelectedPeople] = useState<string[]>([]);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState('');
+  const [preview, setPreview] = useState('');
+  const [currentAssetId, setCurrentAssetId] = useState('');
+  const [framing, setFraming] = useState(50);
   const cancelled = useRef(false);
 
-  const addAsset = (asset: AuthoringAssetUpload, label: string) =>
+  const addAsset = (asset: AuthoringAssetUpload, label: string) => {
+    setCurrentAssetId(asset.id);
     onUpsert({
       id: `asset:${asset.id}`,
       kind: 'asset',
@@ -61,6 +67,24 @@ export function AssetManager({
       patches: [],
       asset,
     });
+  };
+  const removeAsset = () => {
+    if (!currentAssetId) return;
+    const entity = entities.find((item) => item.id === entityId);
+    onUpsert({
+      id: `asset:${currentAssetId}`,
+      kind: 'asset',
+      operation: 'delete',
+      targetId: currentAssetId,
+      label: entity?.label ?? 'Asset',
+      summary: 'Imagem removida; o fallback visual será usado.',
+      patches: [],
+      asset: null,
+    });
+    if (preview.startsWith('blob:')) URL.revokeObjectURL(preview);
+    setPreview('');
+    setCurrentAssetId('');
+  };
   const upload = async (file: File | undefined) => {
     setError('');
     if (!file) return;
@@ -71,6 +95,8 @@ export function AssetManager({
     const entity = entities.find((item) => item.id === entityId);
     if (!entity) return;
     const bytes = [...new Uint8Array(await file.arrayBuffer())];
+    if (preview.startsWith('blob:')) URL.revokeObjectURL(preview);
+    setPreview(URL.createObjectURL(file));
     addAsset(
       {
         id: `asset.${entity.id}.${entity.kind}`,
@@ -94,6 +120,12 @@ export function AssetManager({
       if (!person) continue;
       const recipe = randomizePortrait(defaultPortraitRecipe(), 'all', 1000 + index * 7919);
       const rendered = await renderPortraitUpload(recipe);
+      if (index === 0) {
+        if (preview.startsWith('blob:')) URL.revokeObjectURL(preview);
+        setPreview(
+          URL.createObjectURL(new Blob([new Uint8Array(rendered.bytes)], { type: 'image/png' })),
+        );
+      }
       addAsset(
         {
           id: `asset.${person.id}.${person.kind}`,
@@ -153,6 +185,57 @@ export function AssetManager({
             </span>
           </label>
           {error && <p role="alert">{error}</p>}
+          {preview && (
+            <div className="asset-preview-suite">
+              <div>
+                <span>Perfil</span>
+                <img
+                  alt="Preview em perfil"
+                  src={preview}
+                  style={{ objectPosition: `50% ${framing}%` }}
+                />
+              </div>
+              <div>
+                <span>Card</span>
+                <img
+                  alt="Preview em card"
+                  src={preview}
+                  style={{ objectPosition: `50% ${framing}%` }}
+                />
+              </div>
+              <div>
+                <span>Mini-card</span>
+                <img
+                  alt="Preview na sidebar"
+                  src={preview}
+                  style={{ objectPosition: `50% ${framing}%` }}
+                />
+              </div>
+            </div>
+          )}
+          {preview && (
+            <label>
+              Enquadramento vertical
+              <input
+                aria-label="Enquadramento vertical"
+                max={100}
+                min={0}
+                onChange={(event) => setFraming(Number(event.target.value))}
+                type="range"
+                value={framing}
+              />
+            </label>
+          )}
+          {preview && (
+            <div className="asset-preview-actions">
+              <Button onClick={removeAsset} variant="secondary">
+                Remover imagem
+              </Button>
+              <Button onClick={removeAsset} variant="secondary">
+                Usar fallback
+              </Button>
+            </div>
+          )}
         </section>
         <section className="studio-panel">
           <div className="studio-panel__heading">

@@ -1,16 +1,31 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { Button } from '../ui/primitives/actions.js';
 import { AssetManager } from './AssetManager.js';
-import { CommunityEntityEditor } from './CommunityEntityEditor.js';
-import { CompetitionBuilder } from './CompetitionBuilder.js';
+import {
+  dependentRecords,
+  projectAuthoringWorld,
+  readinessForEntity,
+  recordsForModule,
+  removalChange,
+  type StudioEntityRecord,
+  type StudioModuleId,
+} from './authoring-graph.js';
 import { CsvImport } from './CsvImport.js';
 import { PackageValidationSummary } from './PackageValidationSummary.js';
-import type { CommunityChange, ModAuthoringWorld, PackageValidationReport } from './types.js';
+import { StudioEntityEditor } from './StudioEntityEditor.js';
+import type {
+  AuthoringPlayerProfile,
+  CommunityChange,
+  GeneratedPackagePatch,
+  ModAuthoringWorld,
+  PackageValidationReport,
+} from './types.js';
 
 const modules = [
   ['overview', 'Visão geral'],
-  ['nations', 'Nações e regiões'],
+  ['nations', 'Nações'],
+  ['regions', 'Regiões'],
   ['cities', 'Cidades'],
   ['stadiums', 'Estádios'],
   ['clubs', 'Clubes'],
@@ -30,26 +45,220 @@ const modules = [
 
 type StudioModule = (typeof modules)[number][0] | 'import' | 'sandbox';
 
-const labelFor = (kind: CommunityChange['kind']) =>
-  ({
-    club: 'Clube',
-    player: 'Jogador',
-    coach: 'Treinador',
-    nation: 'Nação',
-    region: 'Região',
-    city: 'Cidade',
-    stadium: 'Estádio',
-    competition: 'Competição',
-    season: 'Temporada',
-    registration: 'Inscrição',
-    asset: 'Asset',
-  })[kind];
+const editableModules: readonly StudioModuleId[] = [
+  'nations',
+  'regions',
+  'cities',
+  'stadiums',
+  'clubs',
+  'players',
+  'coaches',
+  'staff',
+  'competitions',
+  'seasons',
+  'contracts',
+  'registrations',
+  'translations',
+];
+
+const labelForModule = (module: StudioModule) =>
+  modules.find(([id]) => id === module)?.[1] ??
+  (module === 'import' ? 'Importação CSV' : 'Sandbox');
+
+const csvEscape = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+
+const exportRecords = (module: StudioModuleId, records: readonly StudioEntityRecord[]) => {
+  const rows = [
+    ['internalId', 'name', 'detail'],
+    ...records.map((record) => [record.id, record.name, record.detail]),
+  ];
+  const blob = new Blob([rows.map((row) => row.map(csvEscape).join(',')).join('\n')], {
+    type: 'text/csv;charset=utf-8',
+  });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `rivallo-${module}.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+};
+
+const cloneId = (id: string) => `${id}.copy-${Date.now().toString(36)}`;
+
+function duplicateRecord(
+  record: StudioEntityRecord,
+  world: ModAuthoringWorld,
+): CommunityChange | null {
+  const id = cloneId(record.id);
+  const simpleKind: Partial<Record<StudioModuleId, GeneratedPackagePatch['entityKind']>> = {
+    nations: 'nation',
+    regions: 'region',
+    cities: 'city',
+    stadiums: 'stadium',
+    clubs: 'club',
+    coaches: 'coach',
+    staff: 'coach',
+    competitions: 'competition',
+  };
+  if (record.module === 'players') {
+    const player = world.players.find((item) => item.id === record.id);
+    const profile = world.playerProfiles.find((item) => item.identity.entityId === record.id);
+    if (!player || !profile) return null;
+    const nextProfile: AuthoringPlayerProfile = {
+      ...profile,
+      identity: {
+        ...profile.identity,
+        entityId: id,
+        fullName: `${profile.identity.fullName} — cópia`,
+        knownName: `${profile.identity.knownName} — cópia`,
+      },
+    };
+    const external = profile.identity.clubId !== world.activeClubId;
+    return {
+      id: `player:${id}`,
+      kind: 'player',
+      operation: 'duplicate',
+      targetId: id,
+      label: nextProfile.identity.knownName,
+      summary: 'Cópia independente com novo ID estável',
+      patches: external
+        ? [
+            {
+              operation: 'add',
+              entityKind: 'externalPlayer',
+              targetId: id,
+              entity: {
+                kind: 'externalPlayer',
+                value: {
+                  profile: nextProfile,
+                  condition: null,
+                  matchFitness: null,
+                  appearances: 0,
+                  goals: 0,
+                  assists: 0,
+                  averageRating: null,
+                },
+              },
+              reason: 'Jogador duplicado no Creator Studio',
+            },
+          ]
+        : [
+            {
+              operation: 'add',
+              entityKind: 'matchdayPlayer',
+              targetId: id,
+              entity: {
+                kind: 'matchdayPlayer',
+                value: {
+                  ...player,
+                  id,
+                  name: `${player.name} — cópia`,
+                  shortName: `${player.shortName} — cópia`,
+                },
+              },
+              reason: 'Jogador duplicado no Creator Studio',
+            },
+            {
+              operation: 'add',
+              entityKind: 'playerProfile',
+              targetId: id,
+              entity: { kind: 'playerProfile', value: nextProfile },
+              reason: 'Perfil duplicado no Creator Studio',
+            },
+          ],
+      asset: null,
+    };
+  }
+  const entityKind = simpleKind[record.module];
+  if (!entityKind || typeof record.value !== 'object' || record.value === null) return null;
+  const value = {
+    ...(record.value as Record<string, unknown>),
+    id,
+    ...(entityKind === 'coach'
+      ? {
+          identity: {
+            ...((record.value as { identity: Record<string, unknown> }).identity ?? {}),
+            entityId: id,
+            fullName: `${record.name} — cópia`,
+            knownName: `${record.name} — cópia`,
+          },
+        }
+      : { name: `${record.name} — cópia` }),
+  };
+  const kind =
+    record.module === 'staff'
+      ? 'coach'
+      : record.module === 'competitions'
+        ? 'competition'
+        : (record.module.slice(0, -1) as CommunityChange['kind']);
+  return {
+    id: `${entityKind}:${id}`,
+    kind,
+    operation: 'duplicate',
+    targetId: id,
+    label: `${record.name} — cópia`,
+    summary: 'Cópia independente com novo ID estável',
+    patches: [
+      {
+        operation: 'add',
+        entityKind,
+        targetId: id,
+        entity: { kind: entityKind, value },
+        reason: `${record.name} duplicado no Creator Studio`,
+      },
+    ],
+    asset: null,
+  };
+}
+
+function ModuleEmptyState({
+  module,
+  onCreate,
+  onImport,
+}: {
+  readonly module: StudioModuleId;
+  readonly onCreate: () => void;
+  readonly onImport: () => void;
+}) {
+  const copy: Partial<Record<StudioModuleId, [string, string]>> = {
+    staff: [
+      'Nenhum membro da comissão',
+      'Adicione treinador, auxiliares e profissionais do clube ou importe uma planilha.',
+    ],
+    cities: ['Nenhuma cidade', 'Crie cidades independentemente de clubes e vincule-as depois.'],
+    stadiums: ['Nenhum estádio', 'Cadastre o estádio agora; o clube proprietário é opcional.'],
+    players: ['Nenhum jogador', 'Crie jogadores visualmente ou importe uma base grande por CSV.'],
+    contracts: ['Nenhum contrato', 'Selecione uma pessoa e registre o vínculo com um clube.'],
+    registrations: [
+      'Nenhuma inscrição',
+      'Vincule jogador, clube e temporada quando estiverem prontos.',
+    ],
+  };
+  const [title, description] = copy[module] ?? [
+    `Nenhum item em ${labelForModule(module).toLowerCase()}`,
+    'Crie o primeiro rascunho ou importe dados com IDs estáveis.',
+  ];
+  return (
+    <div className="studio-actionable-empty">
+      <h3>{title}</h3>
+      <p>{description}</p>
+      <div>
+        <Button onClick={onCreate} variant="primary">
+          Criar novo
+        </Button>
+        <Button onClick={onImport} variant="secondary">
+          Importar CSV
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export function DataStudio({
   world,
   author,
   changes,
   initialModule,
+  initialEntity,
   report,
   onUpsert,
   onBatch,
@@ -60,6 +269,7 @@ export function DataStudio({
   readonly author: string;
   readonly changes: readonly CommunityChange[];
   readonly initialModule?: string | null;
+  readonly initialEntity?: string | null;
   readonly report: PackageValidationReport | null;
   readonly onUpsert: (change: CommunityChange) => void;
   readonly onBatch: (changes: readonly CommunityChange[]) => void;
@@ -71,76 +281,132 @@ export function DataStudio({
     : 'overview';
   const [module, setModule] = useState<StudioModule>(safeInitial);
   const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selected, setSelected] = useState<string[]>(initialEntity ? [initialEntity] : []);
+  const [activeId, setActiveId] = useState(initialEntity ?? '');
   const [page, setPage] = useState(0);
-  const tableRows = useMemo(() => {
-    const source =
-      module === 'clubs'
-        ? world.clubs.map((item) => ({
-            id: item.id,
-            name: item.name,
-            detail: `${item.city} · ${item.shortName}`,
-          }))
-        : module === 'players'
-          ? world.players.map((item) => ({
-              id: item.id,
-              name: item.name,
-              detail: `${item.position} · ${item.rating}/${item.potentialRating}`,
-            }))
-          : module === 'coaches'
-            ? world.coaches.map((item) => ({
-                id: item.identity.entityId,
-                name: item.identity.knownName,
-                detail: `${item.role} · ${item.identity.clubName}`,
-              }))
-            : module === 'nations'
-              ? world.nations.map((item) => ({ id: item.id, name: item.name, detail: item.iso2 }))
-              : module === 'cities'
-                ? (world.cities ?? []).map((item) => ({
-                    id: item.id,
-                    name: item.name,
-                    detail: item.nationId,
-                  }))
-                : module === 'stadiums'
-                  ? (world.stadiums ?? []).map((item) => ({
-                      id: item.id,
-                      name: item.name,
-                      detail: `${item.capacity.toLocaleString('pt-BR')} lugares`,
-                    }))
-                  : [];
-    return source.filter((item) =>
-      `${item.name} ${item.detail}`.toLowerCase().includes(search.trim().toLowerCase()),
-    );
-  }, [module, search, world]);
-  const visibleRows = tableRows.slice(page * 50, page * 50 + 50);
-  const entityModule = ['clubs', 'players', 'coaches'].includes(module);
+  const [editorMode, setEditorMode] = useState<'create' | 'edit' | null>(
+    initialEntity ? 'edit' : null,
+  );
+  const [onlyPending, setOnlyPending] = useState(false);
+  const [showDependencies, setShowDependencies] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkConfirm, setBulkConfirm] = useState(false);
+  const draftWorld = useMemo(() => projectAuthoringWorld(world, changes), [changes, world]);
+  const moduleRecords = useMemo(
+    () =>
+      editableModules.includes(module as StudioModuleId) || ['assets', 'patches'].includes(module)
+        ? recordsForModule(draftWorld, changes, module as StudioModuleId)
+        : [],
+    [changes, draftWorld, module],
+  );
+  const filteredRows = moduleRecords.filter((item) => {
+    const query = search.trim().toLocaleLowerCase('pt-BR');
+    const matchesSearch = `${item.name} ${item.detail}`.toLocaleLowerCase('pt-BR').includes(query);
+    return matchesSearch && (!onlyPending || item.readiness?.issues.length);
+  });
+  const visibleRows = filteredRows.slice(page * 100, page * 100 + 100);
+  const activeRecord = moduleRecords.find((item) => item.id === activeId) ?? null;
+  const dependencies = activeRecord ? dependentRecords(draftWorld, activeRecord) : [];
+  const isEntityModule = editableModules.includes(module as StudioModuleId);
+  const canMutate = Boolean(activeRecord && isEntityModule);
+  const moduleReadiness = activeRecord
+    ? readinessForEntity(draftWorld, activeRecord.module, activeRecord.id)
+    : null;
+
+  const navigate = (next: StudioModule, id?: string) => {
+    setModule(next);
+    setPage(0);
+    setSearch('');
+    setSelected(id ? [id] : []);
+    setActiveId(id ?? '');
+    setEditorMode(id ? 'edit' : null);
+    setShowDependencies(false);
+  };
+  const startCreate = (next: StudioModuleId) => {
+    navigate(next);
+    setEditorMode('create');
+  };
+
+  const applyDelete = () => {
+    if (!activeRecord) return;
+    const change = removalChange(activeRecord, draftWorld);
+    if (change) onUpsert(change);
+    setConfirmDelete(false);
+    setEditorMode(null);
+    setActiveId('');
+    setSelected([]);
+  };
+
+  const selectedRecords = moduleRecords.filter((item) => selected.includes(item.id));
+  const applyBulkDuplicate = () => {
+    const batch = selectedRecords
+      .map((record) => duplicateRecord(record, draftWorld))
+      .filter((change): change is CommunityChange => Boolean(change));
+    if (batch.length) onBatch(batch);
+    setBulkOpen(false);
+  };
+  const applyBulkDelete = () => {
+    const batch = selectedRecords
+      .map((record) => removalChange(record, draftWorld))
+      .filter((change): change is CommunityChange => Boolean(change));
+    if (batch.length) onBatch(batch);
+    setSelected([]);
+    setActiveId('');
+    setEditorMode(null);
+    setBulkConfirm(false);
+    setBulkOpen(false);
+  };
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const isTyping = Boolean(
+        target?.closest('input, textarea, select, [contenteditable="true"]'),
+      );
+      if (event.key === 'Escape' && (editorMode || activeRecord || confirmDelete || bulkOpen)) {
+        setEditorMode(null);
+        setActiveId('');
+        setConfirmDelete(false);
+        setBulkConfirm(false);
+        setBulkOpen(false);
+      }
+      if (event.key === 'Delete' && activeRecord && !isTyping) {
+        event.preventDefault();
+        setConfirmDelete(true);
+      }
+      if (event.key === 'Enter' && activeRecord && !isTyping) {
+        event.preventDefault();
+        setEditorMode('edit');
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [activeRecord, bulkOpen, confirmDelete, editorMode]);
 
   return (
     <div className="data-studio">
       <aside className="data-studio__nav" aria-label="Módulos do Data Studio">
         <div>
           <strong>Data Studio</strong>
-          <span>Base completa</span>
+          <span>Um único draft canônico</span>
         </div>
         <nav>
           {modules.map(([id, label]) => (
             <button
               aria-current={module === id ? 'page' : undefined}
               key={id}
-              onClick={() => {
-                setModule(id);
-                setPage(0);
-              }}
+              onClick={() => navigate(id)}
               type="button"
             >
               {label}
             </button>
           ))}
         </nav>
-        <button className="data-studio__import" onClick={() => setModule('import')} type="button">
+        <button className="data-studio__import" onClick={() => navigate('import')} type="button">
           Importar CSV
         </button>
-        <button className="data-studio__sandbox" onClick={() => setModule('sandbox')} type="button">
+        <button className="data-studio__sandbox" onClick={() => navigate('sandbox')} type="button">
           Testar em sandbox
         </button>
       </aside>
@@ -150,24 +416,24 @@ export function DataStudio({
             <header>
               <span>Visão geral</span>
               <h2>Sua base, de ponta a ponta</h2>
-              <p>Crie, importe, relacione, valide e distribua no mesmo projeto canônico.</p>
+              <p>Crie em qualquer ordem, relacione depois e distribua sem editar JSON.</p>
             </header>
             <dl className="studio-metrics">
               <div>
                 <dt>Clubes</dt>
-                <dd>{world.clubs.length}</dd>
+                <dd>{draftWorld.clubs.length}</dd>
               </div>
               <div>
                 <dt>Jogadores</dt>
-                <dd>{world.players.length}</dd>
+                <dd>{draftWorld.players.length}</dd>
               </div>
               <div>
                 <dt>Profissionais</dt>
-                <dd>{world.coaches.length}</dd>
+                <dd>{draftWorld.coaches.length}</dd>
               </div>
               <div>
                 <dt>Competições</dt>
-                <dd>{world.competitions?.length ?? 0}</dd>
+                <dd>{draftWorld.competitions?.length ?? 0}</dd>
               </div>
               <div>
                 <dt>Mudanças</dt>
@@ -178,48 +444,49 @@ export function DataStudio({
                 <dd>{changes.filter((item) => item.asset).length}</dd>
               </div>
             </dl>
-            <section className="studio-panel studio-readiness">
-              <div>
-                <h3>Checklist da base</h3>
-                <p>O Creator Studio mantém a definição separada da simulação esportiva.</p>
+            <section className="studio-validity-model">
+              <div data-state="draft">
+                <strong>1 · Rascunho editável</strong>
+                <span>Pode ter relações pendentes e é salvo com segurança.</span>
               </div>
-              <ul>
-                <li data-complete={world.nations.length > 0}>Identidades territoriais</li>
-                <li data-complete={(world.competitions?.length ?? 0) > 0}>
-                  Competições e temporadas
-                </li>
-                <li data-complete={world.clubs.length > 0}>Clubes e relações</li>
-                <li data-complete={world.players.length >= 18}>Elencos</li>
-                <li data-complete={world.coaches.length > 0}>Treinadores</li>
-              </ul>
+              <div data-state="valid">
+                <strong>2 · Estruturalmente válido</strong>
+                <span>Schema, IDs, referências e assets prontos para exportar.</span>
+              </div>
+              <div data-state="career">
+                <strong>3 · Pronto para Nova Carreira</strong>
+                <span>Temporada, inscrição, elenco, goleiro e treinador confirmados.</span>
+              </div>
             </section>
             <div className="studio-quick-actions">
-              <Button onClick={() => setModule('competitions')} variant="primary">
+              <Button onClick={() => startCreate('cities')} variant="primary">
+                Criar cidade
+              </Button>
+              <Button onClick={() => startCreate('clubs')} variant="secondary">
+                Criar clube
+              </Button>
+              <Button onClick={() => startCreate('competitions')} variant="secondary">
                 Criar competição
               </Button>
-              <Button onClick={() => setModule('import')} variant="secondary">
+              <Button onClick={() => navigate('import')} variant="secondary">
                 Importar dados
-              </Button>
-              <Button onClick={() => setModule('assets')} variant="secondary">
-                Gerenciar assets
               </Button>
             </div>
           </section>
         )}
 
-        {module === 'competitions' && (
-          <CompetitionBuilder author={author} onUpsert={onUpsert} world={world} />
+        {module === 'assets' && (
+          <AssetManager author={author} onUpsert={onUpsert} world={draftWorld} />
         )}
-        {module === 'assets' && <AssetManager author={author} onUpsert={onUpsert} world={world} />}
         {module === 'import' && (
-          <CsvImport onImport={onBatch} onRollback={onRollback} world={world} />
+          <CsvImport onImport={onBatch} onRollback={onRollback} world={draftWorld} />
         )}
         {module === 'validation' && (
           <section className="studio-validation">
             <header>
-              <span>Validação incremental</span>
-              <h2>Erros, warnings e impacto</h2>
-              <p>Diagnósticos apontam a entidade, o campo e a correção sugerida.</p>
+              <span>Validação completa</span>
+              <h2>Problemas com contexto e ação</h2>
+              <p>O rascunho continua editável; a exportação exige validade estrutural.</p>
             </header>
             <Button onClick={() => void onValidate()} variant="primary">
               Validar projeto
@@ -227,7 +494,7 @@ export function DataStudio({
             {report ? (
               <PackageValidationSummary report={report} />
             ) : (
-              <p className="studio-empty">O projeto ainda não foi validado nesta sessão.</p>
+              <p className="studio-empty">Valide quando quiser revisar o pacote inteiro.</p>
             )}
           </section>
         )}
@@ -235,30 +502,29 @@ export function DataStudio({
           <section className="studio-sandbox">
             <header>
               <span>Snapshot temporário</span>
-              <h2>Sandbox do pacote</h2>
-              <p>Simule a leitura do conteúdo sem criar carreira ou alterar saves existentes.</p>
+              <h2>Teste sem alterar carreiras</h2>
+              <p>
+                A validação resolve o pacote em memória; não cria calendário, partidas ou
+                resultados.
+              </p>
             </header>
             <div className="sandbox-summary">
               <dl>
                 <div>
                   <dt>Clubes</dt>
-                  <dd>{world.clubs.length}</dd>
+                  <dd>{draftWorld.clubs.length}</dd>
                 </div>
                 <div>
                   <dt>Jogadores</dt>
-                  <dd>{world.players.length}</dd>
+                  <dd>{draftWorld.players.length}</dd>
                 </div>
                 <div>
                   <dt>Treinadores</dt>
-                  <dd>{world.coaches.length}</dd>
+                  <dd>{draftWorld.coaches.length}</dd>
                 </div>
                 <div>
                   <dt>Competições</dt>
-                  <dd>{world.competitions?.length ?? 0}</dd>
-                </div>
-                <div>
-                  <dt>Retratos/assets</dt>
-                  <dd>{changes.filter((item) => item.asset).length}</dd>
+                  <dd>{draftWorld.competitions?.length ?? 0}</dd>
                 </div>
               </dl>
               <Button onClick={() => void onValidate()} variant="primary">
@@ -268,55 +534,209 @@ export function DataStudio({
             {report && <PackageValidationSummary report={report} />}
           </section>
         )}
+        {module === 'advanced' && (
+          <section className="studio-advanced-notice">
+            <h2>Configuração avançada</h2>
+            <p>
+              JSON é somente leitura neste modo. Use os módulos visuais para alterar o draft
+              canônico.
+            </p>
+            <Button onClick={() => navigate('patches')} variant="secondary">
+              Revisar patches semanticamente
+            </Button>
+          </section>
+        )}
 
-        {(entityModule || ['nations', 'cities', 'stadiums'].includes(module)) && (
-          <section className="studio-entities">
-            <header>
+        {(isEntityModule || module === 'patches') && (
+          <section className="studio-entities" aria-labelledby="studio-module-heading">
+            <header className="studio-module-heading">
               <div>
-                <span>{modules.find(([id]) => id === module)?.[1]}</span>
-                <h2>Dados e relações</h2>
-                <p>Busca indexada, seleção em massa e edição guiada por IDs estáveis.</p>
+                <span>{labelForModule(module)}</span>
+                <h2 id="studio-module-heading">Dados, relações e readiness</h2>
+                <p>{moduleRecords.length.toLocaleString('pt-BR')} itens no draft resolvido.</p>
               </div>
-              <Button onClick={() => setModule('import')} variant="secondary">
-                Importar CSV
-              </Button>
             </header>
+            <div
+              className="studio-module-toolbar"
+              role="toolbar"
+              aria-label={`Ações de ${labelForModule(module)}`}
+            >
+              {isEntityModule && (
+                <Button
+                  onClick={() => {
+                    setEditorMode('create');
+                    setActiveId('');
+                  }}
+                  variant="primary"
+                >
+                  Criar novo
+                </Button>
+              )}
+              {canMutate && (
+                <Button onClick={() => setEditorMode('edit')} variant="secondary">
+                  Editar
+                </Button>
+              )}
+              {canMutate && (
+                <Button
+                  onClick={() => {
+                    const change = activeRecord && duplicateRecord(activeRecord, draftWorld);
+                    if (change) onUpsert(change);
+                  }}
+                  variant="secondary"
+                >
+                  Duplicar
+                </Button>
+              )}
+              {canMutate && (
+                <Button onClick={() => setConfirmDelete(true)} variant="secondary">
+                  Excluir
+                </Button>
+              )}
+              <Button onClick={() => navigate('import')} variant="secondary">
+                Importar
+              </Button>
+              <Button
+                disabled={moduleRecords.length === 0}
+                onClick={() => exportRecords(module as StudioModuleId, moduleRecords)}
+                variant="secondary"
+              >
+                Exportar CSV
+              </Button>
+              <Button onClick={() => setOnlyPending((value) => !value)} variant="secondary">
+                {onlyPending ? 'Todos os itens' : 'Filtros'}
+              </Button>
+              {isEntityModule && (
+                <Button
+                  disabled={selected.length === 0}
+                  onClick={() => setBulkOpen((value) => !value)}
+                  variant="secondary"
+                >
+                  Seleção em massa{selected.length ? ` (${selected.length})` : ''}
+                </Button>
+              )}
+              <Button
+                disabled={selected.length === 0}
+                onClick={() => void onValidate()}
+                variant="secondary"
+              >
+                Validar seleção
+              </Button>
+              <Button
+                disabled={!activeRecord}
+                onClick={() => setShowDependencies((value) => !value)}
+                variant="secondary"
+              >
+                Abrir dependências
+              </Button>
+            </div>
+            {bulkOpen && isEntityModule && (
+              <section className="studio-bulk-panel" aria-labelledby="studio-bulk-title">
+                <div>
+                  <span>Prévia do lote</span>
+                  <h3 id="studio-bulk-title">
+                    {selectedRecords.length.toLocaleString('pt-BR')} itens selecionados
+                  </h3>
+                  <p>Confira o impacto antes de aplicar. O lote inteiro pode ser desfeito.</p>
+                </div>
+                <ul>
+                  {selectedRecords.slice(0, 8).map((record) => (
+                    <li key={record.id}>
+                      <strong>{record.name}</strong>
+                      <span>{record.detail}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="studio-bulk-panel__actions">
+                  <Button
+                    onClick={() =>
+                      setSelected((current) => [
+                        ...new Set([...current, ...visibleRows.map((item) => item.id)]),
+                      ])
+                    }
+                    variant="secondary"
+                  >
+                    Selecionar visíveis
+                  </Button>
+                  <Button onClick={applyBulkDuplicate} variant="secondary">
+                    Duplicar selecionados
+                  </Button>
+                  {!bulkConfirm ? (
+                    <Button onClick={() => setBulkConfirm(true)} variant="secondary">
+                      Excluir selecionados
+                    </Button>
+                  ) : (
+                    <Button onClick={applyBulkDelete} variant="primary">
+                      Confirmar exclusão do lote
+                    </Button>
+                  )}
+                  <Button onClick={() => setBulkOpen(false)} variant="secondary">
+                    Cancelar
+                  </Button>
+                </div>
+              </section>
+            )}
             <div className="studio-entity-layout">
-              <section className="studio-entity-table">
+              <section
+                className="studio-entity-table"
+                aria-label={`Lista de ${labelForModule(module)}`}
+              >
                 <div className="studio-table-toolbar">
                   <input
-                    aria-label="Buscar entidades"
+                    aria-label={`Buscar em ${labelForModule(module)}`}
                     onChange={(event) => {
                       setSearch(event.target.value);
                       setPage(0);
                     }}
-                    placeholder="Buscar por nome, clube ou posição"
+                    placeholder="Buscar por nome ou detalhe"
                     value={search}
                   />
-                  <span>{tableRows.length.toLocaleString('pt-BR')} itens</span>
+                  <span>{filteredRows.length.toLocaleString('pt-BR')} itens</span>
                 </div>
-                <div className="studio-table-list" role="table">
-                  {visibleRows.map((item) => (
-                    <label key={item.id} role="row">
-                      <input
-                        aria-label={`Selecionar ${item.name}`}
-                        checked={selected.includes(item.id)}
-                        onChange={(event) =>
-                          setSelected((current) =>
-                            event.target.checked
-                              ? [...current, item.id]
-                              : current.filter((id) => id !== item.id),
-                          )
-                        }
-                        type="checkbox"
-                      />
-                      <span>
-                        <strong>{item.name}</strong>
-                        <small>{item.detail}</small>
-                      </span>
-                    </label>
-                  ))}
-                </div>
+                {visibleRows.length > 0 ? (
+                  <div className="studio-table-list" role="table">
+                    {visibleRows.map((item) => (
+                      <div aria-selected={activeId === item.id} key={item.id} role="row">
+                        <label>
+                          <input
+                            aria-label={`Selecionar ${item.name}`}
+                            checked={selected.includes(item.id)}
+                            onChange={(event) =>
+                              setSelected((current) =>
+                                event.target.checked
+                                  ? [...new Set([...current, item.id])]
+                                  : current.filter((id) => id !== item.id),
+                              )
+                            }
+                            type="checkbox"
+                          />
+                        </label>
+                        <button
+                          onClick={() => {
+                            setActiveId(item.id);
+                            setEditorMode('edit');
+                            setConfirmDelete(false);
+                          }}
+                          type="button"
+                        >
+                          <span>
+                            <strong>{item.name}</strong>
+                            <small>{item.detail}</small>
+                          </span>
+                          {item.readiness && (
+                            <em data-readiness={item.readiness.state}>{item.readiness.label}</em>
+                          )}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <ModuleEmptyState
+                    module={module as StudioModuleId}
+                    onCreate={() => setEditorMode('create')}
+                    onImport={() => navigate('import')}
+                  />
+                )}
                 <footer>
                   <Button
                     disabled={page === 0}
@@ -326,10 +746,10 @@ export function DataStudio({
                     Anterior
                   </Button>
                   <span>
-                    Página {page + 1} de {Math.max(1, Math.ceil(tableRows.length / 50))}
+                    Página {page + 1} de {Math.max(1, Math.ceil(filteredRows.length / 100))}
                   </span>
                   <Button
-                    disabled={(page + 1) * 50 >= tableRows.length}
+                    disabled={(page + 1) * 100 >= filteredRows.length}
                     onClick={() => setPage((value) => value + 1)}
                     variant="secondary"
                   >
@@ -337,93 +757,120 @@ export function DataStudio({
                   </Button>
                 </footer>
               </section>
-              <aside className="studio-inspector">
-                <span>Inspector</span>
-                <strong>
-                  {selected.length ? `${selected.length} selecionado(s)` : 'Nenhuma seleção'}
-                </strong>
-                <p>
-                  Referências, dependentes, provenance e impacto aparecem aqui antes da aplicação.
-                </p>
-                {selected.length > 0 && (
-                  <>
-                    <label>
-                      Ação em massa
-                      <select>
-                        <option>Definir clube</option>
-                        <option>Alterar posição</option>
-                        <option>Atualizar provenance</option>
-                        <option>Criar inscrições</option>
-                      </select>
-                    </label>
-                    <Button
-                      onClick={() => {
-                        const batch = selected.map(
-                          (id) =>
-                            ({
-                              id: `bulk:${id}`,
-                              kind: module === 'players' ? 'player' : 'club',
-                              operation: 'edit',
-                              targetId: id,
-                              label: `Atualização em massa · ${id}`,
-                              summary: 'Provenance revisada no Data Studio',
-                              patches: [],
-                              asset: null,
-                            }) as CommunityChange,
-                        );
-                        onBatch(batch);
-                      }}
-                      variant="secondary"
-                    >
-                      Revisar diff do lote
+              <aside
+                className="studio-inspector"
+                aria-label="Inspector da entidade"
+                data-open={Boolean(editorMode || activeRecord || confirmDelete)}
+              >
+                <button
+                  aria-label="Fechar inspector"
+                  className="studio-inspector__close"
+                  onClick={() => {
+                    setEditorMode(null);
+                    setActiveId('');
+                    setConfirmDelete(false);
+                  }}
+                  type="button"
+                >
+                  Fechar
+                </button>
+                {confirmDelete && activeRecord ? (
+                  <div
+                    className="studio-delete-confirmation"
+                    role="alertdialog"
+                    aria-labelledby="delete-entity-heading"
+                  >
+                    <span>Exclusão segura</span>
+                    <h3 id="delete-entity-heading">Excluir {activeRecord.name}?</h3>
+                    <p>
+                      {dependencies.length
+                        ? `${dependencies.length} dependência(s) precisam ser resolvidas antes da exportação.`
+                        : 'A remoção será registrada como patch e poderá ser desfeita.'}
+                    </p>
+                    <div>
+                      <Button onClick={() => setConfirmDelete(false)} variant="secondary">
+                        Cancelar
+                      </Button>
+                      <Button onClick={applyDelete} variant="primary">
+                        Excluir do draft
+                      </Button>
+                    </div>
+                  </div>
+                ) : editorMode && isEntityModule ? (
+                  <StudioEntityEditor
+                    author={author}
+                    key={`${module}:${editorMode}:${activeRecord?.id ?? 'new'}`}
+                    mode={editorMode}
+                    module={module as StudioModuleId}
+                    onNavigate={(next, id) => navigate(next, id)}
+                    onUpsert={(change) => {
+                      onUpsert(change);
+                      setActiveId(change.targetId);
+                      setEditorMode('edit');
+                    }}
+                    record={editorMode === 'edit' ? activeRecord : null}
+                    world={draftWorld}
+                  />
+                ) : activeRecord ? (
+                  <div className="studio-inspector-summary">
+                    <span>Inspector</span>
+                    <h3>{activeRecord.name}</h3>
+                    <p>{activeRecord.detail}</p>
+                    {moduleReadiness && (
+                      <strong data-readiness={moduleReadiness.state}>
+                        {moduleReadiness.label}
+                      </strong>
+                    )}
+                    {moduleReadiness?.issues.length ? (
+                      <ul>
+                        {moduleReadiness.issues.map((issue) => (
+                          <li key={issue.code}>
+                            <strong>{issue.label}</strong>
+                            <span>{issue.explanation}</span>
+                            <button onClick={() => navigate(issue.module)} type="button">
+                              Resolver
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>Nenhuma pendência conhecida nesta projeção.</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="studio-inspector-summary">
+                    <span>Resumo do módulo</span>
+                    <h3>{moduleRecords.length.toLocaleString('pt-BR')} itens</h3>
+                    <p>
+                      Selecione um item para ver referências, mudanças, readiness e impacto de
+                      exclusão.
+                    </p>
+                    <Button onClick={() => setEditorMode('create')} variant="primary">
+                      Criar primeiro item
                     </Button>
-                  </>
+                  </div>
+                )}
+                {showDependencies && activeRecord && (
+                  <section className="studio-dependency-panel">
+                    <h3>Dependências e impacto</h3>
+                    {dependencies.length ? (
+                      <ul>
+                        {dependencies.map((item) => (
+                          <li key={`${item.module}:${item.id}`}>
+                            <button onClick={() => navigate(item.module, item.id)} type="button">
+                              {item.label}
+                            </button>
+                            <span>{labelForModule(item.module)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>Nenhuma entidade do draft depende diretamente deste item.</p>
+                    )}
+                  </section>
                 )}
               </aside>
             </div>
-            {entityModule && (
-              <div className="studio-guided-editor">
-                <CommunityEntityEditor author={author} onUpsert={onUpsert} world={world} />
-              </div>
-            )}
-          </section>
-        )}
-
-        {[
-          'staff',
-          'seasons',
-          'contracts',
-          'registrations',
-          'translations',
-          'patches',
-          'advanced',
-        ].includes(module) && (
-          <section className="studio-empty-module">
-            <span>{modules.find(([id]) => id === module)?.[1]}</span>
-            <h2>Estrutura pronta para autoria</h2>
-            <p>Use importação CSV ou crie a entidade relacionada sem sair do projeto atual.</p>
-            <div>
-              <Button onClick={() => setModule('import')} variant="primary">
-                Importar
-              </Button>
-              {module === 'seasons' && (
-                <Button onClick={() => setModule('competitions')} variant="secondary">
-                  Abrir Competition Builder
-                </Button>
-              )}
-            </div>
-            <ul>
-              {changes
-                .filter((change) =>
-                  labelFor(change.kind).toLowerCase().startsWith(module.slice(0, -1)),
-                )
-                .map((change) => (
-                  <li key={change.id}>
-                    <strong>{change.label}</strong>
-                    <span>{change.summary}</span>
-                  </li>
-                ))}
-            </ul>
           </section>
         )}
       </main>

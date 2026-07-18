@@ -1977,6 +1977,114 @@ test('keeps Creator Studio tools reachable across desktop widths and 200% zoom',
   });
 });
 
+test('authors geography, staff and incomplete competition drafts without JSON', async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== 'desktop-1366x768',
+    'The integrated Creator Studio authoring flow is exercised once on the canonical desktop.',
+  );
+  await page.goto(dataEditorUrl);
+  await page.getByRole('radio', { name: 'Data Studio' }).click();
+
+  await page.getByRole('button', { name: 'Cidades', exact: true }).click();
+  await page.locator('.studio-module-toolbar').getByRole('button', { name: 'Criar novo' }).click();
+  await page.getByRole('textbox', { name: 'Nome' }).fill('Nova Esperanca');
+  await page.getByRole('combobox', { name: /^Na..o$/u }).selectOption({ index: 1 });
+  await page.getByRole('button', { name: 'Salvar rascunho' }).click();
+  await expect(page.getByText('Nova Esperanca', { exact: true }).first()).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('creator-city.png'), fullPage: true });
+
+  await page.getByRole('button', { name: /^Est.dios$/u }).click();
+  await page.locator('.studio-module-toolbar').getByRole('button', { name: 'Criar novo' }).click();
+  await page.getByRole('textbox', { name: 'Nome' }).fill('Arena Nova Esperanca');
+  await page.getByRole('combobox', { name: 'Cidade' }).selectOption({ label: 'Nova Esperanca' });
+  await page.getByRole('spinbutton', { name: 'Capacidade' }).fill('24500');
+  await page.getByRole('button', { name: 'Salvar rascunho' }).click();
+  await expect(page.getByText('Arena Nova Esperanca', { exact: true }).first()).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('creator-stadium.png'), fullPage: true });
+
+  await page.getByRole('button', { name: /^Comiss.o$/u }).click();
+  await page.locator('.studio-module-toolbar').getByRole('button', { name: 'Criar novo' }).click();
+  await page.getByRole('textbox', { name: 'Nome completo' }).fill('Rita Independente');
+  await page.getByRole('textbox', { name: 'Nome conhecido' }).fill('Rita');
+  await page.getByRole('combobox', { name: 'Clube' }).selectOption('');
+  await page.getByRole('combobox', { name: 'Cargo' }).selectOption('Analista');
+  await page.getByRole('button', { name: 'Adicionar treinador ao mod' }).click();
+  await expect(page.getByText('Rita', { exact: true }).first()).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('creator-staff.png'), fullPage: true });
+
+  await page.getByRole('button', { name: /^Competi..es$/u }).click();
+  await page.locator('.studio-module-toolbar').getByRole('button', { name: 'Criar novo' }).click();
+  await page.getByRole('textbox', { name: 'Nome', exact: true }).fill('Copa Sem Participantes');
+  await page.getByRole('button', { name: /^Salvar competi..o$/u }).click();
+  await expect(page.getByText('Copa Sem Participantes', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Rascunho incompleto', { exact: true }).first()).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath('creator-competition-draft.png'),
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 1024, height: 768 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  await expect(page.getByLabel('Inspector da entidade')).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath('creator-inspector-1024.png'),
+    fullPage: true,
+  });
+});
+
+test('previews a 600-player CSV through reusable column mapping', async ({ page }, testInfo) => {
+  test.skip(
+    testInfo.project.name !== 'desktop-1366x768',
+    'Large import responsiveness is measured once on the canonical desktop.',
+  );
+  await page.goto(dataEditorUrl);
+  await page.getByRole('radio', { name: 'Data Studio' }).click();
+  await page.getByRole('button', { name: 'Importar CSV', exact: true }).click();
+  const headers = [
+    'internalId',
+    'externalId',
+    'fullName',
+    'knownName',
+    'clubId',
+    'nationality',
+    'birthDate',
+    'position',
+    'shirtNumber',
+    'currentAbility',
+    'potential',
+  ];
+  const rows = Array.from({ length: 600 }, (_, index) =>
+    [
+      `community.load.player.${index + 1}`,
+      `load-${index + 1}`,
+      `Jogador de Carga ${index + 1}`,
+      `Carga ${index + 1}`,
+      'aurora-fc',
+      'BRA',
+      '2000-01-01',
+      index % 25 === 0 ? 'GK' : 'CM',
+      String((index % 99) + 1),
+      '55',
+      '70',
+    ].join(','),
+  );
+  await page.locator('input[type="file"][accept*="csv"]').setInputFiles({
+    name: 'jogadores-600.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from([headers.join(','), ...rows].join('\n')),
+  });
+  await expect(page.getByText('600 registros', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Mapear colunas' })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Coluna para knownName' })).toHaveValue(
+    'knownName',
+  );
+  await page.getByRole('button', { name: 'Salvar perfil' }).click();
+  await page.screenshot({ path: testInfo.outputPath('creator-csv-600.png'), fullPage: true });
+});
+
 test('opens Elenco as a dedicated table workspace without rendering the tactical field', async ({
   page,
 }, testInfo) => {

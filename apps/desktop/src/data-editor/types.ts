@@ -152,6 +152,10 @@ export interface ModAuthoringWorld {
     readonly id: string;
     readonly name: string;
     readonly iso2: string;
+    readonly iso3?: string;
+    readonly aliases?: readonly string[];
+    readonly confederationId?: string | null;
+    readonly flagAssetId?: string | null;
   }[];
   readonly regions?: readonly {
     readonly id: string;
@@ -278,7 +282,7 @@ export interface AuthoringCoachProfile {
 }
 
 export interface GeneratedPackagePatch {
-  readonly operation: 'add' | 'replace';
+  readonly operation: 'add' | 'replace' | 'remove';
   readonly entityKind:
     | 'club'
     | 'matchdayPlayer'
@@ -292,7 +296,7 @@ export interface GeneratedPackagePatch {
     | 'competition'
     | 'asset';
   readonly targetId: string;
-  readonly entity: { readonly kind: string; readonly value: unknown };
+  readonly entity?: { readonly kind: string; readonly value: unknown };
   readonly reason: string;
 }
 
@@ -309,8 +313,10 @@ export interface CommunityChange {
     | 'competition'
     | 'season'
     | 'registration'
+    | 'contract'
+    | 'translation'
     | 'asset';
-  readonly operation: 'create' | 'edit';
+  readonly operation: 'create' | 'edit' | 'duplicate' | 'delete';
   readonly targetId: string;
   readonly label: string;
   readonly summary: string;

@@ -3,7 +3,18 @@ import { useMemo, useRef, useState } from 'react';
 import { Button } from '../ui/primitives/actions.js';
 import type { CommunityChange, ModAuthoringWorld } from './types.js';
 
-type CsvEntity = 'nation' | 'city' | 'stadium' | 'club' | 'player';
+type CsvEntity =
+  | 'nation'
+  | 'city'
+  | 'stadium'
+  | 'club'
+  | 'player'
+  | 'coach'
+  | 'staff'
+  | 'competition'
+  | 'season'
+  | 'contract'
+  | 'registration';
 
 const templates: Record<CsvEntity, string[]> = {
   nation: ['internalId', 'name', 'iso2', 'iso3'],
@@ -32,6 +43,32 @@ const templates: Record<CsvEntity, string[]> = {
     'currentAbility',
     'potential',
   ],
+  coach: [
+    'internalId',
+    'fullName',
+    'knownName',
+    'clubId',
+    'nationality',
+    'birthDate',
+    'role',
+    'qualification',
+    'experienceYears',
+  ],
+  staff: [
+    'internalId',
+    'fullName',
+    'knownName',
+    'clubId',
+    'nationality',
+    'birthDate',
+    'role',
+    'qualification',
+    'experienceYears',
+  ],
+  competition: ['internalId', 'name', 'shortName', 'nationId'],
+  season: ['internalId', 'competitionId', 'label', 'startDate', 'endDate'],
+  contract: ['internalId', 'personId', 'clubId', 'startedAt', 'expiresAt', 'status'],
+  registration: ['internalId', 'competitionId', 'seasonId', 'playerId', 'clubId', 'shirtNumber'],
 };
 
 const parseCsv = (text: string) => {
@@ -60,9 +97,28 @@ const parseCsv = (text: string) => {
   row.push(value.trim());
   if (row.some(Boolean)) rows.push(row);
   const [headers = [], ...data] = rows;
-  return data.map((values) =>
-    Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ''])),
-  );
+  return {
+    headers,
+    rows: data.map((values) =>
+      Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ''])),
+    ),
+  };
+};
+
+interface ImportProfile {
+  readonly name: string;
+  readonly entity: CsvEntity;
+  readonly mapping: Readonly<Record<string, string>>;
+}
+
+const importProfileKey = 'rivallo:creator-studio:csv-profiles';
+const readProfiles = (): ImportProfile[] => {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(importProfileKey) ?? '[]') as unknown;
+    return Array.isArray(value) ? (value as ImportProfile[]) : [];
+  } catch {
+    return [];
+  }
 };
 
 const slug = (value: string) =>
@@ -84,9 +140,10 @@ const toChange = (
   const id =
     row.internalId ||
     `community.csv.${entity}.${slug(row.name || row.knownName || String(index + 1))}`;
+  const kind: CommunityChange['kind'] = entity === 'staff' ? 'coach' : entity;
   const common = {
     id: `${entity}:${id}`,
-    kind: entity,
+    kind,
     operation: 'create' as const,
     targetId: id,
     asset: null,
@@ -190,6 +247,215 @@ const toChange = (
       ],
     };
   }
+  if (entity === 'coach' || entity === 'staff') {
+    const club = world.clubs.find((item) => item.id === row.clubId) ?? world.clubs[0];
+    const value = {
+      identity: {
+        entityId: id,
+        fullName: row.fullName,
+        knownName: row.knownName,
+        nationality: row.nationality,
+        birthDate: row.birthDate,
+        age: Math.max(18, new Date().getUTCFullYear() - numeric(row.birthDate.slice(0, 4), 1985)),
+        clubId: club?.id ?? row.clubId,
+        clubName: club?.name ?? row.clubId,
+        clubShortName: club?.shortName ?? '---',
+        clubPrimaryColor: club?.primaryColor ?? '#36d39a',
+      },
+      role: row.role || (entity === 'coach' ? 'Treinador principal' : 'Auxiliar'),
+      reputation: 40,
+      qualification: row.qualification || 'Sem licença informada',
+      experienceYears: numeric(row.experienceYears, 0),
+      style: 'Equilibrado',
+      preferredFormations: [],
+      attributes: {
+        tactical: 40,
+        peopleManagement: 40,
+        playerDevelopment: 40,
+        analysis: 40,
+        recruitment: 40,
+      },
+      specialties: [],
+      contract: club
+        ? {
+            clubId: club.id,
+            startedAt: '2026-01-01',
+            expiresAt: '2028-12-31',
+            squadStatus: row.role || 'Ativo',
+          }
+        : null,
+    };
+    return {
+      ...common,
+      kind: 'coach',
+      label: row.knownName,
+      summary: `${value.role} · ${value.identity.clubName}`,
+      patches: [
+        {
+          operation: 'add',
+          entityKind: 'coach',
+          targetId: id,
+          entity: { kind: 'coach', value },
+          reason: 'Importação CSV revisada pelo autor',
+        },
+      ],
+    };
+  }
+  if (entity === 'competition') {
+    const value = {
+      id,
+      name: row.name,
+      shortName: row.shortName,
+      nationId: row.nationId,
+      regionId: null,
+      logoAssetId: null,
+      category: 'league',
+      level: 1,
+      description: null,
+      primaryColor: null,
+      secondaryColor: null,
+      baseSeasonId: null,
+      seasons: [],
+    };
+    return {
+      ...common,
+      label: value.name,
+      summary: 'Competição em rascunho, sem participantes',
+      patches: [
+        {
+          operation: 'add',
+          entityKind: 'competition',
+          targetId: id,
+          entity: { kind: 'competition', value },
+          reason: 'Importação CSV revisada pelo autor',
+        },
+      ],
+    };
+  }
+  if (entity === 'season') {
+    const competition = world.competitions?.find((item) => item.id === row.competitionId);
+    const season = {
+      id,
+      competitionId: row.competitionId,
+      label: row.label,
+      startDate: row.startDate,
+      endDate: row.endDate,
+      participantClubIds: [],
+      stages: [],
+      rules: {
+        pointsForWin: 3,
+        pointsForDraw: 1,
+        pointsForLoss: 0,
+        participantCount: 0,
+        rounds: 0,
+        legs: 1,
+        tieBreakers: [],
+      },
+      registrationWindows: [],
+      calendarConstraints: {},
+      playerRegistrations: [],
+    };
+    const value = competition
+      ? {
+          ...competition,
+          baseSeasonId: competition.baseSeasonId ?? id,
+          seasons: [...competition.seasons, season],
+        }
+      : null;
+    return {
+      ...common,
+      kind: 'season',
+      label: row.label,
+      summary: 'Temporada em rascunho, sem participantes',
+      patches: value
+        ? [
+            {
+              operation: 'replace',
+              entityKind: 'competition',
+              targetId: competition!.id,
+              entity: { kind: 'competition', value },
+              reason: 'Temporada importada por CSV',
+            },
+          ]
+        : [],
+    };
+  }
+  if (entity === 'contract') {
+    const player = world.playerProfiles.find((item) => item.identity.entityId === row.personId);
+    const coach = world.coaches.find((item) => item.identity.entityId === row.personId);
+    const person = player ?? coach;
+    const entityKind = coach ? 'coach' : 'playerProfile';
+    const value = person
+      ? {
+          ...person,
+          contract: {
+            clubId: row.clubId,
+            startedAt: row.startedAt,
+            expiresAt: row.expiresAt,
+            squadStatus: row.status,
+          },
+        }
+      : null;
+    return {
+      ...common,
+      kind: 'contract',
+      label: `Contrato ${row.personId}`,
+      summary: `${row.startedAt} → ${row.expiresAt || 'sem fim'}`,
+      patches: value
+        ? [
+            {
+              operation: 'replace',
+              entityKind,
+              targetId: row.personId,
+              entity: { kind: entityKind, value },
+              reason: 'Contrato importado por CSV',
+            },
+          ]
+        : [],
+    };
+  }
+  if (entity === 'registration') {
+    const competition = world.competitions?.find((item) => item.id === row.competitionId);
+    const value = competition
+      ? {
+          ...competition,
+          seasons: competition.seasons.map((season) =>
+            season.id === row.seasonId
+              ? {
+                  ...season,
+                  playerRegistrations: [
+                    ...season.playerRegistrations,
+                    {
+                      playerId: row.playerId,
+                      clubId: row.clubId,
+                      shirtNumber: numeric(row.shirtNumber, 0) || null,
+                      contractReference: null,
+                      eligible: true,
+                    },
+                  ],
+                }
+              : season,
+          ),
+        }
+      : null;
+    return {
+      ...common,
+      kind: 'registration',
+      label: `Inscrição ${row.playerId}`,
+      summary: `${row.competitionId} · ${row.seasonId}`,
+      patches: value
+        ? [
+            {
+              operation: 'replace',
+              entityKind: 'competition',
+              targetId: competition!.id,
+              entity: { kind: 'competition', value },
+              reason: 'Inscrição importada por CSV',
+            },
+          ]
+        : [],
+    };
+  }
   const club = world.clubs.find((item) => item.id === row.clubId) ?? world.clubs[0];
   const position = row.position || 'CM';
   const rating = numeric(row.currentAbility, 50);
@@ -276,12 +542,24 @@ export function CsvImport({
 }) {
   const [entity, setEntity] = useState<CsvEntity>('player');
   const [rows, setRows] = useState<Record<string, string>[]>([]);
+  const [sourceHeaders, setSourceHeaders] = useState<string[]>([]);
+  const [mapping, setMapping] = useState<Record<string, string>>({});
   const [profileName, setProfileName] = useState('Mapeamento padrão');
+  const [profiles, setProfiles] = useState<ImportProfile[]>(readProfiles);
   const [lastBatch, setLastBatch] = useState<string[]>([]);
   const input = useRef<HTMLInputElement>(null);
+  const mappedRows = useMemo(
+    () =>
+      rows.map((row) =>
+        Object.fromEntries(
+          templates[entity].map((field) => [field, row[mapping[field] || field] ?? '']),
+        ),
+      ),
+    [entity, mapping, rows],
+  );
   const diagnostics = useMemo(
     () =>
-      rows.flatMap((row, index) => {
+      mappedRows.flatMap((row, index) => {
         const missing = templates[entity].filter(
           (field) =>
             field !== 'externalId' &&
@@ -291,7 +569,7 @@ export function CsvImport({
         );
         return missing.length ? [`Linha ${index + 2}: ${missing.join(', ')} ausente(s).`] : [];
       }),
-    [entity, rows],
+    [entity, mappedRows],
   );
   const downloadTemplate = () => {
     const blob = new Blob([`${templates[entity].join(',')}\n`], { type: 'text/csv;charset=utf-8' });
@@ -302,9 +580,19 @@ export function CsvImport({
     URL.revokeObjectURL(link.href);
   };
   const commit = () => {
-    const changes = rows.map((row, index) => toChange(entity, row, index, world));
+    const changes = mappedRows.map((row, index) => toChange(entity, row, index, world));
     onImport(changes);
     setLastBatch(changes.map((change) => change.id));
+  };
+  const saveProfile = () => {
+    const profile: ImportProfile = { name: profileName.trim(), entity, mapping };
+    if (!profile.name) return;
+    const next = [
+      ...profiles.filter((item) => !(item.entity === entity && item.name === profile.name)),
+      profile,
+    ];
+    setProfiles(next);
+    window.localStorage.setItem(importProfileKey, JSON.stringify(next));
   };
   return (
     <section className="csv-import" aria-labelledby="csv-import-title">
@@ -328,6 +616,8 @@ export function CsvImport({
             onChange={(event) => {
               setEntity(event.target.value as CsvEntity);
               setRows([]);
+              setSourceHeaders([]);
+              setMapping({});
             }}
             value={entity}
           >
@@ -336,19 +626,64 @@ export function CsvImport({
             <option value="stadium">Estádios</option>
             <option value="club">Clubes</option>
             <option value="player">Jogadores</option>
+            <option value="coach">Treinadores</option>
+            <option value="staff">Comissão</option>
+            <option value="competition">Competições</option>
+            <option value="season">Temporadas</option>
+            <option value="contract">Contratos</option>
+            <option value="registration">Inscrições</option>
           </select>
         </label>
         <label>
           Perfil de mapeamento
           <input onChange={(event) => setProfileName(event.target.value)} value={profileName} />
-          <small>Persistido junto ao projeto após salvar.</small>
+          <small>Reutilizável em próximas importações neste dispositivo.</small>
         </label>
+        {profiles.some((item) => item.entity === entity) && (
+          <label>
+            Usar perfil salvo
+            <select
+              defaultValue=""
+              onChange={(event) => {
+                const profile = profiles.find(
+                  (item) => item.entity === entity && item.name === event.target.value,
+                );
+                if (profile) {
+                  setProfileName(profile.name);
+                  setMapping({ ...profile.mapping });
+                }
+              }}
+            >
+              <option value="">Escolha um perfil</option>
+              {profiles
+                .filter((item) => item.entity === entity)
+                .map((item) => (
+                  <option key={`${item.entity}:${item.name}`}>{item.name}</option>
+                ))}
+            </select>
+          </label>
+        )}
         <input
           accept=".csv,text/csv"
           className="sr-only"
           onChange={(event) => {
             const file = event.target.files?.[0];
-            if (file) void file.text().then((text) => setRows(parseCsv(text)));
+            if (file)
+              void file.text().then((text) => {
+                const parsed = parseCsv(text);
+                setRows(parsed.rows);
+                setSourceHeaders(parsed.headers);
+                setMapping(
+                  Object.fromEntries(
+                    templates[entity].map((field) => [
+                      field,
+                      parsed.headers.find(
+                        (header) => header.toLocaleLowerCase() === field.toLocaleLowerCase(),
+                      ) ?? '',
+                    ]),
+                  ),
+                );
+              });
           }}
           ref={input}
           type="file"
@@ -359,6 +694,36 @@ export function CsvImport({
       </div>
       {rows.length > 0 && (
         <>
+          <section className="csv-mapping" aria-labelledby="csv-mapping-title">
+            <div className="studio-panel__heading">
+              <div>
+                <h3 id="csv-mapping-title">Mapear colunas</h3>
+                <p>Associe cada campo do Rivallo a uma coluna do arquivo.</p>
+              </div>
+              <Button onClick={saveProfile} variant="secondary">
+                Salvar perfil
+              </Button>
+            </div>
+            <div className="csv-mapping__grid">
+              {templates[entity].map((field) => (
+                <label key={field}>
+                  <span>{field}</span>
+                  <select
+                    aria-label={`Coluna para ${field}`}
+                    onChange={(event) =>
+                      setMapping((current) => ({ ...current, [field]: event.target.value }))
+                    }
+                    value={mapping[field] ?? ''}
+                  >
+                    <option value="">Não importar</option>
+                    {sourceHeaders.map((header) => (
+                      <option key={header}>{header}</option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+            </div>
+          </section>
           <div className="csv-import__summary">
             <strong>{rows.length.toLocaleString('pt-BR')} registros</strong>
             <span>{templates[entity].length} colunas mapeadas</span>
@@ -374,7 +739,7 @@ export function CsvImport({
                 </tr>
               </thead>
               <tbody>
-                {rows.slice(0, 12).map((row, index) => (
+                {mappedRows.slice(0, 12).map((row, index) => (
                   <tr key={index}>
                     {templates[entity].map((header) => (
                       <td key={header}>{row[header] || '—'}</td>

@@ -81,7 +81,7 @@ describe('CommunityEntityEditor', () => {
       'matchdayPlayer',
       'playerProfile',
     ]);
-    const profile = change.patches[1]?.entity.value as {
+    const profile = change.patches[1]?.entity?.value as {
       attributes: Record<string, number | string>;
       internalPotential: number;
     };
@@ -112,7 +112,7 @@ describe('CommunityEntityEditor', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar clube ao mod' }));
 
-    const club = lastChange(onUpsert).patches[0]?.entity.value as {
+    const club = lastChange(onUpsert).patches[0]?.entity?.value as {
       historySummary: string | null;
     };
     expect(club.historySummary).toBe(
@@ -168,5 +168,32 @@ describe('CommunityEntityEditor', () => {
       path: 'assets/coachPortrait/community-lia-coach-bia-lima.png',
     });
     expect(change.asset?.bytes).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+  });
+
+  it('saves a coach draft before a club or contract exists', () => {
+    const onUpsert = vi.fn();
+    render(
+      <CommunityEntityEditor
+        author="Lia"
+        initialKind="coach"
+        onUpsert={onUpsert}
+        world={{ ...world, activeClubId: '', clubs: [] }}
+      />,
+    );
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Nome completo' }), {
+      target: { value: 'Rita Independente' },
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Nome conhecido' }), {
+      target: { value: 'Rita' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar treinador ao mod' }));
+
+    const profile = lastChange(onUpsert).patches[0]?.entity?.value as {
+      identity: { clubId: string };
+      contract: unknown;
+    };
+    expect(profile.identity.clubId).toBe('');
+    expect(profile.contract).toBeNull();
   });
 });

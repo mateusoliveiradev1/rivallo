@@ -8,7 +8,15 @@ import type {
   StudioCompetitionStage,
 } from './types.js';
 
-type Template = 'doubleLeague' | 'singleLeague' | 'knockout' | 'groupsKnockout' | 'empty';
+type Template =
+  | 'doubleLeague'
+  | 'singleLeague'
+  | 'singleKnockout'
+  | 'knockout'
+  | 'groups'
+  | 'groupsKnockout'
+  | 'multiStage'
+  | 'empty';
 
 const slug = (value: string) =>
   value
@@ -46,11 +54,20 @@ const stage = (
 const templateStages = (template: Template, participants: number): StudioCompetitionStage[] => {
   if (template === 'singleLeague') return [stage('roundRobin', 'Liga', participants)];
   if (template === 'doubleLeague') return [stage('doubleRoundRobin', 'Liga', participants)];
+  if (template === 'singleKnockout') return [stage('knockout', 'Mata-mata', participants)];
   if (template === 'knockout') return [stage('twoLeggedKnockout', 'Mata-mata', participants)];
+  if (template === 'groups') return [stage('groups', 'Fase de grupos', participants)];
   if (template === 'groupsKnockout') {
     return [
       stage('groups', 'Fase de grupos', participants),
       stage('knockout', 'Mata-mata', Math.max(2, Math.floor(participants / 2)), 2),
+    ];
+  }
+  if (template === 'multiStage') {
+    return [
+      stage('groups', 'Fase de grupos', participants, 1),
+      stage('twoLeggedKnockout', 'Eliminatórias', Math.max(4, Math.floor(participants / 2)), 2),
+      stage('singleFinal', 'Final', 2, 3),
     ];
   }
   return [];
@@ -79,21 +96,40 @@ export function CompetitionBuilder({
   world,
   author,
   onUpsert,
+  initialCompetition,
 }: {
   readonly world: ModAuthoringWorld;
   readonly author: string;
   readonly onUpsert: (change: CommunityChange) => void;
+  readonly initialCompetition?: StudioCompetition | null;
 }) {
-  const [name, setName] = useState('Nova competição');
-  const [shortName, setShortName] = useState('NC');
-  const [nationId, setNationId] = useState(world.nations[0]?.id ?? '');
-  const [template, setTemplate] = useState<Template>('doubleLeague');
-  const [participants, setParticipants] = useState<string[]>([]);
-  const [stages, setStages] = useState<StudioCompetitionStage[]>(() =>
-    templateStages('doubleLeague', 20),
+  const initialSeason = initialCompetition?.seasons[0];
+  const [name, setName] = useState(initialCompetition?.name ?? 'Nova competição');
+  const [shortName, setShortName] = useState(initialCompetition?.shortName ?? 'NC');
+  const [nationId, setNationId] = useState(
+    initialCompetition?.nationId ?? world.nations[0]?.id ?? '',
   );
-  const [startDate, setStartDate] = useState('2026-08-01');
-  const [endDate, setEndDate] = useState('2027-05-31');
+  const [template, setTemplate] = useState<Template>('doubleLeague');
+  const [participants, setParticipants] = useState<string[]>([
+    ...(initialSeason?.participantClubIds ?? []),
+  ]);
+  const [stages, setStages] = useState<StudioCompetitionStage[]>(() =>
+    initialSeason?.stages.length ? [...initialSeason.stages] : templateStages('doubleLeague', 20),
+  );
+  const [startDate, setStartDate] = useState(initialSeason?.startDate ?? '2026-08-01');
+  const [endDate, setEndDate] = useState(initialSeason?.endDate ?? '2027-05-31');
+  const [participantSearch, setParticipantSearch] = useState('');
+  const [pointsForWin, setPointsForWin] = useState(3);
+  const [pointsForDraw, setPointsForDraw] = useState(1);
+  const [promotionSlots, setPromotionSlots] = useState(0);
+  const [relegationSlots, setRelegationSlots] = useState(0);
+  const [benchSize, setBenchSize] = useState(7);
+  const [substitutions, setSubstitutions] = useState(5);
+  const visibleClubs = world.clubs.filter((club) =>
+    `${club.name} ${club.shortName} ${club.city}`
+      .toLocaleLowerCase('pt-BR')
+      .includes(participantSearch.trim().toLocaleLowerCase('pt-BR')),
+  );
   const totals = useMemo(
     () =>
       stages.reduce(
@@ -124,8 +160,9 @@ export function CompetitionBuilder({
     setStages(templateStages(next, participants.length || 20));
   };
   const save = () => {
-    const id = `community.${slug(author || 'autor')}.competition.${slug(name)}`;
-    const seasonId = `${id}.season.2026-27`;
+    const id =
+      initialCompetition?.id ?? `community.${slug(author || 'autor')}.competition.${slug(name)}`;
+    const seasonId = initialSeason?.id ?? `${id}.season.2026-27`;
     const competition: StudioCompetition = {
       id,
       name: name.trim(),
@@ -147,8 +184,8 @@ export function CompetitionBuilder({
           participantClubIds: participants,
           stages,
           rules: {
-            pointsForWin: 3,
-            pointsForDraw: 1,
+            pointsForWin,
+            pointsForDraw,
             pointsForLoss: 0,
             participantCount: participants.length,
             rounds: totals.rounds,
@@ -157,14 +194,14 @@ export function CompetitionBuilder({
             minimumRosterSize: 18,
             minimumGoalkeepers: 2,
             starters: 11,
-            benchSize: 7,
-            substitutions: 5,
+            benchSize,
+            substitutions,
             extraTime: stages.some((item) => item.extraTime),
             penalties: stages.some((item) => item.penalties),
             foreignPlayerLimit: null,
             minimumHomegrownPlayers: null,
-            promotionSlots: 0,
-            relegationSlots: 0,
+            promotionSlots,
+            relegationSlots,
           },
           registrationWindows: [{ startDate, endDate }],
           calendarConstraints: {
@@ -181,17 +218,17 @@ export function CompetitionBuilder({
     onUpsert({
       id: `competition:${id}`,
       kind: 'competition',
-      operation: 'create',
+      operation: initialCompetition ? 'edit' : 'create',
       targetId: id,
       label: competition.name,
       summary: `${participants.length} clubes · ${stages.length} estágio(s) · ${totals.matches} partidas previstas`,
       patches: [
         {
-          operation: 'add',
+          operation: initialCompetition ? 'replace' : 'add',
           entityKind: 'competition',
           targetId: id,
           entity: { kind: 'competition', value: competition },
-          reason: `Competição criada por ${author.trim() || 'autor comunitário'}`,
+          reason: `Competição ${initialCompetition ? 'editada' : 'criada'} por ${author.trim() || 'autor comunitário'}`,
         },
       ],
       asset: null,
@@ -207,7 +244,7 @@ export function CompetitionBuilder({
           <p>Esta definição será consumida pela Fase 06.7. Nenhuma fixture é gerada aqui.</p>
         </div>
         <Button
-          disabled={!name.trim() || !shortName.trim() || !nationId || warnings.length > 0}
+          disabled={!name.trim() || !shortName.trim() || !nationId}
           onClick={save}
           variant="primary"
         >
@@ -224,8 +261,11 @@ export function CompetitionBuilder({
           [
             ['doubleLeague', 'Liga · turno e returno'],
             ['singleLeague', 'Liga · turno único'],
+            ['singleKnockout', 'Mata-mata'],
             ['knockout', 'Mata-mata ida e volta'],
+            ['groups', 'Grupos'],
             ['groupsKnockout', 'Grupos + mata-mata'],
+            ['multiStage', 'Múltiplos estágios'],
             ['empty', 'Template vazio'],
           ] as const
         ).map(([value, label]) => (
@@ -297,8 +337,33 @@ export function CompetitionBuilder({
               </div>
               <strong>{participants.length}</strong>
             </div>
+            <div className="competition-participant-toolbar">
+              <input
+                aria-label="Buscar clubes participantes"
+                onChange={(event) => setParticipantSearch(event.target.value)}
+                placeholder="Buscar clube, cidade ou sigla"
+                value={participantSearch}
+              />
+              <Button
+                onClick={() =>
+                  setParticipants((current) => [
+                    ...new Set([...current, ...visibleClubs.map((club) => club.id)]),
+                  ])
+                }
+                variant="secondary"
+              >
+                Selecionar visíveis
+              </Button>
+              <Button
+                disabled={participants.length === 0}
+                onClick={() => setParticipants([])}
+                variant="secondary"
+              >
+                Limpar
+              </Button>
+            </div>
             <div className="competition-participants">
-              {world.clubs.map((club) => (
+              {visibleClubs.map((club) => (
                 <label key={club.id}>
                   <input
                     checked={participants.includes(club.id)}
@@ -421,6 +486,73 @@ export function CompetitionBuilder({
                 </li>
               ))}
             </ol>
+          </section>
+
+          <section className="studio-panel">
+            <div className="studio-panel__heading">
+              <div>
+                <h3>Regulamento</h3>
+                <p>Defina a estrutura que a Fase 06.7 consumirá; nenhum motor roda aqui.</p>
+              </div>
+            </div>
+            <div className="studio-form-grid competition-rules-grid">
+              <label>
+                Pontos por vitória
+                <input
+                  max={10}
+                  min={0}
+                  onChange={(event) => setPointsForWin(Number(event.target.value))}
+                  type="number"
+                  value={pointsForWin}
+                />
+              </label>
+              <label>
+                Pontos por empate
+                <input
+                  max={10}
+                  min={0}
+                  onChange={(event) => setPointsForDraw(Number(event.target.value))}
+                  type="number"
+                  value={pointsForDraw}
+                />
+              </label>
+              <label>
+                Promoções
+                <input
+                  min={0}
+                  onChange={(event) => setPromotionSlots(Number(event.target.value))}
+                  type="number"
+                  value={promotionSlots}
+                />
+              </label>
+              <label>
+                Rebaixamentos
+                <input
+                  min={0}
+                  onChange={(event) => setRelegationSlots(Number(event.target.value))}
+                  type="number"
+                  value={relegationSlots}
+                />
+              </label>
+              <label>
+                Banco
+                <input
+                  min={0}
+                  onChange={(event) => setBenchSize(Number(event.target.value))}
+                  type="number"
+                  value={benchSize}
+                />
+              </label>
+              <label>
+                Substituições
+                <input
+                  min={0}
+                  onChange={(event) => setSubstitutions(Number(event.target.value))}
+                  type="number"
+                  value={substitutions}
+                />
+              </label>
+            </div>
           </section>
         </div>
 

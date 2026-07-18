@@ -53,6 +53,7 @@ interface ModDetails {
   readonly author: string;
   readonly description: string;
   readonly version: string;
+  readonly changelog: string;
 }
 
 const defaultDetails: ModDetails = {
@@ -60,6 +61,7 @@ const defaultDetails: ModDetails = {
   author: '',
   description: '',
   version: '1.0.0',
+  changelog: '',
 };
 
 const cleanIdPart = (value: string, fallback: string) => {
@@ -91,7 +93,7 @@ const changesFromProject = (record: CreatorProjectRecord): CommunityChange[] => 
   return [...groups.entries()].map(([targetId, entityPatches]) => {
     const entityKind = entityPatches[0]?.entityKind ?? 'club';
     const asset = record.source.assets.find((item) => item.entityId === targetId) ?? null;
-    const value = entityPatches[0]?.entity.value as
+    const value = entityPatches[0]?.entity?.value as
       { name?: string; shortName?: string } | undefined;
     const kind =
       entityKind === 'matchdayPlayer' ||
@@ -102,7 +104,12 @@ const changesFromProject = (record: CreatorProjectRecord): CommunityChange[] => 
     return {
       id: `${kind}:${targetId}`,
       kind: kind as CommunityChange['kind'],
-      operation: entityPatches[0]?.operation === 'replace' ? 'edit' : 'create',
+      operation:
+        entityPatches[0]?.operation === 'replace'
+          ? 'edit'
+          : entityPatches[0]?.operation === 'remove'
+            ? 'delete'
+            : 'create',
       targetId,
       label: value?.name ?? value?.shortName ?? targetId,
       summary: 'Projeto de autoria reaberto',
@@ -139,8 +146,13 @@ export function DataEditorApp() {
   const [packageIdOverride, setPackageIdOverride] = useState('');
   const [selectedBaseId, setSelectedBaseId] = useState('');
   const [changes, setChanges] = useState<readonly CommunityChange[]>([]);
+  const [undoStack, setUndoStack] = useState<readonly (readonly CommunityChange[])[]>([]);
+  const [redoStack, setRedoStack] = useState<readonly (readonly CommunityChange[])[]>([]);
   const [step, setStep] = useState(0);
   const requestedModule = new URLSearchParams(window.location.search).get('module');
+  const requestedEntity = new URLSearchParams(window.location.search).get('entity');
+  const requestedReturn = new URLSearchParams(window.location.search).get('return');
+  const [studioModule, setStudioModule] = useState(requestedModule);
   const [surface, setSurface] = useState<'quick' | 'studio'>(() =>
     requestedModule ? 'studio' : 'quick',
   );
@@ -157,6 +169,9 @@ export function DataEditorApp() {
   >(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [draftSaveState, setDraftSaveState] = useState<
+    'saved' | 'pending' | 'saving' | 'failed' | 'recovered'
+  >('saved');
   const [leaveIntent, setLeaveIntent] = useState<'menu' | 'exit' | null>(null);
   const allowUnload = useRef(false);
   const [cleanSignature, setCleanSignature] = useState(() =>
@@ -280,7 +295,7 @@ export function DataEditorApp() {
           source: 'Editor guiado do Rivallo',
           rights: 'Conteúdo original do autor',
           createdAt: new Date().toISOString().slice(0, 10),
-          notes: null,
+          notes: details.changelog.trim() || null,
         },
         visibility: 'public',
         checksum: EMPTY_SHA256,
@@ -307,9 +322,47 @@ export function DataEditorApp() {
     [assets, manifestJson, patchesJson],
   );
 
-  const upsertChange = (change: CommunityChange) => {
-    setChanges((current) => [...current.filter((candidate) => candidate.id !== change.id), change]);
+  const commitChanges = (
+    update:
+      | readonly CommunityChange[]
+      | ((current: readonly CommunityChange[]) => readonly CommunityChange[]),
+  ) => {
+    setChanges((current) => {
+      const next = typeof update === 'function' ? update(current) : update;
+      if (next === current) return current;
+      setUndoStack((history) => [...history.slice(-49), current]);
+      setRedoStack([]);
+      return next;
+    });
+  };
+
+  const undo = () => {
+    const previous = undoStack.at(-1);
+    if (!previous) return;
+    setUndoStack((history) => history.slice(0, -1));
+    setRedoStack((history) => [...history, changes]);
+    setChanges(previous);
     setReport(null);
+    setMessage('Última alteração desfeita.');
+  };
+
+  const redo = () => {
+    const next = redoStack.at(-1);
+    if (!next) return;
+    setRedoStack((history) => history.slice(0, -1));
+    setUndoStack((history) => [...history, changes]);
+    setChanges(next);
+    setReport(null);
+    setMessage('Alteração refeita.');
+  };
+
+  const upsertChange = (change: CommunityChange) => {
+    commitChanges((current) => [
+      ...current.filter((candidate) => candidate.id !== change.id),
+      change,
+    ]);
+    setReport(null);
+    setDraftSaveState('pending');
     setMessage(`${change.label} foi adicionado ao mod.`);
   };
 
@@ -363,6 +416,7 @@ export function DataEditorApp() {
     mode: 'quickMod' | 'dataStudio' = surface === 'studio' ? 'dataStudio' : 'quickMod',
   ) => {
     setBusy('save');
+    setDraftSaveState('saving');
     setError('');
     try {
       const id = projectId || `project.${packageId}`;
@@ -376,8 +430,10 @@ export function DataEditorApp() {
       setProjectId(record.projectId);
       setProjects(await loadCreatorProjects());
       setCleanSignature(currentSignature);
+      setDraftSaveState('saved');
       setMessage(`Projeto salvo · revisão ${record.revision}.`);
     } catch {
+      setDraftSaveState('failed');
       setError('Não foi possível salvar o projeto de autoria. Os dados continuam nesta sessão.');
     } finally {
       setBusy(null);
@@ -394,6 +450,7 @@ export function DataEditorApp() {
         description: string;
         version: string;
         packageId: string;
+        provenance?: { notes?: string | null };
       };
       const restoredChanges = changesFromProject(record);
       setProjectId(record.projectId);
@@ -402,13 +459,17 @@ export function DataEditorApp() {
         author: manifest.author,
         description: manifest.description,
         version: manifest.version,
+        changelog: manifest.provenance?.notes ?? '',
       });
       setPackageIdOverride(manifest.packageId);
       setSelectedBaseId(record.basePackageId);
       setChanges(restoredChanges);
+      setUndoStack([]);
+      setRedoStack([]);
       setSurface(openSurface ?? (record.mode === 'dataStudio' ? 'studio' : 'quick'));
       setStep(record.mode === 'quickMod' ? 1 : 0);
       setMessage(`${record.name} reaberto para continuar a edição.`);
+      setDraftSaveState('recovered');
     } catch {
       setError('O projeto não pôde ser reaberto com segurança.');
     }
@@ -518,9 +579,70 @@ export function DataEditorApp() {
     }
   };
 
+  useEffect(() => {
+    if (!projectId || !dirty || busy !== null) return;
+    setDraftSaveState('pending');
+    const timeout = window.setTimeout(() => {
+      setDraftSaveState('saving');
+      void saveCreatorProject({
+        projectId,
+        name: details.name.trim(),
+        mode: surface === 'studio' ? 'dataStudio' : 'quickMod',
+        basePackageId: selectedBaseId,
+        source,
+      })
+        .then(async (record) => {
+          setProjects(await loadCreatorProjects());
+          setCleanSignature(currentSignature);
+          setDraftSaveState('saved');
+          setMessage(`Rascunho salvo automaticamente · revisão ${record.revision}.`);
+        })
+        .catch(() => {
+          setDraftSaveState('failed');
+          setError('Falha no autosave. O draft continua aberto para tentar novamente.');
+        });
+    }, 1200);
+    return () => window.clearTimeout(timeout);
+  }, [busy, currentSignature, details.name, dirty, projectId, selectedBaseId, source, surface]);
+
+  useEffect(() => {
+    const shortcuts = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      const key = event.key.toLowerCase();
+      if (key === 's') {
+        event.preventDefault();
+        document.querySelector<HTMLButtonElement>('[data-creator-save]')?.click();
+      }
+      if (key === 'f' && surface === 'studio') {
+        event.preventDefault();
+        document.querySelector<HTMLInputElement>('.studio-table-toolbar input')?.focus();
+      }
+      if (key === 'z' && event.shiftKey) {
+        event.preventDefault();
+        const next = redoStack.at(-1);
+        if (next) {
+          setRedoStack((history) => history.slice(0, -1));
+          setUndoStack((history) => [...history, changes]);
+          setChanges(next);
+        }
+      } else if (key === 'z') {
+        event.preventDefault();
+        const previous = undoStack.at(-1);
+        if (previous) {
+          setUndoStack((history) => history.slice(0, -1));
+          setRedoStack((history) => [...history, changes]);
+          setChanges(previous);
+        }
+      }
+    };
+    window.addEventListener('keydown', shortcuts);
+    return () => window.removeEventListener('keydown', shortcuts);
+  }, [changes, redoStack, surface, undoStack]);
+
   const goToMenu = () => {
     allowUnload.current = true;
-    window.location.href = '/main-menu';
+    window.location.href =
+      requestedReturn === 'new-career' ? '/new-career?resume=creator-studio' : '/main-menu';
   };
 
   const confirmExit = () => {
@@ -537,19 +659,56 @@ export function DataEditorApp() {
         </div>
         <div className="data-editor-header__actions">
           <button
-            aria-label="Voltar ao Menu Principal"
+            aria-label={
+              requestedReturn === 'new-career'
+                ? 'Voltar à Nova Carreira'
+                : 'Voltar ao Menu Principal'
+            }
             className="data-editor-header__back"
             onClick={() => (dirty ? setLeaveIntent('menu') : goToMenu())}
-            title="Voltar ao Menu Principal"
+            title={
+              requestedReturn === 'new-career'
+                ? 'Voltar à Nova Carreira'
+                : 'Voltar ao Menu Principal'
+            }
             type="button"
           >
             <Icon name="previous" size={20} />
           </button>
-          <Button loading={busy === 'save'} onClick={() => void saveProject()} variant="secondary">
+          <Button
+            data-creator-save
+            loading={busy === 'save'}
+            onClick={() => void saveProject()}
+            variant="secondary"
+          >
             Salvar
+          </Button>
+          <Button disabled={undoStack.length === 0} onClick={undo} variant="secondary">
+            Desfazer
+          </Button>
+          <Button disabled={redoStack.length === 0} onClick={redo} variant="secondary">
+            Refazer
           </Button>
           <Button onClick={() => void runValidation()} variant="secondary">
             Validar
+          </Button>
+          <Button
+            onClick={() => {
+              setSurface('studio');
+              setStudioModule('sandbox');
+            }}
+            variant="secondary"
+          >
+            Testar
+          </Button>
+          <Button
+            onClick={() => {
+              setSurface('quick');
+              setStep(2);
+            }}
+            variant="secondary"
+          >
+            Revisar
           </Button>
           <Button
             loading={busy === 'distribution'}
@@ -602,7 +761,9 @@ export function DataEditorApp() {
                           <strong>{project.name}</strong>
                           <span>
                             {project.mode === 'quickMod' ? 'Mod rápido' : 'Data Studio'} · v
-                            {project.version} · {project.entityCount} itens
+                            {project.version} · {project.packageId.slice(0, 28)} ·{' '}
+                            {new Date(project.updatedAt).toLocaleDateString('pt-BR')} ·{' '}
+                            {project.entityCount} itens
                           </span>
                           <em data-status={project.status}>
                             {project.status === 'blocked'
@@ -656,7 +817,7 @@ export function DataEditorApp() {
                         <strong>{entry.manifest.name}</strong>
                         <span>
                           {entry.manifest.contentType === 'base' ? 'Base' : 'Mod instalado'} · v
-                          {entry.manifest.version}
+                          {entry.manifest.version} · {entry.manifest.packageId.slice(0, 32)}
                         </span>
                         <em data-valid={entry.validation.valid || undefined}>
                           {entry.validation.valid ? 'Pronto' : 'Requer atenção'}
@@ -747,7 +908,15 @@ export function DataEditorApp() {
                 </button>
               </div>
               <span className="data-editor-draft-state" data-dirty={dirty || undefined}>
-                {dirty ? 'Modificado' : 'Salvo'}
+                {
+                  {
+                    saved: 'Salvo',
+                    pending: 'Alterações pendentes',
+                    saving: 'Salvando…',
+                    failed: 'Falha ao salvar',
+                    recovered: 'Recuperado',
+                  }[draftSaveState]
+                }
               </span>
             </div>
           </header>
@@ -771,19 +940,64 @@ export function DataEditorApp() {
           )}
 
           <div className="data-editor-stage">
+            <div className="creator-sticky-actions" role="toolbar" aria-label="Ações do projeto">
+              <Button
+                loading={busy === 'save'}
+                onClick={() => void saveProject()}
+                variant="secondary"
+              >
+                Salvar
+              </Button>
+              <Button onClick={() => void runValidation()} variant="secondary">
+                Validar
+              </Button>
+              <Button
+                onClick={() => {
+                  setSurface('studio');
+                  setStudioModule('sandbox');
+                }}
+                variant="secondary"
+              >
+                Testar
+              </Button>
+              <Button
+                onClick={() => {
+                  setSurface('quick');
+                  setStep(2);
+                }}
+                variant="secondary"
+              >
+                Revisar
+              </Button>
+              <Button
+                loading={busy === 'distribution'}
+                onClick={() => void exportSharedBundle()}
+                variant="primary"
+              >
+                Exportar .rivmod
+              </Button>
+            </div>
             {surface === 'studio' && worldState === 'ready' && authoringWorld && (
               <DataStudio
                 author={details.author}
                 changes={changes}
-                initialModule={requestedModule}
+                initialEntity={requestedEntity}
+                initialModule={studioModule}
+                key={`${studioModule ?? 'overview'}:${requestedEntity ?? ''}`}
                 onBatch={(batch) => {
-                  batch.forEach(upsertChange);
+                  const batchIds = new Set(batch.map((change) => change.id));
+                  commitChanges((current) => [
+                    ...current.filter((change) => !batchIds.has(change.id)),
+                    ...batch,
+                  ]);
+                  setReport(null);
+                  setDraftSaveState('pending');
                   setMessage(
                     `${batch.length.toLocaleString('pt-BR')} registros foram preparados no projeto.`,
                   );
                 }}
                 onRollback={(ids) =>
-                  setChanges((current) => current.filter((change) => !ids.includes(change.id)))
+                  commitChanges((current) => current.filter((change) => !ids.includes(change.id)))
                 }
                 onUpsert={upsertChange}
                 onValidate={runValidation}
@@ -807,6 +1021,17 @@ export function DataEditorApp() {
                       onChange={(event) => setDetails({ ...details, name: event.target.value })}
                       value={details.name}
                     />
+                    {projects.some(
+                      (project) =>
+                        project.projectId !== projectId &&
+                        project.name.trim().toLocaleLowerCase('pt-BR') ===
+                          details.name.trim().toLocaleLowerCase('pt-BR'),
+                    ) && (
+                      <small>
+                        Já existe um projeto com este nome. O packageId continuará único, mas um
+                        nome mais específico facilita reconhecer cada versão.
+                      </small>
+                    )}
                   </label>
                   <label>
                     Seu nome ou apelido
@@ -837,6 +1062,8 @@ export function DataEditorApp() {
                       onChange={(event) => {
                         setSelectedBaseId(event.target.value);
                         setChanges([]);
+                        setUndoStack([]);
+                        setRedoStack([]);
                       }}
                       value={selectedBaseId}
                     >
@@ -859,6 +1086,17 @@ export function DataEditorApp() {
                           setDetails({ ...details, version: event.target.value })
                         }
                         value={details.version}
+                      />
+                    </label>
+                    <label className="data-editor-form-grid__wide">
+                      Notas desta versão
+                      <textarea
+                        maxLength={1200}
+                        onChange={(event) =>
+                          setDetails({ ...details, changelog: event.target.value })
+                        }
+                        placeholder="Resuma o que mudou para quem instalar esta versão."
+                        value={details.changelog}
                       />
                     </label>
                     <label>
@@ -923,7 +1161,7 @@ export function DataEditorApp() {
                           <button
                             aria-label={`Remover mudança de ${change.label}`}
                             onClick={() =>
-                              setChanges((current) =>
+                              commitChanges((current) =>
                                 current.filter((candidate) => candidate !== change),
                               )
                             }
