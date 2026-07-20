@@ -2440,6 +2440,26 @@ pub fn resolve_world_packages(
         .iter()
         .position(|package| package.manifest.content_type == DataPackageType::Base)
         .expect("validated single base");
+    let base_fingerprint = package_set_fingerprint(std::slice::from_ref(&packages[base_index]));
+    for package in &packages {
+        if package.manifest.composition_mode == PackageCompositionMode::Authoritative {
+            if package.manifest.target_base_fingerprint.as_deref() != Some(&base_fingerprint) {
+                report.error(
+                    package,
+                    "package.authoritative_base_fingerprint_mismatch",
+                    Some(&package.manifest.package_id),
+                    Some("targetBaseFingerprint"),
+                    Some(&base_fingerprint),
+                    package.manifest.target_base_fingerprint.as_deref(),
+                    "A composição autoritativa precisa usar exatamente a base declarada.",
+                    Some("Recalcule a fingerprint da base e atualize o manifesto."),
+                );
+            }
+        }
+    }
+    if !report.valid {
+        return Err(report);
+    }
     let mut world = packages[base_index]
         .world
         .clone()
@@ -2507,6 +2527,20 @@ pub fn resolve_world_packages(
         coverage,
         validation: report,
     })
+}
+
+fn package_set_fingerprint(packages: &[ContentPackage]) -> String {
+    let source = packages
+        .iter()
+        .map(|package| {
+            format!(
+                "{}:{}:{}",
+                package.manifest.package_id, package.manifest.version, package.manifest.checksum
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("|");
+    format!("{:016x}", fnv1a64(source.as_bytes()))
 }
 
 fn migrate_world_to_current(world: &mut WorldPackageData) {
