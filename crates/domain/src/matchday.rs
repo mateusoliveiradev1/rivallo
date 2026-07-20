@@ -1091,10 +1091,15 @@ impl MatchdayState {
                         "O plano tático pertence a uma versão mais nova do Rivallo.".to_owned(),
                     ));
                 }
-                if variation.schema_version < TACTICAL_PLAN_SCHEMA_VERSION
+                let refresh_tactical_model = variation.schema_version
+                    < TACTICAL_PLAN_SCHEMA_VERSION
                     || variation.tactical_model.is_none()
-                {
-                    let config = variation
+                    || variation.tactical_model.as_ref().is_some_and(|model| {
+                        model.schema_version < TACTICAL_MODEL_SCHEMA_VERSION
+                            || model.config.schema_version < TACTICAL_MODEL_SCHEMA_VERSION
+                    });
+                if refresh_tactical_model {
+                    let mut config = variation
                         .tactical_model
                         .as_ref()
                         .map(|model| model.config.clone())
@@ -1109,6 +1114,7 @@ impl MatchdayState {
                                 ..Default::default()
                             },
                         });
+                    config.schema_version = TACTICAL_MODEL_SCHEMA_VERSION;
                     variation.schema_version = TACTICAL_PLAN_SCHEMA_VERSION;
                     variation.tactical_model = Some(
                         resolve_tactical_model(TacticalResolutionContext {
@@ -1148,7 +1154,11 @@ impl MatchdayState {
             ));
         }
         let refresh_tactical_model = variation.schema_version < TACTICAL_PLAN_SCHEMA_VERSION
-            || variation.tactical_model.is_none();
+            || variation.tactical_model.is_none()
+            || variation.tactical_model.as_ref().is_some_and(|model| {
+                model.schema_version < TACTICAL_MODEL_SCHEMA_VERSION
+                    || model.config.schema_version < TACTICAL_MODEL_SCHEMA_VERSION
+            });
         variation.schema_version = TACTICAL_PLAN_SCHEMA_VERSION;
         if variation.variation_id.trim().is_empty()
             || variation.variation_id == "tactical-plan.primary"
@@ -1163,7 +1173,7 @@ impl MatchdayState {
             variation.updated_at = variation.created_at;
         }
         if refresh_tactical_model {
-            let config = variation
+            let mut config = variation
                 .tactical_model
                 .as_ref()
                 .map(|model| model.config.clone())
@@ -1176,6 +1186,7 @@ impl MatchdayState {
                         ..Default::default()
                     },
                 });
+            config.schema_version = TACTICAL_MODEL_SCHEMA_VERSION;
             variation.tactical_model = Some(
                 resolve_tactical_model(TacticalResolutionContext {
                     tactical_plan_id: &variation.variation_id,
@@ -2246,6 +2257,38 @@ mod tests {
             TACTICAL_PLAN_SCHEMA_VERSION
         );
         assert!(library.variations[0].created_at > 0);
+    }
+
+    #[test]
+    fn refreshes_a_schema_one_tactical_model_without_changing_base_placements() {
+        let mut state = MatchdayState::default();
+        let library = state.tactical_library.as_mut().expect("library");
+        let variation = &mut library.variations[0];
+        let placements = variation.placements.clone();
+        let model = variation.tactical_model.as_mut().expect("tactical model");
+        model.schema_version = 1;
+        model.config.schema_version = 1;
+
+        assert!(
+            state
+                .backfill_tactical_plan()
+                .expect("refresh tactical model")
+        );
+        let refreshed = &state.tactical_library.as_ref().expect("library").variations[0];
+        let refreshed_model = refreshed.tactical_model.as_ref().expect("tactical model");
+        assert_eq!(refreshed.placements, placements);
+        assert_eq!(
+            refreshed_model.schema_version,
+            TACTICAL_MODEL_SCHEMA_VERSION
+        );
+        assert_eq!(
+            refreshed_model.config.schema_version,
+            TACTICAL_MODEL_SCHEMA_VERSION
+        );
+        assert_eq!(
+            refreshed_model.match_snapshot.normalized_placements,
+            placements
+        );
     }
 
     #[test]

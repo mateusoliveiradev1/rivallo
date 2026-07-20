@@ -4,11 +4,26 @@ use serde::{Deserialize, Serialize};
 
 use crate::matchday::{Player, Position, TacticalApproach, TacticalLine, TacticalPlayerPlacement};
 
-pub const TACTICAL_MODEL_SCHEMA_VERSION: u16 = 1;
+pub const TACTICAL_MODEL_SCHEMA_VERSION: u16 = 2;
 pub const TACTICAL_MATCH_SNAPSHOT_SCHEMA_VERSION: u16 = 1;
 const LEFT_CORRIDOR_LIMIT: f64 = 1.0 / 3.0;
 const RIGHT_CORRIDOR_LIMIT: f64 = 2.0 / 3.0;
 const SAME_LINE_COVER_DISTANCE: f64 = 0.26;
+const PHASE_MIN_LONGITUDINAL: f64 = 0.08;
+const PHASE_MAX_LONGITUDINAL: f64 = 0.92;
+const PHASE_MIN_LATERAL: f64 = 0.10;
+const PHASE_MAX_LATERAL: f64 = 0.90;
+const FORWARD_OFFSET_PER_POINT: f64 = 0.0011;
+const BLOCK_OFFSET_PER_POINT: f64 = 0.001;
+const DEFENSIVE_LINE_OFFSET_PER_POINT: f64 = 0.0014;
+
+const fn default_strategy_score() -> u8 {
+    50
+}
+
+const fn default_compactness_score() -> u8 {
+    60
+}
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -80,6 +95,8 @@ pub struct InPossessionStrategy {
     pub tempo: u8,
     pub passing_risk: u8,
     pub players_forward: u8,
+    #[serde(default = "default_strategy_score")]
+    pub creative_freedom: u8,
     pub build_up: TacticalBuildUp,
     pub progression: TacticalProgression,
 }
@@ -89,8 +106,13 @@ pub struct InPossessionStrategy {
 pub struct OutOfPossessionStrategy {
     pub block_height: u8,
     pub defensive_line: u8,
+    #[serde(default = "default_strategy_score")]
+    pub depth: u8,
     pub pressure: u8,
-    pub compactness: u8,
+    #[serde(alias = "compactness", default = "default_compactness_score")]
+    pub horizontal_compactness: u8,
+    #[serde(default = "default_compactness_score")]
+    pub vertical_compactness: u8,
     pub duel_aggression: u8,
     pub force_direction: TacticalForceDirection,
 }
@@ -127,14 +149,17 @@ impl TacticalStrategyConfig {
                     tempo: 50,
                     passing_risk: 45,
                     players_forward: 50,
+                    creative_freedom: 50,
                     build_up: TacticalBuildUp::Supported,
                     progression: TacticalProgression::Balanced,
                 },
                 out_of_possession: OutOfPossessionStrategy {
                     block_height: 50,
                     defensive_line: 50,
+                    depth: 50,
                     pressure: 50,
-                    compactness: 60,
+                    horizontal_compactness: 60,
+                    vertical_compactness: 60,
                     duel_aggression: 50,
                     force_direction: TacticalForceDirection::Neutral,
                 },
@@ -155,14 +180,17 @@ impl TacticalStrategyConfig {
                     tempo: 68,
                     passing_risk: 62,
                     players_forward: 72,
+                    creative_freedom: 68,
                     build_up: TacticalBuildUp::Supported,
                     progression: TacticalProgression::Inside,
                 },
                 out_of_possession: OutOfPossessionStrategy {
                     block_height: 72,
                     defensive_line: 70,
+                    depth: 58,
                     pressure: 78,
-                    compactness: 66,
+                    horizontal_compactness: 66,
+                    vertical_compactness: 64,
                     duel_aggression: 64,
                     force_direction: TacticalForceDirection::Outside,
                 },
@@ -183,14 +211,17 @@ impl TacticalStrategyConfig {
                     tempo: 38,
                     passing_risk: 28,
                     players_forward: 38,
+                    creative_freedom: 34,
                     build_up: TacticalBuildUp::Patient,
                     progression: TacticalProgression::Outside,
                 },
                 out_of_possession: OutOfPossessionStrategy {
                     block_height: 38,
                     defensive_line: 40,
+                    depth: 38,
                     pressure: 42,
-                    compactness: 82,
+                    horizontal_compactness: 82,
+                    vertical_compactness: 84,
                     duel_aggression: 48,
                     force_direction: TacticalForceDirection::Outside,
                 },
@@ -232,13 +263,19 @@ impl Default for TacticalStrategyConfig {
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum TacticalInstructionCategory {
+    BuildUp,
     Circulation,
-    Risk,
     Pressure,
+    Marking,
+    Movement,
+    Finishing,
+    Transition,
+    GoalkeeperBehavior,
+    // Kept for schema-2 career compatibility. New instructions use the sporting groups above.
+    Risk,
     Width,
     Compactness,
     Creativity,
-    Marking,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
@@ -261,6 +298,16 @@ impl TacticalInstructionScope {
             Self::Individual => 50,
         }
     }
+
+    const fn sporting_label(self) -> &'static str {
+        match self {
+            Self::Collective => "equipe inteira",
+            Self::Sector => "setor",
+            Self::Position => "posição",
+            Self::Role => "função",
+            Self::Individual => "jogador",
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -279,6 +326,12 @@ pub struct TacticalInstruction {
     pub precedence: u8,
     pub familiarity_impact: i8,
     pub revision: u64,
+    #[serde(default = "default_instruction_enabled")]
+    pub enabled: bool,
+}
+
+const fn default_instruction_enabled() -> bool {
+    true
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -376,6 +429,7 @@ pub fn default_instructions() -> Vec<TacticalInstruction> {
             precedence: 10,
             familiarity_impact: -2,
             revision: 0,
+            enabled: true,
         },
         TacticalInstruction {
             instruction_id: "collective.counter-press".to_owned(),
@@ -395,6 +449,7 @@ pub fn default_instructions() -> Vec<TacticalInstruction> {
             precedence: 10,
             familiarity_impact: -3,
             revision: 0,
+            enabled: true,
         },
     ]
 }
@@ -563,6 +618,23 @@ pub struct TacticalRecommendation {
     pub risk: String,
     pub affected_players: Vec<String>,
     pub confidence: u8,
+    #[serde(default = "default_recommendation_origin")]
+    pub origin: String,
+    #[serde(default)]
+    pub variation_id: String,
+    #[serde(default)]
+    pub plan_revision: u64,
+    pub staff_id: Option<String>,
+    pub staff_role: Option<String>,
+    pub staff_name: Option<String>,
+    pub staff_specialty: Option<String>,
+    pub staff_quality: Option<u8>,
+    pub plan_knowledge: Option<u8>,
+    pub opponent_knowledge: Option<u8>,
+}
+
+fn default_recommendation_origin() -> String {
+    "Análise do modelo tático".to_owned()
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -786,30 +858,68 @@ fn phase_point(
         TacticalLine::Midfield => 0.8,
         TacticalLine::Attack => 1.0,
     };
-    let (x_offset, width_factor) = match phase {
+    let (x, y) = match phase {
         TacticalGamePhase::Base => unreachable!("base phase returned before deriving offsets"),
-        TacticalGamePhase::InPossession => (
-            (f64::from(strategy.in_possession.tempo) - 50.0) * 0.0012 * line_bias,
-            f64::from(strategy.in_possession.width) / 55.0,
-        ),
-        TacticalGamePhase::OutOfPossession => (
-            (f64::from(strategy.out_of_possession.block_height) - 50.0) * 0.001,
-            1.0 - (f64::from(strategy.out_of_possession.compactness) - 50.0) * 0.006,
-        ),
-        TacticalGamePhase::OffensiveTransition => (
-            f64::from(strategy.transitions.speed) * 0.0008 * line_bias,
-            1.0 + f64::from(strategy.transitions.players_forward) * 0.0015,
-        ),
-        TacticalGamePhase::DefensiveTransition => (
-            -f64::from(strategy.transitions.defensive_security) * 0.0006 * line_bias,
-            1.0 - f64::from(strategy.out_of_possession.compactness) * 0.002,
-        ),
+        TacticalGamePhase::InPossession => {
+            let forward_offset = (f64::from(strategy.in_possession.players_forward) - 50.0)
+                * FORWARD_OFFSET_PER_POINT
+                * line_bias;
+            let width_factor = f64::from(strategy.in_possession.width) / 55.0;
+            (
+                placement.normalized_x + forward_offset,
+                0.5 + (placement.normalized_y - 0.5) * width_factor,
+            )
+        }
+        TacticalGamePhase::OutOfPossession => {
+            let block_offset = (f64::from(strategy.out_of_possession.block_height) - 50.0)
+                * BLOCK_OFFSET_PER_POINT
+                * line_bias;
+            let defensive_line_weight = match placement.line {
+                TacticalLine::Goal => 0.25,
+                TacticalLine::Defence => 1.0,
+                TacticalLine::Midfield => 0.2,
+                TacticalLine::Attack => 0.0,
+            };
+            let defensive_line_offset = (f64::from(strategy.out_of_possession.defensive_line)
+                - 50.0)
+                * DEFENSIVE_LINE_OFFSET_PER_POINT
+                * defensive_line_weight;
+            let depth_factor = 0.85 + f64::from(strategy.out_of_possession.depth) * 0.003;
+            let vertical_compactness_factor =
+                1.2 - f64::from(strategy.out_of_possession.vertical_compactness) * 0.004;
+            let horizontal_compactness_factor =
+                1.2 - f64::from(strategy.out_of_possession.horizontal_compactness) * 0.004;
+            (
+                0.5 + (placement.normalized_x - 0.5) * depth_factor * vertical_compactness_factor
+                    + block_offset
+                    + defensive_line_offset,
+                0.5 + (placement.normalized_y - 0.5) * horizontal_compactness_factor,
+            )
+        }
+        TacticalGamePhase::OffensiveTransition => {
+            let forward_offset = (f64::from(strategy.transitions.players_forward) - 50.0)
+                * FORWARD_OFFSET_PER_POINT
+                * line_bias;
+            (
+                placement.normalized_x + forward_offset,
+                placement.normalized_y,
+            )
+        }
+        TacticalGamePhase::DefensiveTransition => {
+            let security_offset = -(f64::from(strategy.transitions.defensive_security) - 50.0)
+                * FORWARD_OFFSET_PER_POINT
+                * line_bias;
+            let horizontal_compactness_factor =
+                1.15 - f64::from(strategy.out_of_possession.horizontal_compactness) * 0.003;
+            (
+                placement.normalized_x + security_offset,
+                0.5 + (placement.normalized_y - 0.5) * horizontal_compactness_factor,
+            )
+        }
     };
-    let x =
-        ((placement.normalized_x + x_offset).clamp(0.0, 1.0) * 1_000_000.0).round() / 1_000_000.0;
-    let y = ((0.5 + (placement.normalized_y - 0.5) * width_factor).clamp(0.0, 1.0) * 1_000_000.0)
-        .round()
+    let x = (x.clamp(PHASE_MIN_LONGITUDINAL, PHASE_MAX_LONGITUDINAL) * 1_000_000.0).round()
         / 1_000_000.0;
+    let y = (y.clamp(PHASE_MIN_LATERAL, PHASE_MAX_LATERAL) * 1_000_000.0).round() / 1_000_000.0;
     (x, y)
 }
 
@@ -915,7 +1025,9 @@ pub fn resolve_strategy(config: &TacticalStrategyConfig) -> ResolvedTacticalStra
     if config.in_possession.width >= 65 {
         strengths.push("amplitude para abrir o bloco adversário".to_owned());
     }
-    if config.out_of_possession.compactness >= 70 {
+    if config.out_of_possession.horizontal_compactness >= 70
+        && config.out_of_possession.vertical_compactness >= 70
+    {
         strengths.push("proteção coordenada do corredor central".to_owned());
     }
     if config.out_of_possession.pressure >= 70 {
@@ -955,9 +1067,29 @@ pub fn resolve_strategy(config: &TacticalStrategyConfig) -> ResolvedTacticalStra
                 explanation: "Velocidade desejada da circulação.".to_owned(),
             },
             TacticalParameter {
+                parameter_id: "creativeFreedom".to_owned(),
+                value: config.in_possession.creative_freedom,
+                explanation: "Autonomia para decisões fora do padrão coletivo.".to_owned(),
+            },
+            TacticalParameter {
+                parameter_id: "playersForward".to_owned(),
+                value: config.in_possession.players_forward,
+                explanation: "Presença desejada à frente da linha da bola.".to_owned(),
+            },
+            TacticalParameter {
+                parameter_id: "blockHeight".to_owned(),
+                value: config.out_of_possession.block_height,
+                explanation: "Altura de referência do bloco defensivo.".to_owned(),
+            },
+            TacticalParameter {
                 parameter_id: "defensiveLine".to_owned(),
                 value: config.out_of_possession.defensive_line,
                 explanation: "Altura de referência da última linha.".to_owned(),
+            },
+            TacticalParameter {
+                parameter_id: "depth".to_owned(),
+                value: config.out_of_possession.depth,
+                explanation: "Profundidade ocupada entre a primeira e a última linha.".to_owned(),
             },
             TacticalParameter {
                 parameter_id: "pressure".to_owned(),
@@ -965,8 +1097,13 @@ pub fn resolve_strategy(config: &TacticalStrategyConfig) -> ResolvedTacticalStra
                 explanation: "Intensidade e frequência das ações de pressão.".to_owned(),
             },
             TacticalParameter {
-                parameter_id: "compactness".to_owned(),
-                value: config.out_of_possession.compactness,
+                parameter_id: "horizontalCompactness".to_owned(),
+                value: config.out_of_possession.horizontal_compactness,
+                explanation: "Distância lateral entre jogadores sem a bola.".to_owned(),
+            },
+            TacticalParameter {
+                parameter_id: "verticalCompactness".to_owned(),
+                value: config.out_of_possession.vertical_compactness,
                 explanation: "Distância-alvo entre setores sem a bola.".to_owned(),
             },
             TacticalParameter {
@@ -1003,7 +1140,11 @@ fn resolve_instructions(
     Vec<ResolvedTacticalInstruction>,
     Vec<TacticalInstructionConflict>,
 ) {
-    let mut ordered = instructions.to_vec();
+    let mut ordered = instructions
+        .iter()
+        .filter(|instruction| instruction.enabled)
+        .cloned()
+        .collect::<Vec<_>>();
     ordered.sort_by(|left, right| {
         right
             .scope
@@ -1032,10 +1173,12 @@ fn resolve_instructions(
                 instruction_ids: vec![winner.instruction_id.clone(), instruction.instruction_id],
                 winner_id: winner.instruction_id.clone(),
                 reason: format!(
-                    "{} vence porque o escopo {:?} possui precedência superior ou identidade estável anterior.",
-                    winner.instruction_id, winner.scope
+                    "\"{}\" prevalece sobre \"{}\" porque o escopo {} possui maior precedência ou foi resolvido primeiro de forma estável.",
+                    winner.description,
+                    instruction.description,
+                    winner.scope.sporting_label()
                 ),
-                resolved_behavior: winner.value.clone(),
+                resolved_behavior: winner.description.clone(),
             });
         } else {
             accepted.push(instruction);
@@ -1314,10 +1457,13 @@ fn validate_config(config: &TacticalModelConfig) -> Result<(), String> {
         config.strategy.in_possession.tempo,
         config.strategy.in_possession.passing_risk,
         config.strategy.in_possession.players_forward,
+        config.strategy.in_possession.creative_freedom,
         config.strategy.out_of_possession.block_height,
         config.strategy.out_of_possession.defensive_line,
         config.strategy.out_of_possession.pressure,
-        config.strategy.out_of_possession.compactness,
+        config.strategy.out_of_possession.depth,
+        config.strategy.out_of_possession.horizontal_compactness,
+        config.strategy.out_of_possession.vertical_compactness,
         config.strategy.out_of_possession.duel_aggression,
         config.strategy.transitions.speed,
         config.strategy.transitions.players_forward,
@@ -1423,6 +1569,8 @@ fn diagnostic(
 }
 
 fn recommendations(
+    variation_id: &str,
+    plan_revision: u64,
     placements: &[TacticalPlayerPlacement],
     spatial: &TacticalSpatialAnalysis,
     config: &TacticalStrategyConfig,
@@ -1448,6 +1596,16 @@ fn recommendations(
             risk: "aumentar a distância para reagir após a perda".to_owned(),
             affected_players,
             confidence: 82,
+            origin: "Análise do modelo tático".to_owned(),
+            variation_id: variation_id.to_owned(),
+            plan_revision,
+            staff_id: None,
+            staff_role: None,
+            staff_name: None,
+            staff_specialty: None,
+            staff_quality: None,
+            plan_knowledge: None,
+            opponent_knowledge: None,
         });
     } else if spatial.compactness < 55 {
         recommendations.push(TacticalRecommendation {
@@ -1457,14 +1615,24 @@ fn recommendations(
                 spatial.compactness
             ),
             proposed_changes: vec![TacticalConfigChange {
-                path: "strategy.outOfPossession.compactness".to_owned(),
-                from: config.out_of_possession.compactness,
+                path: "strategy.outOfPossession.verticalCompactness".to_owned(),
+                from: config.out_of_possession.vertical_compactness,
                 to: 70,
             }],
             benefit: "reduzir espaço entre meio e defesa".to_owned(),
             risk: "ceder mais largura ao adversário".to_owned(),
             affected_players,
             confidence: 78,
+            origin: "Análise do modelo tático".to_owned(),
+            variation_id: variation_id.to_owned(),
+            plan_revision,
+            staff_id: None,
+            staff_role: None,
+            staff_name: None,
+            staff_specialty: None,
+            staff_quality: None,
+            plan_knowledge: None,
+            opponent_knowledge: None,
         });
     }
     recommendations
@@ -1487,7 +1655,13 @@ pub fn resolve_tactical_model(
         &familiarity,
         &instruction_conflicts,
     );
-    let recommendations = recommendations(context.placements, &spatial, &context.config.strategy);
+    let recommendations = recommendations(
+        context.variation_id,
+        context.revision,
+        context.placements,
+        &spatial,
+        &context.config.strategy,
+    );
     let starters = context
         .placements
         .iter()
@@ -1569,6 +1743,34 @@ pub fn compare_tactical_models(
         "Ajuste de estratégia",
     );
     push_numeric(
+        "passingRisk",
+        "Risco dos passes",
+        before.config.strategy.in_possession.passing_risk,
+        after.config.strategy.in_possession.passing_risk,
+        "Ajuste comportamental",
+    );
+    push_numeric(
+        "creativeFreedom",
+        "Liberdade criativa",
+        before.config.strategy.in_possession.creative_freedom,
+        after.config.strategy.in_possession.creative_freedom,
+        "Ajuste comportamental",
+    );
+    push_numeric(
+        "playersForward",
+        "Presença à frente",
+        before.config.strategy.in_possession.players_forward,
+        after.config.strategy.in_possession.players_forward,
+        "Ajuste com a bola",
+    );
+    push_numeric(
+        "blockHeight",
+        "Altura do bloco",
+        before.config.strategy.out_of_possession.block_height,
+        after.config.strategy.out_of_possession.block_height,
+        "Ajuste sem a bola",
+    );
+    push_numeric(
         "defensiveLine",
         "Linha defensiva",
         before.config.strategy.out_of_possession.defensive_line,
@@ -1583,10 +1785,36 @@ pub fn compare_tactical_models(
         "Ajuste sem a bola",
     );
     push_numeric(
-        "compactness",
-        "Compactação",
-        before.config.strategy.out_of_possession.compactness,
-        after.config.strategy.out_of_possession.compactness,
+        "horizontalCompactness",
+        "Compactação horizontal",
+        before
+            .config
+            .strategy
+            .out_of_possession
+            .horizontal_compactness,
+        after
+            .config
+            .strategy
+            .out_of_possession
+            .horizontal_compactness,
+        "Ajuste sem a bola",
+    );
+    push_numeric(
+        "verticalCompactness",
+        "Compactação vertical",
+        before
+            .config
+            .strategy
+            .out_of_possession
+            .vertical_compactness,
+        after.config.strategy.out_of_possession.vertical_compactness,
+        "Ajuste sem a bola",
+    );
+    push_numeric(
+        "depth",
+        "Profundidade",
+        before.config.strategy.out_of_possession.depth,
+        after.config.strategy.out_of_possession.depth,
         "Ajuste sem a bola",
     );
     if before.resolved_instructions.len() != after.resolved_instructions.len() {
@@ -1678,6 +1906,135 @@ mod tests {
         assert!(!model.spatial.cover_pairs.is_empty());
     }
 
+    fn phase(
+        model: &TacticalModelSnapshot,
+        expected: TacticalGamePhase,
+    ) -> &TacticalPhaseStructure {
+        model
+            .structures
+            .iter()
+            .find(|structure| structure.phase == expected)
+            .expect("phase structure")
+    }
+
+    #[test]
+    fn derived_phase_cards_stay_inside_safe_normalized_bounds_without_changing_base() {
+        let state = MatchdayState::default();
+        let plan = &state.tactical_library.as_ref().expect("library").variations[0];
+        let model = resolve(&state, TacticalModelConfig::default(), 100);
+
+        assert_eq!(
+            phase(&model, TacticalGamePhase::Base)
+                .players
+                .iter()
+                .map(|player| (player.normalized_x, player.normalized_y))
+                .collect::<Vec<_>>(),
+            plan.placements
+                .iter()
+                .map(|placement| (placement.normalized_x, placement.normalized_y))
+                .collect::<Vec<_>>()
+        );
+        for structure in model
+            .structures
+            .iter()
+            .filter(|structure| structure.phase != TacticalGamePhase::Base)
+        {
+            assert!(structure.players.iter().all(|player| {
+                (PHASE_MIN_LONGITUDINAL..=PHASE_MAX_LONGITUDINAL).contains(&player.normalized_x)
+                    && (PHASE_MIN_LATERAL..=PHASE_MAX_LATERAL).contains(&player.normalized_y)
+            }));
+        }
+    }
+
+    #[test]
+    fn width_previews_only_the_in_possession_projection() {
+        let state = MatchdayState::default();
+        let before = resolve(&state, TacticalModelConfig::default(), 100);
+        let mut config = TacticalModelConfig::default();
+        config.strategy.in_possession.width = 88;
+        let after = resolve(&state, config, 101);
+
+        for expected in [
+            TacticalGamePhase::Base,
+            TacticalGamePhase::OutOfPossession,
+            TacticalGamePhase::OffensiveTransition,
+            TacticalGamePhase::DefensiveTransition,
+        ] {
+            assert_eq!(
+                phase(&before, expected).players,
+                phase(&after, expected).players
+            );
+        }
+        assert_ne!(
+            phase(&before, TacticalGamePhase::InPossession).players,
+            phase(&after, TacticalGamePhase::InPossession).players
+        );
+    }
+
+    #[test]
+    fn defensive_line_only_restructures_the_out_of_possession_projection() {
+        let state = MatchdayState::default();
+        let before = resolve(&state, TacticalModelConfig::default(), 100);
+        let mut config = TacticalModelConfig::default();
+        config.strategy.out_of_possession.defensive_line = 90;
+        let after = resolve(&state, config, 101);
+
+        assert_ne!(
+            phase(&before, TacticalGamePhase::OutOfPossession).players,
+            phase(&after, TacticalGamePhase::OutOfPossession).players
+        );
+        for expected in [
+            TacticalGamePhase::Base,
+            TacticalGamePhase::InPossession,
+            TacticalGamePhase::OffensiveTransition,
+            TacticalGamePhase::DefensiveTransition,
+        ] {
+            assert_eq!(
+                phase(&before, expected).players,
+                phase(&after, expected).players
+            );
+        }
+    }
+
+    #[test]
+    fn compactness_reduces_the_corresponding_horizontal_and_vertical_distances() {
+        let state = MatchdayState::default();
+        let mut loose = TacticalModelConfig::default();
+        loose.strategy.out_of_possession.horizontal_compactness = 20;
+        loose.strategy.out_of_possession.vertical_compactness = 20;
+        let loose = resolve(&state, loose, 100);
+        let mut compact = TacticalModelConfig::default();
+        compact.strategy.out_of_possession.horizontal_compactness = 90;
+        compact.strategy.out_of_possession.vertical_compactness = 90;
+        let compact = resolve(&state, compact, 101);
+
+        let loose_without_ball = phase(&loose, TacticalGamePhase::OutOfPossession);
+        let compact_without_ball = phase(&compact, TacticalGamePhase::OutOfPossession);
+        assert!(compact_without_ball.width < loose_without_ball.width);
+        assert!(compact_without_ball.depth < loose_without_ball.depth);
+        assert!(
+            phase(&compact, TacticalGamePhase::DefensiveTransition).width
+                < phase(&loose, TacticalGamePhase::DefensiveTransition).width
+        );
+    }
+
+    #[test]
+    fn behavioral_parameters_never_fabricate_player_movement() {
+        let state = MatchdayState::default();
+        let before = resolve(&state, TacticalModelConfig::default(), 100);
+        let mut config = TacticalModelConfig::default();
+        config.strategy.in_possession.tempo = 91;
+        config.strategy.in_possession.passing_risk = 87;
+        config.strategy.in_possession.creative_freedom = 83;
+        config.strategy.in_possession.progression = TacticalProgression::Inside;
+        config.strategy.transitions.speed = 94;
+        config.strategy.out_of_possession.pressure = 89;
+        config.strategy.out_of_possession.duel_aggression = 88;
+        let after = resolve(&state, config, 101);
+
+        assert_eq!(before.structures, after.structures);
+    }
+
     #[test]
     fn preset_resolution_is_explicit_deterministic_and_customizable() {
         let first = TacticalStrategyConfig::for_preset(TacticalStrategyPresetId::Protagonist);
@@ -1713,6 +2070,7 @@ mod tests {
             precedence: 50,
             familiarity_impact: -2,
             revision: 0,
+            enabled: true,
         });
         let model = resolve(&state, config, 100);
         assert_eq!(model.instruction_conflicts.len(), 1);
@@ -1860,6 +2218,7 @@ mod tests {
             precedence: 0,
             familiarity_impact: -1,
             revision: 0,
+            enabled: true,
         })
         .collect();
         let config = TacticalModelConfig {

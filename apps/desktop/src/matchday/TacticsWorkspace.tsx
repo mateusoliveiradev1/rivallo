@@ -33,6 +33,7 @@ import type {
   TacticalModelConfig,
   TacticalPlanPreview,
   TacticalPlanSnapshot,
+  TacticalRecommendation,
   TacticalStrategyPresetId,
   TacticalStrategyPresetSummary,
   TacticalVariationLibrarySnapshot,
@@ -154,7 +155,454 @@ const presetLabels: Record<TacticalStrategyPresetId, string> = {
   compact: 'Compacta',
 };
 
-const scoreOptions = [30, 45, 60, 75, 90] as const;
+const instructionScopeLabels: Record<TacticalInstructionScope, string> = {
+  collective: 'Toda a equipe',
+  sector: 'Setor',
+  position: 'Posição',
+  role: 'Função',
+  individual: 'Jogador',
+};
+
+const instructionCategoryLabels: Record<TacticalInstructionCategory, string> = {
+  buildUp: 'Construção',
+  circulation: 'Circulação',
+  pressure: 'Pressão',
+  marking: 'Marcação',
+  movement: 'Movimentação',
+  finishing: 'Finalização',
+  transition: 'Transição',
+  goalkeeperBehavior: 'Comportamento do goleiro',
+  risk: 'Risco com a bola',
+  width: 'Amplitude',
+  compactness: 'Compactação',
+  creativity: 'Criatividade',
+};
+
+const instructionComposerCategories = [
+  'buildUp',
+  'circulation',
+  'pressure',
+  'marking',
+  'movement',
+  'finishing',
+  'transition',
+  'goalkeeperBehavior',
+] as const satisfies readonly TacticalInstructionCategory[];
+
+interface InstructionOption {
+  readonly value: string;
+  readonly label: string;
+  readonly effect: string;
+  readonly benefit: string;
+  readonly risk: string;
+}
+
+const instructionOptions: Record<TacticalInstructionCategory, readonly InstructionOption[]> = {
+  buildUp: [
+    {
+      value: 'supported',
+      label: 'Sair com apoios próximos',
+      effect: 'A equipe oferece linhas curtas desde a primeira fase da construção.',
+      benefit: 'Mais opções seguras para superar a primeira pressão.',
+      risk: 'Mais jogadores ficam próximos da própria área.',
+    },
+    {
+      value: 'direct',
+      label: 'Buscar a saída direta',
+      effect: 'A primeira progressão procura rapidamente a linha mais adiantada.',
+      benefit: 'Evita pressão prolongada perto do gol.',
+      risk: 'Reduz o controle da segunda bola.',
+    },
+  ],
+  circulation: [
+    {
+      value: 'supported',
+      label: 'Apoios próximos',
+      effect: 'Cria linhas de passe curtas e reduz o isolamento do portador.',
+      benefit: 'Facilita a conservação da posse sob pressão.',
+      risk: 'Pode reduzir a ocupação do lado oposto.',
+    },
+    {
+      value: 'patient',
+      label: 'Circular com paciência',
+      effect: 'Prioriza retenção e espera por uma vantagem clara antes de progredir.',
+      benefit: 'A equipe progride com mais controle.',
+      risk: 'Dá tempo para o adversário recompor.',
+    },
+    {
+      value: 'direct',
+      label: 'Acelerar a circulação',
+      effect: 'Busca a próxima linha mais cedo, aceitando menos tempo para reorganizar apoios.',
+      benefit: 'Ataca espaços antes que se fechem.',
+      risk: 'Aumenta perdas com a equipe aberta.',
+    },
+  ],
+  risk: [
+    {
+      value: 'secure',
+      label: 'Proteger a posse',
+      effect: 'Reduz tentativas de passe de baixa probabilidade em zonas sensíveis.',
+      benefit: 'Protege a equipe de perdas centrais.',
+      risk: 'Pode tornar a progressão previsível.',
+    },
+    {
+      value: 'balanced',
+      label: 'Equilibrar risco',
+      effect: 'Alterna segurança e progressão conforme pressão e cobertura disponíveis.',
+      benefit: 'Equilibra controle e avanço.',
+      risk: 'Exige boa leitura coletiva.',
+    },
+    {
+      value: 'progressive',
+      label: 'Buscar passes progressivos',
+      effect: 'Aumenta a procura por passes que eliminem linhas, com maior risco de perda.',
+      benefit: 'Rompe blocos com menos ações.',
+      risk: 'Aumenta a chance de transição adversária.',
+    },
+  ],
+  pressure: [
+    {
+      value: 'counterPress',
+      label: 'Pressionar após a perda',
+      effect: 'Prioriza recuperar perto da perda antes de recompor o bloco.',
+      benefit: 'Mantém o adversário longe do ataque organizado.',
+      risk: 'A primeira pressão superada expõe espaços.',
+    },
+    {
+      value: 'regroup',
+      label: 'Recompor o bloco',
+      effect: 'Prioriza distâncias defensivas antes de iniciar nova pressão.',
+      benefit: 'Protege o centro e a última linha.',
+      risk: 'Entrega tempo para o adversário avançar.',
+    },
+  ],
+  width: [
+    {
+      value: 'stretch',
+      label: 'Ocupar os corredores',
+      effect: 'Mantém referências abertas para ampliar o campo útil com a bola.',
+      benefit: 'Cria espaço entre os defensores adversários.',
+      risk: 'Aumenta distâncias para reagir à perda.',
+    },
+    {
+      value: 'narrow',
+      label: 'Aproximar por dentro',
+      effect: 'Concentra apoios interiores e deixa a amplitude para jogadores designados.',
+      benefit: 'Cria superioridade por dentro.',
+      risk: 'Pode abandonar um corredor lateral.',
+    },
+  ],
+  compactness: [
+    {
+      value: 'compactBlock',
+      label: 'Encurtar distâncias',
+      effect: 'Reduz espaços entre companheiros e protege zonas próximas.',
+      benefit: 'Facilita coberturas e pressão conjunta.',
+      risk: 'Concede espaço no lado oposto.',
+    },
+    {
+      value: 'balancedDistances',
+      label: 'Manter distâncias equilibradas',
+      effect: 'Preserva cobertura sem abandonar a capacidade de pressionar fora do bloco.',
+      benefit: 'Mantém referências equilibradas.',
+      risk: 'Não maximiza uma proteção específica.',
+    },
+  ],
+  creativity: [
+    {
+      value: 'structured',
+      label: 'Respeitar a estrutura',
+      effect: 'Prioriza referências coletivas e movimentos previamente coordenados.',
+      benefit: 'Mantém a ocupação prevista pelo plano.',
+      risk: 'Reduz soluções individuais inesperadas.',
+    },
+    {
+      value: 'expressive',
+      label: 'Dar liberdade de decisão',
+      effect: 'Permite soluções individuais quando o jogador reconhece uma vantagem.',
+      benefit: 'Explora qualidade e leitura individuais.',
+      risk: 'Aumenta a variação das posições de apoio.',
+    },
+  ],
+  marking: [
+    {
+      value: 'zonal',
+      label: 'Proteger a zona',
+      effect: 'Mantém a referência espacial antes de acompanhar um adversário.',
+      benefit: 'Protege a estrutura coletiva.',
+      risk: 'Pode conceder recepção entre zonas.',
+    },
+    {
+      value: 'tight',
+      label: 'Marcar de perto',
+      effect: 'Reduz o tempo do alvo para receber e girar, com risco de abrir espaço às costas.',
+      benefit: 'Dificulta a recepção do alvo.',
+      risk: 'Pode arrastar o marcador para fora da zona.',
+    },
+  ],
+  movement: [
+    {
+      value: 'attackSpace',
+      label: 'Atacar o espaço livre',
+      effect: 'O alvo procura o espaço disponível quando a cobertura está garantida.',
+      benefit: 'Cria uma opção de progressão sem bola.',
+      risk: 'Pode afastar o jogador da zona de apoio.',
+    },
+    {
+      value: 'offerSupport',
+      label: 'Aproximar para apoiar',
+      effect: 'O alvo prioriza uma linha de passe curta ao portador.',
+      benefit: 'Reduz o isolamento na circulação.',
+      risk: 'Diminui a presença em profundidade.',
+    },
+  ],
+  finishing: [
+    {
+      value: 'patientShot',
+      label: 'Esperar a melhor finalização',
+      effect: 'A equipe evita chutes contestados quando ainda há opção de passe.',
+      benefit: 'Melhora a qualidade média das tentativas.',
+      risk: 'Pode desperdiçar janelas curtas de chute.',
+    },
+    {
+      value: 'shootWhenOpen',
+      label: 'Finalizar quando houver espaço',
+      effect: 'O alvo aproveita rapidamente uma janela limpa de finalização.',
+      benefit: 'Transforma espaço em tentativa antes da pressão.',
+      risk: 'Pode encerrar ataques com apoio disponível.',
+    },
+  ],
+  transition: [
+    {
+      value: 'counterPress',
+      label: 'Pressionar após a perda',
+      effect: 'A primeira reação tenta recuperar a bola perto do local da perda.',
+      benefit: 'Interrompe a saída adversária cedo.',
+      risk: 'Exige cobertura coordenada atrás da pressão.',
+    },
+    {
+      value: 'regroup',
+      label: 'Reorganizar após a perda',
+      effect: 'A prioridade é recompor as distâncias antes de pressionar novamente.',
+      benefit: 'Protege o centro e a última linha.',
+      risk: 'Concede metros para a progressão adversária.',
+    },
+  ],
+  goalkeeperBehavior: [
+    {
+      value: 'safeDistribution',
+      label: 'Distribuir com segurança',
+      effect: 'O goleiro prioriza uma opção apoiada e disponível.',
+      benefit: 'Reduz perdas na origem da jogada.',
+      risk: 'Pode desacelerar uma transição favorável.',
+    },
+    {
+      value: 'quickDistribution',
+      label: 'Acelerar a distribuição',
+      effect: 'O goleiro procura iniciar a transição antes da recomposição rival.',
+      benefit: 'Explora espaços enquanto estão abertos.',
+      risk: 'A equipe pode receber sem apoios próximos.',
+    },
+  ],
+};
+
+const progressionLabels = {
+  outside: 'pelos corredores',
+  balanced: 'por dentro e por fora',
+  inside: 'pelo corredor central',
+} as const;
+
+type StrategySection = 'inPossession' | 'outOfPossession' | 'transitions';
+
+interface StrategySliderDefinition {
+  readonly field: string;
+  readonly label: string;
+  readonly low: string;
+  readonly high: string;
+  readonly help: string;
+  readonly benefit: string;
+  readonly risk: string;
+}
+
+const strategySliderSections: readonly {
+  readonly id: StrategySection;
+  readonly title: string;
+  readonly controls: readonly StrategySliderDefinition[];
+}[] = [
+  {
+    id: 'inPossession',
+    title: 'Com a bola',
+    controls: [
+      {
+        field: 'width',
+        label: 'Amplitude',
+        low: 'Fechada',
+        high: 'Muito ampla',
+        help: 'Define quanto a estrutura com a bola ocupa os corredores.',
+        benefit: 'Abre linhas de passe e alonga o bloco adversário.',
+        risk: 'Aumenta distâncias para reagir após a perda.',
+      },
+      {
+        field: 'tempo',
+        label: 'Ritmo',
+        low: 'Paciente',
+        high: 'Muito rápido',
+        help: 'Define a velocidade das decisões, sem criar deslocamentos fictícios.',
+        benefit: 'Acelera a exploração de uma vantagem.',
+        risk: 'Reduz o tempo disponível para apoiar.',
+      },
+      {
+        field: 'passingRisk',
+        label: 'Risco dos passes',
+        low: 'Seguro',
+        high: 'Muito agressivo',
+        help: 'Define a tolerância a passes de menor probabilidade.',
+        benefit: 'Pode eliminar mais linhas com uma ação.',
+        risk: 'Eleva a exposição após a perda.',
+      },
+      {
+        field: 'playersForward',
+        label: 'Presença à frente',
+        low: 'Protegida',
+        high: 'Muito alta',
+        help: 'Define quantos jogadores ocupam zonas ofensivas na projeção.',
+        benefit: 'Aumenta opções próximas da área.',
+        risk: 'Reduz a proteção atrás da bola.',
+      },
+      {
+        field: 'creativeFreedom',
+        label: 'Liberdade criativa',
+        low: 'Estruturada',
+        high: 'Muito livre',
+        help: 'Define a autonomia para decidir, sem mover jogadores por si só.',
+        benefit: 'Permite soluções individuais inesperadas.',
+        risk: 'Reduz a previsibilidade dos apoios.',
+      },
+    ],
+  },
+  {
+    id: 'outOfPossession',
+    title: 'Sem a bola',
+    controls: [
+      {
+        field: 'blockHeight',
+        label: 'Altura do bloco',
+        low: 'Baixa',
+        high: 'Muito alta',
+        help: 'Define onde a equipe inicia sua proteção e pressão.',
+        benefit: 'Aproxima o bloco do campo adversário.',
+        risk: 'Concede espaço atrás da primeira pressão.',
+      },
+      {
+        field: 'defensiveLine',
+        label: 'Linha defensiva',
+        low: 'Recuada',
+        high: 'Muito alta',
+        help: 'Afeta principalmente a última linha na projeção defensiva.',
+        benefit: 'Encurta o campo para sustentar a pressão.',
+        risk: 'Aumenta o espaço atacável às costas.',
+      },
+      {
+        field: 'depth',
+        label: 'Profundidade',
+        low: 'Curta',
+        high: 'Muito longa',
+        help: 'Define a distância longitudinal ocupada pelo bloco.',
+        benefit: 'Pode cobrir mais zonas do campo.',
+        risk: 'Pode abrir espaço entre setores.',
+      },
+      {
+        field: 'pressure',
+        label: 'Intensidade da pressão',
+        low: 'Contida',
+        high: 'Muito intensa',
+        help: 'Define a frequência de ações de pressão, sem mover cards arbitrariamente.',
+        benefit: 'Reduz o tempo de decisão rival.',
+        risk: 'Eleva a exigência física e o risco de desencaixe.',
+      },
+      {
+        field: 'horizontalCompactness',
+        label: 'Compactação horizontal',
+        low: 'Aberta',
+        high: 'Muito fechada',
+        help: 'Aproxima ou afasta os corredores defensivos.',
+        benefit: 'Protege zonas centrais e coberturas.',
+        risk: 'Pode liberar o lado oposto.',
+      },
+      {
+        field: 'verticalCompactness',
+        label: 'Compactação vertical',
+        low: 'Alongada',
+        high: 'Muito curta',
+        help: 'Aproxima ou afasta defesa, meio e ataque.',
+        benefit: 'Reduz espaço entre as linhas.',
+        risk: 'Pode diminuir a cobertura em profundidade.',
+      },
+      {
+        field: 'duelAggression',
+        label: 'Agressividade nos duelos',
+        low: 'Contida',
+        high: 'Muito agressiva',
+        help: 'Define a postura no duelo, sem alterar a geometria sozinho.',
+        benefit: 'Dificulta o domínio do adversário.',
+        risk: 'Aumenta faltas e ações fora de tempo.',
+      },
+    ],
+  },
+  {
+    id: 'transitions',
+    title: 'Transições',
+    controls: [
+      {
+        field: 'speed',
+        label: 'Velocidade',
+        low: 'Controlada',
+        high: 'Muito rápida',
+        help: 'Define a urgência da transição, sem deslocamento fictício isolado.',
+        benefit: 'Explora espaços antes da recomposição.',
+        risk: 'Reduz tempo para formar apoios.',
+      },
+      {
+        field: 'playersForward',
+        label: 'Jogadores avançando',
+        low: 'Poucos',
+        high: 'Muitos',
+        help: 'Projeta os apoios ofensivos e a segurança restante.',
+        benefit: 'Aumenta opções na transição ofensiva.',
+        risk: 'Diminui a proteção contra uma nova perda.',
+      },
+      {
+        field: 'defensiveSecurity',
+        label: 'Segurança defensiva',
+        low: 'Arriscada',
+        high: 'Muito protegida',
+        help: 'Define quanta cobertura permanece atrás da transição.',
+        benefit: 'Protege a equipe contra a perda seguinte.',
+        risk: 'Reduz presença no avanço.',
+      },
+    ],
+  },
+];
+
+const qualitativeScore = (value: number) =>
+  value < 30
+    ? 'Muito baixa'
+    : value < 45
+      ? 'Baixa'
+      : value < 60
+        ? 'Equilibrada'
+        : value < 75
+          ? 'Alta'
+          : 'Muito alta';
+
+const strategyChangeLabel = (path: string) => {
+  const field = path.split('.').at(-1);
+  return (
+    strategySliderSections
+      .flatMap(({ controls }) => controls)
+      .find((control) => control.field === field)?.label ?? 'Parâmetro tático'
+  );
+};
 
 const tacticalTools: readonly [TacticalTool, TacticalTool, string][] = [
   ['analysis', 'analysis', 'Análise'],
@@ -222,18 +670,41 @@ export function TacticsWorkspace({
   const [interactionError, setInteractionError] = useState('');
   const [selectedPhase, setSelectedPhase] = useState<TacticalGamePhase>('base');
   const [advancedStrategyOpen, setAdvancedStrategyOpen] = useState(false);
+  const [openStrategySection, setOpenStrategySection] = useState<StrategySection>('inPossession');
   const [strategyCatalog, setStrategyCatalog] = useState<readonly TacticalStrategyPresetSummary[]>(
     [],
   );
   const [pendingStrategyPreset, setPendingStrategyPreset] =
     useState<TacticalStrategyPresetSummary | null>(null);
   const [semanticPreview, setSemanticPreview] = useState<TacticalPlanPreview | null>(null);
+  const [comparisonDismissed, setComparisonDismissed] = useState(false);
   const [semanticBusy, setSemanticBusy] = useState(false);
+  const [sliderDraftValues, setSliderDraftValues] = useState<Record<string, number>>({});
+  const [selectedRecommendation, setSelectedRecommendation] =
+    useState<TacticalRecommendation | null>(null);
+  const [recommendationPreview, setRecommendationPreview] = useState<TacticalPlanPreview | null>(
+    null,
+  );
+  const [ignoredRecommendationIds, setIgnoredRecommendationIds] = useState<readonly string[]>([]);
+  const [staleRecommendation, setStaleRecommendation] = useState(false);
+  const [recommendationBusy, setRecommendationBusy] = useState(false);
   const semanticOperationRef = useRef(0);
+  const tacticalConfigRef = useRef<TacticalModelConfig | null>(null);
+  const sliderPreviewTimerRef = useRef<number | null>(null);
   const [instructionScope, setInstructionScope] = useState<TacticalInstructionScope>('collective');
   const [instructionCategory, setInstructionCategory] =
-    useState<TacticalInstructionCategory>('circulation');
+    useState<TacticalInstructionCategory>('buildUp');
   const [instructionValue, setInstructionValue] = useState('supported');
+  const [editingInstructionId, setEditingInstructionId] = useState<string | null>(null);
+  const [impactInstructionId, setImpactInstructionId] = useState<string | null>(null);
+  const advancedControlsRef = useRef<HTMLDivElement>(null);
+  const inspectorBodyRef = useRef<HTMLDivElement>(null);
+  const inspectorScrollRef = useRef<Record<TacticalTool, number>>({
+    analysis: 0,
+    tactics: 0,
+    instructions: 0,
+    opposition: 0,
+  });
   const pitchRef = useRef<HTMLOListElement>(null);
   const benchRef = useRef<HTMLElement>(null);
   const pointerSessionRef = useRef<PointerDragSession | null>(null);
@@ -270,14 +741,90 @@ export function TacticsWorkspace({
   const averageCondition = average(
     draft.placements.map(({ playerId }) => playerById.get(playerId)?.condition ?? 0),
   );
-  const model = semanticPreview?.model ?? draft.tacticalModel;
-  if (!model) throw new Error('O plano tático não possui a projeção autoritativa da Fase 06.3.');
+  const baseModel = semanticPreview?.model ?? draft.tacticalModel;
+  if (!baseModel)
+    throw new Error('O plano tático não possui a projeção autoritativa da Fase 06.3.');
+  const model = recommendationPreview?.model ?? baseModel;
+  const savedVariation = library.variations.find(
+    ({ variationId }) => variationId === draft.variationId,
+  );
+  const savedModel = savedVariation?.tacticalModel ?? draft.tacticalModel;
+  if (!tacticalConfigRef.current) tacticalConfigRef.current = baseModel.config;
   const readiness = model.diagnostic.readiness;
   const activePhase =
     model.structures.find(({ phase }) => phase === selectedPhase) ?? model.structures[0];
+  const savedActivePhase =
+    savedModel?.structures.find(({ phase }) => phase === selectedPhase) ??
+    savedModel?.structures[0];
   const phasePlayerById = new Map(
     activePhase?.players.map((player) => [player.playerId, player] as const) ?? [],
   );
+  const savedPhasePlayerById = new Map(
+    savedActivePhase?.players.map((player) => [player.playerId, player] as const) ?? [],
+  );
+  const selectedInstruction =
+    instructionOptions[instructionCategory].find(({ value }) => value === instructionValue) ??
+    instructionOptions[instructionCategory][0];
+  const inspectorSummary = {
+    analysis: {
+      eyebrow: 'Diagnóstico autoritativo',
+      title: model.diagnostic.valid ? 'Plano pronto para salvar' : 'Correção necessária',
+      detail: `Prontidão ${readiness}% · familiaridade ${model.familiarity.overall}%. Estrutura, riscos e consequências vêm da mesma variação.`,
+    },
+    tactics: {
+      eyebrow: `Estratégia coletiva ${model.resolvedStrategy.customized ? 'personalizada' : 'por preset'}`,
+      title: model.resolvedStrategy.mentality,
+      detail: `Risco ${model.resolvedStrategy.risk}% · exigência ${model.resolvedStrategy.physicalDemand}% · familiaridade ${model.familiarity.overall}%.`,
+    },
+    instructions: {
+      eyebrow: `${model.config.instructions.filter(({ enabled }) => enabled).length} instruções ativas`,
+      title: 'Comportamentos orientados',
+      detail: 'Adicione, revise e compare responsabilidades. A proposta só persiste ao salvar.',
+    },
+    opposition: {
+      eyebrow: 'Próximo adversário',
+      title: state.opponent.name,
+      detail: 'Plano de oposição persistido nesta variação, com origem, confiança e expiração.',
+    },
+  }[activeTool];
+  const primaryRisk =
+    model.diagnostic.risks[0] ??
+    model.diagnostic.vulnerabilities[0] ??
+    'Nenhum risco dominante identificado';
+  const activeComparison = comparisonDismissed
+    ? null
+    : (recommendationPreview?.comparison ?? semanticPreview?.comparison);
+  const visibleRecommendations = model.recommendations.filter(
+    ({ recommendationId }) => !ignoredRecommendationIds.includes(recommendationId),
+  );
+  const affectedSectors = activeComparison
+    ? Array.from(
+        new Set(
+          activeComparison.changes.map(({ changeId }) => {
+            if (['width', 'playersForward'].includes(changeId)) return 'Ataque';
+            if (['tempo', 'passingRisk', 'creativeFreedom'].includes(changeId)) return 'Construção';
+            if (
+              [
+                'blockHeight',
+                'defensiveLine',
+                'depth',
+                'horizontalCompactness',
+                'verticalCompactness',
+              ].includes(changeId)
+            )
+              return 'Bloco defensivo';
+            return 'Equipe';
+          }),
+        ),
+      )
+    : [];
+  const affectedPlayerNames = activeComparison
+    ? activeComparison.affectedPlayers
+        .map((playerId) => playerById.get(playerId)?.shortName)
+        .filter((name): name is string => Boolean(name))
+        .slice(0, 3)
+        .join(', ')
+    : '';
 
   useEffect(() => {
     let active = true;
@@ -296,15 +843,27 @@ export function TacticsWorkspace({
   useEffect(
     () => () => {
       pointerCleanupRef.current();
+      if (sliderPreviewTimerRef.current !== null) {
+        window.clearTimeout(sliderPreviewTimerRef.current);
+      }
     },
     [],
   );
+
+  useEffect(() => {
+    tacticalConfigRef.current = baseModel.config;
+  }, [baseModel.config]);
 
   useEffect(() => {
     semanticOperationRef.current += 1;
     setSemanticPreview(null);
     setSemanticBusy(false);
     setSelectedPhase('base');
+    setSliderDraftValues({});
+    setSelectedRecommendation(null);
+    setRecommendationPreview(null);
+    setIgnoredRecommendationIds([]);
+    setEditingInstructionId(null);
   }, [draft.variationId]);
 
   useEffect(() => {
@@ -312,12 +871,29 @@ export function TacticsWorkspace({
       semanticOperationRef.current += 1;
       setSemanticPreview(null);
       setSemanticBusy(false);
+      setSliderDraftValues({});
     }
   }, [dirty, draft.revision]);
+
+  useEffect(() => {
+    setComparisonDismissed(false);
+  }, [semanticPreview]);
 
   const announce = (text: string, rejected = false) => {
     setInteractionMessage(rejected ? '' : text);
     setInteractionError(rejected ? text : '');
+  };
+
+  const switchInspectorTool = (tool: TacticalTool) => {
+    if (inspectorBodyRef.current) {
+      inspectorScrollRef.current[activeTool] = inspectorBodyRef.current.scrollTop;
+    }
+    onActiveToolChange(tool);
+    window.requestAnimationFrame(() => {
+      if (inspectorBodyRef.current) {
+        inspectorBodyRef.current.scrollTop = inspectorScrollRef.current[tool];
+      }
+    });
   };
 
   const invalidateSemanticPreview = () => {
@@ -328,6 +904,7 @@ export function TacticsWorkspace({
 
   const applyTacticalConfig = async (tacticalConfig: TacticalModelConfig, text: string) => {
     const operation = ++semanticOperationRef.current;
+    tacticalConfigRef.current = tacticalConfig;
     setSemanticBusy(true);
     setInteractionError('');
     try {
@@ -344,6 +921,7 @@ export function TacticsWorkspace({
       announce(text);
     } catch (reason) {
       if (operation !== semanticOperationRef.current) return;
+      tacticalConfigRef.current = model.config;
       announce(reason instanceof Error ? reason.message : String(reason), true);
     } finally {
       if (operation === semanticOperationRef.current) setSemanticBusy(false);
@@ -375,31 +953,139 @@ export function TacticsWorkspace({
     }
   };
 
-  const updateStrategyScore = (
-    section: 'inPossession' | 'outOfPossession' | 'transitions',
-    field: string,
-    value: number,
-  ) => {
-    const strategy = model.config.strategy;
+  const updateStrategyScore = (section: StrategySection, field: string, value: number) => {
+    if (section === 'inPossession' && ['width', 'playersForward'].includes(field)) {
+      setSelectedPhase('inPossession');
+    } else if (
+      section === 'outOfPossession' &&
+      [
+        'blockHeight',
+        'defensiveLine',
+        'depth',
+        'horizontalCompactness',
+        'verticalCompactness',
+      ].includes(field)
+    ) {
+      setSelectedPhase('outOfPossession');
+    } else if (section === 'transitions' && field === 'playersForward') {
+      setSelectedPhase('offensiveTransition');
+    } else if (section === 'transitions' && field === 'defensiveSecurity') {
+      setSelectedPhase('defensiveTransition');
+    }
+    const currentConfig = tacticalConfigRef.current ?? model.config;
+    const strategy = currentConfig.strategy;
     const nextSection = { ...strategy[section], [field]: value };
     void applyTacticalConfig(
       {
-        ...model.config,
+        ...currentConfig,
         strategy: { ...strategy, customized: true, [section]: nextSection },
       },
       'Estratégia personalizada; consequências recalculadas pelo modelo tático.',
     );
   };
 
-  const toggleInstruction = (instruction: TacticalInstruction) => {
+  const sliderKey = (section: StrategySection, field: string) => `${section}.${field}`;
+
+  const strategyScore = (
+    config: TacticalModelConfig | undefined,
+    section: StrategySection,
+    field: string,
+  ) =>
+    Number(
+      (config?.strategy[section] as unknown as Record<string, number | string> | undefined)?.[
+        field
+      ] ?? 50,
+    );
+
+  const scheduleStrategyPreview = (section: StrategySection, field: string, value: number) => {
+    const key = sliderKey(section, field);
+    setSliderDraftValues((values) => ({ ...values, [key]: value }));
+    if (sliderPreviewTimerRef.current !== null) {
+      window.clearTimeout(sliderPreviewTimerRef.current);
+    }
+    sliderPreviewTimerRef.current = window.setTimeout(() => {
+      sliderPreviewTimerRef.current = null;
+      updateStrategyScore(section, field, value);
+    }, 140);
+  };
+
+  const commitStrategyPreview = (section: StrategySection, field: string, value: number) => {
+    const alreadyCurrent =
+      strategyScore(tacticalConfigRef.current ?? model.config, section, field) === value;
+    if (sliderPreviewTimerRef.current !== null) {
+      window.clearTimeout(sliderPreviewTimerRef.current);
+      sliderPreviewTimerRef.current = null;
+    }
+    if (alreadyCurrent) return;
+    updateStrategyScore(section, field, value);
+  };
+
+  const restoreStrategyScore = (section: StrategySection, field: string) => {
+    const savedValue = strategyScore(savedModel?.config, section, field);
+    const key = sliderKey(section, field);
+    setSliderDraftValues((values) => ({ ...values, [key]: savedValue }));
+    commitStrategyPreview(section, field, savedValue);
+    announce(
+      `${
+        strategySliderSections
+          .flatMap(({ controls }) => controls)
+          .find((control) => control.field === field)?.label ?? 'Valor'
+      } restaurado ao estado salvo.`,
+    );
+  };
+
+  const updateProgression = (progression: 'outside' | 'balanced' | 'inside') => {
+    const currentConfig = tacticalConfigRef.current ?? model.config;
+    const strategy = currentConfig.strategy;
+    setSelectedPhase('inPossession');
     void applyTacticalConfig(
       {
-        ...model.config,
-        instructions: model.config.instructions.filter(
+        ...currentConfig,
+        strategy: {
+          ...strategy,
+          customized: true,
+          inPossession: { ...strategy.inPossession, progression },
+        },
+      },
+      `Progressão ${progressionLabels[progression]} adicionada à proposta sem deslocar a posição base.`,
+    );
+  };
+
+  const removeInstruction = (instruction: TacticalInstruction) => {
+    const currentConfig = tacticalConfigRef.current ?? model.config;
+    void applyTacticalConfig(
+      {
+        ...currentConfig,
+        instructions: currentConfig.instructions.filter(
           ({ instructionId }) => instructionId !== instruction.instructionId,
         ),
       },
       `${instruction.description} removida desta variação.`,
+    );
+  };
+
+  const toggleInstruction = (instruction: TacticalInstruction) => {
+    const currentConfig = tacticalConfigRef.current ?? model.config;
+    void applyTacticalConfig(
+      {
+        ...currentConfig,
+        instructions: currentConfig.instructions.map((candidate) =>
+          candidate.instructionId === instruction.instructionId
+            ? { ...candidate, enabled: !candidate.enabled }
+            : candidate,
+        ),
+      },
+      `${instruction.description} ${instruction.enabled ? 'desativada' : 'ativada'} na proposta.`,
+    );
+  };
+
+  const editInstruction = (instruction: TacticalInstruction) => {
+    setEditingInstructionId(instruction.instructionId);
+    setInstructionScope(instruction.scope);
+    setInstructionCategory(instruction.category);
+    setInstructionValue(instruction.value);
+    window.requestAnimationFrame(() =>
+      inspectorBodyRef.current?.querySelector<HTMLElement>('.instruction-composer select')?.focus(),
     );
   };
 
@@ -421,25 +1107,140 @@ export function TacticsWorkspace({
       announce('Selecione um jogador antes de criar uma instrução individual.', true);
       return;
     }
-    const ordinal = model.config.instructions.length + 1;
+    const currentConfig = tacticalConfigRef.current ?? model.config;
+    const ordinal = currentConfig.instructions.length + 1;
+    const existingInstruction = currentConfig.instructions.find(
+      ({ instructionId }) => instructionId === editingInstructionId,
+    );
     const instruction: TacticalInstruction = {
-      instructionId: `${instructionScope}.${instructionCategory}.${draft.revision}.${ordinal}`,
+      instructionId:
+        existingInstruction?.instructionId ??
+        `${instructionScope}.${instructionCategory}.${draft.revision}.${ordinal}`,
       category: instructionCategory,
       scope: instructionScope,
       target,
-      value: instructionValue.trim() || 'balanced',
+      value: selectedInstruction?.value ?? 'balanced',
       intensity: 60,
-      description: `${instructionCategory} em escopo ${instructionScope} para ${target}`,
-      expectedEffects: ['comportamento resolvido conforme escopo e precedência'],
+      description: `${selectedInstruction?.label ?? 'Instrução'} — ${instructionScopeLabels[instructionScope]}`,
+      expectedEffects: [selectedInstruction?.effect ?? 'Efeito resolvido conforme precedência.'],
       requirements: [],
       incompatibilities: [],
       precedence: 0,
       familiarityImpact: -2,
       revision: draft.revision,
+      enabled: existingInstruction?.enabled ?? true,
     };
+    const instructions = existingInstruction
+      ? currentConfig.instructions.map((candidate) =>
+          candidate.instructionId === existingInstruction.instructionId ? instruction : candidate,
+        )
+      : [...currentConfig.instructions, instruction];
+    setEditingInstructionId(null);
     void applyTacticalConfig(
-      { ...model.config, instructions: [...model.config.instructions, instruction] },
-      `Instrução ${instruction.instructionId} adicionada à variação.`,
+      { ...currentConfig, instructions },
+      `${selectedInstruction?.label ?? 'Instrução'} ${existingInstruction ? 'atualizada' : 'adicionada'} à proposta.`,
+    );
+  };
+
+  const recommendationValue = (config: TacticalModelConfig, path: string) => {
+    const [, section, field] = path.split('.');
+    if (!section || !field || !['inPossession', 'outOfPossession', 'transitions'].includes(section))
+      return null;
+    return strategyScore(config, section as StrategySection, field);
+  };
+
+  const applyRecommendationChanges = (
+    config: TacticalModelConfig,
+    recommendation: TacticalRecommendation,
+  ) => {
+    let next = config;
+    for (const change of recommendation.proposedChanges) {
+      const [, section, field] = change.path.split('.');
+      if (
+        !section ||
+        !field ||
+        !['inPossession', 'outOfPossession', 'transitions'].includes(section)
+      )
+        continue;
+      const typedSection = section as StrategySection;
+      const strategy = next.strategy;
+      next = {
+        ...next,
+        strategy: {
+          ...strategy,
+          customized: true,
+          [typedSection]: { ...strategy[typedSection], [field]: change.to },
+        },
+      };
+    }
+    return next;
+  };
+
+  const openRecommendation = async (recommendation: TacticalRecommendation) => {
+    setStaleRecommendation(false);
+    setSelectedRecommendation(recommendation);
+    setRecommendationBusy(true);
+    const currentConfig = tacticalConfigRef.current ?? baseModel.config;
+    try {
+      const previewConfig = applyRecommendationChanges(currentConfig, recommendation);
+      const nextApproach = presetApproach[previewConfig.strategy.presetId];
+      const candidate = {
+        ...draft,
+        tacticalModel: { ...baseModel, config: previewConfig },
+      };
+      const preview = await previewTacticalPlan(toTacticalPlanProposal(candidate, nextApproach));
+      setRecommendationPreview(preview);
+      const firstPath = recommendation.proposedChanges[0]?.path;
+      if (firstPath?.includes('inPossession')) setSelectedPhase('inPossession');
+      if (firstPath?.includes('outOfPossession')) setSelectedPhase('outOfPossession');
+      if (firstPath?.includes('transitions')) setSelectedPhase('offensiveTransition');
+    } catch (reason) {
+      announce(
+        reason instanceof Error ? reason.message : 'A recomendação não pôde ser visualizada.',
+        true,
+      );
+    } finally {
+      setRecommendationBusy(false);
+    }
+  };
+
+  const closeRecommendation = () => {
+    setSelectedRecommendation(null);
+    setRecommendationPreview(null);
+    setStaleRecommendation(false);
+  };
+
+  const applyRecommendation = () => {
+    if (!selectedRecommendation) return;
+    const currentConfig = tacticalConfigRef.current ?? model.config;
+    const currentValuesMatch = selectedRecommendation.proposedChanges.every(
+      (change) => recommendationValue(currentConfig, change.path) === change.from,
+    );
+    if (
+      selectedRecommendation.variationId !== draft.variationId ||
+      selectedRecommendation.planRevision !== draft.revision ||
+      !currentValuesMatch
+    ) {
+      setStaleRecommendation(true);
+      return;
+    }
+    const firstPath = selectedRecommendation.proposedChanges[0]?.path;
+    if (firstPath?.includes('inPossession')) setSelectedPhase('inPossession');
+    if (firstPath?.includes('outOfPossession')) setSelectedPhase('outOfPossession');
+    if (firstPath?.includes('transitions')) setSelectedPhase('offensiveTransition');
+    const nextConfig = applyRecommendationChanges(currentConfig, selectedRecommendation);
+    closeRecommendation();
+    void applyTacticalConfig(
+      nextConfig,
+      'Recomendação aplicada à proposta. Revise a comparação antes de salvar.',
+    );
+  };
+
+  const recalculateRecommendation = () => {
+    closeRecommendation();
+    void refreshTacticalProjection(
+      { ...draft, tacticalModel: model },
+      'Recomendação reavaliada para o estado atual.',
     );
   };
 
@@ -1211,6 +2012,14 @@ export function TacticsWorkspace({
               </details>
             </Popover>
           </div>
+          <p className="variation-heading__meta">
+            <span>Formação {draft.formation}</span>
+            <span>
+              {phaseOptions.find(({ id }) => id === selectedPhase)?.label ?? 'Posição base'}
+            </span>
+            <span>Prontidão {readiness}%</span>
+            <span title={primaryRisk}>Alerta: {primaryRisk}</span>
+          </p>
         </div>
         <div
           className="fixture-summary"
@@ -1626,6 +2435,141 @@ export function TacticsWorkspace({
         </AlertDialogPrimitive.Portal>
       </AlertDialogPrimitive.Root>
 
+      <AlertDialogPrimitive.Root
+        onOpenChange={(open) => {
+          if (!open && !recommendationBusy) closeRecommendation();
+        }}
+        open={selectedRecommendation !== null}
+      >
+        <AlertDialogPrimitive.Portal>
+          <AlertDialogPrimitive.Overlay className="rv-modal-backdrop" />
+          <AlertDialogPrimitive.Content className="rv-dialog rv-alert-dialog recommendation-dialog">
+            <AlertDialogPrimitive.Title>Revisar recomendação</AlertDialogPrimitive.Title>
+            <AlertDialogPrimitive.Description className="rv-dialog__description">
+              Visualize o efeito no campo e compare os valores antes de aplicar à proposta.
+            </AlertDialogPrimitive.Description>
+            {selectedRecommendation && (
+              <div className="recommendation-dialog__body">
+                <header>
+                  <span>{selectedRecommendation.origin}</span>
+                  <strong>{selectedRecommendation.reason}</strong>
+                  <small>Confiança {selectedRecommendation.confidence}%</small>
+                </header>
+                {staleRecommendation ? (
+                  <section className="recommendation-stale" role="alert">
+                    <strong>Esta recomendação foi criada para uma versão anterior do plano.</strong>
+                    <p>Recalcule ou descarte antes de continuar. Nenhum valor foi aplicado.</p>
+                  </section>
+                ) : (
+                  <>
+                    <dl className="recommendation-metadata">
+                      <div>
+                        <dt>Variação</dt>
+                        <dd>{selectedRecommendation.variationId}</dd>
+                      </div>
+                      <div>
+                        <dt>Revisão do plano</dt>
+                        <dd>{selectedRecommendation.planRevision}</dd>
+                      </div>
+                      <div>
+                        <dt>Familiaridade</dt>
+                        <dd>
+                          {recommendationPreview?.comparison
+                            ? `${recommendationPreview.comparison.familiarityBefore}% → ${recommendationPreview.comparison.familiarityAfter}%`
+                            : 'Calculando…'}
+                        </dd>
+                      </div>
+                    </dl>
+                    <section className="recommendation-changes">
+                      <h3>Parâmetros afetados</h3>
+                      {selectedRecommendation.proposedChanges.map((change) => (
+                        <p key={change.path}>
+                          <span>
+                            {recommendationPreview?.comparison?.changes.find(({ changeId }) =>
+                              change.path.endsWith(changeId),
+                            )?.label ?? strategyChangeLabel(change.path)}
+                          </span>
+                          <strong>
+                            {change.from} → {change.to}
+                          </strong>
+                        </p>
+                      ))}
+                    </section>
+                    <div className="recommendation-impact">
+                      <p>+ {selectedRecommendation.benefit}</p>
+                      <p>− {selectedRecommendation.risk}</p>
+                      <p>Setores: {affectedSectors.join(' · ') || 'estrutura coletiva'}</p>
+                      <p>
+                        Jogadores:{' '}
+                        {selectedRecommendation.affectedPlayers
+                          .map((playerId) => playerById.get(playerId)?.shortName)
+                          .filter(Boolean)
+                          .slice(0, 5)
+                          .join(', ') || 'equipe'}
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+            <div className="rv-dialog__actions recommendation-dialog__actions">
+              {staleRecommendation ? (
+                <>
+                  <Button onClick={recalculateRecommendation} variant="primary">
+                    Recalcular
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      if (selectedRecommendation) {
+                        setIgnoredRecommendationIds((ids) => [
+                          ...ids,
+                          selectedRecommendation.recommendationId,
+                        ]);
+                      }
+                      closeRecommendation();
+                    }}
+                    variant="secondary"
+                  >
+                    Descartar
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  disabled={recommendationBusy || !recommendationPreview}
+                  loading={recommendationBusy}
+                  loadingLabel="Calculando…"
+                  onClick={applyRecommendation}
+                  variant="primary"
+                >
+                  Aplicar à proposta
+                </Button>
+              )}
+              {!staleRecommendation && (
+                <Button
+                  onClick={() => {
+                    if (selectedRecommendation) {
+                      setIgnoredRecommendationIds((ids) => [
+                        ...ids,
+                        selectedRecommendation.recommendationId,
+                      ]);
+                    }
+                    closeRecommendation();
+                  }}
+                  variant="secondary"
+                >
+                  Ignorar
+                </Button>
+              )}
+              <AlertDialogPrimitive.Cancel asChild>
+                <Button disabled={recommendationBusy} variant="secondary">
+                  Cancelar
+                </Button>
+              </AlertDialogPrimitive.Cancel>
+            </div>
+          </AlertDialogPrimitive.Content>
+        </AlertDialogPrimitive.Portal>
+      </AlertDialogPrimitive.Root>
+
       <div className="tactics-layout">
         <section className="pitch-workspace" aria-labelledby="pitch-title">
           <header className="pitch-workspace__header">
@@ -1691,6 +2635,48 @@ export function TacticsWorkspace({
                 <i className="pitch-markings__six pitch-markings__six--right" />
                 <i className="pitch-markings__goal pitch-markings__goal--right" />
               </li>
+              {selectedPhase === 'inPossession' && (
+                <li
+                  aria-label={`Indicadores comportamentais: progressão ${progressionLabels[model.config.strategy.inPossession.progression]}, ritmo ${model.config.strategy.inPossession.tempo}, risco dos passes ${model.config.strategy.inPossession.passingRisk} e liberdade criativa ${model.config.strategy.inPossession.creativeFreedom}. Estes indicadores não deslocam jogadores.`}
+                  className="pitch-behavior-cues"
+                  data-progression={model.config.strategy.inPossession.progression}
+                >
+                  <span className="pitch-behavior-cues__left" aria-hidden="true" />
+                  <span className="pitch-behavior-cues__center" aria-hidden="true" />
+                  <span className="pitch-behavior-cues__right" aria-hidden="true" />
+                  <p>
+                    <strong>
+                      Progressão {progressionLabels[model.config.strategy.inPossession.progression]}
+                    </strong>
+                    <small>
+                      Ritmo {model.config.strategy.inPossession.tempo} · risco{' '}
+                      {model.config.strategy.inPossession.passingRisk} · liberdade{' '}
+                      {model.config.strategy.inPossession.creativeFreedom}
+                    </small>
+                  </p>
+                </li>
+              )}
+              {activeComparison &&
+                selectedPhase !== 'base' &&
+                draft.placements.map((placement) => {
+                  const savedPoint = savedPhasePlayerById.get(placement.playerId);
+                  if (!savedPoint) return null;
+                  return (
+                    <li
+                      aria-hidden="true"
+                      className="pitch-saved-ghost"
+                      key={`saved-${placement.playerId}`}
+                      style={
+                        {
+                          '--slot-x': `${savedPoint.normalizedX * 100}%`,
+                          '--slot-y': `${savedPoint.normalizedY * 100}%`,
+                        } as CSSProperties
+                      }
+                    >
+                      <span />
+                    </li>
+                  );
+                })}
               {draft.placements.map((placement) => {
                 const player = playerById.get(placement.playerId);
                 if (!player) return null;
@@ -1835,148 +2821,199 @@ export function TacticsWorkspace({
 
         <aside aria-label="Inspector tático" className="tactics-inspector">
           {window.__RIVALLO_TACTICS_DRAG_METRICS__ && (recordDragMetric('inspectorRenders'), null)}
-          <nav aria-label="Ferramentas táticas" className="tactics-tool-nav">
+          <nav aria-label="Ferramentas táticas" className="tactics-tool-nav" role="tablist">
             {tacticalTools.map(([tool, icon, label]) => (
               <button
-                aria-pressed={activeTool === tool}
+                aria-controls={`tactics-panel-${tool}`}
+                aria-selected={activeTool === tool}
+                id={`tactics-tab-${tool}`}
                 key={tool}
-                onClick={() => onActiveToolChange(tool)}
+                onClick={() => switchInspectorTool(tool)}
+                onKeyDown={(event) => {
+                  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                  event.preventDefault();
+                  const index = tacticalTools.findIndex(([candidate]) => candidate === tool);
+                  const nextIndex =
+                    event.key === 'Home'
+                      ? 0
+                      : event.key === 'End'
+                        ? tacticalTools.length - 1
+                        : event.key === 'ArrowRight'
+                          ? (index + 1) % tacticalTools.length
+                          : (index - 1 + tacticalTools.length) % tacticalTools.length;
+                  const nextTool = tacticalTools[nextIndex]?.[0];
+                  if (!nextTool) return;
+                  switchInspectorTool(nextTool);
+                  window.requestAnimationFrame(() =>
+                    document.getElementById(`tactics-tab-${nextTool}`)?.focus(),
+                  );
+                }}
+                role="tab"
+                tabIndex={activeTool === tool ? 0 : -1}
                 type="button"
               >
                 <Icon name={icon} size={20} /> <span>{label}</span>
               </button>
             ))}
           </nav>
-          <div className="tactics-inspector__content" aria-live="polite">
+          <header className="inspector-heading tactics-inspector__summary" aria-live="polite">
+            <span>{inspectorSummary.eyebrow}</span>
+            <h2>{inspectorSummary.title}</h2>
+            <p>{inspectorSummary.detail}</p>
+          </header>
+          <div
+            aria-labelledby={`tactics-tab-${activeTool}`}
+            className="tactics-inspector__body tactics-inspector__content"
+            id={`tactics-panel-${activeTool}`}
+            ref={inspectorBodyRef}
+            role="tabpanel"
+            tabIndex={0}
+          >
             {activeTool === 'analysis' && (
               <>
-                <header className="inspector-heading">
-                  <span>Diagnóstico autoritativo</span>
-                  <h2>
-                    {model.diagnostic.valid ? 'Plano pronto para salvar' : 'Correção necessária'}
-                  </h2>
-                  <p>
-                    Prontidão {readiness}% · familiaridade {model.familiarity.overall}%. Estrutura,
-                    riscos e consequências vêm da mesma variação.
-                  </p>
-                </header>
-                <dl className="diagnostic-metrics">
-                  <div>
-                    <dt>Familiaridade</dt>
-                    <dd>{model.familiarity.overall}%</dd>
-                    <i>
-                      <b style={{ '--metric': `${model.familiarity.overall}%` } as CSSProperties} />
-                    </i>
-                  </div>
-                  <div>
-                    <dt>Condição do XI</dt>
-                    <dd>{averageCondition}%</dd>
-                    <i>
-                      <b style={{ '--metric': `${averageCondition}%` } as CSSProperties} />
-                    </i>
-                  </div>
-                  <div>
-                    <dt>Largura / profundidade</dt>
-                    <dd>
-                      {model.spatial.width} / {model.spatial.depth}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Compactação</dt>
-                    <dd>{model.spatial.compactness}%</dd>
-                  </div>
-                </dl>
-                <section className="diagnostic-list">
-                  <h3>Erros técnicos</h3>
-                  {validation.errors.map((item) => (
-                    <p className="tactical-alert" key={item}>
-                      {item}
-                    </p>
-                  ))}
-                  {validation.warnings.slice(0, 4).map((item) => (
-                    <p key={item}>{item}</p>
-                  ))}
-                  {validation.errors.length === 0 && validation.warnings.length === 0 && (
-                    <p>Nenhum erro técnico; riscos táticos não bloqueiam a criatividade.</p>
+                <section className="analysis-decision">
+                  <span>Prontidão tática</span>
+                  <strong>
+                    {readiness >= 80 ? 'Muito boa' : readiness >= 65 ? 'Boa' : 'Em adaptação'} —{' '}
+                    {readiness}%
+                  </strong>
+                  <p>Condição do XI {averageCondition}% · análise do modelo tático</p>
+                </section>
+                <div className="analysis-priorities">
+                  <section>
+                    <h3>Pontos fortes</h3>
+                    {(model.diagnostic.strengths.length > 0
+                      ? model.diagnostic.strengths
+                      : ['Estrutura sem vantagem dominante identificada.']
+                    )
+                      .slice(0, 3)
+                      .map((item) => (
+                        <p key={item}>+ {item}</p>
+                      ))}
+                  </section>
+                  <section>
+                    <h3>Pontos de atenção</h3>
+                    {([...model.diagnostic.risks, ...model.diagnostic.vulnerabilities].length > 0
+                      ? [...model.diagnostic.risks, ...model.diagnostic.vulnerabilities]
+                      : ['Nenhum risco dominante identificado.']
+                    )
+                      .slice(0, 3)
+                      .map((item) => (
+                        <p key={item}>− {item}</p>
+                      ))}
+                  </section>
+                </div>
+                {(validation.errors.length > 0 || validation.warnings.length > 0) && (
+                  <section className="analysis-blockers" role="alert">
+                    <h3>Antes de salvar</h3>
+                    {[...validation.errors, ...validation.warnings].slice(0, 4).map((item) => (
+                      <p key={item}>{item}</p>
+                    ))}
+                  </section>
+                )}
+                <details className="familiarity-details">
+                  <summary>
+                    <span>
+                      <strong>Familiaridade geral</strong>
+                      <small>
+                        {activeComparison
+                          ? `${activeComparison.familiarityBefore}% → ${activeComparison.familiarityAfter}%`
+                          : `${model.familiarity.overall}% · sem alteração significativa`}
+                      </small>
+                    </span>
+                    <span>Ver dimensões</span>
+                  </summary>
+                  {activeComparison && (
+                    <div className="familiarity-reasons">
+                      <strong>Por que mudou</strong>
+                      {activeComparison.changes.slice(0, 3).map((change) => (
+                        <p key={change.changeId}>{change.cause}</p>
+                      ))}
+                    </div>
+                  )}
+                  <dl className="diagnostic-metrics">
+                    {model.familiarity.collective.map((dimension) => (
+                      <div key={dimension.dimensionId}>
+                        <dt>{dimension.explanation}</dt>
+                        <dd>{dimension.score}%</dd>
+                        <i>
+                          <b style={{ '--metric': `${dimension.score}%` } as CSSProperties} />
+                        </i>
+                      </div>
+                    ))}
+                  </dl>
+                </details>
+                <section className="tactical-recommendations">
+                  <header>
+                    <div>
+                      <h3>Decisões assistidas</h3>
+                      <p>Análise do modelo tático</p>
+                    </div>
+                    <span>{visibleRecommendations.length}</span>
+                  </header>
+                  {visibleRecommendations.length === 0 ? (
+                    <div className="tactics-empty-state">
+                      <strong>Nenhum ajuste prioritário</strong>
+                      <p>O modelo não identificou uma recomendação segura para este plano.</p>
+                    </div>
+                  ) : (
+                    visibleRecommendations.map((recommendation) => {
+                      const change = recommendation.proposedChanges[0];
+                      return (
+                        <article key={recommendation.recommendationId}>
+                          <small>{recommendation.origin}</small>
+                          <strong>{recommendation.reason}</strong>
+                          {change && (
+                            <b>
+                              {change.from} → {change.to}
+                            </b>
+                          )}
+                          <p>+ {recommendation.benefit}</p>
+                          <p>− {recommendation.risk}</p>
+                          <footer>
+                            <span>Confiança {recommendation.confidence}%</span>
+                            <button
+                              disabled={semanticBusy}
+                              onClick={() => void openRecommendation(recommendation)}
+                              type="button"
+                            >
+                              Ver alterações
+                            </button>
+                          </footer>
+                        </article>
+                      );
+                    })
                   )}
                 </section>
-                <section className="diagnostic-list">
-                  <h3>Riscos e vulnerabilidades</h3>
-                  {[...model.diagnostic.risks, ...model.diagnostic.vulnerabilities].map((item) => (
-                    <p className="tactical-risk" key={item}>
-                      <strong>Risco salvável</strong> {item}
-                    </p>
-                  ))}
-                  {model.diagnostic.risks.length + model.diagnostic.vulnerabilities.length ===
-                    0 && <p>Nenhuma vulnerabilidade relevante identificada.</p>}
-                </section>
-                <section className="diagnostic-list">
-                  <h3>Pontos fortes</h3>
-                  {model.diagnostic.strengths.map((item) => (
-                    <p key={item}>{item}</p>
-                  ))}
-                </section>
-                {semanticPreview?.comparison && (
-                  <section className="tactical-comparison" aria-label="Comparação antes e depois">
-                    <h3>Antes e depois</h3>
-                    <p>
-                      Familiaridade: {semanticPreview.comparison.familiarityBefore}% →{' '}
-                      {semanticPreview.comparison.familiarityAfter}%
-                    </p>
-                    {semanticPreview.comparison.changes.map((change) => (
-                      <article key={change.changeId}>
-                        <strong>
-                          {change.label}: {change.before} → {change.after}
-                        </strong>
-                        <small>{change.cause}</small>
-                        {change.expectedConsequences.map((effect) => (
-                          <span key={effect}>{effect}</span>
-                        ))}
-                      </article>
-                    ))}
-                  </section>
-                )}
-                {model.recommendations.length > 0 && (
-                  <section className="tactical-recommendations">
-                    <h3>Recomendações da comissão</h3>
-                    {model.recommendations.map((recommendation) => (
-                      <article key={recommendation.recommendationId}>
-                        <strong>{recommendation.reason}</strong>
-                        <p>Benefício: {recommendation.benefit}</p>
-                        <p>
-                          Risco: {recommendation.risk} · confiança {recommendation.confidence}%
-                        </p>
-                        <button
-                          disabled={semanticBusy || recommendation.proposedChanges.length !== 1}
-                          onClick={() => {
-                            const change = recommendation.proposedChanges[0];
-                            if (change?.path === 'strategy.outOfPossession.compactness')
-                              updateStrategyScore('outOfPossession', 'compactness', change.to);
-                          }}
-                          type="button"
-                        >
-                          Aplicar recomendação
-                        </button>
-                      </article>
-                    ))}
-                  </section>
-                )}
               </>
             )}
             {activeTool === 'tactics' && (
               <>
-                <header className="inspector-heading">
-                  <span>
-                    Estratégia coletiva{' '}
-                    {model.resolvedStrategy.customized ? 'personalizada' : 'por preset'}
-                  </span>
-                  <h2>{model.resolvedStrategy.mentality}</h2>
-                  <p>
-                    Risco {model.resolvedStrategy.risk}% · exigência{' '}
-                    {model.resolvedStrategy.physicalDemand}% · familiaridade{' '}
-                    {model.familiarity.overall}%.
-                  </p>
-                </header>
+                <section className="strategy-overview">
+                  <header>
+                    <div>
+                      <span>Plano atual</span>
+                      <strong>{model.resolvedStrategy.mentality}</strong>
+                    </div>
+                    <b>{model.config.strategy.customized ? 'Personalizada' : 'Preset'}</b>
+                  </header>
+                  <dl>
+                    <div>
+                      <dt>Risco</dt>
+                      <dd>{model.resolvedStrategy.risk}%</dd>
+                    </div>
+                    <div>
+                      <dt>Exigência física</dt>
+                      <dd>{model.resolvedStrategy.physicalDemand}%</dd>
+                    </div>
+                    <div>
+                      <dt>Familiaridade</dt>
+                      <dd>{model.familiarity.overall}%</dd>
+                    </div>
+                  </dl>
+                  <p>+ {model.resolvedStrategy.strengths[0] ?? 'estrutura equilibrada'}</p>
+                  <p>− {model.resolvedStrategy.vulnerabilities[0] ?? primaryRisk}</p>
+                </section>
                 <fieldset className="strategy-options">
                   <legend>Preset rápido e transparente</legend>
                   {strategyCatalog.map((preset) => (
@@ -2039,23 +3076,14 @@ export function TacticsWorkspace({
                         }}
                         variant="primary"
                       >
-                        Confirmar preset
+                        Aplicar à proposta
                       </Button>
                       <Button onClick={() => setPendingStrategyPreset(null)} variant="secondary">
-                        Manter personalização
+                        Cancelar e manter personalização
                       </Button>
                     </div>
                   </section>
                 )}
-                <section className="strategy-summary">
-                  <h3>Consequências atuais</h3>
-                  {model.resolvedStrategy.strengths.map((item) => (
-                    <p key={item}>+ {item}</p>
-                  ))}
-                  {model.resolvedStrategy.vulnerabilities.map((item) => (
-                    <p key={item}>− {item}</p>
-                  ))}
-                </section>
                 <button
                   className="advanced-strategy-toggle"
                   aria-expanded={advancedStrategyOpen}
@@ -2065,110 +3093,253 @@ export function TacticsWorkspace({
                   Personalizar estratégia
                 </button>
                 {advancedStrategyOpen && (
-                  <div className="advanced-strategy">
-                    {(
-                      [
-                        [
-                          'inPossession',
-                          'Com a bola',
-                          [
-                            ['width', 'Amplitude'],
-                            ['tempo', 'Ritmo'],
-                            ['passingRisk', 'Risco dos passes'],
-                            ['playersForward', 'Presença à frente'],
-                          ],
-                        ],
-                        [
-                          'outOfPossession',
-                          'Sem a bola',
-                          [
-                            ['blockHeight', 'Altura do bloco'],
-                            ['defensiveLine', 'Linha defensiva'],
-                            ['pressure', 'Pressão'],
-                            ['compactness', 'Compactação'],
-                            ['duelAggression', 'Duelos'],
-                          ],
-                        ],
-                        [
-                          'transitions',
-                          'Transições',
-                          [
-                            ['speed', 'Velocidade'],
-                            ['playersForward', 'Jogadores avançando'],
-                            ['defensiveSecurity', 'Segurança defensiva'],
-                          ],
-                        ],
-                      ] as const
-                    ).map(([section, title, controls]) => (
-                      <fieldset key={section}>
-                        <legend>{title}</legend>
-                        {controls.map(([field, label]) => (
-                          <label key={field}>
-                            <span>{label}</span>
-                            <select
-                              disabled={semanticBusy}
-                              onChange={(event) =>
-                                updateStrategyScore(section, field, Number(event.target.value))
-                              }
-                              value={
-                                (
-                                  model.config.strategy[section] as unknown as Record<
-                                    string,
-                                    number
-                                  >
-                                )[field]
-                              }
-                            >
-                              {scoreOptions.map((score) => (
-                                <option key={score} value={score}>
-                                  {score}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                        ))}
-                      </fieldset>
-                    ))}
+                  <div className="advanced-strategy" ref={advancedControlsRef}>
+                    {strategySliderSections.map(({ id: section, title, controls }) => {
+                      const open = openStrategySection === section;
+                      const summary = controls
+                        .slice(0, 3)
+                        .map(
+                          ({ field, label }) =>
+                            `${label} ${qualitativeScore(strategyScore(model.config, section, field)).toLocaleLowerCase('pt-BR')}`,
+                        )
+                        .join(' · ');
+                      return (
+                        <section
+                          className="strategy-phase"
+                          data-open={open || undefined}
+                          key={section}
+                        >
+                          <button
+                            aria-controls={`strategy-phase-${section}`}
+                            aria-expanded={open}
+                            className="strategy-phase__trigger"
+                            onClick={() => setOpenStrategySection(section)}
+                            type="button"
+                          >
+                            <span>
+                              <strong>{title}</strong>
+                              <small>{summary}</small>
+                            </span>
+                            <span aria-hidden="true">⌄</span>
+                          </button>
+                          <div hidden={!open} id={`strategy-phase-${section}`}>
+                            {controls.map((control) => {
+                              const key = sliderKey(section, control.field);
+                              const value =
+                                sliderDraftValues[key] ??
+                                strategyScore(model.config, section, control.field);
+                              const savedValue = strategyScore(
+                                savedModel?.config,
+                                section,
+                                control.field,
+                              );
+                              const changed = value !== savedValue;
+                              return (
+                                <div
+                                  className="tactical-slider"
+                                  data-changed={changed || undefined}
+                                  key={control.field}
+                                >
+                                  <header>
+                                    <label htmlFor={`strategy-${key}`}>
+                                      <strong>{control.label}</strong>
+                                      <span>
+                                        {value} — {qualitativeScore(value)}
+                                      </span>
+                                    </label>
+                                    <button
+                                      disabled={!changed || saving}
+                                      onClick={() => restoreStrategyScore(section, control.field)}
+                                      title={`Restaurar ${control.label.toLocaleLowerCase('pt-BR')} ao valor salvo ${savedValue}`}
+                                      type="button"
+                                    >
+                                      Restaurar
+                                    </button>
+                                  </header>
+                                  <div className="tactical-slider__track">
+                                    <input
+                                      aria-label={control.label}
+                                      aria-describedby={`strategy-help-${key}`}
+                                      aria-valuemax={100}
+                                      aria-valuemin={0}
+                                      aria-valuenow={value}
+                                      aria-valuetext={`${value}, ${qualitativeScore(value)}`}
+                                      disabled={saving}
+                                      id={`strategy-${key}`}
+                                      max="100"
+                                      min="0"
+                                      onBlur={() =>
+                                        commitStrategyPreview(section, control.field, value)
+                                      }
+                                      onChange={(event) =>
+                                        scheduleStrategyPreview(
+                                          section,
+                                          control.field,
+                                          Number(event.target.value),
+                                        )
+                                      }
+                                      onKeyUp={(event) =>
+                                        commitStrategyPreview(
+                                          section,
+                                          control.field,
+                                          Number(event.currentTarget.value),
+                                        )
+                                      }
+                                      onPointerUp={(event) =>
+                                        commitStrategyPreview(
+                                          section,
+                                          control.field,
+                                          Number(event.currentTarget.value),
+                                        )
+                                      }
+                                      step="1"
+                                      style={
+                                        {
+                                          '--proposal-value': `${value}%`,
+                                          '--saved-value': `${savedValue}%`,
+                                        } as CSSProperties
+                                      }
+                                      type="range"
+                                      value={value}
+                                    />
+                                    <i
+                                      aria-hidden="true"
+                                      className="tactical-slider__saved"
+                                      style={{ '--saved-value': `${savedValue}%` } as CSSProperties}
+                                    />
+                                  </div>
+                                  <div className="tactical-slider__extremes" aria-hidden="true">
+                                    <span>{control.low}</span>
+                                    <span>{control.high}</span>
+                                  </div>
+                                  <p id={`strategy-help-${key}`}>{control.help}</p>
+                                  <div className="tactical-slider__impact">
+                                    <span>+ {control.benefit}</span>
+                                    <span>− {control.risk}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </section>
+                      );
+                    })}
+                    <fieldset className="behavioral-strategy">
+                      <legend>Leitura comportamental</legend>
+                      <label>
+                        <span>Tipo de progressão</span>
+                        <select
+                          disabled={semanticBusy}
+                          onChange={(event) =>
+                            updateProgression(
+                              event.target.value as 'outside' | 'balanced' | 'inside',
+                            )
+                          }
+                          value={model.config.strategy.inPossession.progression}
+                        >
+                          <option value="outside">Pelos corredores</option>
+                          <option value="balanced">Por dentro e por fora</option>
+                          <option value="inside">Pelo corredor central</option>
+                        </select>
+                      </label>
+                      <p>
+                        Ritmo, risco dos passes, liberdade criativa e progressão aparecem como
+                        corredores e consequências explicáveis no campo; não reposicionam jogadores.
+                      </p>
+                    </fieldset>
                   </div>
                 )}
               </>
             )}
             {activeTool === 'instructions' && (
               <>
-                <header className="inspector-heading">
-                  <span>Precedência resolvida</span>
-                  <h2>Instruções da equipe</h2>
-                  <p>
-                    Individual → função → posição → setor → coletiva → preset. Conflitos nunca são
-                    silenciosos.
-                  </p>
-                </header>
                 <div className="instruction-list">
-                  {model.config.instructions.map((instruction) => (
-                    <button
-                      aria-pressed="true"
-                      disabled={semanticBusy}
-                      key={instruction.instructionId}
-                      onClick={() => toggleInstruction(instruction)}
-                      type="button"
-                    >
-                      <span>
-                        <small>
-                          {instruction.scope} · {instruction.category}
-                        </small>
-                        <strong>{instruction.description}</strong>
-                        <em>{instruction.expectedEffects.join(' · ')}</em>
-                      </span>
-                      <i aria-hidden="true">
-                        <b />
-                      </i>
-                    </button>
-                  ))}
+                  {model.config.instructions.length === 0 ? (
+                    <div className="tactics-empty-state">
+                      <strong>Nenhuma instrução específica</strong>
+                      <p>
+                        O preset coletivo continua valendo. Use o fluxo abaixo para orientar um
+                        comportamento.
+                      </p>
+                    </div>
+                  ) : (
+                    model.config.instructions.map((instruction) => {
+                      const option = instructionOptions[instruction.category].find(
+                        ({ value }) => value === instruction.value,
+                      );
+                      const conflict = model.instructionConflicts.find(({ instructionIds }) =>
+                        instructionIds.includes(instruction.instructionId),
+                      );
+                      return (
+                        <article
+                          className="instruction-card"
+                          data-disabled={!instruction.enabled || undefined}
+                          key={instruction.instructionId}
+                        >
+                          <header>
+                            <span>
+                              <small>
+                                {instructionScopeLabels[instruction.scope]} ·{' '}
+                                {instructionCategoryLabels[instruction.category]}
+                              </small>
+                              <strong>{option?.label ?? instruction.description}</strong>
+                            </span>
+                            <b>{instruction.enabled ? 'Ativa' : 'Desativada'}</b>
+                          </header>
+                          <p>{option?.effect ?? instruction.expectedEffects.join(' · ')}</p>
+                          <div className="instruction-card__impact">
+                            <span>+ {option?.benefit ?? instruction.expectedEffects[0]}</span>
+                            <span>
+                              − {option?.risk ?? 'Requer adaptação às novas responsabilidades.'}
+                            </span>
+                          </div>
+                          {conflict && (
+                            <strong className="instruction-card__conflict">
+                              Conflito resolvido
+                            </strong>
+                          )}
+                          {impactInstructionId === instruction.instructionId && (
+                            <div className="instruction-card__details">
+                              <span>Origem: proposta do usuário</span>
+                              <span>
+                                Familiaridade: {instruction.familiarityImpact} pontos potenciais
+                              </span>
+                              <span>Precedência: {instructionScopeLabels[instruction.scope]}</span>
+                            </div>
+                          )}
+                          <footer>
+                            <button onClick={() => editInstruction(instruction)} type="button">
+                              Editar
+                            </button>
+                            <button onClick={() => toggleInstruction(instruction)} type="button">
+                              {instruction.enabled ? 'Desativar' : 'Ativar'}
+                            </button>
+                            <button
+                              aria-expanded={impactInstructionId === instruction.instructionId}
+                              onClick={() =>
+                                setImpactInstructionId((current) =>
+                                  current === instruction.instructionId
+                                    ? null
+                                    : instruction.instructionId,
+                                )
+                              }
+                              type="button"
+                            >
+                              Ver impacto
+                            </button>
+                            <button onClick={() => removeInstruction(instruction)} type="button">
+                              Remover
+                            </button>
+                          </footer>
+                        </article>
+                      );
+                    })
+                  )}
                 </div>
                 <fieldset className="instruction-composer">
-                  <legend>Adicionar instrução</legend>
+                  <legend>{editingInstructionId ? 'Editar instrução' : 'Nova instrução'}</legend>
                   <label>
-                    Escopo
+                    <span>1. Aplicar a</span>
                     <select
                       value={instructionScope}
                       onChange={(event) =>
@@ -2178,44 +3349,52 @@ export function TacticsWorkspace({
                       {(['collective', 'sector', 'position', 'role', 'individual'] as const).map(
                         (scope) => (
                           <option key={scope} value={scope}>
-                            {scope}
+                            {instructionScopeLabels[scope]}
                           </option>
                         ),
                       )}
                     </select>
                   </label>
                   <label>
-                    Categoria
+                    <span>2. Categoria</span>
                     <select
                       value={instructionCategory}
-                      onChange={(event) =>
-                        setInstructionCategory(event.target.value as TacticalInstructionCategory)
-                      }
+                      onChange={(event) => {
+                        const category = event.target.value as TacticalInstructionCategory;
+                        setInstructionCategory(category);
+                        setInstructionValue(instructionOptions[category][0]?.value ?? 'balanced');
+                      }}
                     >
-                      {(
-                        [
-                          'circulation',
-                          'risk',
-                          'pressure',
-                          'width',
-                          'compactness',
-                          'creativity',
-                          'marking',
-                        ] as const
-                      ).map((category) => (
+                      {instructionComposerCategories.map((category) => (
                         <option key={category} value={category}>
-                          {category}
+                          {instructionCategoryLabels[category]}
                         </option>
                       ))}
                     </select>
                   </label>
                   <label>
-                    Comportamento
-                    <input
+                    <span>3. Instrução</span>
+                    <select
                       value={instructionValue}
                       onChange={(event) => setInstructionValue(event.target.value)}
-                    />
+                    >
+                      {instructionOptions[instructionCategory].map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </label>
+                  <div className="instruction-composer__effect">
+                    <strong>4. Efeito esperado</strong>
+                    <p>{selectedInstruction?.effect}</p>
+                    <span>+ {selectedInstruction?.benefit}</span>
+                    <span>− {selectedInstruction?.risk}</span>
+                    <small>Familiaridade: adaptação estimada de 2 pontos.</small>
+                  </div>
+                  <p className="instruction-composer__persistence">
+                    A instrução entra na proposta atual e só é persistida ao salvar o plano.
+                  </p>
                   <Button
                     disabled={
                       semanticBusy || (instructionScope === 'individual' && !selectedPlayerId)
@@ -2223,12 +3402,33 @@ export function TacticsWorkspace({
                     onClick={addInstruction}
                     variant="secondary"
                   >
-                    Adicionar sem aplicar silenciosamente
+                    {editingInstructionId ? 'Atualizar instrução' : 'Adicionar instrução'}
                   </Button>
+                  {editingInstructionId && (
+                    <button
+                      className="instruction-composer__cancel"
+                      onClick={() => setEditingInstructionId(null)}
+                      type="button"
+                    >
+                      Cancelar edição
+                    </button>
+                  )}
                 </fieldset>
+                <details className="instruction-precedence">
+                  <summary>Como as instruções são resolvidas</summary>
+                  <p>
+                    Jogador → função → posição → setor → equipe → preset. O domínio registra qual
+                    comportamento prevalece em cada conflito.
+                  </p>
+                </details>
                 {model.instructionConflicts.map((conflict) => (
                   <article className="instruction-conflict" key={conflict.conflictId} role="alert">
-                    <strong>Conflito resolvido: {conflict.winnerId}</strong>
+                    <strong>
+                      Conflito resolvido:{' '}
+                      {model.config.instructions.find(
+                        ({ instructionId }) => instructionId === conflict.winnerId,
+                      )?.description ?? 'instrução de maior precedência'}
+                    </strong>
                     <p>{conflict.reason}</p>
                     <small>Comportamento final: {conflict.resolvedBehavior}</small>
                   </article>
@@ -2237,17 +3437,27 @@ export function TacticsWorkspace({
             )}
             {activeTool === 'opposition' && (
               <>
-                <header className="inspector-heading">
-                  <span>Próximo adversário</span>
-                  <h2>{state.opponent.name}</h2>
-                  <p>
-                    Plano de oposição persistido nesta variação, com origem, confiança e expiração.
-                  </p>
-                </header>
+                <section className="opposition-overview">
+                  <span
+                    className="club-crest"
+                    style={{ '--club-color': state.opponent.primaryColor } as CSSProperties}
+                  >
+                    {state.opponent.shortName}
+                  </span>
+                  <div>
+                    <small>Próximo adversário · rodada {state.round}</small>
+                    <strong>{state.opponent.name}</strong>
+                    <p>Competição nacional · preparação do plano atual</p>
+                  </div>
+                </section>
                 {model.opposition.knowledge ? (
                   <section className="opposition-knowledge">
                     <strong>Confiança {model.opposition.knowledge.confidence}%</strong>
                     <p>Fonte: {model.opposition.knowledge.source}</p>
+                    <p>
+                      Atualizado em{' '}
+                      {new Date(model.opposition.knowledge.observedAt).toLocaleDateString('pt-BR')}
+                    </p>
                     <h3>Conhecido</h3>
                     {model.opposition.knowledge.knownFacts.map((fact) => (
                       <p key={fact}>{fact}</p>
@@ -2258,15 +3468,32 @@ export function TacticsWorkspace({
                     ))}
                   </section>
                 ) : (
-                  <p className="opposition-note">
-                    <Icon name="information" size={16} /> Nenhum relatório autoritativo disponível.
-                    A informação chegará por scouting na Fase 06.4; nenhum dado foi inventado.
-                  </p>
+                  <section className="opposition-note">
+                    <Icon name="information" size={20} />
+                    <div>
+                      <strong>Sem relatório disponível</strong>
+                      <p>
+                        Não existe informação autoritativa sobre este adversário. Nenhum dado foi
+                        inventado.
+                      </p>
+                      <small>
+                        Um futuro relatório de observação poderá preencher origem, confiança, data e
+                        fatos conhecidos.
+                      </small>
+                    </div>
+                  </section>
+                )}
+                <h3 className="opposition-instructions-title">Instruções persistidas</h3>
+                {model.opposition.instructions.length === 0 && (
+                  <div className="tactics-empty-state">
+                    <strong>Nenhuma instrução de oposição</strong>
+                    <p>O plano permanece neutro enquanto não há informação confiável.</p>
+                  </div>
                 )}
                 {model.opposition.instructions.map((instruction) => (
                   <article className="opposition-instruction" key={instruction.instructionId}>
                     <strong>
-                      {instruction.scope}: {instruction.targetId}
+                      {instructionScopeLabels[instruction.scope]}: {instruction.targetId}
                     </strong>
                     <p>
                       Pressão {instruction.pressure}% · marcação{' '}
@@ -2277,6 +3504,78 @@ export function TacticsWorkspace({
               </>
             )}
           </div>
+          {activeComparison && (
+            <section
+              aria-label="Comparação entre salvo e proposta"
+              aria-live="polite"
+              className="tactics-proposal"
+            >
+              <div className="tactics-proposal__summary">
+                <strong>Salvo r{activeComparison.fromRevision}</strong>
+                <span aria-hidden="true">→</span>
+                <strong>Proposta atual</strong>
+                <small>
+                  {affectedSectors.join(' · ') || 'Equipe'} ·{' '}
+                  {activeComparison.affectedPlayers.length} jogadores
+                  {affectedPlayerNames ? ` (${affectedPlayerNames})` : ''} · familiaridade{' '}
+                  {activeComparison.familiarityBefore}% → {activeComparison.familiarityAfter}%
+                </small>
+                <small>
+                  {activeComparison.changes
+                    .slice(0, 2)
+                    .map((change) => `${change.label}: ${change.before} → ${change.after}`)
+                    .join(' · ')}
+                </small>
+                <small>
+                  Benefícios: {model.resolvedStrategy.strengths[0] ?? 'equilíbrio preservado'} ·
+                  Riscos: {activeComparison.risksCreated[0] ?? 'nenhum novo risco dominante'}
+                </small>
+              </div>
+              <div className="tactics-proposal__actions">
+                <button
+                  onClick={() =>
+                    announce('A proposta atual foi mantida no rascunho; nada foi salvo ainda.')
+                  }
+                  type="button"
+                >
+                  Aplicar à proposta
+                </button>
+                <button
+                  onClick={() => {
+                    setAdvancedStrategyOpen(true);
+                    window.setTimeout(
+                      () =>
+                        advancedControlsRef.current?.querySelector<HTMLElement>('input')?.focus(),
+                      0,
+                    );
+                  }}
+                  type="button"
+                >
+                  Continuar editando
+                </button>
+                <button
+                  onClick={() => {
+                    invalidateSemanticPreview();
+                    setSliderDraftValues({});
+                    onDiscard();
+                  }}
+                  type="button"
+                >
+                  Restaurar salvo
+                </button>
+                <button onClick={() => setComparisonDismissed(true)} type="button">
+                  Cancelar comparação
+                </button>
+                <button
+                  disabled={!dirty || !validation.valid || saving}
+                  onClick={() => void onSave()}
+                  type="button"
+                >
+                  Salvar plano
+                </button>
+              </div>
+            </section>
+          )}
           <footer className="tactics-focus-player">
             {focusedPlayer ? (
               <>
@@ -2288,12 +3587,15 @@ export function TacticsWorkspace({
                 />
                 <span>
                   <small>Jogador em foco</small>
-                  <strong>{focusedPlayer.name}</strong>
+                  <strong>
+                    {focusedPlayer.name} · {positionLabels[focusedPlayer.position]} · OVR{' '}
+                    {focusedPlayer.rating}
+                  </strong>
                   <b>
                     {activeTool === 'analysis' &&
                       `${positionLabels[focusedPlayer.position]} · familiaridade ${model.familiarity.individuals.find(({ playerId }) => playerId === focusedPlayer.id)?.contextual ?? 0}%`}
                     {activeTool === 'tactics' &&
-                      `Condição ${focusedPlayer.condition}% · exigência ${model.resolvedStrategy.physicalDemand}%`}
+                      `${activeComparison?.affectedPlayers.includes(focusedPlayer.id) ? 'Afetado pela proposta' : 'Sem impacto individual relevante'} · condição ${focusedPlayer.condition}%`}
                     {activeTool === 'instructions' &&
                       `${model.resolvedInstructions.filter(({ target }) => target === 'team' || target === focusedPlayer.id).length} instruções aplicadas`}
                     {activeTool === 'opposition' &&
@@ -2303,8 +3605,8 @@ export function TacticsWorkspace({
               </>
             ) : (
               <span className="tactics-focus-team">
-                <small>Contexto da equipe</small>
-                <strong>Nenhum jogador selecionado</strong>
+                <small>Contexto atual</small>
+                <strong>Visão da equipe</strong>
                 <b>
                   {activeTool === 'analysis'
                     ? `Familiaridade coletiva ${model.familiarity.overall}%`

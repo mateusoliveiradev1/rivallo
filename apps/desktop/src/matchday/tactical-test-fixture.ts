@@ -7,7 +7,7 @@ import type {
 } from './types.js';
 
 export const tacticalConfigFixture = (): TacticalModelConfig => ({
-  schemaVersion: 1,
+  schemaVersion: 2,
   strategy: {
     presetId: 'balanced',
     customized: false,
@@ -16,14 +16,17 @@ export const tacticalConfigFixture = (): TacticalModelConfig => ({
       tempo: 50,
       passingRisk: 45,
       playersForward: 50,
+      creativeFreedom: 50,
       buildUp: 'supported',
       progression: 'balanced',
     },
     outOfPossession: {
       blockHeight: 50,
       defensiveLine: 50,
+      depth: 50,
       pressure: 50,
-      compactness: 60,
+      horizontalCompactness: 60,
+      verticalCompactness: 60,
       duelAggression: 50,
       forceDirection: 'neutral',
     },
@@ -173,7 +176,7 @@ export const attachTacticalModelFixture = (plan: TacticalPlanSnapshot): Tactical
     createdAt: plan.updatedAt,
   };
   const tacticalModel: TacticalModelSnapshot = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     config,
     structures,
     spatial,

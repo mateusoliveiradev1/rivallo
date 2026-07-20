@@ -7,9 +7,9 @@ current_phase_name: Tactical Model and Familiarity
 current_plan: 1
 status: complete
 stopped_at: Phase 06.3 complete; Phase 06.4 not started
-last_updated: '2026-07-17T02:22:30-03:00'
+last_updated: '2026-07-17T10:15:33-03:00'
 last_activity: 2026-07-17
-last_activity_desc: Phase 06.3 implemented, reviewed, verified and built without starting Phase 06.4
+last_activity_desc: Phase 06.3 manually approved and formally closed without starting Phase 06.4
 ---
 
 # State
@@ -17,7 +17,7 @@ last_activity_desc: Phase 06.3 implemented, reviewed, verified and built without
 ## Current checkpoint
 
 - **Input implementation baseline:** `e8412d29a770bf0e400e2f72ec16e47f7e95f31f`, stable final checkpoint of Phase 06.2.
-- **Current execution state:** Phase 06.3 complete after one plan, one consolidated review and all final gates.
+- **Current execution state:** Phase 06.3 complete after one plan, one consolidated review, final product refinement, all gates and approved manual validation.
 - **Current executable product:** deterministic fictional matchday, durable table views, free normalized tactical field, independent variations and a versioned/explainable tactical model with multidimensional familiarity and `TacticalMatchSnapshot`.
 - **Implementation pointer:** Phase 06.4 is next and **not started**.
 - **Planning horizon:** complete MVP1 and MVP2 sequence remains defined by `ROADMAP.md`.
@@ -34,7 +34,7 @@ last_activity_desc: Phase 06.3 implemented, reviewed, verified and built without
 | 6 — First Playable Matchday / SM-1                               | Complete; human product review remains deferred, not recorded as global visual approval |
 | 06.1 — Table Views and Durable Preferences                       | Complete — 8/8 plans executed                                                           |
 | 06.2 — Free Tactical Field and Unified Bench Interaction         | Complete — checkpoint `e8412d29a770bf0e400e2f72ec16e47f7e95f31f`                        |
-| 06.3 — Tactical Model and Familiarity                            | Complete — semantic gate approved in this checkpoint                                    |
+| 06.3 — Tactical Model and Familiarity                            | Complete — automated gates and final manual validation approved                         |
 | 06.4 and later canonical phases                                  | Planned; not started                                                                    |
 
 ## Phase 06.3 delivered
@@ -46,15 +46,17 @@ last_activity_desc: Phase 06.3 implemented, reviewed, verified and built without
 5. `TacticalMatchSnapshot` schema 1 is validated, serializable, persisted and free of React/pixel state.
 6. Analysis, Strategy, Instructions and Opposition consume the same versioned plan and projection.
 7. The pointer hot path preserves the Phase 06.2 budget: no semantic calculation, React update or persistence during `pointermove`.
+8. The final product refinement keeps tabs/actions accessible, uses one scroll body, contains every projected card, previews spatial changes without autosave and exposes instructions only in sporting Portuguese.
 
 ## Final validation
 
 - Prettier, ESLint, TypeScript, Rust fmt and Clippy passed.
-- Vitest: 394 passed.
-- Rust: 88 passed in 11 suites.
-- Playwright: 56 passed, 16 conditional skips, zero failures.
+- Focused component validation: 51 passed.
+- Rust: 94 passed.
+- Playwright: 58 passed, 20 conditional skips, zero failures.
 - `pnpm quality` and `pnpm desktop:build` passed.
-- Desktop artifact: `target/release/rivallo-desktop.exe`, 13,749,760 bytes, SHA-256 `F4035066EA6AB71E9A7BFCF529C4C48DA470E307CAD23617B7EF4ED096CB7D8F`.
+- Manual validation approved all four tabs, five field readings, contracted resolutions, zoom 200%, real drag and zero console errors in the desktop executable.
+- Desktop artifact: `target/release/rivallo-desktop.exe`, 13,795,328 bytes, SHA-256 `DEED9B9E06F84A50BFBE61D8F6263934153AB93AC9E8F4EE7EDDD2BBD3150B43`.
 - `Cargo.lock` has no diff from the input checkpoint.
 
 ## Canonical decisions preserved

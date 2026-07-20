@@ -128,13 +128,25 @@ export type TacticalGamePhase =
   'base' | 'inPossession' | 'outOfPossession' | 'offensiveTransition' | 'defensiveTransition';
 export type TacticalInstructionScope = 'collective' | 'sector' | 'position' | 'role' | 'individual';
 export type TacticalInstructionCategory =
-  'circulation' | 'risk' | 'pressure' | 'width' | 'compactness' | 'creativity' | 'marking';
+  | 'buildUp'
+  | 'circulation'
+  | 'pressure'
+  | 'marking'
+  | 'movement'
+  | 'finishing'
+  | 'transition'
+  | 'goalkeeperBehavior'
+  | 'risk'
+  | 'width'
+  | 'compactness'
+  | 'creativity';
 
 export interface InPossessionStrategy {
   readonly width: number;
   readonly tempo: number;
   readonly passingRisk: number;
   readonly playersForward: number;
+  readonly creativeFreedom: number;
   readonly buildUp: 'direct' | 'supported' | 'patient';
   readonly progression: 'outside' | 'balanced' | 'inside';
 }
@@ -142,8 +154,10 @@ export interface InPossessionStrategy {
 export interface OutOfPossessionStrategy {
   readonly blockHeight: number;
   readonly defensiveLine: number;
+  readonly depth: number;
   readonly pressure: number;
-  readonly compactness: number;
+  readonly horizontalCompactness: number;
+  readonly verticalCompactness: number;
   readonly duelAggression: number;
   readonly forceDirection: 'inside' | 'neutral' | 'outside';
 }
@@ -179,6 +193,7 @@ export interface TacticalInstruction {
   readonly precedence: number;
   readonly familiarityImpact: number;
   readonly revision: number;
+  readonly enabled: boolean;
 }
 
 export interface OpponentKnowledge {
@@ -211,7 +226,7 @@ export interface TacticalOppositionPlan {
 }
 
 export interface TacticalModelConfig {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly strategy: TacticalStrategyConfig;
   readonly instructions: readonly TacticalInstruction[];
   readonly opposition: TacticalOppositionPlan;
@@ -354,6 +369,16 @@ export interface TacticalRecommendation {
   readonly risk: string;
   readonly affectedPlayers: readonly string[];
   readonly confidence: number;
+  readonly origin: string;
+  readonly variationId: string;
+  readonly planRevision: number;
+  readonly staffId: string | null;
+  readonly staffRole: string | null;
+  readonly staffName: string | null;
+  readonly staffSpecialty: string | null;
+  readonly staffQuality: number | null;
+  readonly planKnowledge: number | null;
+  readonly opponentKnowledge: number | null;
 }
 
 export interface TacticalMatchSnapshot {
@@ -377,7 +402,7 @@ export interface TacticalMatchSnapshot {
 }
 
 export interface TacticalModelSnapshot {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly config: TacticalModelConfig;
   readonly structures: readonly TacticalPhaseStructure[];
   readonly spatial: TacticalSpatialAnalysis;

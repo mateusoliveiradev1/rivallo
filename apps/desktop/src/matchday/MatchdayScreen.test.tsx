@@ -20,7 +20,13 @@ import {
   attachTacticalModelFixture,
   tacticalStrategyCatalogFixture,
 } from './tactical-test-fixture.js';
-import type { MatchdayState, Player, TacticalPlanUpdate } from './types.js';
+import type {
+  MatchdayState,
+  Player,
+  TacticalPlayerPlacement,
+  TacticalPlanUpdate,
+  TacticalRecommendation,
+} from './types.js';
 
 const clientMock = vi.hoisted(() => ({
   loadMatchday: vi.fn(),
@@ -663,31 +669,312 @@ describe('MatchdayScreen', () => {
     await screen.findByRole('heading', { name: 'Visão geral do elenco' });
     await user.click(screen.getByRole('button', { name: 'Táticas' }));
 
-    expect(screen.getByText('Nenhum jogador selecionado')).toBeInstanceOf(HTMLElement);
+    expect(screen.getByText('Visão da equipe')).toBeInstanceOf(HTMLElement);
     await user.click(screen.getByRole('button', { name: 'Com posse' }));
     expect(screen.getByText(/projeção derivada; a posição base não foi alterada/iu)).toBeInstanceOf(
       HTMLElement,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Análise' }));
+    await user.click(screen.getByRole('tab', { name: 'Análise' }));
     expect(screen.getByText('Diagnóstico autoritativo')).toBeInstanceOf(HTMLElement);
     expect(screen.getByText(/Familiaridade coletiva 84%/u)).toBeInstanceOf(HTMLElement);
 
-    await user.click(screen.getByRole('button', { name: 'Estratégia' }));
+    await user.click(screen.getByRole('tab', { name: 'Estratégia' }));
     await user.click(await screen.findByRole('button', { name: /Protagonista/u }));
     expect(screen.getByRole('heading', { name: 'Aplicar Protagonista?' })).toBeInstanceOf(
       HTMLHeadingElement,
     );
-    await user.click(screen.getByRole('button', { name: 'Confirmar preset' }));
+    await user.click(screen.getByRole('button', { name: 'Aplicar à proposta' }));
     await waitFor(() => expect(clientMock.previewTacticalPlan).toHaveBeenCalledOnce());
 
-    await user.click(screen.getByRole('button', { name: 'Instruções' }));
-    expect(screen.getByText(/Individual → função → posição/u)).toBeInstanceOf(HTMLElement);
-    await user.click(screen.getByRole('button', { name: 'Adicionar sem aplicar silenciosamente' }));
+    await user.click(screen.getByRole('tab', { name: 'Instruções' }));
+    expect(screen.getByText(/Jogador → função → posição/u)).toBeInstanceOf(HTMLElement);
+    expect(screen.queryByText(/collective|circulation|supported/u)).toBeNull();
+    expect(screen.getByText(/só é persistida ao salvar o plano/u)).toBeInstanceOf(HTMLElement);
+    await user.click(screen.getByRole('button', { name: 'Adicionar instrução' }));
     await waitFor(() => expect(clientMock.previewTacticalPlan).toHaveBeenCalledTimes(2));
 
-    await user.click(screen.getByRole('button', { name: 'Oposição' }));
+    await user.click(screen.getByRole('tab', { name: 'Oposição' }));
     expect(screen.getByText(/nenhum dado foi inventado/iu)).toBeInstanceOf(HTMLElement);
+  });
+
+  it('routes spatial controls to the right derived preview and keeps behavior controls stationary', async () => {
+    const user = userEvent.setup();
+    clientMock.previewTacticalPlan.mockImplementation(async ({ tacticalConfig }) => ({
+      model: {
+        ...initialTacticalPlan.tacticalModel,
+        config: tacticalConfig ?? initialTacticalPlan.tacticalModel?.config,
+      },
+      comparison: {
+        fromRevision: 0,
+        toRevision: 0,
+        changes: [
+          {
+            changeId: 'width',
+            label: 'Largura com a bola',
+            before: '55',
+            after: '90',
+            cause: 'Ajuste de estratégia',
+            expectedConsequences: ['amplitude para abrir o bloco adversário'],
+          },
+        ],
+        familiarityBefore: 84,
+        familiarityAfter: 82,
+        affectedPlayers: ['p7', 'p11'],
+        risksCreated: ['espaço após a perda'],
+        risksReduced: [],
+      },
+    }));
+    render(<MatchdayScreen serviceOwnership="owned" />);
+    await screen.findByRole('heading', { name: 'Visão geral do elenco' });
+    await user.click(screen.getByRole('button', { name: 'Táticas' }));
+    await user.click(screen.getByRole('tab', { name: 'Estratégia' }));
+    await user.click(screen.getByRole('button', { name: 'Personalizar estratégia' }));
+
+    const basePlacements = initialTacticalPlan.placements.map(
+      ({ normalizedX, normalizedY, playerId }) => ({ normalizedX, normalizedY, playerId }),
+    );
+    const amplitude = screen.getByRole('slider', { name: 'Amplitude' });
+    fireEvent.change(amplitude, { target: { value: '90' } });
+    fireEvent.pointerUp(amplitude);
+    await waitFor(() => expect(clientMock.previewTacticalPlan).toHaveBeenCalledOnce());
+    expect(
+      screen.getByRole('button', { name: 'Com posse', hidden: true }).getAttribute('aria-pressed'),
+    ).toBe('true');
+    const [widthProposal] = clientMock.previewTacticalPlan.mock.calls[0] ?? [];
+    expect(widthProposal?.tacticalConfig?.strategy.inPossession.width).toBe(90);
+    expect(
+      widthProposal?.placements.map(
+        ({ normalizedX, normalizedY, playerId }: TacticalPlayerPlacement) => ({
+          normalizedX,
+          normalizedY,
+          playerId,
+        }),
+      ),
+    ).toEqual(basePlacements);
+    const proposal = screen.getByLabelText('Comparação entre salvo e proposta');
+    expect(proposal.textContent).toContain('Ataque');
+    for (const action of [
+      'Aplicar à proposta',
+      'Continuar editando',
+      'Restaurar salvo',
+      'Cancelar comparação',
+      'Salvar plano',
+    ]) {
+      expect(within(proposal).getByRole('button', { name: action })).toBeInstanceOf(
+        HTMLButtonElement,
+      );
+    }
+
+    const slotsBeforeTempo = [...document.querySelectorAll<HTMLElement>('.pitch-slot')].map(
+      ({ style }) => [style.getPropertyValue('--slot-x'), style.getPropertyValue('--slot-y')],
+    );
+    const tempo = screen.getByRole('slider', { name: 'Ritmo' });
+    fireEvent.change(tempo, { target: { value: '75' } });
+    fireEvent.pointerUp(tempo);
+    await waitFor(() => expect(clientMock.previewTacticalPlan).toHaveBeenCalledTimes(2));
+    const slotsAfterTempo = [...document.querySelectorAll<HTMLElement>('.pitch-slot')].map(
+      ({ style }) => [style.getPropertyValue('--slot-x'), style.getPropertyValue('--slot-y')],
+    );
+    expect(slotsAfterTempo).toEqual(slotsBeforeTempo);
+    expect(
+      screen.getByRole('button', { name: 'Com posse', hidden: true }).getAttribute('aria-pressed'),
+    ).toBe('true');
+
+    await user.click(screen.getByRole('button', { name: /Sem a bola/u }));
+    const defensiveLine = screen.getByRole('slider', { name: 'Linha defensiva' });
+    fireEvent.change(defensiveLine, { target: { value: '75' } });
+    fireEvent.pointerUp(defensiveLine);
+    expect(screen.getByRole('button', { name: 'Sem posse' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    const horizontalCompactness = screen.getByRole('slider', {
+      name: 'Compactação horizontal',
+    });
+    fireEvent.change(horizontalCompactness, { target: { value: '75' } });
+    fireEvent.pointerUp(horizontalCompactness);
+    await waitFor(() => expect(clientMock.previewTacticalPlan).toHaveBeenCalledTimes(4));
+    expect(screen.getByRole('button', { name: 'Sem posse' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+  });
+
+  it('exposes saved and proposed slider values, keyboard tabs, restore and explicit persistence', async () => {
+    const user = userEvent.setup();
+    render(<MatchdayScreen serviceOwnership="owned" />);
+    await screen.findByRole('heading', { name: 'Visão geral do elenco' });
+    await user.click(screen.getByRole('button', { name: 'Táticas' }));
+
+    const analysisTab = screen.getByRole('tab', { name: 'Análise' });
+    analysisTab.focus();
+    await user.keyboard('{ArrowRight}');
+    expect(screen.getByRole('tab', { name: 'Estratégia' }).getAttribute('aria-selected')).toBe(
+      'true',
+    );
+    await user.click(screen.getByRole('button', { name: 'Personalizar estratégia' }));
+
+    const amplitude = screen.getByRole('slider', { name: 'Amplitude' });
+    expect(amplitude.getAttribute('min')).toBe('0');
+    expect(amplitude.getAttribute('max')).toBe('100');
+    expect(amplitude.getAttribute('aria-valuetext')).toBe('55, Equilibrada');
+    const slider = amplitude.closest('.tactical-slider');
+    expect(slider?.querySelector('.tactical-slider__saved')?.getAttribute('style')).toContain(
+      '--saved-value: 55%',
+    );
+
+    fireEvent.change(amplitude, { target: { value: '72' } });
+    fireEvent.pointerUp(amplitude);
+    await waitFor(() => expect(clientMock.previewTacticalPlan).toHaveBeenCalledOnce());
+    expect(clientMock.saveTacticalPlan).not.toHaveBeenCalled();
+    expect(screen.getByRole('slider', { name: 'Amplitude' }).getAttribute('aria-valuetext')).toBe(
+      '72, Alta',
+    );
+
+    await user.click(within(slider as HTMLElement).getByRole('button', { name: 'Restaurar' }));
+    await waitFor(() => expect(clientMock.previewTacticalPlan).toHaveBeenCalledTimes(2));
+    expect((screen.getByRole('slider', { name: 'Amplitude' }) as HTMLInputElement).value).toBe(
+      '55',
+    );
+    expect(clientMock.saveTacticalPlan).not.toHaveBeenCalled();
+  });
+
+  it('previews a current model recommendation in the field and applies it only to the draft', async () => {
+    const recommendation: TacticalRecommendation = {
+      recommendationId: 'model.raise-width',
+      reason: 'Aumentar a amplitude para criar uma linha de passe no lado oposto.',
+      proposedChanges: [{ path: 'strategy.inPossession.width', from: 55, to: 70 }],
+      benefit: 'Mais espaço para circular.',
+      risk: 'Maior distância após a perda.',
+      affectedPlayers: ['p9', 'p11'],
+      confidence: 81,
+      origin: 'Análise do modelo tático',
+      variationId: initialTacticalPlan.variationId,
+      planRevision: initialTacticalPlan.revision,
+      staffId: null,
+      staffRole: null,
+      staffName: null,
+      staffSpecialty: null,
+      staffQuality: null,
+      planKnowledge: null,
+      opponentKnowledge: null,
+    };
+    const recommendedPlan = {
+      ...initialTacticalPlan,
+      tacticalModel: {
+        ...initialTacticalPlan.tacticalModel!,
+        recommendations: [recommendation],
+      },
+    };
+    clientMock.loadMatchday.mockResolvedValue({
+      ...state,
+      tacticalLibrary: {
+        ...state.tacticalLibrary!,
+        variations: [recommendedPlan],
+      },
+    });
+    clientMock.previewTacticalPlan.mockImplementation(async ({ tacticalConfig }) => ({
+      model: {
+        ...recommendedPlan.tacticalModel!,
+        config: tacticalConfig ?? recommendedPlan.tacticalModel!.config,
+      },
+      comparison: {
+        fromRevision: 0,
+        toRevision: 0,
+        changes: [
+          {
+            changeId: 'width',
+            label: 'Amplitude',
+            before: '55',
+            after: '70',
+            cause: 'Recomendação do modelo tático',
+            expectedConsequences: ['mais espaço para circular'],
+          },
+        ],
+        familiarityBefore: 84,
+        familiarityAfter: 82,
+        affectedPlayers: ['p9', 'p11'],
+        risksCreated: ['distância após a perda'],
+        risksReduced: [],
+      },
+    }));
+
+    const user = userEvent.setup();
+    render(<MatchdayScreen serviceOwnership="owned" />);
+    await screen.findByRole('heading', { name: 'Visão geral do elenco' });
+    await user.click(screen.getByRole('button', { name: 'Táticas' }));
+    await user.click(screen.getByRole('tab', { name: 'Análise' }));
+    await user.click(await screen.findByRole('button', { name: 'Ver alterações' }));
+
+    const dialog = await screen.findByRole('alertdialog', { name: 'Revisar recomendação' });
+    expect(within(dialog).getByText('Análise do modelo tático')).toBeInstanceOf(HTMLElement);
+    expect(within(dialog).getByText('55 → 70')).toBeInstanceOf(HTMLElement);
+    expect(
+      screen.getByRole('button', { name: 'Com posse', hidden: true }).getAttribute('aria-pressed'),
+    ).toBe('true');
+    expect(clientMock.saveTacticalPlan).not.toHaveBeenCalled();
+
+    const applyRecommendation = within(dialog).getByRole('button', {
+      name: 'Aplicar à proposta',
+    });
+    await waitFor(() => expect((applyRecommendation as HTMLButtonElement).disabled).toBe(false));
+    await user.click(applyRecommendation);
+    await waitFor(() => expect(clientMock.previewTacticalPlan).toHaveBeenCalledTimes(2));
+    expect(clientMock.saveTacticalPlan).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Comparação entre salvo e proposta')).toBeInstanceOf(HTMLElement);
+  });
+
+  it('blocks a stale recommendation and offers recalculation without changing the draft', async () => {
+    const staleRecommendation: TacticalRecommendation = {
+      recommendationId: 'model.stale',
+      reason: 'Ajustar a compactação vertical.',
+      proposedChanges: [{ path: 'strategy.outOfPossession.verticalCompactness', from: 60, to: 70 }],
+      benefit: 'Menos espaço entre setores.',
+      risk: 'Menor cobertura em profundidade.',
+      affectedPlayers: ['p3', 'p4'],
+      confidence: 78,
+      origin: 'Análise do modelo tático',
+      variationId: initialTacticalPlan.variationId,
+      planRevision: initialTacticalPlan.revision + 1,
+      staffId: null,
+      staffRole: null,
+      staffName: null,
+      staffSpecialty: null,
+      staffQuality: null,
+      planKnowledge: null,
+      opponentKnowledge: null,
+    };
+    const recommendedPlan = {
+      ...initialTacticalPlan,
+      tacticalModel: {
+        ...initialTacticalPlan.tacticalModel!,
+        recommendations: [staleRecommendation],
+      },
+    };
+    clientMock.loadMatchday.mockResolvedValue({
+      ...state,
+      tacticalLibrary: { ...state.tacticalLibrary!, variations: [recommendedPlan] },
+    });
+
+    const user = userEvent.setup();
+    render(<MatchdayScreen serviceOwnership="owned" />);
+    await screen.findByRole('heading', { name: 'Visão geral do elenco' });
+    await user.click(screen.getByRole('button', { name: 'Táticas' }));
+    await user.click(screen.getByRole('tab', { name: 'Análise' }));
+    await user.click(await screen.findByRole('button', { name: 'Ver alterações' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Revisar recomendação' });
+    const applyRecommendation = within(dialog).getByRole('button', {
+      name: 'Aplicar à proposta',
+    });
+    await waitFor(() => expect((applyRecommendation as HTMLButtonElement).disabled).toBe(false));
+    await user.click(applyRecommendation);
+
+    expect(within(dialog).getByText(/criada para uma versão anterior do plano/iu)).toBeInstanceOf(
+      HTMLElement,
+    );
+    expect(within(dialog).getByRole('button', { name: 'Recalcular' })).toBeInstanceOf(
+      HTMLButtonElement,
+    );
+    expect(clientMock.saveTacticalPlan).not.toHaveBeenCalled();
   });
 
   it('moves freely by keyboard, announces cancellation, allows an unusual goalkeeper drop and undoes', async () => {

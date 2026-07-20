@@ -11,6 +11,7 @@ import type {
   MatchdayState,
   Player,
   TacticalPlanProposal,
+  TacticalRecommendation,
 } from '../apps/desktop/src/matchday/types.js';
 import {
   requiredContrastRatio,
@@ -1082,7 +1083,7 @@ test('changes the dedicated tactical plan, plays the match, and reveals the resu
   await expect(page.getByRole('heading', { name: 'Plano de jogo' })).toBeVisible();
   await chooseFormation(page, '4-2-3-1');
   await page.getByRole('button', { name: /Protagonista/u }).click();
-  await page.getByRole('button', { name: 'Confirmar preset' }).click();
+  await page.getByRole('button', { name: 'Aplicar à proposta' }).click();
   const playButton = page.getByRole('button', { name: 'Continuar' });
   await playButton.click();
 
@@ -1353,8 +1354,8 @@ test('uses real squad filters and navigates between the separate workspaces', as
   await expect(page.getByRole('heading', { name: 'Plano de jogo' })).toBeVisible();
   await expect(page.getByRole('table')).toHaveCount(0);
   await expect(page.getByLabel('Escalação no 4-3-3')).toBeVisible();
-  await page.getByRole('button', { name: 'Análise' }).click();
-  await expect(page.getByText(/Prontidão 82%/u)).toBeVisible();
+  await page.getByRole('tab', { name: 'Análise' }).click();
+  await expect(page.getByText('Prontidão 82%', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'Elenco' }).click();
   await expect(page.getByRole('heading', { name: 'Visão geral do elenco' })).toBeVisible();
@@ -1380,7 +1381,7 @@ test('substitutes through the accessible field flow and persists the saved plan'
 
   await chooseFormation(page, '4-2-3-1');
   await page.getByRole('button', { name: /Protagonista/u }).click();
-  await page.getByRole('button', { name: 'Confirmar preset' }).click();
+  await page.getByRole('button', { name: 'Aplicar à proposta' }).click();
   await page.getByRole('button', { name: 'Salvar plano' }).click();
   await expect(page.getByRole('button', { name: 'Salvar plano' })).toBeDisabled();
 
@@ -1421,10 +1422,26 @@ test('keeps field and bench in one drag session and persists a custom formation'
   const goalkeeper = page.getByRole('button', { name: /^GOL: Caio Brandão/u });
   const goalkeeperSlot = goalkeeper.locator('xpath=..');
   const goalkeeperStyle = await goalkeeperSlot.getAttribute('style');
-  await pointerDragTo(page, goalkeeper.locator('.pitch-player-card__copy strong'), pitch, {
-    x: 500,
-    y: 260,
+  const goalkeeperFreePosition = await pitch.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const candidates = [
+      [0.68, 0.24],
+      [0.68, 0.76],
+      [0.42, 0.2],
+    ] as const;
+    const candidate = candidates.find(([x, y]) => {
+      const hit = document.elementFromPoint(rect.left + rect.width * x, rect.top + rect.height * y);
+      return hit?.closest('[data-tactical-player-id]') === null;
+    });
+    if (!candidate) throw new Error('No free tactical field coordinate was available.');
+    return { x: rect.width * candidate[0], y: rect.height * candidate[1] };
   });
+  await pointerDragTo(
+    page,
+    goalkeeper.locator('.pitch-player-card__copy strong'),
+    pitch,
+    goalkeeperFreePosition,
+  );
   await expect(goalkeeperSlot).not.toHaveAttribute('style', goalkeeperStyle ?? '');
 
   await pointerDragTo(
@@ -1434,6 +1451,7 @@ test('keeps field and bench in one drag session and persists a custom formation'
   );
   await expect(page.getByRole('button', { name: /^ZAG: Davi Moura/u })).toBeVisible();
   await expect(page.getByRole('button', { name: /^LD: Iago Serpa/u })).toBeVisible();
+  await waitForStableFrame(page);
 
   await pointerDragTo(
     page,
@@ -1868,9 +1886,9 @@ test('captures Elenco and Táticas at 1024, 1366, 1440, 1920 and 2560 pixels', a
     });
     if (viewport.width === 1920) {
       for (const tab of ['Análise', 'Estratégia', 'Instruções', 'Oposição'] as const) {
-        await page.getByRole('button', { name: tab, exact: true }).click();
-        await expect(page.getByRole('button', { name: tab, exact: true })).toHaveAttribute(
-          'aria-pressed',
+        await page.getByRole('tab', { name: tab, exact: true }).click();
+        await expect(page.getByRole('tab', { name: tab, exact: true })).toHaveAttribute(
+          'aria-selected',
           'true',
         );
         await page.evaluate(
@@ -1900,6 +1918,286 @@ test('captures Elenco and Táticas at 1024, 1366, 1440, 1920 and 2560 pixels', a
       await expect(page.getByRole('button', { name: 'Restaurar salvo' })).toBeVisible();
     }
   }
+});
+
+test('keeps the tactical inspector bounded, keyboard reachable and every derived card inside the pitch', async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== 'desktop-1366x768',
+    'The focused 06.3 layout contract only needs one desktop project.',
+  );
+
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.goto(developmentUrl);
+  await page.getByRole('button', { name: 'Táticas' }).click();
+
+  const inspector = page.getByLabel('Inspector tático');
+  const tabs = inspector.getByRole('tablist', { name: 'Ferramentas táticas' });
+  const summary = inspector.locator('.tactics-inspector__summary');
+  const body = inspector.locator('.tactics-inspector__body');
+  const footer = inspector.locator('.tactics-focus-player');
+
+  const assertInspectorRegions = async () => {
+    const geometry = await inspector.evaluate((element) => {
+      const nav = element.querySelector<HTMLElement>('.tactics-tool-nav');
+      const summaryElement = element.querySelector<HTMLElement>('.tactics-inspector__summary');
+      const bodyElement = element.querySelector<HTMLElement>('.tactics-inspector__body');
+      const footerElement = element.querySelector<HTMLElement>('.tactics-focus-player');
+      const proposal = element.querySelector<HTMLElement>('.tactics-proposal');
+      if (!nav || !summaryElement || !bodyElement || !footerElement)
+        throw new Error('Expected every fixed inspector region.');
+      const inspectorRect = element.getBoundingClientRect();
+      const navRect = nav.getBoundingClientRect();
+      const summaryRect = summaryElement.getBoundingClientRect();
+      const bodyRect = bodyElement.getBoundingClientRect();
+      const footerRect = footerElement.getBoundingClientRect();
+      const proposalRect = proposal?.getBoundingClientRect();
+      return {
+        inspectorBottom: inspectorRect.bottom,
+        navBottom: navRect.bottom,
+        summaryTop: summaryRect.top,
+        summaryBottom: summaryRect.bottom,
+        bodyTop: bodyRect.top,
+        bodyBottom: bodyRect.bottom,
+        nextFixedTop: proposalRect?.top ?? footerRect.top,
+        footerTop: footerRect.top,
+        footerBottom: footerRect.bottom,
+        bodyOverflowY: getComputedStyle(bodyElement).overflowY,
+      };
+    });
+    expect(geometry.navBottom).toBeLessThanOrEqual(geometry.summaryTop + 1);
+    expect(geometry.summaryBottom).toBeLessThanOrEqual(geometry.bodyTop + 1);
+    expect(geometry.bodyBottom).toBeLessThanOrEqual(geometry.nextFixedTop + 1);
+    expect(geometry.footerTop).toBeGreaterThanOrEqual(geometry.bodyBottom - 1);
+    expect(geometry.footerBottom).toBeLessThanOrEqual(geometry.inspectorBottom + 1);
+    expect(geometry.bodyOverflowY).toBe('auto');
+  };
+
+  for (const tab of ['Análise', 'Estratégia', 'Instruções', 'Oposição'] as const) {
+    await tabs.getByRole('tab', { name: tab, exact: true }).click();
+    await expect(summary).toBeVisible();
+    await expect(footer).toBeVisible();
+    await assertInspectorRegions();
+  }
+
+  await tabs.getByRole('tab', { name: 'Estratégia', exact: true }).click();
+  await body.getByRole('button', { name: 'Personalizar estratégia' }).click();
+  const scrollState = await body.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+    return {
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      scrollTop: element.scrollTop,
+    };
+  });
+  expect(scrollState.scrollHeight).toBeGreaterThan(scrollState.clientHeight);
+  expect(scrollState.scrollTop).toBeGreaterThan(0);
+  const verticalScrollOwners = await inspector.evaluate((element) =>
+    [...element.querySelectorAll<HTMLElement>('*')]
+      .filter((candidate) => {
+        const overflow = getComputedStyle(candidate).overflowY;
+        return (
+          (overflow === 'auto' || overflow === 'scroll') &&
+          candidate.scrollHeight > candidate.clientHeight + 1
+        );
+      })
+      .map((candidate) => [...candidate.classList]),
+  );
+  expect(verticalScrollOwners).toHaveLength(1);
+  expect(verticalScrollOwners[0]).toContain('tactics-inspector__body');
+  await expect(tabs.getByRole('tab', { name: 'Estratégia', exact: true })).toBeVisible();
+  await expect(footer).toBeVisible();
+  await assertInspectorRegions();
+
+  await tabs.getByRole('tab', { name: 'Instruções', exact: true }).click();
+  await expect(inspector).not.toContainText('collective');
+  await expect(inspector).not.toContainText('circulation');
+  await expect(inspector).not.toContainText('supported');
+  const focusableControls = inspector.locator(
+    'button:not(:disabled):not([tabindex="-1"]), select:not(:disabled):not([tabindex="-1"]), input:not(:disabled):not([tabindex="-1"]), [tabindex]:not([tabindex="-1"])',
+  );
+  const focusableCount = await focusableControls.count();
+  expect(focusableCount).toBeGreaterThanOrEqual(6);
+  for (let index = 0; index < focusableCount; index += 1) {
+    const control = focusableControls.nth(index);
+    expect(
+      await control.evaluate((element) => {
+        (element as HTMLElement).focus();
+        return document.activeElement === element && (element as HTMLElement).tabIndex >= 0;
+      }),
+    ).toBe(true);
+  }
+
+  const baseStyles = await page
+    .locator('.pitch-slot')
+    .evaluateAll((slots) => slots.map((slot) => slot.getAttribute('style')));
+  const pitch = page.getByLabel('Escalação no 4-3-3');
+  for (const phase of ['Com posse', 'Sem posse', 'Transição +', 'Transição −'] as const) {
+    await page.getByRole('button', { name: phase, exact: true }).click();
+    const containment = await pitch.evaluate((element) => {
+      const pitchRect = element.getBoundingClientRect();
+      return [...element.querySelectorAll<HTMLElement>('.pitch-player-card')].every((card) => {
+        const rect = card.getBoundingClientRect();
+        return (
+          rect.left >= pitchRect.left - 1 &&
+          rect.right <= pitchRect.right + 1 &&
+          rect.top >= pitchRect.top - 1 &&
+          rect.bottom <= pitchRect.bottom + 1
+        );
+      });
+    });
+    expect(containment).toBe(true);
+  }
+  await page.getByRole('button', { name: 'Posição base', exact: true }).click();
+  expect(
+    await page
+      .locator('.pitch-slot')
+      .evaluateAll((slots) => slots.map((slot) => slot.getAttribute('style'))),
+  ).toEqual(baseStyles);
+
+  await page.setViewportSize({ width: 683, height: 384 });
+  await inspector.scrollIntoViewIfNeeded();
+  await assertInspectorRegions();
+  await expect(tabs.getByRole('tab', { name: 'Instruções', exact: true })).toBeVisible();
+});
+
+test('keeps slider, recommendation and instruction changes in the proposal until an explicit save', async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== 'desktop-1366x768',
+    'The focused 06.3 proposal flow only needs one desktop project.',
+  );
+
+  await page.goto(developmentUrl);
+  const recommendation: TacticalRecommendation = {
+    recommendationId: 'model.raise-width',
+    reason: 'Aumentar a amplitude para criar uma linha de passe no lado oposto.',
+    proposedChanges: [{ path: 'strategy.inPossession.width', from: 55, to: 70 }],
+    benefit: 'Mais espaço para circular.',
+    risk: 'Maior distância após a perda.',
+    affectedPlayers: ['rv-09', 'rv-11'],
+    confidence: 81,
+    origin: 'Análise do modelo tático',
+    variationId: initialTacticalVariation.variationId,
+    planRevision: initialTacticalVariation.revision,
+    staffId: null,
+    staffRole: null,
+    staffName: null,
+    staffSpecialty: null,
+    staffQuality: null,
+    planKnowledge: null,
+    opponentKnowledge: null,
+  };
+  await page.evaluate(
+    ({ seed, storageKey, seededRecommendation }) => {
+      const persisted = window.localStorage.getItem(storageKey);
+      const state =
+        persisted === null ? structuredClone(seed) : (JSON.parse(persisted) as MatchdayState);
+      const library = state.tacticalLibrary;
+      if (!library) throw new Error('Expected the tactical browser fixture.');
+      const activeVariation = library.variations.find(
+        ({ variationId }) => variationId === library.activeVariationId,
+      );
+      const activeModel = activeVariation?.tacticalModel;
+      if (!activeVariation || !activeModel) throw new Error('Expected the active tactical model.');
+      const seededState: MatchdayState = {
+        ...state,
+        tacticalLibrary: {
+          ...library,
+          variations: library.variations.map((variation) =>
+            variation.variationId === activeVariation.variationId
+              ? {
+                  ...variation,
+                  tacticalModel: {
+                    ...activeModel,
+                    recommendations: [seededRecommendation],
+                  },
+                }
+              : variation,
+          ),
+        },
+      };
+      window.localStorage.setItem(storageKey, JSON.stringify(seededState));
+    },
+    { seed: initialState, storageKey: bridgeStateKey, seededRecommendation: recommendation },
+  );
+  await page.reload();
+  await page.getByRole('button', { name: 'Táticas' }).click();
+
+  const inspector = page.getByLabel('Inspector tático');
+  const tabs = inspector.getByRole('tablist', { name: 'Ferramentas táticas' });
+  const strategyTab = tabs.getByRole('tab', { name: 'Estratégia', exact: true });
+  await strategyTab.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(tabs.getByRole('tab', { name: 'Instruções', exact: true })).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect(tabs.getByRole('tab', { name: 'Análise', exact: true })).toBeFocused();
+
+  await strategyTab.click();
+  await inspector.getByRole('button', { name: 'Personalizar estratégia' }).click();
+  const amplitude = inspector.getByRole('slider', { name: 'Amplitude' });
+  await expect(amplitude).toHaveAttribute('aria-valuemin', '0');
+  await expect(amplitude).toHaveAttribute('aria-valuemax', '100');
+  await expect(amplitude).toHaveAttribute('aria-valuetext', '55, Equilibrada');
+  await amplitude.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(amplitude).toHaveValue('56');
+  await expect(page.getByRole('button', { name: 'Com posse', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page.getByRole('button', { name: 'Salvar plano' })).toBeEnabled();
+  expect(
+    await page.evaluate((storageKey) => {
+      const state = JSON.parse(window.localStorage.getItem(storageKey) ?? '{}') as MatchdayState;
+      return state.tacticalLibrary?.variations[0]?.tacticalModel?.config.strategy.inPossession
+        .width;
+    }, bridgeStateKey),
+  ).toBe(55);
+  await inspector
+    .locator('.tactical-slider')
+    .filter({ has: page.getByRole('slider', { name: 'Amplitude' }) })
+    .getByRole('button', { name: 'Restaurar' })
+    .click();
+  await expect(amplitude).toHaveValue('55');
+
+  await tabs.getByRole('tab', { name: 'Análise', exact: true }).click();
+  await inspector.getByRole('button', { name: 'Ver alterações' }).click();
+  const recommendationDialog = page.getByRole('alertdialog', { name: 'Revisar recomendação' });
+  await expect(recommendationDialog).toContainText('Análise do modelo tático');
+  await expect(recommendationDialog).toContainText('Confiança 81%');
+  await expect(recommendationDialog).toContainText('55 → 70');
+  await recommendationDialog.getByRole('button', { name: 'Aplicar à proposta' }).click();
+  await expect(recommendationDialog).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Salvar plano' })).toBeEnabled();
+  expect(
+    await page.evaluate((storageKey) => {
+      const state = JSON.parse(window.localStorage.getItem(storageKey) ?? '{}') as MatchdayState;
+      return state.tacticalLibrary?.variations[0]?.tacticalModel?.config.strategy.inPossession
+        .width;
+    }, bridgeStateKey),
+  ).toBe(55);
+
+  await tabs.getByRole('tab', { name: 'Instruções', exact: true }).click();
+  await inspector.getByRole('button', { name: 'Adicionar instrução' }).click();
+  const instructionCard = inspector
+    .getByRole('article')
+    .filter({ hasText: 'Sair com apoios próximos' });
+  await expect(
+    instructionCard.getByText('Sair com apoios próximos', { exact: true }),
+  ).toBeVisible();
+  await expect(instructionCard.getByRole('button', { name: 'Editar' })).toBeVisible();
+  await expect(instructionCard.getByRole('button', { name: 'Desativar' })).toBeVisible();
+  await expect(instructionCard.getByRole('button', { name: 'Ver impacto' })).toBeVisible();
+  await expect(instructionCard.getByRole('button', { name: 'Remover' })).toBeVisible();
+  expect(
+    await page.evaluate((storageKey) => {
+      const state = JSON.parse(window.localStorage.getItem(storageKey) ?? '{}') as MatchdayState;
+      return state.tacticalLibrary?.variations[0]?.tacticalModel?.config.instructions.length;
+    }, bridgeStateKey),
+  ).toBe(0);
 });
 
 test('durable lifecycle persists an ordinary Mostrar somente gols view across restart', async ({
