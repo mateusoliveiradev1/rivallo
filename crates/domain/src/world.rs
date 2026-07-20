@@ -1467,6 +1467,48 @@ pub fn validate_package(package: &ContentPackage) -> PackageValidationReport {
             );
         }
     }
+    for sidecar in &manifest.sidecars {
+        let unsafe_path = sidecar.relative_path.is_empty()
+            || sidecar.relative_path.starts_with(['/', '\\'])
+            || sidecar.relative_path.contains("..")
+            || sidecar.relative_path.contains(':');
+        if unsafe_path {
+            report.error(
+                package,
+                "package.sidecar_unsafe_path",
+                Some(&manifest.package_id),
+                Some("sidecars.relativePath"),
+                None,
+                Some(&sidecar.relative_path),
+                "O caminho do sidecar precisa ser relativo e não pode escapar do pacote.",
+                Some("Use um caminho relativo sem segmentos '..' e sem raiz de sistema."),
+            );
+        }
+        if sidecar.sha256.len() != 64 || !sidecar.sha256.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            report.error(
+                package,
+                "package.sidecar_invalid_sha256",
+                Some(&manifest.package_id),
+                Some("sidecars.sha256"),
+                None,
+                Some(&sidecar.sha256),
+                "O sidecar precisa declarar um SHA-256 hexadecimal válido.",
+                Some("Informe exatamente 64 caracteres hexadecimais."),
+            );
+        }
+        if sidecar.version == 0 {
+            report.error(
+                package,
+                "package.sidecar_unsupported_version",
+                Some(&manifest.package_id),
+                Some("sidecars.version"),
+                None,
+                Some("0"),
+                "A versão do sidecar precisa ser positiva.",
+                Some("Use a versão de sidecar suportada pelo tipo declarado."),
+            );
+        }
+    }
     for (field, path) in [
         ("entrypoints.world", manifest.entrypoints.world.as_str()),
         (
