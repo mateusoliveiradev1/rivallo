@@ -2587,7 +2587,7 @@ pub struct CompositionPlan {
     pub references_affected: Vec<String>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompositionChange {
     pub entity_kind: WorldEntityKind,
