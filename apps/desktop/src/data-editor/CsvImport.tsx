@@ -35,43 +35,71 @@ const templates: Record<CsvEntity, string[]> = {
   ],
   player: [
     'internalId',
+    'personId',
+    'roleId',
+    'externalSource',
     'externalId',
     'fullName',
     'knownName',
     'clubId',
-    'nationality',
+    'nationalityId',
+    'secondNationalityId',
     'birthDate',
     'position',
     'shirtNumber',
-    'currentAbility',
-    'potential',
+    'heightCm',
+    'weightKg',
+    'preferredFoot',
+    'source',
+    'sourceRecordId',
+    'verificationStatus',
   ],
   coach: [
     'internalId',
+    'personId',
+    'roleId',
+    'externalSource',
+    'externalId',
     'fullName',
     'knownName',
     'clubId',
-    'nationality',
+    'nationalityId',
+    'secondNationalityId',
     'birthDate',
     'role',
-    'qualification',
-    'experienceYears',
+    'source',
+    'sourceRecordId',
+    'verificationStatus',
   ],
   staff: [
     'internalId',
+    'personId',
+    'roleId',
+    'externalSource',
+    'externalId',
     'fullName',
     'knownName',
     'clubId',
-    'nationality',
+    'nationalityId',
+    'secondNationalityId',
     'birthDate',
     'role',
-    'qualification',
-    'experienceYears',
+    'source',
+    'sourceRecordId',
+    'verificationStatus',
   ],
   competition: ['internalId', 'name', 'shortName', 'nationId'],
   season: ['internalId', 'competitionId', 'label', 'startDate', 'endDate'],
   contract: ['internalId', 'personId', 'clubId', 'startedAt', 'expiresAt', 'status'],
-  registration: ['internalId', 'competitionId', 'seasonId', 'playerId', 'clubId', 'shirtNumber'],
+  registration: [
+    'internalId',
+    'competitionId',
+    'seasonId',
+    'playerId',
+    'clubId',
+    'shirtNumber',
+    'eligible',
+  ],
 };
 
 const parseCsv = (text: string) => {
@@ -115,6 +143,20 @@ interface ImportProfile {
 }
 
 const importProfileKey = 'rivallo:creator-studio:csv-profiles';
+const requiredFields: Readonly<Record<CsvEntity, readonly string[]>> = {
+  nation: ['internalId', 'name', 'iso2', 'iso3'],
+  region: ['internalId', 'name', 'nationId'],
+  city: ['internalId', 'name', 'nationId'],
+  stadium: ['internalId', 'name', 'cityId', 'capacity'],
+  club: ['internalId', 'name', 'shortName', 'nationId', 'cityId', 'primaryColor'],
+  player: ['internalId', 'fullName', 'source'],
+  coach: ['internalId', 'fullName', 'source'],
+  staff: ['internalId', 'fullName', 'source'],
+  competition: ['internalId', 'name', 'shortName', 'nationId'],
+  season: ['internalId', 'competitionId', 'label', 'startDate', 'endDate'],
+  contract: ['internalId', 'personId', 'clubId'],
+  registration: ['internalId', 'competitionId', 'seasonId', 'playerId', 'clubId'],
+};
 const readProfiles = (): ImportProfile[] => {
   try {
     const value = JSON.parse(window.localStorage.getItem(importProfileKey) ?? '[]') as unknown;
@@ -143,7 +185,7 @@ const toChange = (
   const id =
     row.internalId ||
     `community.csv.${entity}.${slug(row.name || row.knownName || String(index + 1))}`;
-  const kind: CommunityChange['kind'] = entity === 'staff' ? 'coach' : entity;
+  const kind: CommunityChange['kind'] = entity;
   const common = {
     id: `${entity}:${id}`,
     kind,
@@ -268,49 +310,82 @@ const toChange = (
       ],
     };
   }
-  if (entity === 'coach' || entity === 'staff') {
-    const club = world.clubs.find((item) => item.id === row.clubId) ?? world.clubs[0];
+  if (entity === 'player' || entity === 'coach' || entity === 'staff') {
+    const personId = row.personId || id;
+    const roleId = row.roleId || row.internalId || id;
+    const roleKind = entity === 'staff' ? 'staffMember' : entity;
+    const identityPartial =
+      !row.birthDate || !row.nationalityId || row.verificationStatus !== 'verified';
+    const knownFields = [
+      'fullName',
+      ...(row.knownName ? ['knownName'] : []),
+      ...(row.birthDate ? ['birthDate'] : []),
+      ...(row.nationalityId ? ['nationalityId'] : []),
+      ...(row.secondNationalityId ? ['secondNationalityId'] : []),
+      ...(row.position ? ['detailedPosition'] : []),
+      ...(row.shirtNumber ? ['shirtNumber'] : []),
+      ...(row.heightCm ? ['heightCm'] : []),
+      ...(row.weightKg ? ['weightKg'] : []),
+      ...(row.preferredFoot ? ['preferredFoot'] : []),
+    ];
+    const existing = world.people?.find((person) => person.personId === personId);
     const value = {
-      identity: {
-        entityId: id,
-        fullName: row.fullName,
-        knownName: row.knownName,
-        nationality: row.nationality,
-        birthDate: row.birthDate,
-        age: Math.max(18, new Date().getUTCFullYear() - numeric(row.birthDate.slice(0, 4), 1985)),
-        clubId: club?.id ?? row.clubId,
-        clubName: club?.name ?? row.clubId,
-        clubShortName: club?.shortName ?? '---',
-        clubPrimaryColor: club?.primaryColor ?? '#36d39a',
+      personId,
+      externalIds:
+        row.externalSource && row.externalId
+          ? [{ source: row.externalSource, externalId: row.externalId }]
+          : (existing?.externalIds ?? []),
+      fullName: row.fullName,
+      knownName: row.knownName || null,
+      birthDate: row.birthDate || null,
+      heightCm: row.heightCm ? numeric(row.heightCm, 0) : null,
+      weightKg: row.weightKg ? numeric(row.weightKg, 0) : null,
+      preferredFoot: row.preferredFoot || null,
+      nationalityId: row.nationalityId || null,
+      secondNationalityId: row.secondNationalityId || null,
+      detailedPosition: row.position || null,
+      shirtNumber: row.shirtNumber ? numeric(row.shirtNumber, 0) : null,
+      contract: existing?.contract ?? null,
+      roles: [
+        ...(existing?.roles.filter((role) => role.kind !== roleKind) ?? []),
+        { roleId, kind: roleKind, clubId: row.clubId || null, title: row.role || null },
+      ],
+      provenance: [
+        {
+          source: row.source,
+          sourceRecordId: row.sourceRecordId || null,
+          observedAt: null,
+          verificationStatus: row.verificationStatus || 'pending',
+          fields: knownFields,
+        },
+      ],
+      readiness: {
+        identity: identityPartial ? 'partialFactualIdentity' : 'verifiedFactualIdentity',
+        structural: 'structurallyValid',
+        runtimeProfile: 'runtimeProfileBlocked',
+        evaluation: 'awaitingEvaluation',
+        gameplay: 'gameplayBlocked',
+        blockers: [
+          ...(identityPartial ? ['person.partial_identity'] : []),
+          ...(entity === 'player' && !row.position ? ['player.position_unknown'] : []),
+          entity === 'player' ? 'player.evaluation_missing' : 'coach.evaluation_missing',
+          'person.runtime_profile_blocked',
+          'person.gameplay_blocked',
+        ],
       },
-      role: row.role || (entity === 'coach' ? 'Treinador principal' : 'Auxiliar'),
-      reputation: 40,
-      qualification: row.qualification || 'Sem licença informada',
-      experienceYears: numeric(row.experienceYears, 0),
-      style: 'Equilibrado',
-      preferredFormations: [],
-      attributes: {
-        tactical: 40,
-        peopleManagement: 40,
-        playerDevelopment: 40,
-        analysis: 40,
-        recruitment: 40,
-      },
-      specialties: [],
-      contract: null,
     };
     return {
       ...common,
-      kind: 'coach',
-      label: row.knownName,
-      summary: `${value.role} · ${value.identity.clubName}`,
+      targetId: personId,
+      label: row.knownName || row.fullName,
+      summary: `${knownFields.length} fatos · avaliação ausente`,
       patches: [
         {
-          operation: 'add',
-          entityKind: 'coach',
-          targetId: id,
-          entity: { kind: 'coach', value },
-          reason: 'Importação CSV revisada pelo autor',
+          operation: existing ? 'replace' : 'add',
+          entityKind: 'person',
+          targetId: personId,
+          entity: { kind: 'person', value },
+          reason: 'Importação CSV factual sem geração de avaliação',
         },
       ],
     };
@@ -395,18 +470,19 @@ const toChange = (
     };
   }
   if (entity === 'contract') {
+    const factual = world.people?.find((item) => item.personId === row.personId);
     const player = world.playerProfiles.find((item) => item.identity.entityId === row.personId);
     const coach = world.coaches.find((item) => item.identity.entityId === row.personId);
-    const person = player ?? coach;
-    const entityKind = coach ? 'coach' : 'playerProfile';
+    const person = factual ?? player ?? coach;
+    const entityKind = factual ? 'person' : coach ? 'coach' : 'playerProfile';
     const value = person
       ? {
           ...person,
           contract: {
             clubId: row.clubId,
-            startedAt: row.startedAt,
-            expiresAt: row.expiresAt,
-            squadStatus: row.status,
+            startedAt: row.startedAt || null,
+            expiresAt: row.expiresAt || null,
+            squadStatus: row.status || null,
           },
         }
       : null;
@@ -440,11 +516,12 @@ const toChange = (
                   playerRegistrations: [
                     ...season.playerRegistrations.filter((item) => item.playerId !== row.playerId),
                     {
+                      registrationId: row.internalId,
                       playerId: row.playerId,
                       clubId: row.clubId,
                       shirtNumber: numeric(row.shirtNumber, 0) || null,
                       contractReference: null,
-                      eligible: true,
+                      eligible: row.eligible.toLocaleLowerCase() === 'true',
                     },
                   ],
                 }
@@ -470,74 +547,7 @@ const toChange = (
         : [],
     };
   }
-  const club = world.clubs.find((item) => item.id === row.clubId) ?? world.clubs[0];
-  const position = row.position || 'CM';
-  const rating = numeric(row.currentAbility, 50);
-  const profile = {
-    identity: {
-      entityId: id,
-      fullName: row.fullName,
-      knownName: row.knownName,
-      nationality: row.nationality,
-      birthDate: row.birthDate,
-      age: Math.max(15, new Date().getUTCFullYear() - numeric(row.birthDate.slice(0, 4), 2000)),
-      clubId: club?.id ?? row.clubId,
-      clubName: club?.name ?? row.clubId,
-      clubShortName: club?.shortName ?? '---',
-      clubPrimaryColor: club?.primaryColor ?? '#36d39a',
-    },
-    shirtNumber: numeric(row.shirtNumber, 20),
-    heightCm: 178,
-    weightKg: 74,
-    preferredFoot: 'right',
-    squadRole: 'rotation',
-    naturalPosition: position,
-    attributes:
-      position === 'GK'
-        ? {
-            model: 'goalkeeper',
-            reaction: rating,
-            positioning: rating,
-            handling: rating,
-            mobility: rating,
-            rushingOut: rating,
-            distribution: rating,
-          }
-        : {
-            model: 'outfield',
-            finishing: rating,
-            technique: rating,
-            passing: rating,
-            tackling: rating,
-            physical: rating,
-            pace: rating,
-          },
-    internalPotential: numeric(row.potential, Math.min(100, rating + 5)),
-    contract: null,
-  };
-  const value = {
-    profile,
-    condition: 100,
-    matchFitness: 100,
-    appearances: 0,
-    goals: 0,
-    assists: 0,
-    averageRating: null,
-  };
-  return {
-    ...common,
-    label: row.knownName,
-    summary: `${club?.name ?? row.clubId} · ${position} · ${rating}`,
-    patches: [
-      {
-        operation: 'add',
-        entityKind: 'externalPlayer',
-        targetId: id,
-        entity: { kind: 'externalPlayer', value },
-        reason: `Importação CSV${row.externalId ? ` · externalId ${row.externalId}` : ''}`,
-      },
-    ],
-  };
+  throw new Error(`Entidade CSV sem transformação: ${entity}`);
 };
 
 export function CsvImport({
@@ -569,13 +579,7 @@ export function CsvImport({
   const diagnostics = useMemo(
     () =>
       mappedRows.flatMap((row, index) => {
-        const missing = templates[entity].filter(
-          (field) =>
-            field !== 'externalId' &&
-            field !== 'regionId' &&
-            field !== 'ownerClubId' &&
-            !row[field],
-        );
+        const missing = requiredFields[entity].filter((field) => !row[field]);
         return missing.length ? [`Linha ${index + 2}: ${missing.join(', ')} ausente(s).`] : [];
       }),
     [entity, mappedRows],

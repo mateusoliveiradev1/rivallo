@@ -3,9 +3,9 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use rivallo_application::{
-    AssetReference, ContentPackage, DataPackageCatalogEntry, PackageManifest, PackagePatch,
-    PackageValidationReport, PackageVisibility, ResolvedWorldDatabase, WorldDatabaseService,
-    WorldEntityKind, WorldPackageData, WorldPackageRepository,
+    AssetReference, ContentPackage, DataPackageCatalogEntry, PackageCatalogScope, PackageManifest,
+    PackagePatch, PackageValidationReport, PackageVisibility, ResolvedWorldDatabase,
+    WorldDatabaseService, WorldEntityKind, WorldPackageData, WorldPackageRepository,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -20,6 +20,54 @@ const MAX_AUTHORING_ASSET_TOTAL_BYTES: usize = 64 * 1024 * 1024;
 const MAX_RIVMOD_BYTES: u64 = 128 * 1024 * 1024;
 const CREATOR_PROJECT_SCHEMA_VERSION: u16 = 1;
 const RIVMOD_FORMAT_VERSION: u16 = 1;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PrivateCatalogCapability {
+    Development,
+    Uat,
+}
+
+#[derive(Clone, Debug)]
+pub struct PrivateCatalogConfig {
+    pub root: PathBuf,
+    pub capability: PrivateCatalogCapability,
+    pub private_guard_passed: bool,
+    pub public_build: bool,
+}
+
+impl PrivateCatalogConfig {
+    pub fn from_environment() -> Option<Self> {
+        let root = std::env::var_os("RIVALLO_PRIVATE_CATALOG_ROOT").map(PathBuf::from)?;
+        let capability = match std::env::var("RIVALLO_PRIVATE_CATALOG_CAPABILITY")
+            .ok()?
+            .as_str()
+        {
+            "development" => PrivateCatalogCapability::Development,
+            "uat" => PrivateCatalogCapability::Uat,
+            _ => return None,
+        };
+        Some(Self {
+            root,
+            capability,
+            private_guard_passed: std::env::var("RIVALLO_PRIVATE_CATALOG_GUARD")
+                .is_ok_and(|value| value == "passed"),
+            public_build: !cfg!(debug_assertions),
+        })
+    }
+}
+
+fn private_catalog_unavailable() -> PackageValidationReport {
+    PackageValidationReport::blocking(
+        "<private-catalog>".to_owned(),
+        "package.private_catalog_unauthorized",
+        None,
+        Some("privateCatalog".to_owned()),
+        None,
+        None,
+        "O catálogo privado não está autorizado neste ambiente.",
+        Some("Habilite explicitamente uma capability development/UAT com raiz isolada.".to_owned()),
+    )
+}
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -155,12 +203,24 @@ const OFFICIAL_WORLD: &str =
 
 pub struct FileWorldPackageRepository {
     user_packages_root: PathBuf,
+    catalog_scope: PackageCatalogScope,
 }
 
 impl FileWorldPackageRepository {
     pub fn new(user_packages_root: impl Into<PathBuf>) -> Self {
         Self {
             user_packages_root: user_packages_root.into(),
+            catalog_scope: PackageCatalogScope::Public,
+        }
+    }
+
+    pub fn new_authorized(
+        user_packages_root: impl Into<PathBuf>,
+        catalog_scope: PackageCatalogScope,
+    ) -> Self {
+        Self {
+            user_packages_root: user_packages_root.into(),
+            catalog_scope,
         }
     }
 
@@ -182,6 +242,7 @@ impl FileWorldPackageRepository {
         verify_checksum(
             &manifest,
             OFFICIAL_WORLD.as_bytes(),
+            &[],
             "official.rivallo.foundation/manifest.json",
         )?;
         Ok(ContentPackage {
@@ -249,8 +310,8 @@ impl FileWorldPackageRepository {
             &display_path(&manifest_path),
             "package.invalid_manifest_json",
         )?;
-        if manifest.package_id == "dev.example.league-2026"
-            || manifest.visibility == PackageVisibility::PrivateDevelopment
+        if self.catalog_scope == PackageCatalogScope::Public
+            && manifest.visibility == PackageVisibility::PrivateDevelopment
         {
             return Err(PackageValidationReport::blocking(
                 display_path(&manifest_path),
@@ -264,6 +325,20 @@ impl FileWorldPackageRepository {
                     "Mantenha-o fora do build e use um ambiente privado explicitamente isolado."
                         .to_owned(),
                 ),
+            ));
+        }
+        if self.catalog_scope != PackageCatalogScope::Public
+            && manifest.visibility != PackageVisibility::PrivateDevelopment
+        {
+            return Err(PackageValidationReport::blocking(
+                "<private-catalog>".to_owned(),
+                "package.private_catalog_visibility_mismatch",
+                Some(manifest.package_id),
+                Some("visibility".to_owned()),
+                None,
+                None,
+                "O catálogo privado aceita somente pacotes privateDevelopment.",
+                Some("Mova pacotes públicos para o catálogo público normal.".to_owned()),
             ));
         }
         let world_path = resolve_entrypoint(package_root, &manifest.entrypoints.world)?;
@@ -306,9 +381,12 @@ impl FileWorldPackageRepository {
             })
             .transpose()?
             .unwrap_or_default();
-        let mut content_bytes = world_bytes.unwrap_or_default();
-        content_bytes.extend(patch_bytes.unwrap_or_default());
-        verify_checksum(&manifest, &content_bytes, &display_path(&manifest_path))?;
+        verify_checksum(
+            &manifest,
+            world_bytes.as_deref().unwrap_or_default(),
+            patch_bytes.as_deref().unwrap_or_default(),
+            &display_path(&manifest_path),
+        )?;
         if let Some(world) = &world {
             validate_asset_files(
                 package_root,
@@ -334,7 +412,7 @@ impl FileWorldPackageRepository {
         package: &ContentPackage,
         assets: &[AuthoringAssetUpload],
     ) -> Result<(), PackageValidationReport> {
-        reject_public_export(package)?;
+        self.reject_export(package)?;
         if assets.is_empty() {
             reject_unmaterialized_assets(package)?;
         }
@@ -405,9 +483,8 @@ impl FileWorldPackageRepository {
             validate_asset_files(&temporary, package.manifest.assets.iter())?;
         }
         let mut manifest = package.manifest.clone();
-        let mut content = world_bytes;
-        content.extend(patch_bytes);
-        manifest.checksum = format!("sha256:{:x}", Sha256::digest(&content));
+        manifest.checksum =
+            package_content_checksum(manifest.schema_version, &world_bytes, &patch_bytes)?;
         let manifest_bytes = serde_json::to_vec_pretty(&manifest)
             .map_err(|error| serialization_report("manifest.json", error))?;
         write_synced(&temporary.join("manifest.json"), &manifest_bytes)?;
@@ -426,6 +503,30 @@ impl FileWorldPackageRepository {
             let _ = fs::remove_dir_all(backup);
         }
         Ok(())
+    }
+
+    fn reject_export(&self, package: &ContentPackage) -> Result<(), PackageValidationReport> {
+        let private_package = package.manifest.visibility == PackageVisibility::PrivateDevelopment;
+        let allowed = match self.catalog_scope {
+            PackageCatalogScope::Public => !private_package,
+            PackageCatalogScope::PrivateDevelopment | PackageCatalogScope::Uat => private_package,
+        };
+        if allowed {
+            return Ok(());
+        }
+        Err(PackageValidationReport::blocking(
+            package.source_file.clone(),
+            "package.private_development_isolated",
+            Some(package.manifest.package_id.clone()),
+            Some("visibility".to_owned()),
+            None,
+            Some(format!("{:?}", package.manifest.visibility)),
+            "A visibilidade do pacote não corresponde ao catálogo autorizado.",
+            Some(
+                "Use uma raiz privada dev/UAT autorizada para visibility=privateDevelopment."
+                    .to_owned(),
+            ),
+        ))
     }
 }
 
@@ -447,6 +548,8 @@ impl WorldPackageRepository for FileWorldPackageRepository {
 
 pub struct WorldDatabaseCoordinator {
     service: WorldDatabaseService<FileWorldPackageRepository>,
+    private_service: Option<WorldDatabaseService<FileWorldPackageRepository>>,
+    private_catalog_scope: Option<PackageCatalogScope>,
     user_packages_root: PathBuf,
     creator_projects_root: PathBuf,
     package_history_root: PathBuf,
@@ -463,10 +566,49 @@ impl WorldDatabaseCoordinator {
             service: WorldDatabaseService::new(FileWorldPackageRepository::new(
                 user_packages_root.clone(),
             )),
+            private_service: None,
+            private_catalog_scope: None,
             user_packages_root,
             creator_projects_root: app_data_root.join("creator-projects"),
             package_history_root: app_data_root.join("package-history"),
         }
+    }
+
+    pub fn with_private_catalog(
+        mut self,
+        config: PrivateCatalogConfig,
+    ) -> Result<Self, PackageValidationReport> {
+        if config.public_build
+            || !config.private_guard_passed
+            || !config.root.is_absolute()
+            || config.root == self.user_packages_root
+            || config.root.starts_with(&self.user_packages_root)
+            || self.user_packages_root.starts_with(&config.root)
+        {
+            return Err(PackageValidationReport::blocking(
+                "<private-catalog>".to_owned(),
+                "package.private_catalog_unauthorized",
+                None,
+                Some("privateCatalog".to_owned()),
+                None,
+                None,
+                "O catálogo privado exige build não público, raiz explícita e private guard aprovado.",
+                Some(
+                    "Defina uma raiz isolada e capability development/UAT fora do build público."
+                        .to_owned(),
+                ),
+            ));
+        }
+        let scope = match config.capability {
+            PrivateCatalogCapability::Development => PackageCatalogScope::PrivateDevelopment,
+            PrivateCatalogCapability::Uat => PackageCatalogScope::Uat,
+        };
+        self.private_service = Some(WorldDatabaseService::new_authorized(
+            FileWorldPackageRepository::new_authorized(config.root, scope),
+            scope,
+        ));
+        self.private_catalog_scope = Some(scope);
+        Ok(self)
     }
 
     pub fn resolved(&self) -> Result<ResolvedWorldDatabase, PackageValidationReport> {
@@ -477,10 +619,44 @@ impl WorldDatabaseCoordinator {
         self.service.catalog()
     }
 
+    pub fn private_catalog(&self) -> Result<Vec<DataPackageCatalogEntry>, PackageValidationReport> {
+        self.private_service.as_ref().map_or_else(
+            || Err(private_catalog_unavailable()),
+            WorldDatabaseService::catalog,
+        )
+    }
+
+    pub fn private_catalog_scope(&self) -> Option<PackageCatalogScope> {
+        self.private_catalog_scope
+    }
+
+    pub fn resolve_private_selection(
+        &self,
+        package_ids: &[String],
+    ) -> Result<ResolvedWorldDatabase, PackageValidationReport> {
+        self.private_service.as_ref().map_or_else(
+            || Err(private_catalog_unavailable()),
+            |service| service.resolve_selection(package_ids),
+        )
+    }
+
+    pub fn export_private_candidate(
+        &self,
+        package: &ContentPackage,
+    ) -> Result<PackageValidationReport, PackageValidationReport> {
+        self.private_service.as_ref().map_or_else(
+            || Err(private_catalog_unavailable()),
+            |service| service.export_candidate(package),
+        )
+    }
+
     pub fn runtime_asset_location(&self, asset: &AssetReference) -> Option<(String, String)> {
         let repository = FileWorldPackageRepository::new(&self.user_packages_root);
         let packages = repository.available_user_packages().ok()?;
         for package in packages.into_iter().rev() {
+            if package.manifest.visibility != PackageVisibility::Public {
+                continue;
+            }
             if !package
                 .manifest
                 .assets
@@ -1211,13 +1387,11 @@ fn normalized_authoring_source(
         .then(|| serde_json::to_string_pretty(&package.patches))
         .transpose()
         .map_err(|error| serialization_report("data/patches.json", error))?;
-    let mut content = world_json
-        .as_deref()
-        .unwrap_or_default()
-        .as_bytes()
-        .to_vec();
-    content.extend_from_slice(patches_json.as_deref().unwrap_or_default().as_bytes());
-    package.manifest.checksum = format!("sha256:{:x}", Sha256::digest(&content));
+    package.manifest.checksum = package_content_checksum(
+        package.manifest.schema_version,
+        world_json.as_deref().unwrap_or_default().as_bytes(),
+        patches_json.as_deref().unwrap_or_default().as_bytes(),
+    )?;
     let manifest_json = serde_json::to_string_pretty(&package.manifest)
         .map_err(|error| serialization_report("manifest.json", error))?;
     Ok(DataPackageAuthoringSource {
@@ -1259,14 +1433,17 @@ fn verify_authoring_checksum(
     world_json: Option<&str>,
     patches_json: Option<&str>,
 ) -> Result<(), PackageValidationReport> {
-    let mut content = world_json.unwrap_or_default().as_bytes().to_vec();
-    content.extend_from_slice(patches_json.unwrap_or_default().as_bytes());
     let expected = package
         .manifest
         .checksum
         .strip_prefix("sha256:")
         .unwrap_or(&package.manifest.checksum);
-    let actual = format!("{:x}", Sha256::digest(&content));
+    let actual = package_content_checksum(
+        package.manifest.schema_version,
+        world_json.unwrap_or_default().as_bytes(),
+        patches_json.unwrap_or_default().as_bytes(),
+    )?;
+    let actual = actual.strip_prefix("sha256:").unwrap_or(&actual);
     if expected == actual {
         Ok(())
     } else {
@@ -1580,10 +1757,11 @@ fn parse_json<T: serde::de::DeserializeOwned>(
 
 fn verify_checksum(
     manifest: &PackageManifest,
-    content: &[u8],
+    world: &[u8],
+    patches: &[u8],
     file: &str,
 ) -> Result<(), PackageValidationReport> {
-    let actual = format!("sha256:{:x}", Sha256::digest(content));
+    let actual = package_content_checksum(manifest.schema_version, world, patches)?;
     if manifest.checksum == actual {
         return Ok(());
     }
@@ -1597,6 +1775,73 @@ fn verify_checksum(
         "O checksum declarado precisa corresponder exatamente ao conteúdo carregado.",
         Some(format!("Reexporte o pacote; checksum calculado: {actual}.")),
     ))
+}
+
+fn package_content_checksum(
+    schema_version: u16,
+    world: &[u8],
+    patches: &[u8],
+) -> Result<String, PackageValidationReport> {
+    let mut content = Vec::new();
+    for source in [world, patches] {
+        if source.is_empty() {
+            if schema_version >= 2 {
+                content.extend_from_slice(&0_u64.to_be_bytes());
+            }
+            continue;
+        }
+        let normalized = if schema_version >= 2 {
+            canonical_json_bytes(source)?
+        } else {
+            normalize_line_endings(source)
+        };
+        if schema_version >= 2 {
+            content.extend_from_slice(&(normalized.len() as u64).to_be_bytes());
+        }
+        content.extend_from_slice(&normalized);
+    }
+    Ok(format!("sha256:{:x}", Sha256::digest(&content)))
+}
+
+fn canonical_json_bytes(source: &[u8]) -> Result<Vec<u8>, PackageValidationReport> {
+    let mut value: Value = serde_json::from_slice(source)
+        .map_err(|error| serialization_report("<checksum-json>", error))?;
+    canonicalize_json_value(&mut value);
+    serde_json::to_vec(&value).map_err(|error| serialization_report("<checksum-json>", error))
+}
+
+fn canonicalize_json_value(value: &mut Value) {
+    match value {
+        Value::Array(items) => {
+            for item in items {
+                canonicalize_json_value(item);
+            }
+        }
+        Value::Object(object) => {
+            let mut entries = std::mem::take(object).into_iter().collect::<Vec<_>>();
+            entries.sort_by(|(left, _), (right, _)| left.cmp(right));
+            for (key, mut item) in entries {
+                canonicalize_json_value(&mut item);
+                object.insert(key, item);
+            }
+        }
+        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
+    }
+}
+
+fn normalize_line_endings(source: &[u8]) -> Vec<u8> {
+    let mut normalized = Vec::with_capacity(source.len());
+    let mut index = 0;
+    while index < source.len() {
+        if source[index] == b'\r' {
+            normalized.push(b'\n');
+            index += usize::from(source.get(index + 1) == Some(&b'\n')) + 1;
+        } else {
+            normalized.push(source[index]);
+            index += 1;
+        }
+    }
+    normalized
 }
 
 fn resolve_entrypoint(root: &Path, relative: &str) -> Result<PathBuf, PackageValidationReport> {
@@ -1627,18 +1872,14 @@ fn validate_asset_files<'a>(
         let path = resolve_entrypoint(root, &asset.path)?;
         let bytes = read_bounded(root, &path, MAX_ASSET_BYTES)?;
         if asset.media_type == "image/svg+xml" {
-            return Err(PackageValidationReport::blocking(
-                display_path(&path),
-                "package.local_svg_unsupported",
-                Some(asset.id.clone()),
-                Some("asset.mediaType".to_owned()),
-                None,
-                Some(asset.media_type.clone()),
-                "SVG local não é aceito no catálogo de mods v1 porque sanitização parcial não é uma fronteira de segurança.",
-                Some("Converta o asset para PNG, WebP ou JPEG.".to_owned()),
-            ));
+            validate_safe_svg(&bytes, asset, &path)?;
         }
-        let actual = format!("sha256:{:x}", Sha256::digest(&bytes));
+        let checksum_bytes = if asset.media_type == "image/svg+xml" {
+            normalize_line_endings(&bytes)
+        } else {
+            bytes
+        };
+        let actual = format!("sha256:{:x}", Sha256::digest(&checksum_bytes));
         let declared = if asset.checksum.starts_with("sha256:") {
             asset.checksum.clone()
         } else {
@@ -1662,22 +1903,79 @@ fn validate_asset_files<'a>(
     Ok(())
 }
 
-fn reject_public_export(package: &ContentPackage) -> Result<(), PackageValidationReport> {
-    if package.manifest.package_id != "dev.example.league-2026"
-        && package.manifest.visibility != PackageVisibility::PrivateDevelopment
-    {
-        return Ok(());
+fn validate_safe_svg(
+    bytes: &[u8],
+    asset: &rivallo_application::AssetReference,
+    path: &Path,
+) -> Result<(), PackageValidationReport> {
+    let source = std::str::from_utf8(bytes).map_err(|_| {
+        PackageValidationReport::blocking(
+            display_path(path),
+            "package.unsafe_svg",
+            Some(asset.id.clone()),
+            Some("asset".to_owned()),
+            None,
+            None,
+            "SVG precisa ser UTF-8 e conter somente marcação vetorial local.",
+            Some("Remova conteúdo binário, scripts e referências externas.".to_owned()),
+        )
+    })?;
+    let compact = source.to_ascii_lowercase();
+    let forbidden = [
+        "<script",
+        "javascript:",
+        "data:",
+        "http:",
+        "https:",
+        "<!doctype",
+        "<!entity",
+        "<foreignobject",
+        "xlink:href",
+        "url(",
+    ];
+    let event_handler = contains_svg_event_handler(compact.as_bytes());
+    let looks_like_svg = compact.contains("<svg") && compact.contains("</svg>");
+    if !looks_like_svg || event_handler || forbidden.iter().any(|item| compact.contains(item)) {
+        return Err(PackageValidationReport::blocking(
+            display_path(path),
+            "package.unsafe_svg",
+            Some(asset.id.clone()),
+            Some("asset".to_owned()),
+            None,
+            None,
+            "SVG contém marcação ativa, referência externa ou estrutura não permitida.",
+            Some("Mantenha apenas elementos vetoriais locais sem scripts, eventos, URLs ou entidades.".to_owned()),
+        ));
     }
-    Err(PackageValidationReport::blocking(
-        package.source_file.clone(),
-        "package.private_development_isolated",
-        Some(package.manifest.package_id.clone()),
-        Some("visibility".to_owned()),
-        None,
-        Some(format!("{:?}", package.manifest.visibility)),
-        "Pacotes privados de desenvolvimento não podem ser gravados no catálogo público/local padrão.",
-        Some("Use o ambiente privado explicitamente isolado.".to_owned()),
-    ))
+    Ok(())
+}
+
+fn contains_svg_event_handler(source: &[u8]) -> bool {
+    let mut index = 0;
+    while index + 2 < source.len() {
+        let boundary = index == 0
+            || source[index - 1].is_ascii_whitespace()
+            || matches!(source[index - 1], b'<' | b'/');
+        if boundary && source[index] == b'o' && source[index + 1] == b'n' {
+            let mut cursor = index + 2;
+            while cursor < source.len()
+                && (source[cursor].is_ascii_alphanumeric()
+                    || matches!(source[cursor], b'_' | b'-' | b':'))
+            {
+                cursor += 1;
+            }
+            if cursor > index + 2 {
+                while cursor < source.len() && source[cursor].is_ascii_whitespace() {
+                    cursor += 1;
+                }
+                if source.get(cursor) == Some(&b'=') {
+                    return true;
+                }
+            }
+        }
+        index += 1;
+    }
+    false
 }
 
 fn reject_unmaterialized_assets(package: &ContentPackage) -> Result<(), PackageValidationReport> {
@@ -2230,7 +2528,7 @@ mod tests {
     }
 
     #[test]
-    fn all_local_svg_assets_are_rejected_before_catalog_acceptance() {
+    fn active_svg_assets_are_rejected_before_catalog_acceptance() {
         let root = temporary_root("unsafe-svg");
         fs::create_dir_all(root.join("assets")).expect("create asset directory");
         fs::write(
@@ -2252,12 +2550,53 @@ mod tests {
 
         let report = validate_asset_files(&root, std::iter::once(&asset))
             .expect_err("local SVG must be rejected");
-        assert_eq!(report.diagnostics[0].code, "package.local_svg_unsupported");
+        assert_eq!(report.diagnostics[0].code, "package.unsafe_svg");
         assert_eq!(
             report.diagnostics[0].entity_id.as_deref(),
             Some("asset.unsafe.svg")
         );
         fs::remove_dir_all(root).expect("cleanup fixture");
+    }
+
+    #[test]
+    fn safe_svg_checksum_is_portable_across_line_endings() {
+        let lf = b"<svg xmlns=\"http://www.w3.org/2000/svg\">\n<path d=\"M0 0h1v1z\"/>\n</svg>";
+        let crlf =
+            b"<svg xmlns=\"http://www.w3.org/2000/svg\">\r\n<path d=\"M0 0h1v1z\"/>\r\n</svg>";
+        assert_eq!(
+            Sha256::digest(normalize_line_endings(lf)),
+            Sha256::digest(normalize_line_endings(crlf))
+        );
+    }
+
+    #[test]
+    fn svg_event_handlers_are_rejected_even_with_whitespace_before_equals() {
+        assert!(contains_svg_event_handler(b"<svg onload=\"run()\"></svg>"));
+        assert!(contains_svg_event_handler(
+            b"<svg onload \n = \"run()\"></svg>"
+        ));
+        assert!(!contains_svg_event_handler(
+            b"<svg xmlns=\"http-disabled-by-separate-rule\"><path d=\"M0 0\"/></svg>"
+        ));
+    }
+
+    #[test]
+    fn json_checksum_is_canonical_in_v2_and_lf_portable_in_v1() {
+        let left = br#"{"b":[2,1],"a":{"known":true}}"#;
+        let equivalent = b"{\r\n  \"a\": { \"known\": true },\r\n  \"b\": [2, 1]\r\n}";
+        assert_eq!(
+            package_content_checksum(2, left, &[]).expect("canonical left"),
+            package_content_checksum(2, equivalent, &[]).expect("canonical equivalent")
+        );
+        assert_ne!(
+            package_content_checksum(2, left, &[]).expect("canonical left"),
+            package_content_checksum(2, br#"{"b":[1,2],"a":{"known":true}}"#, &[])
+                .expect("meaningfully different")
+        );
+        assert_eq!(
+            package_content_checksum(1, b"{\n  \"a\": 1\n}", &[]).expect("v1 lf"),
+            package_content_checksum(1, b"{\r\n  \"a\": 1\r\n}", &[]).expect("v1 crlf")
+        );
     }
 
     #[test]
@@ -2311,11 +2650,12 @@ mod tests {
     #[test]
     fn private_development_package_is_isolated_from_the_public_catalog() {
         let root = temporary_root("private-package");
-        let package_root = root.join("dev.example.league-2026");
+        let package_root = root.join("dev.synthetic-league");
         fs::create_dir_all(&package_root).expect("create private fixture");
         let mut manifest: PackageManifest =
             serde_json::from_str(OFFICIAL_MANIFEST).expect("manifest fixture");
-        manifest.package_id = "dev.example.league-2026".to_owned();
+        manifest.package_id = "dev.synthetic-league".to_owned();
+        manifest.visibility = PackageVisibility::PrivateDevelopment;
         fs::write(
             package_root.join("manifest.json"),
             serde_json::to_vec_pretty(&manifest).expect("manifest json"),
@@ -2352,6 +2692,182 @@ mod tests {
             !root.exists(),
             "rejection must happen before catalog mutation"
         );
+    }
+
+    #[test]
+    fn private_catalog_requires_an_isolated_guarded_non_public_configuration() {
+        let public_root = temporary_root("public-catalog");
+        let nested_private_root = public_root.join("private");
+        let report = WorldDatabaseCoordinator::new(&public_root)
+            .with_private_catalog(PrivateCatalogConfig {
+                root: nested_private_root,
+                capability: PrivateCatalogCapability::Development,
+                private_guard_passed: true,
+                public_build: false,
+            })
+            .err()
+            .expect("overlapping roots must be rejected");
+        assert_eq!(
+            report.diagnostics[0].code,
+            "package.private_catalog_unauthorized"
+        );
+        assert_eq!(report.diagnostics[0].file, "<private-catalog>");
+
+        let private_root = temporary_root("release-private-catalog");
+        let report = WorldDatabaseCoordinator::new(&public_root)
+            .with_private_catalog(PrivateCatalogConfig {
+                root: private_root,
+                capability: PrivateCatalogCapability::Uat,
+                private_guard_passed: true,
+                public_build: true,
+            })
+            .err()
+            .expect("public builds must reject private capability");
+        assert_eq!(
+            report.diagnostics[0].code,
+            "package.private_catalog_unauthorized"
+        );
+        assert!(!format!("{report:?}").contains(public_root.to_string_lossy().as_ref()));
+    }
+
+    #[test]
+    fn authorized_uat_catalog_discovers_and_sandboxes_only_its_private_package() {
+        let public_root = temporary_root("authorized-public");
+        let private_root = temporary_root("authorized-private");
+        let private_repository =
+            FileWorldPackageRepository::new_authorized(&private_root, PackageCatalogScope::Uat);
+        let mut private_package = private_repository
+            .bundled_official()
+            .expect("official package fixture");
+        private_package.manifest.package_id = "dev.synthetic-uat-package".to_owned();
+        private_package.manifest.name = "Synthetic UAT package".to_owned();
+        private_package.manifest.schema_version = 2;
+        private_package.manifest.visibility = PackageVisibility::PrivateDevelopment;
+        private_package.manifest.content_type = rivallo_application::DataPackageType::Mod;
+        private_package.manifest.assets.clear();
+        private_package.manifest.entrypoints.patches = Some("data/patches.json".to_owned());
+        let person = serde_json::json!({
+            "personId": "synthetic.person.uat",
+            "externalIds": [{ "source": "synthetic-uat", "externalId": "uat-person-1" }],
+            "fullName": "Pessoa Sintética UAT",
+            "knownName": null,
+            "birthDate": null,
+            "heightCm": null,
+            "weightKg": null,
+            "preferredFoot": null,
+            "nationalityId": null,
+            "secondNationalityId": null,
+            "detailedPosition": null,
+            "shirtNumber": null,
+            "contract": null,
+            "roles": [
+                { "roleId": "synthetic.player.uat", "kind": "player", "clubId": "aurora-fc", "title": null },
+                { "roleId": "synthetic.coach.uat", "kind": "coach", "clubId": "aurora-fc", "title": "Função UAT" },
+                { "roleId": "synthetic.staff.uat", "kind": "staffMember", "clubId": "aurora-fc", "title": "Comissão UAT" }
+            ],
+            "provenance": [{
+                "source": "synthetic-uat",
+                "sourceRecordId": "uat-person-1",
+                "observedAt": null,
+                "verificationStatus": "pending",
+                "fields": ["fullName"]
+            }],
+            "readiness": {
+                "identity": "partialFactualIdentity",
+                "structural": "structurallyValid",
+                "runtimeProfile": "runtimeProfileBlocked",
+                "evaluation": "awaitingEvaluation",
+                "gameplay": "gameplayBlocked",
+                "blockers": ["person.runtime_profile_blocked", "person.gameplay_blocked"]
+            }
+        });
+        let mut competition =
+            private_package.world.as_ref().expect("world").competitions[0].clone();
+        competition.seasons[0].player_registrations.push(
+            serde_json::from_value(serde_json::json!({
+                "registrationId": "synthetic.registration.uat",
+                "playerId": "synthetic.player.uat",
+                "clubId": "aurora-fc",
+                "shirtNumber": null,
+                "contractReference": null,
+                "eligible": false
+            }))
+            .expect("synthetic registration"),
+        );
+        private_package.world = None;
+        private_package.patches = vec![
+            serde_json::from_value(serde_json::json!({
+                "operation": "add",
+                "entityKind": "person",
+                "targetId": "synthetic.person.uat",
+                "entity": { "kind": "person", "value": person },
+                "reason": "Synthetic partial factual UAT import"
+            }))
+            .expect("person patch"),
+            serde_json::from_value(serde_json::json!({
+                "operation": "replace",
+                "entityKind": "competition",
+                "targetId": competition.id,
+                "entity": { "kind": "competition", "value": competition },
+                "reason": "Synthetic registration UAT import"
+            }))
+            .expect("registration patch"),
+        ];
+        private_repository
+            .save_package(&private_package)
+            .expect("write isolated private package");
+
+        let public = WorldDatabaseCoordinator::new(&public_root);
+        assert!(
+            public
+                .catalog()
+                .expect("public catalog")
+                .iter()
+                .all(|entry| entry.manifest.package_id != "dev.synthetic-uat-package")
+        );
+        let coordinator = public
+            .with_private_catalog(PrivateCatalogConfig {
+                root: private_root.clone(),
+                capability: PrivateCatalogCapability::Uat,
+                private_guard_passed: true,
+                public_build: false,
+            })
+            .expect("authorized UAT catalog");
+        let catalog = coordinator.private_catalog().expect("private catalog");
+        let entry = catalog
+            .iter()
+            .find(|entry| entry.manifest.package_id == "dev.synthetic-uat-package")
+            .expect("private package discovered");
+        assert_eq!(entry.catalog_scope, PackageCatalogScope::Uat);
+        assert!(!entry.selectable);
+
+        let sandbox = coordinator
+            .resolve_private_selection(&[
+                "official.rivallo.foundation".to_owned(),
+                "dev.synthetic-uat-package".to_owned(),
+            ])
+            .expect("private in-memory sandbox");
+        assert_eq!(sandbox.packages.len(), 2);
+        assert!(sandbox.packages.iter().any(|package| {
+            package.package_id == "dev.synthetic-uat-package"
+                && package.visibility == PackageVisibility::PrivateDevelopment
+        }));
+        assert_eq!(sandbox.world.people.len(), 1);
+        assert_eq!(sandbox.world.people[0].roles.len(), 3);
+        assert!(
+            sandbox
+                .world
+                .profiles
+                .players
+                .iter()
+                .all(|profile| { profile.identity.entity_id != "synthetic.player.uat" })
+        );
+        assert!(
+            !public_root.exists(),
+            "sandbox must not mutate the public catalog"
+        );
+
+        fs::remove_dir_all(private_root).expect("cleanup private UAT fixture");
     }
 
     #[cfg(unix)]

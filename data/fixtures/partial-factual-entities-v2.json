@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 2,
+  "people": [
+    {
+      "personId": "synthetic.person.fixture",
+      "externalIds": [
+        {
+          "source": "synthetic-fixture",
+          "externalId": "person-001"
+        }
+      ],
+      "fullName": "Pessoa Sintética Fixture",
+      "knownName": null,
+      "birthDate": null,
+      "heightCm": null,
+      "weightKg": null,
+      "preferredFoot": null,
+      "nationalityId": null,
+      "secondNationalityId": null,
+      "detailedPosition": null,
+      "shirtNumber": null,
+      "contract": null,
+      "roles": [
+        {
+          "roleId": "synthetic.player.fixture",
+          "kind": "player",
+          "clubId": "synthetic.club.fixture",
+          "title": null
+        },
+        {
+          "roleId": "synthetic.coach.fixture",
+          "kind": "coach",
+          "clubId": "synthetic.club.fixture",
+          "title": "Treinador sintético"
+        },
+        {
+          "roleId": "synthetic.staff.fixture",
+          "kind": "staffMember",
+          "clubId": "synthetic.club.fixture",
+          "title": "Comissão sintética"
+        }
+      ],
+      "provenance": [
+        {
+          "source": "synthetic-fixture",
+          "sourceRecordId": "person-001",
+          "observedAt": null,
+          "verificationStatus": "pending",
+          "fields": ["fullName"]
+        }
+      ],
+      "readiness": {
+        "identity": "partialFactualIdentity",
+        "structural": "structurallyValid",
+        "runtimeProfile": "runtimeProfileBlocked",
+        "evaluation": "awaitingEvaluation",
+        "gameplay": "gameplayBlocked",
+        "blockers": [
+          "person.partial_identity",
+          "player.position_unknown",
+          "person.runtime_profile_blocked",
+          "person.gameplay_blocked"
+        ]
+      }
+    }
+  ],
+  "registrations": [
+    {
+      "registrationId": "synthetic.registration.fixture",
+      "playerId": "synthetic.player.fixture",
+      "clubId": "synthetic.club.fixture",
+      "shirtNumber": null,
+      "contractReference": null,
+      "eligible": false
+    }
+  ]
+}

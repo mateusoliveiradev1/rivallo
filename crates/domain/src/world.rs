@@ -5,10 +5,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     Club, CoachSportingProfile, ExternalPlayerState, MatchdayState, Player, PlayerSportingProfile,
-    Position, ProfileWorld,
+    Position, PreferredFoot, ProfileWorld,
 };
 
-pub const WORLD_DATABASE_SCHEMA_VERSION: u16 = 1;
+pub const WORLD_DATABASE_SCHEMA_VERSION: u16 = 2;
+pub const MINIMUM_WORLD_DATABASE_SCHEMA_VERSION: u16 = 1;
 
 static BUNDLED_OFFICIAL_WORLD: OnceLock<WorldPackageData> = OnceLock::new();
 
@@ -103,6 +104,138 @@ pub struct PackageManifest {
 pub struct ExternalIdentifier {
     pub source: String,
     pub external_id: String,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PersonRoleKind {
+    Player,
+    Coach,
+    StaffMember,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PersonRoleAssignment {
+    pub role_id: String,
+    pub kind: PersonRoleKind,
+    #[serde(default)]
+    pub club_id: Option<String>,
+    #[serde(default)]
+    pub title: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FactualContract {
+    pub club_id: String,
+    #[serde(default)]
+    pub started_at: Option<String>,
+    #[serde(default)]
+    pub expires_at: Option<String>,
+    #[serde(default)]
+    pub squad_status: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ProvenanceVerificationStatus {
+    Pending,
+    Verified,
+    Disputed,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FactualProvenance {
+    pub source: String,
+    #[serde(default)]
+    pub source_record_id: Option<String>,
+    #[serde(default)]
+    pub observed_at: Option<String>,
+    pub verification_status: ProvenanceVerificationStatus,
+    #[serde(default)]
+    pub fields: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FactualIdentityStatus {
+    PartialFactualIdentity,
+    VerifiedFactualIdentity,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StructuralValidity {
+    StructurallyValid,
+    StructurallyBlocked,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RuntimeProfileAvailability {
+    RuntimeProfileBlocked,
+    RuntimeProfileAvailable,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SportingEvaluationStatus {
+    AwaitingEvaluation,
+    Evaluated,
+    NotApplicable,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum GameplayReadiness {
+    GameplayBlocked,
+    GameplayReady,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PersonReadiness {
+    pub identity: FactualIdentityStatus,
+    pub structural: StructuralValidity,
+    pub runtime_profile: RuntimeProfileAvailability,
+    pub evaluation: SportingEvaluationStatus,
+    pub gameplay: GameplayReadiness,
+    #[serde(default)]
+    pub blockers: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Person {
+    pub person_id: String,
+    #[serde(default)]
+    pub external_ids: Vec<ExternalIdentifier>,
+    pub full_name: String,
+    #[serde(default)]
+    pub known_name: Option<String>,
+    #[serde(default)]
+    pub birth_date: Option<String>,
+    #[serde(default)]
+    pub height_cm: Option<u16>,
+    #[serde(default)]
+    pub weight_kg: Option<u16>,
+    #[serde(default)]
+    pub preferred_foot: Option<PreferredFoot>,
+    #[serde(default)]
+    pub nationality_id: Option<String>,
+    #[serde(default)]
+    pub second_nationality_id: Option<String>,
+    #[serde(default)]
+    pub detailed_position: Option<Position>,
+    #[serde(default)]
+    pub shirt_number: Option<u16>,
+    #[serde(default)]
+    pub contract: Option<FactualContract>,
+    pub roles: Vec<PersonRoleAssignment>,
+    pub provenance: Vec<FactualProvenance>,
+    pub readiness: PersonReadiness,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -276,6 +409,8 @@ pub struct CompetitionCalendarConstraints {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SeasonPlayerRegistration {
+    #[serde(default)]
+    pub registration_id: Option<String>,
     pub player_id: String,
     pub club_id: String,
     #[serde(default)]
@@ -402,6 +537,8 @@ pub struct WorldPackageData {
     #[serde(default)]
     pub clubs: Vec<Club>,
     #[serde(default)]
+    pub people: Vec<Person>,
+    #[serde(default)]
     pub nations: Vec<Nation>,
     #[serde(default)]
     pub regions: Vec<Region>,
@@ -427,6 +564,7 @@ pub struct WorldPackageData {
 #[serde(rename_all = "camelCase")]
 pub enum WorldEntityKind {
     Club,
+    Person,
     MatchdayPlayer,
     PlayerProfile,
     ExternalPlayer,
@@ -447,6 +585,7 @@ pub enum WorldEntityKind {
 #[serde(tag = "kind", content = "value", rename_all = "camelCase")]
 pub enum WorldEntity {
     Club(Club),
+    Person(Person),
     MatchdayPlayer(Player),
     PlayerProfile(PlayerSportingProfile),
     ExternalPlayer(ExternalPlayerState),
@@ -467,6 +606,7 @@ impl WorldEntity {
     pub fn kind(&self) -> WorldEntityKind {
         match self {
             Self::Club(_) => WorldEntityKind::Club,
+            Self::Person(_) => WorldEntityKind::Person,
             Self::MatchdayPlayer(_) => WorldEntityKind::MatchdayPlayer,
             Self::PlayerProfile(_) => WorldEntityKind::PlayerProfile,
             Self::ExternalPlayer(_) => WorldEntityKind::ExternalPlayer,
@@ -487,6 +627,7 @@ impl WorldEntity {
     pub fn id(&self) -> &str {
         match self {
             Self::Club(value) => &value.id,
+            Self::Person(value) => &value.person_id,
             Self::MatchdayPlayer(value) => &value.id,
             Self::PlayerProfile(value) => &value.identity.entity_id,
             Self::ExternalPlayer(value) => &value.profile.identity.entity_id,
@@ -648,6 +789,7 @@ pub struct WorldDatabaseFingerprint {
 #[serde(rename_all = "camelCase")]
 pub struct PackageCoverageReport {
     pub clubs: usize,
+    pub people: usize,
     pub players: usize,
     pub coaches: usize,
     pub nations: usize,
@@ -699,6 +841,120 @@ pub struct ClubReadinessProjection {
     pub season_id: String,
     pub status: ClubReadinessStatus,
     pub requirements: Vec<ClubReadinessRequirement>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RegistrationValidity {
+    StructurallyValid,
+    StructurallyBlocked,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RegistrationReadinessProjection {
+    pub registration_id: String,
+    pub player_id: String,
+    pub structural: RegistrationValidity,
+    pub person_runtime: RuntimeProfileAvailability,
+    pub squad_gameplay: GameplayReadiness,
+    pub blockers: Vec<String>,
+}
+
+pub fn project_registration_readiness(
+    world: &WorldPackageData,
+    season_id: &str,
+) -> Vec<RegistrationReadinessProjection> {
+    let runtime_player_ids = world
+        .profiles
+        .players
+        .iter()
+        .map(|profile| profile.identity.entity_id.as_str())
+        .chain(
+            world
+                .profiles
+                .external_players
+                .iter()
+                .map(|state| state.profile.identity.entity_id.as_str()),
+        )
+        .collect::<HashSet<_>>();
+    let factual_players = world
+        .people
+        .iter()
+        .flat_map(|person| {
+            person
+                .roles
+                .iter()
+                .filter(|role| role.kind == PersonRoleKind::Player)
+                .map(move |role| (role.role_id.as_str(), person))
+        })
+        .collect::<std::collections::HashMap<_, _>>();
+    let club_ids = world
+        .clubs
+        .iter()
+        .map(|club| club.id.as_str())
+        .collect::<HashSet<_>>();
+    world
+        .competitions
+        .iter()
+        .flat_map(|competition| &competition.seasons)
+        .filter(|season| season.id == season_id)
+        .flat_map(|season| {
+            season.player_registrations.iter().map(|registration| {
+                let factual = factual_players
+                    .get(registration.player_id.as_str())
+                    .copied();
+                let target_exists = factual.is_some()
+                    || runtime_player_ids.contains(registration.player_id.as_str());
+                let structural = target_exists && club_ids.contains(registration.club_id.as_str());
+                let runtime_available = runtime_player_ids
+                    .contains(registration.player_id.as_str())
+                    && factual.is_none_or(|person| {
+                        person.readiness.runtime_profile
+                            == RuntimeProfileAvailability::RuntimeProfileAvailable
+                    });
+                let gameplay_ready = runtime_available
+                    && factual.is_none_or(|person| {
+                        person.readiness.gameplay == GameplayReadiness::GameplayReady
+                    });
+                let mut blockers = Vec::new();
+                if !target_exists {
+                    blockers.push("registration.target_missing".to_owned());
+                }
+                if !club_ids.contains(registration.club_id.as_str()) {
+                    blockers.push("registration.club_missing".to_owned());
+                }
+                if structural && !runtime_available {
+                    blockers.push("registration.person_runtime_blocked".to_owned());
+                }
+                if runtime_available && !gameplay_ready {
+                    blockers.push("registration.person_gameplay_blocked".to_owned());
+                }
+                RegistrationReadinessProjection {
+                    registration_id: registration.registration_id.clone().unwrap_or_else(|| {
+                        format!("legacy.registration.{}", registration.player_id)
+                    }),
+                    player_id: registration.player_id.clone(),
+                    structural: if structural {
+                        RegistrationValidity::StructurallyValid
+                    } else {
+                        RegistrationValidity::StructurallyBlocked
+                    },
+                    person_runtime: if runtime_available {
+                        RuntimeProfileAvailability::RuntimeProfileAvailable
+                    } else {
+                        RuntimeProfileAvailability::RuntimeProfileBlocked
+                    },
+                    squad_gameplay: if gameplay_ready {
+                        GameplayReadiness::GameplayReady
+                    } else {
+                        GameplayReadiness::GameplayBlocked
+                    },
+                    blockers,
+                }
+            })
+        })
+        .collect()
 }
 
 pub fn project_club_readiness(
@@ -1080,7 +1336,9 @@ pub fn validate_package(package: &ContentPackage) -> PackageValidationReport {
             Some("Ajuste o intervalo após validar o pacote com Rivallo 0.1.0."),
         );
     }
-    if manifest.schema_version != WORLD_DATABASE_SCHEMA_VERSION {
+    if !(MINIMUM_WORLD_DATABASE_SCHEMA_VERSION..=WORLD_DATABASE_SCHEMA_VERSION)
+        .contains(&manifest.schema_version)
+    {
         report.error(
             package,
             "package.unsupported_schema",
@@ -1089,7 +1347,7 @@ pub fn validate_package(package: &ContentPackage) -> PackageValidationReport {
             None,
             Some(&manifest.schema_version.to_string()),
             "A versão do schema precisa ser suportada pelo jogo.",
-            Some("Migre o pacote para schemaVersion 1."),
+            Some("Migre o pacote para schemaVersion 2; a versão 1 continua legível."),
         );
     }
     for (field, path) in [
@@ -1210,7 +1468,9 @@ pub fn validate_package(package: &ContentPackage) -> PackageValidationReport {
         );
     }
     if let Some(world) = &package.world {
-        if world.schema_version != WORLD_DATABASE_SCHEMA_VERSION {
+        if !(MINIMUM_WORLD_DATABASE_SCHEMA_VERSION..=WORLD_DATABASE_SCHEMA_VERSION)
+            .contains(&world.schema_version)
+        {
             report.error(
                 package,
                 "world.unsupported_schema",
@@ -1219,7 +1479,7 @@ pub fn validate_package(package: &ContentPackage) -> PackageValidationReport {
                 None,
                 Some(&world.schema_version.to_string()),
                 "O world.json deve usar o schema mundial suportado.",
-                Some("Migre world.json para schemaVersion 1."),
+                Some("Migre world.json para schemaVersion 2; a versão 1 continua legível."),
             );
         }
         let entities = world_entities(world)
@@ -1278,6 +1538,7 @@ pub fn validate_package(package: &ContentPackage) -> PackageValidationReport {
 fn world_entities(world: &WorldPackageData) -> Vec<WorldEntity> {
     let mut entities = Vec::new();
     entities.extend(world.clubs.iter().cloned().map(WorldEntity::Club));
+    entities.extend(world.people.iter().cloned().map(WorldEntity::Person));
     entities.extend(
         world
             .matchday
@@ -1383,6 +1644,271 @@ fn validate_world_references(
         .iter()
         .map(|value| position_id(value.id))
         .collect();
+    let runtime_player_ids: HashSet<_> = world
+        .profiles
+        .players
+        .iter()
+        .map(|value| value.identity.entity_id.as_str())
+        .chain(
+            world
+                .profiles
+                .external_players
+                .iter()
+                .map(|value| value.profile.identity.entity_id.as_str()),
+        )
+        .collect();
+    let runtime_coach_ids: HashSet<_> = world
+        .profiles
+        .coaches
+        .iter()
+        .map(|value| value.identity.entity_id.as_str())
+        .collect();
+    let mut factual_role_ids = HashSet::new();
+    let mut factual_player_ids = HashSet::new();
+    for person in &world.people {
+        if person.full_name.trim().is_empty() || person.full_name.chars().count() > 160 {
+            report.error(
+                package,
+                "person.missing_name",
+                Some(&person.person_id),
+                Some("fullName"),
+                None,
+                Some(&person.full_name),
+                "A identidade factual precisa conter um nome conhecido pela fonte.",
+                Some("Informe o nome factual; não use string vazia como dado conhecido."),
+            );
+        }
+        for external_id in &person.external_ids {
+            if external_id.source.trim().is_empty()
+                || external_id.source.chars().count() > 120
+                || external_id.external_id.trim().is_empty()
+                || external_id.external_id.chars().count() > 160
+            {
+                report.error(
+                    package,
+                    "person.invalid_external_id",
+                    Some(&person.person_id),
+                    Some("externalIds"),
+                    Some("source 1..=120; externalId 1..=160"),
+                    Some(&format!(
+                        "{}:{}",
+                        external_id.source, external_id.external_id
+                    )),
+                    "Identificadores externos precisam preservar fonte e valor não vazios.",
+                    Some("Corrija o identificador ou remova-o quando a fonte não o conhece."),
+                );
+            }
+        }
+        for (field, value, maximum) in [
+            ("knownName", person.known_name.as_deref(), 160),
+            ("birthDate", person.birth_date.as_deref(), 10),
+        ] {
+            if value.is_some_and(|value| value.trim().is_empty() || value.chars().count() > maximum)
+            {
+                report.error(
+                    package,
+                    "person.invalid_optional_fact",
+                    Some(&person.person_id),
+                    Some(field),
+                    Some(&format!("1..={maximum} caracteres ou null")),
+                    value,
+                    "Um fato opcional conhecido não pode ser vazio ou exceder o limite contratual.",
+                    Some("Use um valor válido ou null quando o fato for desconhecido."),
+                );
+            }
+        }
+        if person.roles.is_empty() {
+            report.error(
+                package,
+                "person.missing_role",
+                Some(&person.person_id),
+                Some("roles"),
+                None,
+                None,
+                "A pessoa precisa ter ao menos um papel factual.",
+                Some("Adicione um papel player, coach ou staffMember sem duplicar a pessoa."),
+            );
+        }
+        for role in &person.roles {
+            if role.kind == PersonRoleKind::Player {
+                factual_player_ids.insert(role.role_id.as_str());
+            }
+            if !valid_stable_id(&role.role_id) || !factual_role_ids.insert(role.role_id.as_str()) {
+                report.error(
+                    package,
+                    "person.invalid_or_duplicate_role_id",
+                    Some(&person.person_id),
+                    Some("roles.roleId"),
+                    None,
+                    Some(&role.role_id),
+                    "Cada papel factual precisa de um ID estável e único.",
+                    Some("Preserve o playerId/coachId/staffMemberId da fonte na reimportação."),
+                );
+            }
+            if role
+                .club_id
+                .as_ref()
+                .is_some_and(|id| !club_ids.contains(id.as_str()))
+            {
+                broken_reference(
+                    package,
+                    report,
+                    &person.person_id,
+                    "roles.clubId",
+                    role.club_id.as_deref().unwrap_or_default(),
+                );
+            }
+            if role
+                .title
+                .as_deref()
+                .is_some_and(|title| title.trim().is_empty() || title.chars().count() > 160)
+            {
+                report.error(
+                    package,
+                    "person.invalid_optional_fact",
+                    Some(&person.person_id),
+                    Some("roles.title"),
+                    Some("1..=160 caracteres ou null"),
+                    role.title.as_deref(),
+                    "O título factual conhecido não pode ser vazio.",
+                    Some("Informe o título ou use null quando ele não estiver disponível."),
+                );
+            }
+        }
+        for (field, nation_id) in [
+            ("nationalityId", person.nationality_id.as_deref()),
+            (
+                "secondNationalityId",
+                person.second_nationality_id.as_deref(),
+            ),
+        ] {
+            if nation_id.is_some_and(|id| !nation_ids.contains(id)) {
+                broken_reference(
+                    package,
+                    report,
+                    &person.person_id,
+                    field,
+                    nation_id.unwrap_or_default(),
+                );
+            }
+        }
+        if person
+            .contract
+            .as_ref()
+            .is_some_and(|contract| !club_ids.contains(contract.club_id.as_str()))
+        {
+            broken_reference(
+                package,
+                report,
+                &person.person_id,
+                "contract.clubId",
+                person
+                    .contract
+                    .as_ref()
+                    .map_or("", |contract| contract.club_id.as_str()),
+            );
+        }
+        for (field, value, minimum, maximum) in [
+            ("heightCm", person.height_cm, 100, 250),
+            ("weightKg", person.weight_kg, 30, 250),
+            ("shirtNumber", person.shirt_number, 1, 255),
+        ] {
+            if value.is_some_and(|value| !(minimum..=maximum).contains(&value)) {
+                report.error(
+                    package,
+                    "person.fact_out_of_range",
+                    Some(&person.person_id),
+                    Some(field),
+                    Some(&format!("{minimum}..={maximum}")),
+                    value.map(|value| value.to_string()).as_deref(),
+                    "O fato informado está fora do intervalo contratual.",
+                    Some("Corrija o valor ou remova-o quando a fonte não o conhece."),
+                );
+            }
+        }
+        let has_runtime_profile = person.roles.iter().any(|role| match role.kind {
+            PersonRoleKind::Player => runtime_player_ids.contains(role.role_id.as_str()),
+            PersonRoleKind::Coach => runtime_coach_ids.contains(role.role_id.as_str()),
+            PersonRoleKind::StaffMember => false,
+        });
+        let readiness = &person.readiness;
+        let claims_runtime =
+            readiness.runtime_profile == RuntimeProfileAvailability::RuntimeProfileAvailable;
+        let claims_gameplay = readiness.gameplay == GameplayReadiness::GameplayReady;
+        let evaluated = readiness.evaluation == SportingEvaluationStatus::Evaluated;
+        let structurally_valid = readiness.structural == StructuralValidity::StructurallyValid;
+        if claims_runtime != has_runtime_profile
+            || (claims_gameplay && (!claims_runtime || !evaluated || !structurally_valid))
+            || ((!claims_gameplay || !claims_runtime || !evaluated)
+                && readiness.blockers.is_empty())
+        {
+            report.error(
+                package,
+                "person.readiness_inconsistent",
+                Some(&person.person_id),
+                Some("readiness"),
+                None,
+                None,
+                "Readiness factual, estrutural, de avaliação e de gameplay precisa ser coerente com os perfis disponíveis.",
+                Some("Mantenha runtime/gameplay bloqueados e registre blockers enquanto a avaliação estiver ausente."),
+            );
+        }
+        if person.provenance.is_empty() {
+            report.error(
+                package,
+                "person.provenance_missing",
+                Some(&person.person_id),
+                Some("provenance"),
+                None,
+                None,
+                "Toda identidade factual precisa preservar a origem dos fatos.",
+                Some("Adicione fonte, estado de verificação e os campos cobertos."),
+            );
+        }
+        for provenance in &person.provenance {
+            let duplicate_fields =
+                provenance.fields.iter().collect::<HashSet<_>>().len() != provenance.fields.len();
+            let invalid_record = provenance
+                .source_record_id
+                .as_deref()
+                .is_some_and(|value| value.trim().is_empty() || value.chars().count() > 160);
+            if provenance.source.trim().is_empty()
+                || provenance.source.chars().count() > 500
+                || invalid_record
+                || duplicate_fields
+            {
+                report.error(
+                    package,
+                    "person.invalid_provenance",
+                    Some(&person.person_id),
+                    Some("provenance"),
+                    Some("source 1..=500; sourceRecordId 1..=160 ou null; fields únicos"),
+                    provenance.source_record_id.as_deref(),
+                    "A proveniência precisa preservar fonte válida, IDs não vazios e campos únicos.",
+                    Some("Corrija a origem factual sem substituir ausência por string vazia."),
+                );
+            }
+        }
+        if person
+            .readiness
+            .blockers
+            .iter()
+            .collect::<HashSet<_>>()
+            .len()
+            != person.readiness.blockers.len()
+        {
+            report.error(
+                package,
+                "person.duplicate_readiness_blocker",
+                Some(&person.person_id),
+                Some("readiness.blockers"),
+                Some("itens únicos"),
+                None,
+                "Blockers de readiness não podem ser duplicados.",
+                Some("Mantenha uma ocorrência acionável por blocker."),
+            );
+        }
+    }
     for nation in &world.nations {
         if nation
             .flag_asset_id
@@ -1578,6 +2104,82 @@ fn validate_world_references(
                     Some("Corrija a lista ou o participantCount sem gerar calendário nesta fase."),
                 );
             }
+            let mut registration_ids = HashSet::new();
+            let mut registration_targets = HashSet::new();
+            for registration in &season.player_registrations {
+                let diagnostic_id = registration
+                    .registration_id
+                    .as_deref()
+                    .unwrap_or(&registration.player_id);
+                if world.schema_version >= 2
+                    && registration.registration_id.as_ref().is_none_or(|id| {
+                        !valid_stable_id(id) || !registration_ids.insert(id.as_str())
+                    })
+                {
+                    report.error(
+                        package,
+                        "registration.invalid_or_duplicate_id",
+                        Some(diagnostic_id),
+                        Some("registrationId"),
+                        Some(&season.id),
+                        registration.registration_id.as_deref(),
+                        "Inscrições v2 precisam de registrationId estável e único.",
+                        Some("Preserve o registrationId da fonte em importações repetidas."),
+                    );
+                }
+                if !registration_targets.insert(registration.player_id.as_str()) {
+                    report.error(
+                        package,
+                        "registration.duplicate_target",
+                        Some(diagnostic_id),
+                        Some("playerId"),
+                        Some(&season.id),
+                        Some(&registration.player_id),
+                        "Uma pessoa não pode ter duas inscrições na mesma temporada.",
+                        Some("Atualize a inscrição existente em vez de criar outra."),
+                    );
+                }
+                if !factual_player_ids.contains(registration.player_id.as_str())
+                    && !runtime_player_ids.contains(registration.player_id.as_str())
+                {
+                    broken_reference(
+                        package,
+                        report,
+                        diagnostic_id,
+                        "playerId",
+                        &registration.player_id,
+                    );
+                }
+                if !club_ids.contains(registration.club_id.as_str())
+                    || !season
+                        .participant_club_ids
+                        .iter()
+                        .any(|id| id == &registration.club_id)
+                {
+                    broken_reference(
+                        package,
+                        report,
+                        diagnostic_id,
+                        "clubId",
+                        &registration.club_id,
+                    );
+                }
+                if registration.shirt_number.is_some_and(|number| number == 0) {
+                    report.error(
+                        package,
+                        "registration.invalid_shirt_number",
+                        Some(diagnostic_id),
+                        Some("shirtNumber"),
+                        Some("1..=255"),
+                        registration
+                            .shirt_number
+                            .map(|number| number.to_string())
+                            .as_deref(),
+                        "Número ausente deve permanecer nulo; zero não representa um fato conhecido.",
+                        Some("Use null ou um número entre 1 e 255."),
+                    );
+                }
+            }
         }
     }
 }
@@ -1725,6 +2327,7 @@ pub fn resolve_world_packages(
         .world
         .clone()
         .expect("validated base world");
+    migrate_world_to_current(&mut world);
     for package in &packages {
         if package.manifest.content_type == DataPackageType::Mod {
             for patch in &package.patches {
@@ -1764,6 +2367,7 @@ pub fn resolve_world_packages(
     };
     let coverage = PackageCoverageReport {
         clubs: world.clubs.len(),
+        people: world.people.len(),
         players: world.profiles.players.len() + world.profiles.external_players.len(),
         coaches: world.profiles.coaches.len(),
         nations: world.nations.len(),
@@ -1786,6 +2390,29 @@ pub fn resolve_world_packages(
         coverage,
         validation: report,
     })
+}
+
+fn migrate_world_to_current(world: &mut WorldPackageData) {
+    if world.schema_version >= WORLD_DATABASE_SCHEMA_VERSION {
+        return;
+    }
+    for competition in &mut world.competitions {
+        for season in &mut competition.seasons {
+            for registration in &mut season.player_registrations {
+                if registration.registration_id.is_none() {
+                    let source = format!(
+                        "{}|{}|{}|{}",
+                        competition.id, season.id, registration.player_id, registration.club_id
+                    );
+                    registration.registration_id = Some(format!(
+                        "migration.registration.{:016x}",
+                        fnv1a64(source.as_bytes())
+                    ));
+                }
+            }
+        }
+    }
+    world.schema_version = WORLD_DATABASE_SCHEMA_VERSION;
 }
 
 fn apply_patch(
@@ -1839,6 +2466,7 @@ fn contains_entity(world: &WorldPackageData, kind: WorldEntityKind, id: &str) ->
 fn remove_entity(world: &mut WorldPackageData, kind: WorldEntityKind, id: &str) {
     match kind {
         WorldEntityKind::Club => world.clubs.retain(|value| value.id != id),
+        WorldEntityKind::Person => world.people.retain(|value| value.person_id != id),
         WorldEntityKind::MatchdayPlayer => world.matchday.players.retain(|value| value.id != id),
         WorldEntityKind::PlayerProfile => world
             .profiles
@@ -1876,6 +2504,7 @@ fn insert_entity(world: &mut WorldPackageData, entity: WorldEntity) {
             }
             world.clubs.push(value);
         }
+        WorldEntity::Person(value) => world.people.push(value),
         WorldEntity::MatchdayPlayer(value) => world.matchday.players.push(value),
         WorldEntity::PlayerProfile(value) => world.profiles.players.push(value),
         WorldEntity::ExternalPlayer(value) => world.profiles.external_players.push(value),
@@ -1938,6 +2567,66 @@ fn empty_package() -> ContentPackage {
 mod tests {
     use super::*;
 
+    fn partial_person() -> Person {
+        Person {
+            person_id: "synthetic.person.alpha".to_owned(),
+            external_ids: vec![ExternalIdentifier {
+                source: "synthetic-source".to_owned(),
+                external_id: "record-alpha".to_owned(),
+            }],
+            full_name: "Pessoa Sintética Alpha".to_owned(),
+            known_name: None,
+            birth_date: None,
+            height_cm: None,
+            weight_kg: None,
+            preferred_foot: None,
+            nationality_id: None,
+            second_nationality_id: None,
+            detailed_position: None,
+            shirt_number: None,
+            contract: None,
+            roles: vec![
+                PersonRoleAssignment {
+                    role_id: "synthetic.player.alpha".to_owned(),
+                    kind: PersonRoleKind::Player,
+                    club_id: Some("aurora-fc".to_owned()),
+                    title: None,
+                },
+                PersonRoleAssignment {
+                    role_id: "synthetic.coach.alpha".to_owned(),
+                    kind: PersonRoleKind::Coach,
+                    club_id: Some("aurora-fc".to_owned()),
+                    title: Some("Função sintética".to_owned()),
+                },
+                PersonRoleAssignment {
+                    role_id: "synthetic.staff.alpha".to_owned(),
+                    kind: PersonRoleKind::StaffMember,
+                    club_id: Some("aurora-fc".to_owned()),
+                    title: Some("Comissão sintética".to_owned()),
+                },
+            ],
+            provenance: vec![FactualProvenance {
+                source: "synthetic-source".to_owned(),
+                source_record_id: Some("record-alpha".to_owned()),
+                observed_at: None,
+                verification_status: ProvenanceVerificationStatus::Pending,
+                fields: vec!["fullName".to_owned()],
+            }],
+            readiness: PersonReadiness {
+                identity: FactualIdentityStatus::PartialFactualIdentity,
+                structural: StructuralValidity::StructurallyValid,
+                runtime_profile: RuntimeProfileAvailability::RuntimeProfileBlocked,
+                evaluation: SportingEvaluationStatus::AwaitingEvaluation,
+                gameplay: GameplayReadiness::GameplayBlocked,
+                blockers: vec![
+                    "person.partial_identity".to_owned(),
+                    "person.runtime_profile_blocked".to_owned(),
+                    "person.gameplay_blocked".to_owned(),
+                ],
+            },
+        }
+    }
+
     fn official_package() -> ContentPackage {
         ContentPackage {
             manifest: serde_json::from_str(include_str!(
@@ -1964,6 +2653,189 @@ mod tests {
         assert_eq!(first.world.profiles.players.len(), 18);
         assert_eq!(first.world.nations.len(), 4);
         assert_eq!(first.world.competitions.len(), 1);
+    }
+
+    #[test]
+    fn partial_person_preserves_unknowns_provenance_and_multiple_roles_without_profiles() {
+        let mut package = official_package();
+        package.manifest.schema_version = WORLD_DATABASE_SCHEMA_VERSION;
+        {
+            let world = package.world.as_mut().expect("world");
+            world.schema_version = WORLD_DATABASE_SCHEMA_VERSION;
+            world.people.push(partial_person());
+        }
+
+        let validation = validate_package(&package);
+        assert!(validation.valid, "{:#?}", validation.diagnostics);
+        let encoded = serde_json::to_string(package.world.as_ref().expect("world"))
+            .expect("serialize partial world");
+        let decoded: WorldPackageData = serde_json::from_str(&encoded).expect("read partial world");
+        let person = decoded.people.first().expect("partial person");
+
+        assert_eq!(person.roles.len(), 3);
+        assert!(person.birth_date.is_none());
+        assert!(person.height_cm.is_none());
+        assert!(person.preferred_foot.is_none());
+        assert_eq!(
+            person.provenance[0].source_record_id.as_deref(),
+            Some("record-alpha")
+        );
+        assert!(
+            decoded
+                .profiles
+                .players
+                .iter()
+                .all(|profile| { profile.identity.entity_id != "synthetic.player.alpha" })
+        );
+        assert!(
+            decoded
+                .profiles
+                .coaches
+                .iter()
+                .all(|profile| { profile.identity.entity_id != "synthetic.coach.alpha" })
+        );
+    }
+
+    #[test]
+    fn omitted_optional_facts_decode_as_unknown_without_defaults() {
+        let person: Person = serde_json::from_value(serde_json::json!({
+            "personId": "synthetic.person.minimal",
+            "fullName": "Pessoa Sintética Mínima",
+            "roles": [{ "roleId": "synthetic.player.minimal", "kind": "player" }],
+            "provenance": [{
+                "source": "synthetic",
+                "verificationStatus": "pending"
+            }],
+            "readiness": {
+                "identity": "partialFactualIdentity",
+                "structural": "structurallyValid",
+                "runtimeProfile": "runtimeProfileBlocked",
+                "evaluation": "awaitingEvaluation",
+                "gameplay": "gameplayBlocked"
+            }
+        }))
+        .expect("minimal factual person");
+
+        assert!(person.external_ids.is_empty());
+        assert!(person.birth_date.is_none());
+        assert!(person.height_cm.is_none());
+        assert!(person.weight_kg.is_none());
+        assert!(person.preferred_foot.is_none());
+        assert!(person.contract.is_none());
+        assert!(person.readiness.blockers.is_empty());
+    }
+
+    #[test]
+    fn partial_registration_is_structurally_valid_but_runtime_and_gameplay_blocked() {
+        let mut world = bundled_official_world();
+        world.schema_version = WORLD_DATABASE_SCHEMA_VERSION;
+        world.people.push(partial_person());
+        let season_id = {
+            let season = &mut world.competitions[0].seasons[0];
+            season.player_registrations.push(SeasonPlayerRegistration {
+                registration_id: Some("synthetic.registration.alpha".to_owned()),
+                player_id: "synthetic.player.alpha".to_owned(),
+                club_id: "aurora-fc".to_owned(),
+                shirt_number: None,
+                contract_reference: None,
+                eligible: false,
+            });
+            season.id.clone()
+        };
+
+        let projection = project_registration_readiness(&world, &season_id)
+            .into_iter()
+            .find(|registration| registration.registration_id == "synthetic.registration.alpha")
+            .expect("registration projection");
+
+        assert_eq!(
+            projection.structural,
+            RegistrationValidity::StructurallyValid
+        );
+        assert_eq!(
+            projection.person_runtime,
+            RuntimeProfileAvailability::RuntimeProfileBlocked
+        );
+        assert_eq!(
+            projection.squad_gameplay,
+            GameplayReadiness::GameplayBlocked
+        );
+        assert_eq!(
+            projection.blockers,
+            vec!["registration.person_runtime_blocked"]
+        );
+    }
+
+    #[test]
+    fn registration_validation_rejects_duplicate_targets_and_broken_references() {
+        let mut package = official_package();
+        package.manifest.schema_version = WORLD_DATABASE_SCHEMA_VERSION;
+        let world = package.world.as_mut().expect("world");
+        world.schema_version = WORLD_DATABASE_SCHEMA_VERSION;
+        world.people.push(partial_person());
+        let season = &mut world.competitions[0].seasons[0];
+        season.player_registrations.extend([
+            SeasonPlayerRegistration {
+                registration_id: Some("synthetic.registration.alpha".to_owned()),
+                player_id: "synthetic.player.alpha".to_owned(),
+                club_id: "aurora-fc".to_owned(),
+                shirt_number: None,
+                contract_reference: None,
+                eligible: false,
+            },
+            SeasonPlayerRegistration {
+                registration_id: Some("synthetic.registration.beta".to_owned()),
+                player_id: "synthetic.player.alpha".to_owned(),
+                club_id: "missing.club".to_owned(),
+                shirt_number: None,
+                contract_reference: None,
+                eligible: false,
+            },
+        ]);
+
+        let report = validate_package(&package);
+        assert!(!report.valid);
+        assert!(report.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "registration.duplicate_target"
+                && diagnostic.field.as_deref() == Some("playerId")
+        }));
+        assert!(report.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "world.broken_reference"
+                && diagnostic.field.as_deref() == Some("clubId")
+                && diagnostic.reference.as_deref() == Some("missing.club")
+        }));
+    }
+
+    #[test]
+    fn v1_registration_migrates_in_memory_with_a_stable_id() {
+        let mut first_package = official_package();
+        let first_world = first_package.world.as_mut().expect("world");
+        first_world.schema_version = 1;
+        let season = &mut first_world.competitions[0].seasons[0];
+        let player_id = first_world.profiles.players[0].identity.entity_id.clone();
+        season.player_registrations.push(SeasonPlayerRegistration {
+            registration_id: None,
+            player_id,
+            club_id: "aurora-fc".to_owned(),
+            shirt_number: Some(1),
+            contract_reference: None,
+            eligible: true,
+        });
+        let second_package = first_package.clone();
+
+        let first = resolve_world_packages(vec![first_package]).expect("migrate v1 world");
+        let second = resolve_world_packages(vec![second_package]).expect("repeat v1 migration");
+        let first_id = first.world.competitions[0].seasons[0].player_registrations[0]
+            .registration_id
+            .clone();
+        let second_id = second.world.competitions[0].seasons[0].player_registrations[0]
+            .registration_id
+            .clone();
+
+        assert_eq!(first.schema_version, WORLD_DATABASE_SCHEMA_VERSION);
+        assert_eq!(first.world.schema_version, WORLD_DATABASE_SCHEMA_VERSION);
+        assert_eq!(first_id, second_id);
+        assert!(first_id.is_some_and(|id| id.starts_with("migration.registration.")));
     }
 
     #[test]

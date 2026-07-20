@@ -107,7 +107,12 @@ describe('DataStudio integrated authoring workspace', () => {
       HTMLElement,
     );
     fireEvent.click(screen.getAllByRole('button', { name: 'Criar novo' })[0]!);
-    expect(screen.getByRole('heading', { name: 'Novo profissional' })).toBeInstanceOf(HTMLElement);
+    expect(screen.getByRole('heading', { name: 'Identidade factual da comissão' })).toBeInstanceOf(
+      HTMLElement,
+    );
+    expect(screen.getByText('Avaliação pendente')).toBeInstanceOf(HTMLElement);
+    expect(screen.getByText('Bloqueada para gameplay')).toBeInstanceOf(HTMLElement);
+    expect(screen.queryByText(/reputation|rating|overall/iu)).toBeNull();
   });
 
   it('edits an existing registration in place and only exposes applicable toolbar actions', () => {
@@ -191,7 +196,7 @@ describe('DataStudio integrated authoring workspace', () => {
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Número opcional' }), {
       target: { value: '11' },
     });
-    fireEvent.click(screen.getByRole('checkbox', { name: /Elegível para jogar/u }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /Elegível na competição/u }));
     fireEvent.click(screen.getByRole('button', { name: 'Salvar alterações' }));
 
     expect(onUpsert).toHaveBeenCalledWith(

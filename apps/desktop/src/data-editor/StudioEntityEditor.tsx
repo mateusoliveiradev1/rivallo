@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Button } from '../ui/primitives/actions.js';
 import { CommunityEntityEditor } from './CommunityEntityEditor.js';
 import { CompetitionBuilder } from './CompetitionBuilder.js';
+import { FactualPersonEditor } from './FactualPersonEditor.js';
 import type {
   StudioEntityRecord,
   StudioModuleId,
@@ -13,6 +14,7 @@ import type {
   AuthoringCoachProfile,
   AuthoringPlayerProfile,
   CommunityChange,
+  FactualPerson,
   GeneratedPackagePatch,
   ModAuthoringWorld,
   StudioCompetition,
@@ -374,38 +376,70 @@ function ContractEditor({
   readonly world: ModAuthoringWorld;
   readonly onUpsert: (change: CommunityChange) => void;
 }) {
-  const person = record?.value as AuthoringPlayerProfile | AuthoringCoachProfile | undefined;
-  const [personId, setPersonId] = useState(person?.identity.entityId ?? '');
-  const selected =
+  const person = record?.value as
+    AuthoringPlayerProfile | AuthoringCoachProfile | FactualPerson | undefined;
+  const initialPersonId =
+    person && 'personId' in person ? person.personId : person?.identity.entityId;
+  const [personId, setPersonId] = useState(initialPersonId ?? '');
+  const selectedProfile =
     world.playerProfiles.find((item) => item.identity.entityId === personId) ??
     world.coaches.find((item) => item.identity.entityId === personId);
-  const [startedAt, setStartedAt] = useState(selected?.contract?.startedAt ?? '2026-01-01');
+  const selectedFactual = world.people?.find((item) => item.personId === personId);
+  const selected = selectedFactual ?? selectedProfile;
+  const [startedAt, setStartedAt] = useState(selected?.contract?.startedAt ?? '');
   const [expiresAt, setExpiresAt] = useState(selected?.contract?.expiresAt ?? '');
   const [clubId, setClubId] = useState(selected?.contract?.clubId ?? world.clubs[0]?.id ?? '');
-  const [status, setStatus] = useState(selected?.contract?.squadStatus ?? 'Ativo');
+  const [status, setStatus] = useState(selected?.contract?.squadStatus ?? '');
   const save = () => {
     if (!selected) return;
     const next = {
       ...selected,
-      contract: { clubId, startedAt, expiresAt: expiresAt || null, squadStatus: status },
+      contract: {
+        clubId,
+        startedAt: startedAt || null,
+        expiresAt: expiresAt || null,
+        squadStatus: status || null,
+      },
     };
+    if (selectedFactual) {
+      onUpsert({
+        id: `contract:${selectedFactual.personId}`,
+        kind: 'contract',
+        operation: 'edit',
+        targetId: selectedFactual.personId,
+        label: `Contrato de ${selectedFactual.knownName || selectedFactual.fullName}`,
+        summary: `${startedAt || 'início desconhecido'} → ${expiresAt || 'fim desconhecido'}`,
+        patches: [
+          {
+            operation: 'replace',
+            entityKind: 'person',
+            targetId: selectedFactual.personId,
+            entity: { kind: 'person', value: next },
+            reason: 'Fatos contratuais editados sem datas inventadas',
+          },
+        ],
+        asset: null,
+      });
+      return;
+    }
+    if (!selectedProfile) return;
     const coach = world.coaches.some(
-      (item) => item.identity.entityId === selected.identity.entityId,
+      (item) => item.identity.entityId === selectedProfile.identity.entityId,
     );
-    const external = !coach && selected.identity.clubId !== world.activeClubId;
+    const external = !coach && selectedProfile.identity.clubId !== world.activeClubId;
     const entityKind = coach ? 'coach' : external ? 'externalPlayer' : 'playerProfile';
     onUpsert({
-      id: `contract:${selected.identity.entityId}`,
+      id: `contract:${selectedProfile.identity.entityId}`,
       kind: 'contract',
       operation: 'edit',
-      targetId: selected.identity.entityId,
-      label: `Contrato de ${selected.identity.knownName}`,
+      targetId: selectedProfile.identity.entityId,
+      label: `Contrato de ${selectedProfile.identity.knownName}`,
       summary: `${startedAt} → ${expiresAt || 'sem vencimento'}`,
       patches: [
         {
           operation: 'replace',
           entityKind,
-          targetId: selected.identity.entityId,
+          targetId: selectedProfile.identity.entityId,
           entity: {
             kind: entityKind,
             value: external ? { profile: next } : next,
@@ -426,6 +460,11 @@ function ContractEditor({
         Pessoa
         <select onChange={(event) => setPersonId(event.target.value)} value={personId}>
           <option value="">Selecione</option>
+          {(world.people ?? []).map((item) => (
+            <option key={item.personId} value={item.personId}>
+              {item.knownName || item.fullName} · fatos parciais
+            </option>
+          ))}
           {[...world.playerProfiles, ...world.coaches].map((item) => (
             <option key={item.identity.entityId} value={item.identity.entityId}>
               {item.identity.knownName}
@@ -483,6 +522,9 @@ function RegistrationEditor({
 }) {
   const existing = record?.value as StudioRegistrationRecordValue | undefined;
   const competitions = world.competitions ?? [];
+  const factualPlayers = (world.people ?? []).flatMap((person) =>
+    person.roles.filter((role) => role.kind === 'player').map((role) => ({ person, role })),
+  );
   const [competitionId, setCompetitionId] = useState(
     existing?.competition.id ?? competitions[0]?.id ?? '',
   );
@@ -491,17 +533,22 @@ function RegistrationEditor({
     existing?.season.id ?? competition?.seasons[0]?.id ?? '',
   );
   const [playerId, setPlayerId] = useState(
-    existing?.registration.playerId ?? world.playerProfiles[0]?.identity.entityId ?? '',
+    existing?.registration.playerId ??
+      factualPlayers[0]?.role.roleId ??
+      world.playerProfiles[0]?.identity.entityId ??
+      '',
   );
   const [clubId, setClubId] = useState(existing?.registration.clubId ?? world.clubs[0]?.id ?? '');
   const [shirtNumber, setShirtNumber] = useState(
     existing?.registration.shirtNumber?.toString() ?? '',
   );
-  const [eligible, setEligible] = useState(existing?.registration.eligible ?? true);
+  const [eligible, setEligible] = useState(existing?.registration.eligible ?? false);
   const save = () => {
     const currentCompetition = competitions.find((item) => item.id === competitionId);
     if (!currentCompetition) return;
     const registration = {
+      registrationId:
+        existing?.registration.registrationId ?? `registration:${seasonId}:${playerId}`,
       playerId,
       clubId,
       shirtNumber: shirtNumber ? Number(shirtNumber) : null,
@@ -530,11 +577,11 @@ function RegistrationEditor({
       }),
     };
     onUpsert({
-      id: `registration:${seasonId}:${playerId}`,
+      id: registration.registrationId,
       kind: 'registration',
       operation: existing ? 'edit' : 'create',
       targetId: currentCompetition.id,
-      label: `Inscrição de ${world.playerProfiles.find((item) => item.identity.entityId === playerId)?.identity.knownName ?? playerId}`,
+      label: `Inscrição de ${world.playerProfiles.find((item) => item.identity.entityId === playerId)?.identity.knownName ?? factualPlayers.find((item) => item.role.roleId === playerId)?.person.knownName ?? factualPlayers.find((item) => item.role.roleId === playerId)?.person.fullName ?? playerId}`,
       summary: currentCompetition.name,
       patches: [
         {
@@ -552,7 +599,7 @@ function RegistrationEditor({
     <form className="studio-inspector-form" onSubmit={(event) => event.preventDefault()}>
       <header>
         <h3>{existing ? 'Editar inscrição' : 'Nova inscrição'}</h3>
-        <p>Vincule jogador, clube e temporada sem editar JSON.</p>
+        <p>A validade da inscrição é separada do perfil runtime e da prontidão do elenco.</p>
       </header>
       <label>
         Competição
@@ -586,6 +633,11 @@ function RegistrationEditor({
       <label>
         Jogador
         <select onChange={(event) => setPlayerId(event.target.value)} value={playerId}>
+          {factualPlayers.map(({ person, role }) => (
+            <option key={role.roleId} value={role.roleId}>
+              {person.knownName || person.fullName} · identidade parcial
+            </option>
+          ))}
           {world.playerProfiles.map((item) => (
             <option key={item.identity.entityId} value={item.identity.entityId}>
               {item.identity.knownName}
@@ -606,6 +658,7 @@ function RegistrationEditor({
       <label>
         Número opcional
         <input
+          max={255}
           min={1}
           onChange={(event) => setShirtNumber(event.target.value)}
           type="number"
@@ -618,9 +671,15 @@ function RegistrationEditor({
           onChange={(event) => setEligible(event.target.checked)}
           type="checkbox"
         />
-        Elegível para jogar
-        <small>Desmarque quando a inscrição existir, mas ainda estiver pendente.</small>
+        Elegível na competição
+        <small>Este fato não torna a pessoa pronta para gameplay.</small>
       </label>
+      {playerId && !world.playerProfiles.some((item) => item.identity.entityId === playerId) && (
+        <p className="factual-state-help">
+          Inscrição estruturalmente válida; profile runtime da pessoa bloqueado e elenco ainda não
+          pronto.
+        </p>
+      )}
       <Button disabled={!seasonId || !playerId || !clubId} onClick={save} variant="primary">
         {existing ? 'Salvar alterações' : 'Salvar inscrição'}
       </Button>
@@ -741,6 +800,9 @@ export function StudioEntityEditor({
   const editorKey = `${module}:${mode}:${record?.id ?? 'new'}`;
   const personKind = module === 'clubs' ? 'club' : module === 'players' ? 'player' : 'coach';
   const canUsePersonEditor = ['clubs', 'players', 'coaches', 'staff'].includes(module);
+  const factualRecord = Boolean(
+    record?.value && typeof record.value === 'object' && 'personId' in record.value,
+  );
   const memoRecord = useMemo(() => record, [record]);
   if (['nations', 'regions', 'cities', 'stadiums'].includes(module))
     return (
@@ -756,6 +818,18 @@ export function StudioEntityEditor({
         world={world}
       />
     );
+  if (canUsePersonEditor)
+    if (module !== 'clubs' && (mode === 'create' || factualRecord))
+      return (
+        <FactualPersonEditor
+          author={author}
+          key={editorKey}
+          module={module}
+          onUpsert={onUpsert}
+          recordValue={record?.value}
+          world={world}
+        />
+      );
   if (canUsePersonEditor)
     return (
       <CommunityEntityEditor

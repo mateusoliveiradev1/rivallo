@@ -10,44 +10,70 @@ pub trait WorldPackageRepository {
     fn save_package(&self, package: &ContentPackage) -> Result<(), PackageValidationReport>;
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PackageCatalogScope {
+    Public,
+    PrivateDevelopment,
+    Uat,
+}
+
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DataPackageCatalogEntry {
     pub manifest: PackageManifest,
     pub active: bool,
     pub validation: PackageValidationReport,
+    pub catalog_scope: PackageCatalogScope,
+    pub selectable: bool,
 }
 
 pub struct WorldDatabaseService<R> {
     repository: R,
+    catalog_scope: PackageCatalogScope,
 }
 
 impl<R: WorldPackageRepository> WorldDatabaseService<R> {
     pub fn new(repository: R) -> Self {
-        Self { repository }
+        Self {
+            repository,
+            catalog_scope: PackageCatalogScope::Public,
+        }
+    }
+
+    pub fn new_authorized(repository: R, catalog_scope: PackageCatalogScope) -> Self {
+        Self {
+            repository,
+            catalog_scope,
+        }
     }
 
     pub fn resolved(&self) -> Result<ResolvedWorldDatabase, PackageValidationReport> {
-        resolve_world_packages(self.repository.load_active_packages()?)
+        resolve_world_packages(self.visible_packages(self.repository.load_active_packages()?))
     }
 
     pub fn catalog(&self) -> Result<Vec<DataPackageCatalogEntry>, PackageValidationReport> {
         let active_ids = self
             .repository
-            .load_active_packages()?
+            .load_active_packages()
+            .map(|packages| self.visible_packages(packages))?
             .into_iter()
             .map(|package| package.manifest.package_id)
             .collect::<std::collections::HashSet<_>>();
         let packages = self
             .repository
-            .load_available_packages()?
+            .load_available_packages()
+            .map(|packages| self.visible_packages(packages))?
             .into_iter()
             .map(|package| {
                 let validation = self.validate_candidate(&package);
+                let selectable = validation.valid && package_gameplay_ready(&package);
                 DataPackageCatalogEntry {
                     active: active_ids.contains(&package.manifest.package_id),
                     validation,
                     manifest: package.manifest,
+                    catalog_scope: self.catalog_scope,
+                    selectable,
                 }
             })
             .collect::<Vec<_>>();
@@ -58,7 +84,7 @@ impl<R: WorldPackageRepository> WorldDatabaseService<R> {
         &self,
         package_ids: &[String],
     ) -> Result<ResolvedWorldDatabase, PackageValidationReport> {
-        let available = self.repository.load_available_packages()?;
+        let available = self.visible_packages(self.repository.load_available_packages()?);
         let selected = package_ids
             .iter()
             .filter_map(|package_id| {
@@ -94,7 +120,7 @@ impl<R: WorldPackageRepository> WorldDatabaseService<R> {
             vec![package.clone()]
         } else {
             let mut active = match self.repository.load_active_packages() {
-                Ok(active) => active,
+                Ok(active) => self.visible_packages(active),
                 Err(report) => return report,
             };
             active.retain(|candidate| candidate.manifest.package_id != package.manifest.package_id);
@@ -111,9 +137,12 @@ impl<R: WorldPackageRepository> WorldDatabaseService<R> {
         &self,
         package: &ContentPackage,
     ) -> Result<PackageValidationReport, PackageValidationReport> {
-        if package.manifest.package_id == "dev.example.league-2026"
-            || package.manifest.visibility == PackageVisibility::PrivateDevelopment
-        {
+        let private_package = package.manifest.visibility == PackageVisibility::PrivateDevelopment;
+        let visibility_allowed = match self.catalog_scope {
+            PackageCatalogScope::Public => !private_package,
+            PackageCatalogScope::PrivateDevelopment | PackageCatalogScope::Uat => private_package,
+        };
+        if !visibility_allowed {
             return Err(PackageValidationReport::blocking(
                 package.source_file.clone(),
                 "package.private_development_isolated",
@@ -121,8 +150,8 @@ impl<R: WorldPackageRepository> WorldDatabaseService<R> {
                 Some("visibility".to_owned()),
                 None,
                 Some(format!("{:?}", package.manifest.visibility)),
-                "Pacotes privados de desenvolvimento não podem ser exportados ao catálogo público/local padrão.",
-                Some("Use somente o ambiente privado explicitamente isolado; o export público aceita visibility=public.".to_owned()),
+                "A visibilidade do pacote não corresponde ao catálogo explicitamente autorizado.",
+                Some("Use o catálogo público para pacotes públicos ou uma raiz privada dev/UAT autorizada.".to_owned()),
             ));
         }
         let validation = self.validate_candidate(package);
@@ -132,6 +161,32 @@ impl<R: WorldPackageRepository> WorldDatabaseService<R> {
         self.repository.save_package(package)?;
         Ok(validation)
     }
+
+    fn visible_packages(&self, packages: Vec<ContentPackage>) -> Vec<ContentPackage> {
+        packages
+            .into_iter()
+            .filter(|package| match self.catalog_scope {
+                PackageCatalogScope::Public => {
+                    package.manifest.visibility == PackageVisibility::Public
+                }
+                PackageCatalogScope::PrivateDevelopment | PackageCatalogScope::Uat => true,
+            })
+            .collect()
+    }
+}
+
+fn package_gameplay_ready(package: &ContentPackage) -> bool {
+    let world_people = package.world.iter().flat_map(|world| world.people.iter());
+    let patch_people = package
+        .patches
+        .iter()
+        .filter_map(|patch| match patch.entity.as_ref() {
+            Some(rivallo_domain::WorldEntity::Person(person)) => Some(person),
+            _ => None,
+        });
+    world_people
+        .chain(patch_people)
+        .all(|person| person.readiness.gameplay == rivallo_domain::GameplayReadiness::GameplayReady)
 }
 
 #[cfg(test)]
@@ -243,6 +298,98 @@ mod tests {
             "package.private_development_isolated"
         );
         assert_eq!(repository.save_count.get(), 0);
+    }
+
+    #[test]
+    fn public_catalog_hides_private_packages_even_when_repository_returns_them() {
+        let active = official_package();
+        let mut private = active.clone();
+        private.manifest.package_id = "dev.synthetic-hidden".to_owned();
+        private.manifest.visibility = PackageVisibility::PrivateDevelopment;
+        let service = WorldDatabaseService::new(RepositoryFixture {
+            active: vec![active.clone()],
+            available: vec![active, private],
+            save_count: Rc::new(Cell::new(0)),
+        });
+
+        let catalog = service.catalog().expect("public catalog");
+        assert_eq!(catalog.len(), 1);
+        assert_eq!(catalog[0].catalog_scope, PackageCatalogScope::Public);
+        assert!(catalog[0].selectable);
+    }
+
+    #[test]
+    fn authorized_private_catalog_exposes_partial_package_as_non_selectable() {
+        let active = official_package();
+        let mut private = active.clone();
+        private.manifest.package_id = "dev.synthetic-partial".to_owned();
+        private.manifest.visibility = PackageVisibility::PrivateDevelopment;
+        private.manifest.schema_version = 2;
+        let world = private.world.as_mut().expect("world");
+        world.schema_version = 2;
+        world.people.push(
+            serde_json::from_value(serde_json::json!({
+                "personId": "synthetic.person.catalog",
+                "externalIds": [{ "source": "synthetic", "externalId": "catalog-1" }],
+                "fullName": "Pessoa Sintética Catálogo",
+                "knownName": null,
+                "birthDate": null,
+                "heightCm": null,
+                "weightKg": null,
+                "preferredFoot": null,
+                "nationalityId": null,
+                "secondNationalityId": null,
+                "detailedPosition": null,
+                "shirtNumber": null,
+                "contract": null,
+                "roles": [{
+                    "roleId": "synthetic.player.catalog",
+                    "kind": "player",
+                    "clubId": "aurora-fc",
+                    "title": null
+                }],
+                "provenance": [{
+                    "source": "synthetic",
+                    "sourceRecordId": "catalog-1",
+                    "observedAt": null,
+                    "verificationStatus": "pending",
+                    "fields": ["fullName"]
+                }],
+                "readiness": {
+                    "identity": "partialFactualIdentity",
+                    "structural": "structurallyValid",
+                    "runtimeProfile": "runtimeProfileBlocked",
+                    "evaluation": "awaitingEvaluation",
+                    "gameplay": "gameplayBlocked",
+                    "blockers": ["person.runtime_profile_blocked"]
+                }
+            }))
+            .expect("partial person fixture"),
+        );
+        let service = WorldDatabaseService::new_authorized(
+            RepositoryFixture {
+                active: vec![active.clone()],
+                available: vec![active, private],
+                save_count: Rc::new(Cell::new(0)),
+            },
+            PackageCatalogScope::PrivateDevelopment,
+        );
+
+        let catalog = service.catalog().expect("private catalog");
+        let private = catalog
+            .iter()
+            .find(|entry| entry.manifest.package_id == "dev.synthetic-partial")
+            .expect("private entry");
+        assert!(
+            private.validation.valid,
+            "{:#?}",
+            private.validation.diagnostics
+        );
+        assert_eq!(
+            private.catalog_scope,
+            PackageCatalogScope::PrivateDevelopment
+        );
+        assert!(!private.selectable);
     }
 
     #[test]

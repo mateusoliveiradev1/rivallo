@@ -3,6 +3,7 @@ import type {
   AuthoringCoachProfile,
   AuthoringPlayerProfile,
   CommunityChange,
+  FactualPerson,
   GeneratedPackagePatch,
   ModAuthoringWorld,
   StudioCompetition,
@@ -74,6 +75,8 @@ const baseEntityForPatch = (base: ModAuthoringWorld, patch: GeneratedPackagePatc
   switch (patch.entityKind) {
     case 'club':
       return base.clubs.find((item) => item.id === patch.targetId);
+    case 'person':
+      return base.people?.find((item) => item.personId === patch.targetId);
     case 'matchdayPlayer':
       return base.players.find((item) => item.id === patch.targetId);
     case 'playerProfile':
@@ -170,6 +173,7 @@ export function projectAuthoringWorld(
   changes: readonly CommunityChange[],
 ): ModAuthoringWorld {
   let clubs = [...base.clubs];
+  let people = [...(base.people ?? [])];
   let players = [...base.players];
   let playerProfiles = [...base.playerProfiles];
   let coaches = [...base.coaches];
@@ -187,6 +191,11 @@ export function projectAuthoringWorld(
         clubs = remove
           ? removeById(clubs, patch.targetId, (item) => item.id)
           : replaceById(clubs, patch.targetId, value as (typeof clubs)[number], (item) => item.id);
+        break;
+      case 'person':
+        people = remove
+          ? removeById(people, patch.targetId, (item) => item.personId)
+          : replaceById(people, patch.targetId, value as FactualPerson, (item) => item.personId);
         break;
       case 'matchdayPlayer':
         players = remove
@@ -290,6 +299,7 @@ export function projectAuthoringWorld(
   return {
     ...base,
     clubs,
+    people,
     players,
     playerProfiles,
     coaches,
@@ -420,6 +430,41 @@ export function readinessForEntity(
   return { state: 'structurallyValid', label: 'Estruturalmente válido', issues: [] };
 }
 
+const factualPersonReadiness = (person: FactualPerson): AuthoringReadiness => {
+  const issues: AuthoringIssue[] = person.readiness.blockers.map((code) => ({
+    code,
+    label:
+      code === 'player.evaluation_missing'
+        ? 'Avaliação Rivallo ausente'
+        : code === 'player.position_unknown'
+          ? 'Posição não informada'
+          : code === 'coach.evaluation_missing'
+            ? 'Capacidades do treinador não avaliadas'
+            : code === 'registration.person_runtime_blocked'
+              ? 'Inscrição válida; pessoa ainda não pronta'
+              : 'Verificação pendente',
+    explanation: code.includes('evaluation')
+      ? 'O fato foi preservado sem criar rating, potencial, atributos ou capacidades.'
+      : 'Complete ou verifique este dado antes de liberar a pessoa para gameplay.',
+    module: person.roles[0]?.kind === 'coach' ? 'coaches' : 'players',
+    blocking: true,
+  }));
+  if (person.readiness.gameplay === 'gameplayReady') {
+    return { state: 'readyForCareer', label: 'Pronto para gameplay', issues };
+  }
+  if (person.readiness.structural === 'structurallyValid') {
+    return {
+      state: 'structurallyValid',
+      label:
+        person.readiness.identity === 'partialFactualIdentity'
+          ? 'Identidade parcial · bloqueada para gameplay'
+          : 'Fatos importados · avaliação pendente',
+      issues,
+    };
+  }
+  return { state: 'blocked', label: 'Importação estrutural bloqueada', issues };
+};
+
 export function recordsForModule(
   world: ModAuthoringWorld,
   changes: readonly CommunityChange[],
@@ -492,6 +537,16 @@ export function recordsForModule(
         module,
         value: item,
       })),
+      ...(world.people ?? [])
+        .filter((person) => person.roles.some((role) => role.kind === 'player'))
+        .map((person) => ({
+          id: person.personId,
+          name: person.knownName || person.fullName,
+          detail: `${person.detailedPosition ?? 'Posição desconhecida'} · Não avaliado`,
+          module,
+          value: person,
+          readiness: factualPersonReadiness(person),
+        })),
     );
   if (module === 'coaches' || module === 'staff')
     records.push(
@@ -503,6 +558,18 @@ export function recordsForModule(
           detail: `${item.role} · ${item.identity.clubName || 'Sem clube'}`,
           module,
           value: item,
+        })),
+      ...(world.people ?? [])
+        .filter((person) =>
+          person.roles.some((role) => role.kind === (module === 'staff' ? 'staffMember' : 'coach')),
+        )
+        .map((person) => ({
+          id: person.personId,
+          name: person.knownName || person.fullName,
+          detail: `${person.roles.find((role) => role.kind === (module === 'staff' ? 'staffMember' : 'coach'))?.title ?? 'Função não informada'} · Não avaliado`,
+          module,
+          value: person,
+          readiness: factualPersonReadiness(person),
         })),
     );
   if (module === 'competitions')
@@ -530,6 +597,15 @@ export function recordsForModule(
     );
   if (module === 'contracts')
     records.push(
+      ...(world.people ?? [])
+        .filter((item) => item.contract)
+        .map((item) => ({
+          id: `contract:${item.personId}`,
+          name: item.knownName || item.fullName,
+          detail: `${item.contract?.startedAt ?? 'Início desconhecido'} → ${item.contract?.expiresAt ?? 'Fim desconhecido'}`,
+          module,
+          value: item,
+        })),
       ...world.playerProfiles
         .filter((item) => item.contract)
         .map((item) => ({
@@ -554,11 +630,18 @@ export function recordsForModule(
       ...(world.competitions ?? []).flatMap((competition) =>
         competition.seasons.flatMap((season) =>
           season.playerRegistrations.map((item, index) => ({
-            id: `registration:${season.id}:${item.playerId}`,
+            id: item.registrationId ?? `registration:${season.id}:${item.playerId}`,
             name:
               world.playerProfiles.find((profile) => profile.identity.entityId === item.playerId)
-                ?.identity.knownName ?? `Inscrição ${index + 1}`,
-            detail: `${competition.shortName} · ${season.label} · ${item.eligible ? 'Elegível' : 'Inelegível'}`,
+                ?.identity.knownName ??
+              world.people?.find((person) =>
+                person.roles.some((role) => role.roleId === item.playerId),
+              )?.knownName ??
+              world.people?.find((person) =>
+                person.roles.some((role) => role.roleId === item.playerId),
+              )?.fullName ??
+              `Inscrição ${index + 1}`,
+            detail: `${competition.shortName} · ${season.label} · ${item.eligible ? 'Inscrição elegível' : 'Inscrição pendente'}${world.playerProfiles.some((profile) => profile.identity.entityId === item.playerId) ? '' : ' · Runtime bloqueado'}`,
             module,
             value: { competition, season, registration: item, index },
           })),
@@ -677,8 +760,28 @@ export function removalChange(
     };
   }
   if (record.module === 'contracts') {
-    const person = record.value as AuthoringPlayerProfile | AuthoringCoachProfile;
+    const person = record.value as AuthoringPlayerProfile | AuthoringCoachProfile | FactualPerson;
     const next = { ...person, contract: null };
+    if ('personId' in person) {
+      return {
+        id: `delete:contract:${person.personId}`,
+        kind: 'contract',
+        operation: 'delete',
+        targetId: person.personId,
+        label: record.name,
+        summary: 'Contrato factual removido; a pessoa permanece no projeto',
+        patches: [
+          {
+            operation: 'replace',
+            entityKind: 'person',
+            targetId: person.personId,
+            entity: { kind: 'person', value: next },
+            reason: `Remoção revisada do contrato de ${record.name}`,
+          },
+        ],
+        asset: null,
+      };
+    }
     const coach = world?.coaches.some(
       (item) => item.identity.entityId === person.identity.entityId,
     );
@@ -721,6 +824,26 @@ export function removalChange(
           targetId: nation.id,
           entity: { kind: 'nation', value: next },
           reason: `Remoção revisada das traduções de ${record.name}`,
+        },
+      ],
+      asset: null,
+    };
+  }
+  const factualPerson = world?.people?.find((person) => person.personId === record.id);
+  if (factualPerson && ['players', 'coaches', 'staff'].includes(record.module)) {
+    return {
+      id: `delete:person:${record.id}`,
+      kind: record.module === 'players' ? 'player' : record.module === 'staff' ? 'staff' : 'coach',
+      operation: 'delete',
+      targetId: record.id,
+      label: record.name,
+      summary: 'Pessoa factual removida após revisão de dependentes',
+      patches: [
+        {
+          operation: 'remove',
+          entityKind: 'person',
+          targetId: record.id,
+          reason: `Remoção revisada de ${record.name}`,
         },
       ],
       asset: null,

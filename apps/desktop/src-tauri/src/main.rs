@@ -16,17 +16,17 @@ use rivallo_platform::{
     LegacyImportReceipt, LegacyTableViewImport, LineupSelection, MatchdayCoordinator,
     MatchdayState, Nation, NationProfileProjection, NullOrder, OwnerScope,
     PackageDistributionReceipt, PackageHistoryEntry, PackageValidationReport,
-    PlayerProfileProjection, ProfileCoordinator, READINESS_POLL_INTERVAL, READINESS_TIMEOUT,
-    ReadinessDiagnostic, ResolvedWorldDatabase, RivmodInspection, SHUTDOWN_CONTROL_MESSAGE,
-    SaveCareerRequest, SavedTableView, SortDirection, TableColumnState, TableDataWindow,
-    TableDensity, TableFilterClause, TableFilterGroup, TableFilterNode, TableId, TableSort,
-    TableViewCoordinator, TableViewEnvelopeMetadata, TableViewLoadOutcome, TableViewPolicyError,
-    TableViewRecoveryReason, TableViewRepositoryState, TableViewServiceError, TableViewState,
-    TableViewValidationError, TacticalApproach, TacticalLibraryCommand, TacticalMatchSnapshot,
-    TacticalPlanPreview, TacticalPlanProposal, TacticalPlanUpdate, TacticalStrategyPresetSummary,
-    ViewId, ViewMutability, ViewProvenance, WindowId, WorldDatabaseCoordinator,
-    evaluate_coach_creation, project_club_readiness, squad_system_default_repository_state,
-    validate_readiness_response,
+    PlayerProfileProjection, PrivateCatalogConfig, ProfileCoordinator, READINESS_POLL_INTERVAL,
+    READINESS_TIMEOUT, ReadinessDiagnostic, ResolvedWorldDatabase, RivmodInspection,
+    SHUTDOWN_CONTROL_MESSAGE, SaveCareerRequest, SavedTableView, SortDirection, TableColumnState,
+    TableDataWindow, TableDensity, TableFilterClause, TableFilterGroup, TableFilterNode, TableId,
+    TableSort, TableViewCoordinator, TableViewEnvelopeMetadata, TableViewLoadOutcome,
+    TableViewPolicyError, TableViewRecoveryReason, TableViewRepositoryState, TableViewServiceError,
+    TableViewState, TableViewValidationError, TacticalApproach, TacticalLibraryCommand,
+    TacticalMatchSnapshot, TacticalPlanPreview, TacticalPlanProposal, TacticalPlanUpdate,
+    TacticalStrategyPresetSummary, ViewId, ViewMutability, ViewProvenance, WindowId,
+    WorldDatabaseCoordinator, evaluate_coach_creation, project_club_readiness,
+    squad_system_default_repository_state, validate_readiness_response,
 };
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, RunEvent, State};
@@ -1728,6 +1728,21 @@ fn data_package_catalog(
 }
 
 #[tauri::command]
+fn private_data_package_catalog(
+    world: State<'_, Arc<WorldDatabaseCoordinator>>,
+) -> Result<Vec<DataPackageCatalogEntry>, PackageValidationReport> {
+    world.private_catalog()
+}
+
+#[tauri::command]
+fn preview_private_package_sandbox(
+    package_ids: Vec<String>,
+    world: State<'_, Arc<WorldDatabaseCoordinator>>,
+) -> Result<ResolvedWorldDatabase, PackageValidationReport> {
+    world.resolve_private_selection(&package_ids)
+}
+
+#[tauri::command]
 fn validate_data_package(
     package: ContentPackage,
     world: State<'_, Arc<WorldDatabaseCoordinator>>,
@@ -2136,6 +2151,8 @@ fn main() {
             world_reference_catalog,
             world_reference_catalog_for_selection,
             data_package_catalog,
+            private_data_package_catalog,
+            preview_private_package_sandbox,
             validate_data_package,
             export_data_package,
             validate_data_package_source,
@@ -2184,7 +2201,14 @@ fn main() {
             let table_views_path = app.path().app_data_dir()?.join("table-views.json");
             let data_packages_path = app.path().app_data_dir()?.join("data-packages");
             let careers_path = app.path().app_data_dir()?.join("careers");
-            let world = Arc::new(WorldDatabaseCoordinator::new(data_packages_path));
+            let public_world = WorldDatabaseCoordinator::new(data_packages_path.clone());
+            let world = match PrivateCatalogConfig::from_environment() {
+                Some(config) => public_world
+                    .with_private_catalog(config)
+                    .unwrap_or_else(|_| WorldDatabaseCoordinator::new(data_packages_path)),
+                None => public_world,
+            };
+            let world = Arc::new(world);
             // Best-effort startup pass keeps legacy Creator projects ready before the editor opens.
             // The editor command repeats the idempotent migration and returns any diagnostics in-band.
             let _ = world.list_creator_projects();

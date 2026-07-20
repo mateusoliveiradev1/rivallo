@@ -17,12 +17,14 @@ import {
   inspectRivmod,
   installRivmod,
   loadDataPackageCatalog,
+  loadPrivateDataPackageCatalog,
   loadCreatorProject,
   loadCreatorProjects,
   loadModAuthoringWorld,
   loadPackageHistory,
   loadWorldDatabaseSummary,
   rollbackPackage,
+  runPrivatePackageSandbox,
   saveCreatorProject,
   validateDataPackageSource,
 } from './client.js';
@@ -257,6 +259,10 @@ const signatureFor = (
 
 export function DataEditorApp() {
   const [catalog, setCatalog] = useState<readonly DataPackageCatalogEntry[]>([]);
+  const [privateCatalog, setPrivateCatalog] = useState<readonly DataPackageCatalogEntry[]>([]);
+  const [privateCatalogState, setPrivateCatalogState] = useState<
+    'loading' | 'ready' | 'unavailable'
+  >('loading');
   const [projects, setProjects] = useState<readonly CreatorProjectSummary[]>([]);
   const [catalogState, setCatalogState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [worldSummary, setWorldSummary] = useState<WorldDatabaseSummary | null>(null);
@@ -311,6 +317,9 @@ export function DataEditorApp() {
   const bases = catalog.filter(
     (entry) => entry.manifest.contentType === 'base' && entry.validation.valid,
   );
+  const privatePackages = privateCatalog.filter(
+    (entry) => entry.manifest.visibility === 'privateDevelopment',
+  );
   const packageId = packageIdOverride.trim() || generatedPackageId(details);
   const currentSignature = signatureFor(details, packageIdOverride, selectedBaseId, changes);
   const dirty = currentSignature !== cleanSignature;
@@ -340,6 +349,22 @@ export function DataEditorApp() {
       })
       .catch(() => {
         if (active) setCatalogState('error');
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void loadPrivateDataPackageCatalog()
+      .then((entries) => {
+        if (!active) return;
+        setPrivateCatalog(entries);
+        setPrivateCatalogState('ready');
+      })
+      .catch(() => {
+        if (active) setPrivateCatalogState('unavailable');
       });
     return () => {
       active = false;
@@ -406,7 +431,7 @@ export function DataEditorApp() {
         packageId,
         name: details.name.trim(),
         version: details.version,
-        schemaVersion: 1,
+        schemaVersion: 2,
         gameVersionCompatibility: '>=0.1.0 <0.2.0',
         author: details.author.trim(),
         description: details.description.trim(),
@@ -779,6 +804,31 @@ export function DataEditorApp() {
     }
   };
 
+  const runPrivateSandbox = async (entry: DataPackageCatalogEntry) => {
+    setError('');
+    setMessage('');
+    try {
+      const activeBaseIds = privateCatalog
+        .filter(
+          (candidate) =>
+            candidate.active &&
+            candidate.manifest.contentType === 'base' &&
+            candidate.manifest.packageId !== entry.manifest.packageId,
+        )
+        .map((candidate) => candidate.manifest.packageId);
+      const summary = await runPrivatePackageSandbox(
+        entry.manifest.contentType === 'base'
+          ? [entry.manifest.packageId]
+          : [...activeBaseIds, entry.manifest.packageId],
+      );
+      setMessage(
+        `Sandbox privado validado em memória: ${summary.people} pessoa(s), ${summary.clubs} clube(s) e ${summary.competitions} competição(ões). Nenhuma carreira foi criada.`,
+      );
+    } catch {
+      setError('O sandbox privado foi bloqueado; o catálogo público permaneceu intacto.');
+    }
+  };
+
   useEffect(() => {
     if (!projectId || !dirty || busy !== null) return;
     setDraftSaveState('pending');
@@ -992,6 +1042,43 @@ export function DataEditorApp() {
                   </ul>
                 )}
               </section>
+              {privateCatalogState === 'ready' && privatePackages.length > 0 && (
+                <section
+                  aria-label="Ambiente privado de desenvolvimento"
+                  className="creator-library-group creator-private-catalog"
+                >
+                  <h3>
+                    Ambiente privado <span>{privatePackages.length}</span>
+                  </h3>
+                  <p>
+                    Ambiente privado de desenvolvimento. Isolado da biblioteca pública e da Nova
+                    Carreira.
+                  </p>
+                  <ul>
+                    {privatePackages.map((entry) => (
+                      <li key={entry.manifest.packageId}>
+                        <div>
+                          <strong>{entry.manifest.name}</strong>
+                          <span>
+                            {entry.catalogScope === 'uat' ? 'UAT isolado' : 'Desenvolvimento'} · v
+                            {entry.manifest.version}
+                          </span>
+                          <em data-valid={entry.selectable || undefined}>
+                            {entry.selectable ? 'Pronto para sandbox' : 'Readiness incompleta'}
+                          </em>
+                        </div>
+                        <Button
+                          disabled={!entry.validation.valid}
+                          onClick={() => void runPrivateSandbox(entry)}
+                          variant="secondary"
+                        >
+                          Testar
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
               <section className="creator-library-group">
                 <h3>
                   Exportados{' '}

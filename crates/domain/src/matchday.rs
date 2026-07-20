@@ -32,6 +32,7 @@ pub enum PreferredFoot {
     Left,
     #[default]
     Right,
+    Both,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]

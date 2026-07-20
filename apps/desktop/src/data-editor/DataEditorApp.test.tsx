@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -14,12 +14,14 @@ const clientMock = vi.hoisted(() => ({
   inspectRivmod: vi.fn(),
   installRivmod: vi.fn(),
   loadDataPackageCatalog: vi.fn(),
+  loadPrivateDataPackageCatalog: vi.fn(),
   loadCreatorProject: vi.fn(),
   loadCreatorProjects: vi.fn(),
   loadModAuthoringWorld: vi.fn(),
   loadPackageHistory: vi.fn(),
   loadWorldDatabaseSummary: vi.fn(),
   rollbackPackage: vi.fn(),
+  runPrivatePackageSandbox: vi.fn(),
   saveCreatorProject: vi.fn(),
   validateDataPackageSource: vi.fn(),
 }));
@@ -35,6 +37,8 @@ describe('DataEditorApp', () => {
     careerClientMock.exitApplication.mockReset().mockResolvedValue(undefined);
     clientMock.exportDataPackageSource.mockReset().mockResolvedValue(validReport);
     clientMock.loadCreatorProjects.mockReset().mockResolvedValue([]);
+    clientMock.loadPrivateDataPackageCatalog.mockReset().mockRejectedValue(new Error('disabled'));
+    clientMock.runPrivatePackageSandbox.mockReset();
     clientMock.loadDataPackageCatalog.mockReset().mockResolvedValue([
       {
         manifest: {
@@ -45,6 +49,8 @@ describe('DataEditorApp', () => {
         },
         active: true,
         validation: validReport,
+        catalogScope: 'public',
+        selectable: true,
       },
     ]);
     clientMock.loadWorldDatabaseSummary.mockReset().mockResolvedValue({
@@ -288,5 +294,64 @@ describe('DataEditorApp', () => {
     const confirmedUnload = new Event('beforeunload', { cancelable: true });
     window.dispatchEvent(confirmedUnload);
     expect(confirmedUnload.defaultPrevented).toBe(false);
+  });
+
+  it('shows an authorized private catalog as an isolated sandbox, never as a public install', async () => {
+    clientMock.loadPrivateDataPackageCatalog.mockResolvedValue([
+      {
+        manifest: {
+          packageId: 'official.rivallo.foundation',
+          name: 'Rivallo Foundation',
+          version: '1.0.0',
+          contentType: 'base',
+          visibility: 'public',
+        },
+        active: true,
+        validation: validReport,
+        catalogScope: 'uat',
+        selectable: true,
+      },
+      {
+        manifest: {
+          packageId: 'dev.synthetic-uat-package',
+          name: 'Pacote sintético UAT',
+          version: '1.0.0',
+          contentType: 'mod',
+          visibility: 'privateDevelopment',
+        },
+        active: false,
+        validation: validReport,
+        catalogScope: 'uat',
+        selectable: false,
+      },
+    ]);
+    clientMock.runPrivatePackageSandbox.mockResolvedValue({
+      packages: 2,
+      people: 1,
+      clubs: 2,
+      competitions: 1,
+    });
+
+    render(<DataEditorApp />);
+    expect(
+      await screen.findByText(
+        'Ambiente privado de desenvolvimento. Isolado da biblioteca pública e da Nova Carreira.',
+      ),
+    ).toBeInstanceOf(HTMLElement);
+    expect(screen.getByText('Pacote sintético UAT')).toBeInstanceOf(HTMLElement);
+    expect(screen.getByText('Readiness incompleta')).toBeInstanceOf(HTMLElement);
+    fireEvent.click(
+      within(screen.getByLabelText('Ambiente privado de desenvolvimento')).getByRole('button', {
+        name: 'Testar',
+      }),
+    );
+
+    await waitFor(() => {
+      expect(clientMock.runPrivatePackageSandbox).toHaveBeenCalledWith([
+        'official.rivallo.foundation',
+        'dev.synthetic-uat-package',
+      ]);
+    });
+    expect(await screen.findByText(/Nenhuma carreira foi criada/u)).toBeInstanceOf(HTMLElement);
   });
 });

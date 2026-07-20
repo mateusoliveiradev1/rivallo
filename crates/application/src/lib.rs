@@ -49,7 +49,9 @@ pub use table_view::{
     TableViewState, TableViewValidationCode, TableViewValidationError, ViewId, ViewMutability,
     ViewProvenance, WindowId, squad_system_default_repository_state,
 };
-pub use world::{DataPackageCatalogEntry, WorldDatabaseService, WorldPackageRepository};
+pub use world::{
+    DataPackageCatalogEntry, PackageCatalogScope, WorldDatabaseService, WorldPackageRepository,
+};
 
 use rivallo_domain::{ModuleId, PreparedContractInput};
 

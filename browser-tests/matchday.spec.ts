@@ -885,16 +885,22 @@ test.beforeEach(async ({ page }) => {
           manifest: officialManifest,
           active: true,
           validation: { valid: true, diagnostics: [] },
+          catalogScope: 'public',
+          selectable: true,
         },
         {
           manifest: scoutingModManifest,
           active: false,
           validation: { valid: true, diagnostics: [] },
+          catalogScope: 'public',
+          selectable: true,
         },
         {
           manifest: analysisModManifest,
           active: false,
           validation: { valid: true, diagnostics: [] },
+          catalogScope: 'public',
+          selectable: true,
         },
       ];
       const composition = {
@@ -2023,11 +2029,14 @@ test('authors geography, staff and incomplete competition drafts without JSON', 
 
   await page.getByRole('button', { name: /^Comiss.o$/u }).click();
   await page.locator('.studio-module-toolbar').getByRole('button', { name: 'Criar novo' }).click();
-  await page.getByRole('textbox', { name: 'Nome completo' }).fill('Rita Independente');
+  await page.getByRole('textbox', { name: 'Nome factual' }).fill('Rita Independente');
   await page.getByRole('textbox', { name: 'Nome conhecido' }).fill('Rita');
+  await page.getByRole('textbox', { name: 'Staff member ID' }).fill('staff-rita-independente');
   await page.getByRole('combobox', { name: 'Clube' }).selectOption('');
-  await page.getByRole('combobox', { name: 'Cargo' }).selectOption('Analista');
-  await page.getByRole('button', { name: 'Adicionar treinador ao mod' }).click();
+  await page.getByRole('textbox', { name: 'Cargo ou função' }).fill('Analista');
+  await page.getByRole('textbox', { name: 'Fonte', exact: true }).fill('browser.synthetic');
+  await expect(page.getByText('Avaliação pendente', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Salvar fatos' }).click();
   await expect(page.getByText('Rita', { exact: true }).first()).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('creator-staff.png'), fullPage: true });
 

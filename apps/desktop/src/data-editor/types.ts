@@ -50,6 +50,15 @@ export interface DataPackageCatalogEntry {
   readonly manifest: PackageManifestSummary;
   readonly active: boolean;
   readonly validation: PackageValidationReport;
+  readonly catalogScope: 'public' | 'privateDevelopment' | 'uat';
+  readonly selectable: boolean;
+}
+
+export interface PrivateSandboxSummary {
+  readonly packages: number;
+  readonly people: number;
+  readonly clubs: number;
+  readonly competitions: number;
 }
 
 export type CreatorProjectMode = 'quickMod' | 'dataStudio';
@@ -145,6 +154,7 @@ export interface WorldDatabaseSummary {
 
 export interface ModAuthoringWorld {
   readonly clubs: readonly Club[];
+  readonly people?: readonly FactualPerson[];
   readonly players: readonly Player[];
   readonly playerProfiles: readonly AuthoringPlayerProfile[];
   readonly coaches: readonly AuthoringCoachProfile[];
@@ -207,11 +217,64 @@ export interface StudioCompetitionStage {
 }
 
 export interface StudioPlayerRegistration {
+  readonly registrationId?: string | null;
   readonly playerId: string;
   readonly clubId: string;
   readonly shirtNumber: number | null;
   readonly contractReference: string | null;
   readonly eligible: boolean;
+}
+
+export type PersonRoleKind = 'player' | 'coach' | 'staffMember';
+export type PreferredFoot = 'left' | 'right' | 'both';
+export type ProvenanceVerificationStatus = 'pending' | 'verified' | 'disputed';
+
+export interface FactualPersonRole {
+  readonly roleId: string;
+  readonly kind: PersonRoleKind;
+  readonly clubId: string | null;
+  readonly title: string | null;
+}
+
+export interface FactualProvenance {
+  readonly source: string;
+  readonly sourceRecordId: string | null;
+  readonly observedAt: string | null;
+  readonly verificationStatus: ProvenanceVerificationStatus;
+  readonly fields: readonly string[];
+}
+
+export interface FactualPersonReadiness {
+  readonly identity: 'partialFactualIdentity' | 'verifiedFactualIdentity';
+  readonly structural: 'structurallyValid' | 'structurallyBlocked';
+  readonly runtimeProfile: 'runtimeProfileBlocked' | 'runtimeProfileAvailable';
+  readonly evaluation: 'awaitingEvaluation' | 'evaluated' | 'notApplicable';
+  readonly gameplay: 'gameplayBlocked' | 'gameplayReady';
+  readonly blockers: readonly string[];
+}
+
+export interface FactualPerson {
+  readonly personId: string;
+  readonly externalIds: readonly { readonly source: string; readonly externalId: string }[];
+  readonly fullName: string;
+  readonly knownName: string | null;
+  readonly birthDate: string | null;
+  readonly heightCm: number | null;
+  readonly weightKg: number | null;
+  readonly preferredFoot: PreferredFoot | null;
+  readonly nationalityId: string | null;
+  readonly secondNationalityId: string | null;
+  readonly detailedPosition: Player['position'] | null;
+  readonly shirtNumber: number | null;
+  readonly contract: {
+    readonly clubId: string;
+    readonly startedAt: string | null;
+    readonly expiresAt: string | null;
+    readonly squadStatus: string | null;
+  } | null;
+  readonly roles: readonly FactualPersonRole[];
+  readonly provenance: readonly FactualProvenance[];
+  readonly readiness: FactualPersonReadiness;
 }
 
 export interface StudioCompetition {
@@ -294,6 +357,7 @@ export interface GeneratedPackagePatch {
   readonly operation: 'add' | 'replace' | 'remove';
   readonly entityKind:
     | 'club'
+    | 'person'
     | 'matchdayPlayer'
     | 'playerProfile'
     | 'externalPlayer'
@@ -315,6 +379,7 @@ export interface CommunityChange {
     | 'club'
     | 'player'
     | 'coach'
+    | 'staff'
     | 'nation'
     | 'region'
     | 'city'

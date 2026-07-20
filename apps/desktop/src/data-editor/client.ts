@@ -12,6 +12,7 @@ import type {
   PackageValidationReport,
   PackageDistributionReceipt,
   PackageHistoryEntry,
+  PrivateSandboxSummary,
   RivmodInspection,
   WorldDatabaseSummary,
 } from './types.js';
@@ -63,6 +64,33 @@ export const decodeValidationReport = (value: unknown): PackageValidationReport 
 
 export const loadDataPackageCatalog = async (): Promise<readonly DataPackageCatalogEntry[]> =>
   invoke<DataPackageCatalogEntry[]>('data_package_catalog');
+
+export const loadPrivateDataPackageCatalog = async (): Promise<
+  readonly DataPackageCatalogEntry[]
+> => invoke<DataPackageCatalogEntry[]>('private_data_package_catalog');
+
+export const runPrivatePackageSandbox = async (
+  packageIds: readonly string[],
+): Promise<PrivateSandboxSummary> => {
+  const resolved = record(await invoke<unknown>('preview_private_package_sandbox', { packageIds }));
+  const world = record(resolved?.world);
+  if (
+    !resolved ||
+    !Array.isArray(resolved.packages) ||
+    !world ||
+    !Array.isArray(world.people) ||
+    !Array.isArray(world.clubs) ||
+    !Array.isArray(world.competitions)
+  ) {
+    throw new Error('O sandbox privado retornou um snapshot incompatível.');
+  }
+  return {
+    packages: resolved.packages.length,
+    people: world.people.length,
+    clubs: world.clubs.length,
+    competitions: world.competitions.length,
+  };
+};
 
 export const loadModAuthoringWorld = async (packageId: string): Promise<ModAuthoringWorld> => {
   const resolved = record(

@@ -6,7 +6,7 @@ import process from 'node:process';
 
 /** @typedef {{ exitCode: number; stdout: string; stderr: string }} ProcessResult */
 /** @typedef {{ id: string; command: string; durationMs: number; exitCode: number; stdout: string; stderr: string }} CommandResult */
-/** @typedef {'lifecycle' | 'asset' | 'export'} NativeRequirement */
+/** @typedef {'lifecycle' | 'asset' | 'export' | 'private'} NativeRequirement */
 /** @typedef {{ title: string; duration?: number; error?: { message?: string }; steps?: PlaywrightStep[] }} PlaywrightStep */
 /** @typedef {{ steps?: PlaywrightStep[] }} PlaywrightResult */
 /** @typedef {{ results?: PlaywrightResult[] }} PlaywrightTest */
@@ -110,6 +110,8 @@ let nativeLifecycleResult;
 let nativeAssetResult;
 /** @type {CommandResult | undefined} */
 let nativeExportResult;
+/** @type {CommandResult | undefined} */
+let nativePrivateResult;
 
 try {
   focusedResult = await run('focused-tests', [
@@ -118,6 +120,7 @@ try {
     'run',
     'apps/desktop/src/data-editor/CompetitionBuilder.test.tsx',
     'apps/desktop/src/data-editor/DataStudio.test.tsx',
+    'apps/desktop/src/data-editor/CsvImport.test.tsx',
     'apps/desktop/src/data-editor/authoring-graph.test.ts',
   ]);
   browserResult = await run('playwright', [
@@ -151,6 +154,14 @@ try {
     '-p',
     'rivallo-platform',
     'editor_export_is_atomic_and_does_not_activate_the_mod',
+  ]);
+  nativePrivateResult = await run('native-private-catalog', [
+    'exec',
+    'cargo',
+    'test',
+    '-p',
+    'rivallo-platform',
+    'authorized_uat_catalog_discovers_and_sandboxes_only_its_private_package',
   ]);
 } finally {
   cleanup.attempted = true;
@@ -199,6 +210,7 @@ const focusedPassed = focusedResult?.exitCode === 0;
 const nativeLifecyclePassed = nativeLifecycleResult?.exitCode === 0;
 const nativeAssetPassed = nativeAssetResult?.exitCode === 0;
 const nativeExportPassed = nativeExportResult?.exitCode === 0;
+const nativePrivatePassed = nativePrivateResult?.exitCode === 0;
 
 /** @type {Array<[string, string, string, string[], NativeRequirement[]]>} */
 const definitions = [
@@ -269,8 +281,12 @@ const definitions = [
   [
     '11',
     'Readiness',
-    '11 Readiness — bloqueadores acionáveis, validade estrutural e pronto para carreira',
-    ['11-readiness-bloqueada.png', '11-readiness-estrutural.png', '11-readiness-pronta.png'],
+    '11 Readiness — validade estrutural sem liberar gameplay',
+    [
+      '11-readiness-bloqueada.png',
+      '11-readiness-estrutural.png',
+      '11-readiness-gameplay-bloqueada.png',
+    ],
     [],
   ],
   [
@@ -304,8 +320,8 @@ const definitions = [
   [
     '16',
     'Nova Carreira',
-    '16 Nova Carreira — mod, Aurora FC, escudo e história sem criar carreira',
-    ['16-nova-carreira-afc.png'],
+    '16 Nova Carreira — pacote com avaliação pendente permanece bloqueado',
+    ['16-nova-carreira-bloqueada.png'],
     [],
   ],
   [
@@ -315,12 +331,20 @@ const definitions = [
     ['17-1024x768.png', '17-1920x1080.png', '17-zoom-200.png'],
     [],
   ],
+  [
+    '18',
+    'Catálogo privado factual',
+    '18 Catálogo privado factual — capability explícita, pessoa parcial e sandbox sem carreira',
+    [],
+    ['private'],
+  ],
 ];
 
 const nativeState = {
   lifecycle: nativeLifecyclePassed,
   asset: nativeAssetPassed,
   export: nativeExportPassed,
+  private: nativePrivatePassed,
 };
 const stages = definitions.map(([id, name, stepTitle, screenshots, nativeRequirements]) => {
   const browserStep = browserSteps.get(stepTitle);

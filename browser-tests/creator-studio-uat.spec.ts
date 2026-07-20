@@ -134,7 +134,13 @@ test.beforeEach(async ({ page }) => {
       profiles: { players: [], coaches: [] },
     };
     const catalog = [
-      { manifest: baseManifest, active: true, validation: { valid: true, diagnostics: [] } },
+      {
+        manifest: baseManifest,
+        active: true,
+        validation: { valid: true, diagnostics: [] },
+        catalogScope: 'public',
+        selectable: true,
+      },
     ];
     const resolvedWorld = () => {
       const next = clone(world) as typeof world & {
@@ -258,6 +264,8 @@ test.beforeEach(async ({ page }) => {
               manifest: { ...installedManifest, contentType: 'mod' },
               active: false,
               validation: { valid: true, diagnostics: [] },
+              catalogScope: 'public',
+              selectable: false,
             },
           ]);
         }
@@ -547,7 +555,7 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
       .getByRole('button', { name: 'Criar novo' })
       .click();
     await page.getByRole('textbox', { name: 'Nome completo' }).fill('Aurora Futebol Clube');
-    await page.getByRole('textbox', { name: 'Sigla' }).fill('AFC');
+    await page.getByRole('textbox', { name: 'Sigla' }).fill('afc');
     await page.getByRole('combobox', { name: 'Cidade' }).selectOption({ label: 'São Paulo' });
     await page.getByRole('combobox', { name: 'País' }).selectOption({ label: 'Brasil' });
     await page.getByRole('combobox', { name: 'Estádio' }).selectOption({ label: 'Estádio Horizonte' });
@@ -686,10 +694,12 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
   });
 
   await test.step('09 Pessoas — treinador, auxiliar, goleiro e dois jogadores por CRUD visual', async () => {
-    const createCoach = async (
+    const createPerson = async (
       moduleName: 'Treinadores' | 'Comissão',
       fullName: string,
-      role: string,
+      roleIdLabel: 'Coach ID' | 'Staff member ID',
+      roleId: string,
+      roleTitle: string,
     ) => {
       await page.getByRole('button', { name: moduleName, exact: true }).click();
       await page
@@ -697,16 +707,21 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
         .getByRole('button', { name: 'Criar novo' })
         .click();
       const inspector = page.getByLabel('Inspector da entidade');
-      await inspector.getByRole('textbox', { name: 'Nome completo' }).fill(fullName);
+      await inspector.getByRole('textbox', { name: 'Nome factual' }).fill(fullName);
       await inspector
         .getByRole('textbox', { name: 'Nome conhecido' })
         .fill(fullName.split(' ')[0]!);
+      await inspector.getByRole('textbox', { name: roleIdLabel }).fill(roleId);
+      await inspector.getByRole('textbox', { name: 'Cargo ou função' }).fill(roleTitle);
       await inspector
         .getByRole('combobox', { name: 'Clube' })
         .selectOption({ label: 'Aurora Futebol Clube' });
-      await inspector.getByRole('combobox', { name: 'Cargo' }).selectOption({ label: role });
-      await inspector.getByRole('checkbox', { name: /Criar contrato inicial agora/u }).check();
-      await inspector.getByRole('button', { name: 'Adicionar treinador ao mod' }).click();
+      await inspector
+        .getByRole('textbox', { name: 'Fonte', exact: true })
+        .fill('creator-studio.synthetic');
+      await expect(inspector.getByText('Avaliação pendente', { exact: true })).toBeVisible();
+      await expect(inspector.getByText('Bloqueada para gameplay', { exact: true })).toBeVisible();
+      await inspector.getByRole('button', { name: 'Salvar fatos' }).click();
       await expect(page.getByText(fullName.split(' ')[0]!, { exact: true }).first()).toBeVisible();
     };
     const createPlayer = async (fullName: string, position: 'GK' | 'CB' | 'CM') => {
@@ -716,21 +731,40 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
         .getByRole('button', { name: 'Criar novo' })
         .click();
       const inspector = page.getByLabel('Inspector da entidade');
-      await inspector.getByRole('textbox', { name: 'Nome completo' }).fill(fullName);
+      await inspector.getByRole('textbox', { name: 'Nome factual' }).fill(fullName);
       await inspector
         .getByRole('textbox', { name: 'Nome conhecido' })
         .fill(fullName.split(' ')[0]!);
       await inspector
+        .getByRole('textbox', { name: 'Player ID' })
+        .fill(`player-${fullName.toLocaleLowerCase('pt-BR').replace(/\s+/gu, '-')}`);
+      await inspector
         .getByRole('combobox', { name: 'Clube' })
         .selectOption({ label: 'Aurora Futebol Clube' });
-      await inspector.getByRole('combobox', { name: 'Posição' }).selectOption(position);
-      await inspector.getByRole('checkbox', { name: /Criar contrato inicial agora/u }).check();
-      await inspector.getByRole('button', { name: 'Adicionar jogador ao mod' }).click();
+      await inspector.getByRole('combobox', { name: 'Posição detalhada' }).selectOption(position);
+      await inspector
+        .getByRole('textbox', { name: 'Fonte', exact: true })
+        .fill('creator-studio.synthetic');
+      await expect(inspector.getByText('Avaliação pendente', { exact: true })).toBeVisible();
+      await expect(inspector.getByText('Bloqueada para gameplay', { exact: true })).toBeVisible();
+      await inspector.getByRole('button', { name: 'Salvar fatos' }).click();
       await expect(page.getByText(fullName.split(' ')[0]!, { exact: true }).first()).toBeVisible();
     };
 
-    await createCoach('Treinadores', 'Marcos UAT', 'Treinador principal');
-    await createCoach('Comissão', 'Paula UAT', 'Auxiliar técnico');
+    await createPerson(
+      'Treinadores',
+      'Marcos UAT',
+      'Coach ID',
+      'coach-marcos-uat',
+      'Treinador principal',
+    );
+    await createPerson(
+      'Comissão',
+      'Paula UAT',
+      'Staff member ID',
+      'staff-paula-uat',
+      'Auxiliar técnico',
+    );
     await createPlayer('Rafael UAT', 'GK');
     await createPlayer('Carlos UAT', 'CB');
     await createPlayer('Lucas UAT', 'CM');
@@ -744,31 +778,37 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
     await page.getByRole('combobox', { name: 'Entidade' }).selectOption('player');
     const headers = [
       'internalId',
+      'roleId',
+      'externalSource',
       'externalId',
       'fullName',
       'knownName',
       'clubId',
-      'nationality',
+      'nationalityId',
       'birthDate',
       'position',
       'shirtNumber',
-      'currentAbility',
-      'potential',
+      'source',
+      'sourceRecordId',
+      'verificationStatus',
     ];
     const clubId = 'test.synthetic.world.club.sao-paulo-futebol-clube';
     const rows = Array.from({ length: 15 }, (_, index) =>
       [
         `uat.creator.player.${index + 4}`,
+        `uat.creator.player-role.${index + 4}`,
+        'creator-studio-uat',
         `creator-uat-${index + 4}`,
         `Jogador Fixture ${index + 4}`,
         `Fixture ${index + 4}`,
         clubId,
-        'BR',
+        'nation.brazil',
         '2000-01-01',
         index === 0 ? 'GK' : index % 2 === 0 ? 'CB' : 'CM',
         String(index + 4),
-        '55',
-        '68',
+        'creator-studio.synthetic',
+        `creator-uat-${index + 4}`,
+        'pending',
       ].join(','),
     );
     await page.locator('input[type="file"][accept*="csv"]').setInputFiles({
@@ -787,9 +827,9 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
     const competitionId = 'test.synthetic.world.competition.sample-league-2026';
     const seasonId = `${competitionId}.season.2026`;
     const visualPlayerIds = [
-      'test.synthetic.world.player.rafael-uat',
-      'test.synthetic.world.player.carlos-uat',
-      'test.synthetic.world.player.lucas-uat',
+      'community.person.player-rafael-uat',
+      'community.person.player-carlos-uat',
+      'community.person.player-lucas-uat',
     ];
     const csvPlayerIds = Array.from(
       { length: 15 },
@@ -857,11 +897,11 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
     await page.getByRole('button', { name: 'Inscrições', exact: true }).click();
     await expect(page.locator('.studio-table-toolbar').getByText('18 itens')).toBeVisible();
     await page.getByRole('button', { name: 'Contratos', exact: true }).click();
-    await expect(page.locator('.studio-table-toolbar').getByText('20 itens')).toBeVisible();
+    await expect(page.locator('.studio-table-toolbar').getByText('15 itens')).toBeVisible();
     await screenshot(page, testInfo, '10-contratos-inscricoes');
   });
 
-  await test.step('11 Readiness — bloqueadores acionáveis, validade estrutural e pronto para carreira', async () => {
+  await test.step('11 Readiness — validade estrutural sem liberar gameplay', async () => {
     await page.getByRole('button', { name: 'Clubes', exact: true }).click();
     const clubRow = page
       .getByLabel('Lista de Clubes')
@@ -909,12 +949,18 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
       .getByLabel('Lista de Clubes')
       .getByRole('row')
       .filter({ hasText: 'Aurora Futebol Clube' });
-    await expect(readyClubRow).toContainText('Pronto para Nova Carreira');
+    await expect(readyClubRow).toContainText('Rascunho incompleto');
     await readyClubRow.getByRole('button', { name: /Aurora Futebol Clube/u }).click();
     await expect(
-      page.getByLabel('Inspector da entidade').getByText('Pronto para Nova Carreira'),
+      page.getByLabel('Inspector da entidade').getByText('0 de 18 jogadores mínimos'),
     ).toBeVisible();
-    await screenshot(page, testInfo, '11-readiness-pronta');
+    await expect(
+      page.getByLabel('Inspector da entidade').getByText('Nenhum goleiro disponível'),
+    ).toBeVisible();
+    await expect(
+      page.getByLabel('Inspector da entidade').getByText('Nenhum treinador principal'),
+    ).toBeVisible();
+    await screenshot(page, testInfo, '11-readiness-gameplay-bloqueada');
   });
 
   await test.step('12 Sandbox — snapshot temporário sem carreira, calendário ou resultado', async () => {
@@ -1040,52 +1086,19 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
     ).toBeVisible();
   });
 
-  await test.step('16 Nova Carreira — mod, Aurora FC, escudo e história sem criar carreira', async () => {
+  await test.step('16 Nova Carreira — pacote com avaliação pendente permanece bloqueado', async () => {
     await page.goto(mainMenuUrl);
     await page.getByRole('button', { name: 'Nova carreira' }).click();
     await expect(
       page.getByRole('heading', { name: 'Escolha os dados desta carreira' }),
     ).toBeVisible();
-    const modChoice = page.getByRole('button', { name: /Creator Studio Automated UAT/u });
-    await modChoice.click();
-    await page.getByRole('button', { name: 'Avançar' }).click();
-    await expect(page.getByRole('heading', { name: 'Defina o ponto de partida' })).toBeVisible();
-    const competitionEvidence = await page.evaluate(() => {
-      const state = (
-        window as unknown as {
-          __CREATOR_STUDIO_UAT__: {
-            readState: () => {
-              projects: Array<{ version: string; source: { patchesJson: string | null } }>;
-            };
-          };
-        }
-      ).__CREATOR_STUDIO_UAT__.readState();
-      const project = state.projects.at(-1);
-      const patches = project?.source.patchesJson
-        ? (JSON.parse(project.source.patchesJson) as Array<{
-            entityKind: string;
-            entity?: { value?: { name?: string; seasons?: unknown[] } };
-          }>)
-        : [];
-      const competition = patches.filter((patch) => patch.entityKind === 'competition').at(-1)
-        ?.entity?.value;
-      return {
-        version: project?.version,
-        name: competition?.name,
-        seasons: competition?.seasons?.length,
-      };
-    });
-    expect(competitionEvidence).toMatchObject({
-      version: '1.0.1',
-      name: 'Liga Horizonte',
-      seasons: 1,
-    });
-    await page.getByRole('button', { name: 'Avançar' }).click();
-    await expect(page.getByRole('heading', { name: 'Onde sua história começa?' })).toBeVisible();
-    await page.getByRole('option', { name: /Aurora Futebol Clube/u }).click();
-    await expect(page.getByText(/Fundado em 1930/u)).toBeVisible();
-    await expect(page.locator('.club-preview').getByText('18', { exact: true })).toBeVisible();
-    await expect(page.locator('.club-preview img')).toBeVisible();
+    await expect(page.getByRole('button', { name: /Creator Studio Automated UAT/u })).toHaveCount(
+      0,
+    );
+    await expect(page.getByRole('radio', { name: /Base oficial Rivallo/u })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
     const state = await page.evaluate(() =>
       (
         window as unknown as {
@@ -1094,7 +1107,7 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
       ).__CREATOR_STUDIO_UAT__.readState(),
     );
     expect(state.invocations).not.toContain('create_career');
-    await screenshot(page, testInfo, '16-nova-carreira-afc');
+    await screenshot(page, testInfo, '16-nova-carreira-bloqueada');
   });
 
   await test.step('17 Cobertura responsiva — 1024, 1920 e zoom 200%', async () => {

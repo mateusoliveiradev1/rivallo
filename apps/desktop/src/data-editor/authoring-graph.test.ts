@@ -162,6 +162,99 @@ describe('Creator Studio authoring graph', () => {
     );
   });
 
+  it('projects one partial factual person across roles without inventing sporting profiles', () => {
+    const person = {
+      personId: 'synthetic.person.alpha',
+      externalIds: [{ source: 'synthetic', externalId: 'alpha-1' }],
+      fullName: 'Pessoa Sintética Alpha',
+      knownName: null,
+      birthDate: null,
+      heightCm: null,
+      weightKg: null,
+      preferredFoot: null,
+      nationalityId: null,
+      secondNationalityId: null,
+      detailedPosition: null,
+      shirtNumber: null,
+      contract: null,
+      roles: [
+        { roleId: 'synthetic.player.alpha', kind: 'player', clubId: 'club.draft', title: null },
+        {
+          roleId: 'synthetic.coach.alpha',
+          kind: 'coach',
+          clubId: 'club.draft',
+          title: 'Função sintética',
+        },
+      ],
+      provenance: [
+        {
+          source: 'synthetic',
+          sourceRecordId: 'alpha-1',
+          observedAt: null,
+          verificationStatus: 'pending',
+          fields: ['fullName'],
+        },
+      ],
+      readiness: {
+        identity: 'partialFactualIdentity',
+        structural: 'structurallyValid',
+        runtimeProfile: 'runtimeProfileBlocked',
+        evaluation: 'awaitingEvaluation',
+        gameplay: 'gameplayBlocked',
+        blockers: ['player.position_unknown', 'player.evaluation_missing'],
+      },
+    } as const;
+    const created: CommunityChange = {
+      id: `person:${person.personId}`,
+      kind: 'player',
+      operation: 'create',
+      targetId: person.personId,
+      label: person.fullName,
+      summary: '1 fato · avaliação ausente',
+      patches: [
+        {
+          operation: 'add',
+          entityKind: 'person',
+          targetId: person.personId,
+          entity: { kind: 'person', value: person },
+          reason: 'Fixture factual sintética',
+        },
+      ],
+      asset: null,
+    };
+    const projected = projectAuthoringWorld(world, [created]);
+
+    expect(projected.people).toHaveLength(1);
+    expect(projected.playerProfiles).toHaveLength(0);
+    expect(projected.coaches).toHaveLength(0);
+    expect(recordsForModule(projected, [created], 'players')[0]).toEqual(
+      expect.objectContaining({
+        name: 'Pessoa Sintética Alpha',
+        detail: 'Posição desconhecida · Não avaliado',
+        readiness: expect.objectContaining({
+          label: 'Identidade parcial · bloqueada para gameplay',
+        }),
+      }),
+    );
+    expect(recordsForModule(projected, [created], 'coaches')).toHaveLength(1);
+
+    const edited: CommunityChange = {
+      ...created,
+      operation: 'edit',
+      patches: [
+        {
+          ...created.patches[0]!,
+          operation: 'replace',
+          entity: { kind: 'person', value: { ...person, knownName: 'Alpha' } },
+        },
+      ],
+    };
+    const reconciled = reconcileAuthoringChange(world, [created], edited);
+    expect(reconciled).toHaveLength(1);
+    expect(reconciled[0]?.patches[0]?.operation).toBe('add');
+    expect(projectAuthoringWorld(world, reconciled).people?.[0]?.knownName).toBe('Alpha');
+  });
+
   it('uses Replace and Remove only for entities owned by the base composition', () => {
     const editedNation: CommunityChange = {
       ...change('nation', 'city', 'nation.br', {}),

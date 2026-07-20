@@ -91,10 +91,16 @@ const assistanceCopy: Record<
 
 export function NewCareerWizard({ catalog, onCancel, onCreated, onExit }: NewCareerWizardProps) {
   const bases = catalog.filter(
-    (entry) => entry.manifest.contentType === 'base' && entry.manifest.visibility === 'public',
+    (entry) =>
+      entry.selectable &&
+      entry.manifest.contentType === 'base' &&
+      entry.manifest.visibility === 'public',
   );
   const mods = catalog.filter(
-    (entry) => entry.manifest.contentType === 'mod' && entry.manifest.visibility === 'public',
+    (entry) =>
+      entry.selectable &&
+      entry.manifest.contentType === 'mod' &&
+      entry.manifest.visibility === 'public',
   );
   const defaultBase =
     bases.find((entry) => entry.manifest.packageId === 'official.rivallo.foundation') ?? bases[0];

@@ -4,7 +4,9 @@ import {
   decodeValidationReport,
   exportDataPackageSource,
   loadDataPackageCatalog,
+  loadPrivateDataPackageCatalog,
   loadWorldDatabaseSummary,
+  runPrivatePackageSandbox,
   validateDataPackageSource,
 } from './client.js';
 
@@ -44,6 +46,28 @@ describe('data editor client', () => {
       2,
       'validate_data_package_source',
       { source },
+      undefined,
+    );
+  });
+
+  it('keeps private discovery and sandbox behind dedicated commands', async () => {
+    invokeMock.mockResolvedValueOnce([]).mockResolvedValueOnce({
+      packages: [{ packageId: 'dev.synthetic' }],
+      world: { people: [{}], clubs: [{}, {}], competitions: [] },
+    });
+
+    await expect(loadPrivateDataPackageCatalog()).resolves.toEqual([]);
+    await expect(runPrivatePackageSandbox(['dev.synthetic'])).resolves.toEqual({
+      packages: 1,
+      people: 1,
+      clubs: 2,
+      competitions: 0,
+    });
+    expect(invokeMock).toHaveBeenNthCalledWith(1, 'private_data_package_catalog', {}, undefined);
+    expect(invokeMock).toHaveBeenNthCalledWith(
+      2,
+      'preview_private_package_sandbox',
+      { packageIds: ['dev.synthetic'] },
       undefined,
     );
   });
