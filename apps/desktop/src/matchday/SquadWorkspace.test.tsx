@@ -30,6 +30,11 @@ import { SquadWorkspace } from './SquadWorkspace.js';
 import type { SquadSortState } from './squad-sort.js';
 import type { MatchdayState, Player } from './types.js';
 
+vi.mock('./client.js', () => ({
+  loadCoachProfile: vi.fn(() => new Promise(() => undefined)),
+  loadPlayerProfile: vi.fn(() => new Promise(() => undefined)),
+}));
+
 const players: readonly Player[] = [
   {
     id: 'player-gk',
@@ -208,6 +213,7 @@ function WorkspaceHarness({
         onClearFilters={() => dispatch({ type: 'filter.set', filter: emptyFilter })}
         onDensityChange={(density) => dispatch({ type: 'density.set', density })}
         onFocusPlayer={setFocusedPlayerId}
+        onOpenProfile={vi.fn()}
         onPositionFilterChange={vi.fn()}
         onPositionFilterVisibleChange={vi.fn()}
         onRoleFilterChange={vi.fn()}

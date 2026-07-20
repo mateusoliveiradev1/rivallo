@@ -12,6 +12,11 @@ import {
 } from '../table-view/table-view-engine.js';
 import { SQUAD_TABLE_SCHEMA } from './squad-table-schema.js';
 import type {
+  CoachProfileProjection,
+  GlobalProfileSearchResult,
+  PlayerProfileProjection,
+} from '../profiles/types.js';
+import type {
   Formation,
   MatchdayState,
   TacticalApproach,
@@ -52,6 +57,18 @@ export const updateTacticalLibrary = (command: TacticalLibraryCommand) =>
   invoke<TacticalPlanUpdate>('update_tactical_library', { request: command });
 
 export const playNextMatch = () => invoke<MatchdayState>('play_next_match');
+
+export const loadPlayerProfile = (playerId: string, variationId?: string | null) =>
+  invoke<PlayerProfileProjection>('player_profile', {
+    playerId,
+    variationId: variationId ?? null,
+  });
+
+export const loadCoachProfile = (coachId: string) =>
+  invoke<CoachProfileProjection>('coach_profile', { coachId });
+
+export const searchProfiles = (query: string) =>
+  invoke<readonly GlobalProfileSearchResult[]>('search_profiles', { query });
 
 export type TableViewMutability = 'immutable' | 'mutable' | 'read-only';
 export type TableViewRecoveryReason =

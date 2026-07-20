@@ -4,7 +4,8 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { userEvent } from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { describeTableViewRejection, MatchdayScreen } from './MatchdayScreen.js';
+import { describeTableViewRejection, MatchdayScreen, parseProfileRoute } from './MatchdayScreen.js';
+import { coachProfileFixture, playerProfileFixture } from '../profiles/test-fixtures.js';
 import type {
   ImportLegacyTablePreferencesRequest,
   LoadTableViewsOutcome,
@@ -40,6 +41,9 @@ const clientMock = vi.hoisted(() => ({
   loadTableViews: vi.fn(),
   saveTableViews: vi.fn(),
   importLegacyTablePreferences: vi.fn(),
+  loadPlayerProfile: vi.fn(),
+  loadCoachProfile: vi.fn(),
+  searchProfiles: vi.fn(),
 }));
 
 vi.mock('./client.js', () => clientMock);
@@ -285,8 +289,21 @@ const changeDensity = async (
 describe('MatchdayScreen', () => {
   beforeEach(() => {
     window.localStorage.clear();
+    window.history.replaceState(null, '', '/');
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1920 });
     clientMock.loadMatchday.mockReset().mockResolvedValue(state);
+    clientMock.loadPlayerProfile.mockReset().mockImplementation(async (playerId: string) => {
+      const player = players.find(({ id }) => id === playerId) ?? players[0]!;
+      return playerProfileFixture({
+        entityId: player.id,
+        fullName: player.name,
+        knownName: player.name,
+        position: player.position,
+        nationality: player.nationality,
+      });
+    });
+    clientMock.loadCoachProfile.mockReset().mockResolvedValue(coachProfileFixture());
+    clientMock.searchProfiles.mockReset().mockResolvedValue([]);
     clientMock.saveMatchdayLineup.mockReset().mockResolvedValue(state);
     clientMock.saveTacticalPlan.mockReset().mockResolvedValue({
       state,
@@ -373,6 +390,18 @@ describe('MatchdayScreen', () => {
       });
   });
 
+  it('parses only stable global player and coach routes', () => {
+    expect(parseProfileRoute('/players/rv-fdv-01')).toEqual({
+      kind: 'player',
+      entityId: 'rv-fdv-01',
+    });
+    expect(parseProfileRoute('/coaches/coach.aurora.1/')).toEqual({
+      kind: 'coach',
+      entityId: 'coach.aurora.1',
+    });
+    expect(parseProfileRoute('/tactics')).toBeNull();
+  });
+
   it('loads the real squad workspace and exposes eleven selected players', async () => {
     render(<MatchdayScreen serviceOwnership="owned" />);
     expect(await screen.findByRole('heading', { name: 'Visão geral do elenco' })).toBeInstanceOf(
@@ -394,6 +423,106 @@ describe('MatchdayScreen', () => {
     expect(
       within(screen.getByLabelText('Resumo de Caio Brandão')).getByLabelText('Brasil, código BRA'),
     ).toBeInstanceOf(HTMLElement);
+  });
+
+  it('uses global search to deep-link one canonical external profile', async () => {
+    const user = userEvent.setup();
+    clientMock.searchProfiles.mockResolvedValue([
+      {
+        entityId: 'rv-fdv-01',
+        entityType: 'player',
+        name: 'Martín Gouveia',
+        secondaryLabel: 'Ferroviário do Vale · Atacante',
+        route: '/players/rv-fdv-01',
+        knowledgeLevel: 'partial',
+      },
+    ]);
+    clientMock.loadPlayerProfile.mockImplementation(async (playerId: string) =>
+      playerId === 'rv-fdv-01'
+        ? playerProfileFixture({
+            entityId: playerId,
+            fullName: 'Martín Gouveia',
+            knownName: 'M. Gouveia',
+            position: 'ST',
+            nationality: 'URU',
+            knowledge: 'partial',
+          })
+        : playerProfileFixture(),
+    );
+
+    render(<MatchdayScreen serviceOwnership="owned" />);
+    await screen.findByRole('heading', { name: 'Visão geral do elenco' });
+    await user.type(
+      screen.getByRole('searchbox', { name: 'Buscar jogadores e treinadores' }),
+      'mart',
+    );
+    await user.click(await screen.findByRole('button', { name: /Martín Gouveia/u }));
+
+    expect(await screen.findByRole('heading', { name: 'M. Gouveia' })).toBeInstanceOf(
+      HTMLHeadingElement,
+    );
+    expect(window.location.pathname).toBe('/players/rv-fdv-01');
+    expect(clientMock.loadPlayerProfile).toHaveBeenCalledWith(
+      'rv-fdv-01',
+      initialTacticalPlan.variationId,
+    );
+  });
+
+  it('ignores an older global-search response after the query changes', async () => {
+    const user = userEvent.setup();
+    const older = deferred<readonly []>();
+    const newer = deferred<
+      readonly [
+        {
+          readonly entityId: string;
+          readonly entityType: 'player';
+          readonly name: string;
+          readonly secondaryLabel: string;
+          readonly route: string;
+          readonly knowledgeLevel: 'partial';
+        },
+      ]
+    >();
+    clientMock.searchProfiles.mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise);
+
+    render(<MatchdayScreen serviceOwnership="owned" />);
+    await screen.findByRole('heading', { name: 'Visão geral do elenco' });
+    const search = screen.getByRole('searchbox', { name: 'Buscar jogadores e treinadores' });
+    await user.type(search, 'ca');
+    await waitFor(() => expect(clientMock.searchProfiles).toHaveBeenCalledWith('ca'));
+    await user.clear(search);
+    await user.type(search, 'mart');
+    await waitFor(() => expect(clientMock.searchProfiles).toHaveBeenCalledWith('mart'));
+
+    newer.resolve([
+      {
+        entityId: 'rv-fdv-01',
+        entityType: 'player',
+        name: 'Martín Gouveia',
+        secondaryLabel: 'Ferroviário do Vale',
+        route: '/players/rv-fdv-01',
+        knowledgeLevel: 'partial',
+      },
+    ]);
+    expect(await screen.findByRole('button', { name: /Martín Gouveia/u })).toBeInstanceOf(
+      HTMLButtonElement,
+    );
+    older.resolve([]);
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Martín Gouveia/u })).toBeInstanceOf(
+        HTMLButtonElement,
+      ),
+    );
+  });
+
+  it('restores a coach profile from a direct native route', async () => {
+    window.history.replaceState(null, '', '/coaches/coach.aurora.1');
+    render(<MatchdayScreen serviceOwnership="owned" />);
+
+    expect(await screen.findByRole('heading', { name: 'Marcelo Nunes' })).toBeInstanceOf(
+      HTMLHeadingElement,
+    );
+    expect(clientMock.loadCoachProfile).toHaveBeenCalledWith('coach.aurora.1');
   });
 
   it('renders durable table descriptors while keeping the player-name query transient', async () => {
@@ -439,7 +568,7 @@ describe('MatchdayScreen', () => {
     ).toBeInstanceOf(HTMLButtonElement);
     expect(screen.queryByRole('button', { name: /Ordenar por Idade/u })).toBeNull();
 
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Buscar jogador no elenco' }), {
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Buscar jogadores e treinadores' }), {
       target: { value: 'Luan' },
     });
 
@@ -456,6 +585,9 @@ describe('MatchdayScreen', () => {
         index === 0 ? { ...player, nationality: 'código-corrompido-comprido' } : player,
       ),
     });
+    clientMock.loadPlayerProfile.mockResolvedValue(
+      playerProfileFixture({ nationality: 'código-corrompido-comprido' }),
+    );
 
     render(<MatchdayScreen serviceOwnership="owned" />);
     await screen.findByRole('heading', { name: 'Visão geral do elenco' });

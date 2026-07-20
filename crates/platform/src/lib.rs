@@ -2,16 +2,26 @@
 
 mod matchday;
 pub mod persistence;
+mod profiles;
 mod runtime;
 mod table_view;
 
 pub use matchday::{FileMatchdayRepository, MatchdayCoordinator};
 pub use persistence::{LocalDataDirectoryResolver, SqlitePersistenceAdapter};
+pub use profiles::{FileProfileRepository, ProfileCoordinator};
 pub use rivallo_application::{
-    ColumnId, ColumnPinning, ColumnPinningSide, CustomFormationIdentity, FilterGroupId,
-    FilterGroupLogic, FilterId, FilterOperator, FilterValue, Formation, LegacyImportOutcome,
-    LegacyImportReceipt, LegacyTableViewImport, LineupSelection, MatchdayState, NullOrder,
-    OwnerScope, SavedTableView, SortDirection, TableColumnState, TableDataWindow, TableDensity,
+    AttributeGroupProjection, AttributeProjection, AttributeSnapshot, CoachAttributeSet,
+    CoachDevelopmentProfile, CoachProfileProjection, CoachSportingProfile, ColumnId, ColumnPinning,
+    ColumnPinningSide, ContractSummary, CustomFormationIdentity, ExplainableRating,
+    ExternalPlayerState, FilterGroupId, FilterGroupLogic, FilterId, FilterOperator, FilterValue,
+    Formation, GlobalProfileSearchResult, KnowledgeLevel, KnowledgeValue, KnowledgeValueKind,
+    LegacyImportOutcome, LegacyImportReceipt, LegacyTableViewImport, LineupSelection,
+    MatchdayState, NullOrder, OwnerScope, PersonIdentity, PlayerAttributeCategory,
+    PlayerAttributeSet, PlayerDevelopmentProjection, PlayerProfileProjection,
+    PlayerSportingProfile, PlayerStatisticsProjection, PlayerTrainingProfile,
+    PositionRatingProjection, PotentialEstimate, ProfileWorld, RATING_SCALE_VERSION, RatingFactor,
+    RatingFactorImpact, RatingKind, RatingSnapshot, RoleRatingProjection, SavedTableView,
+    ScoutingAssessment, SortDirection, TableColumnState, TableDataWindow, TableDensity,
     TableFilterClause, TableFilterGroup, TableFilterNode, TableId, TableSort,
     TableViewEnvelopeMetadata, TableViewLoadOutcome, TableViewPolicyError, TableViewRecoveryReason,
     TableViewRepositoryError, TableViewRepositoryState, TableViewServiceError, TableViewState,

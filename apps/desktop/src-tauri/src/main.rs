@@ -5,10 +5,11 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use rivallo_platform::{
-    ColumnId, ColumnPinning, ColumnPinningSide, FilterGroupId, FilterGroupLogic, FilterId,
-    FilterOperator, FilterValue, Formation, LOCAL_API_ADDRESS, LegacyImportOutcome,
-    LegacyImportReceipt, LegacyTableViewImport, LineupSelection, MatchdayCoordinator,
-    MatchdayState, NullOrder, OwnerScope, READINESS_POLL_INTERVAL, READINESS_TIMEOUT,
+    CoachProfileProjection, ColumnId, ColumnPinning, ColumnPinningSide, FilterGroupId,
+    FilterGroupLogic, FilterId, FilterOperator, FilterValue, Formation, GlobalProfileSearchResult,
+    LOCAL_API_ADDRESS, LegacyImportOutcome, LegacyImportReceipt, LegacyTableViewImport,
+    LineupSelection, MatchdayCoordinator, MatchdayState, NullOrder, OwnerScope,
+    PlayerProfileProjection, ProfileCoordinator, READINESS_POLL_INTERVAL, READINESS_TIMEOUT,
     ReadinessDiagnostic, SHUTDOWN_CONTROL_MESSAGE, SavedTableView, SortDirection, TableColumnState,
     TableDataWindow, TableDensity, TableFilterClause, TableFilterGroup, TableFilterNode, TableId,
     TableSort, TableViewCoordinator, TableViewEnvelopeMetadata, TableViewLoadOutcome,
@@ -1441,6 +1442,42 @@ fn play_next_match(gameplay: State<'_, Arc<MatchdayCoordinator>>) -> Result<Matc
 }
 
 #[tauri::command]
+fn player_profile(
+    player_id: String,
+    variation_id: Option<String>,
+    gameplay: State<'_, Arc<MatchdayCoordinator>>,
+    profiles: State<'_, Arc<ProfileCoordinator>>,
+) -> Result<PlayerProfileProjection, String> {
+    let matchday = gameplay.state()?;
+    profiles.player_profile(
+        &matchday,
+        &player_id,
+        &matchday.club.id,
+        variation_id.as_deref(),
+    )
+}
+
+#[tauri::command]
+fn coach_profile(
+    coach_id: String,
+    gameplay: State<'_, Arc<MatchdayCoordinator>>,
+    profiles: State<'_, Arc<ProfileCoordinator>>,
+) -> Result<CoachProfileProjection, String> {
+    let matchday = gameplay.state()?;
+    profiles.coach_profile(&matchday, &coach_id, &matchday.club.id)
+}
+
+#[tauri::command]
+fn search_profiles(
+    query: String,
+    gameplay: State<'_, Arc<MatchdayCoordinator>>,
+    profiles: State<'_, Arc<ProfileCoordinator>>,
+) -> Result<Vec<GlobalProfileSearchResult>, String> {
+    let matchday = gameplay.state()?;
+    profiles.search(&matchday, &matchday.club.id, &query)
+}
+
+#[tauri::command]
 fn load_table_views(table_views: State<'_, Arc<TableViewCoordinator>>) -> LoadTableViewsResponse {
     load_table_views_response(table_views.load())
 }
@@ -1495,6 +1532,9 @@ fn main() {
             tactical_match_snapshot,
             update_tactical_library,
             play_next_match,
+            player_profile,
+            coach_profile,
+            search_profiles,
             load_table_views,
             save_table_views,
             import_legacy_table_preferences
@@ -1505,8 +1545,13 @@ fn main() {
                 let _ = window.set_fullscreen(true);
             }
             let matchday_path = app.path().app_data_dir()?.join("first-playable.json");
+            let profiles_path = app
+                .path()
+                .app_data_dir()?
+                .join("player-coach-profiles.json");
             let table_views_path = app.path().app_data_dir()?.join("table-views.json");
             app.manage(Arc::new(MatchdayCoordinator::new(matchday_path)));
+            app.manage(Arc::new(ProfileCoordinator::new(profiles_path)));
             app.manage(Arc::new(TableViewCoordinator::new(table_views_path)));
             manager.begin(app.handle().clone());
             Ok(())

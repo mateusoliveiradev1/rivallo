@@ -4,6 +4,8 @@ import type { TableViewState } from '../table-view/table-view-engine.js';
 import { SQUAD_SYSTEM_VIEW } from './squad-table-schema.js';
 import {
   importLegacyTablePreferences,
+  loadCoachProfile,
+  loadPlayerProfile,
   loadTacticalMatchSnapshot,
   loadTacticalStrategyCatalog,
   loadMatchday,
@@ -13,6 +15,7 @@ import {
   saveMatchdayLineup,
   saveTacticalPlan,
   saveTableViews,
+  searchProfiles,
   updateTacticalLibrary,
   type ImportLegacyTablePreferencesRequest,
   type LegacyImportReceipt,
@@ -181,6 +184,20 @@ describe('existing matchday client commands', () => {
       ['preview_tactical_plan', { proposal }],
       ['tactical_strategy_catalog'],
       ['tactical_match_snapshot', { variationId: 'tactical-variation.primary' }],
+    ]);
+  });
+
+  it('opens global profiles and searches through typed Tauri commands', async () => {
+    invoke.mockResolvedValue({});
+
+    await loadPlayerProfile('player.7', 'tactical-variation.primary');
+    await loadCoachProfile('coach.aurora.1');
+    await searchProfiles('martín');
+
+    expect(invoke.mock.calls).toEqual([
+      ['player_profile', { playerId: 'player.7', variationId: 'tactical-variation.primary' }],
+      ['coach_profile', { coachId: 'coach.aurora.1' }],
+      ['search_profiles', { query: 'martín' }],
     ]);
   });
 });

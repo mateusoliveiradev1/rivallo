@@ -1,0 +1,2102 @@
+use serde::{Deserialize, Serialize};
+
+use crate::{Club, MatchdayState, Player, Position, TacticalModelSnapshot};
+
+pub const PROFILE_WORLD_SCHEMA_VERSION: u16 = 1;
+pub const PROFILE_PROJECTION_SCHEMA_VERSION: u16 = 1;
+pub const RATING_SCALE_VERSION: &str = "rivallo.rating.0-100.v1";
+pub const ASSESSMENT_VERSION: u16 = 1;
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum KnowledgeLevel {
+    OwnClub,
+    WellKnown,
+    Partial,
+    Limited,
+    Unknown,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum KnowledgeValueKind {
+    Exact,
+    Range,
+    Qualitative,
+    Unknown,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnowledgeValue {
+    pub kind: KnowledgeValueKind,
+    pub value: Option<u8>,
+    pub minimum: Option<u8>,
+    pub maximum: Option<u8>,
+    pub label: String,
+}
+
+impl KnowledgeValue {
+    fn exact(value: u8) -> Self {
+        Self {
+            kind: KnowledgeValueKind::Exact,
+            value: Some(value),
+            minimum: None,
+            maximum: None,
+            label: value.to_string(),
+        }
+    }
+
+    fn range(value: u8, width: u8) -> Self {
+        let minimum = value.saturating_sub(width);
+        let maximum = value.saturating_add(width).min(100);
+        Self {
+            kind: KnowledgeValueKind::Range,
+            value: None,
+            minimum: Some(minimum),
+            maximum: Some(maximum),
+            label: format!("{minimum}–{maximum}"),
+        }
+    }
+
+    fn qualitative(value: u8) -> Self {
+        let label = match value {
+            80..=100 => "Excelente",
+            70..=79 => "Muito bom",
+            60..=69 => "Bom",
+            50..=59 => "Regular",
+            _ => "Abaixo da média",
+        };
+        Self {
+            kind: KnowledgeValueKind::Qualitative,
+            value: None,
+            minimum: None,
+            maximum: None,
+            label: label.to_owned(),
+        }
+    }
+
+    fn unknown() -> Self {
+        Self {
+            kind: KnowledgeValueKind::Unknown,
+            value: None,
+            minimum: None,
+            maximum: None,
+            label: "Desconhecido".to_owned(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScoutingAssessment {
+    pub entity_id: String,
+    pub observer_club_id: String,
+    pub knowledge_level: KnowledgeLevel,
+    pub confidence: u8,
+    pub source: String,
+    pub observed_at: u64,
+    pub updated_at: u64,
+    pub expires_at: Option<u64>,
+    pub known_fields: Vec<String>,
+    pub estimated_fields: Vec<String>,
+    pub hidden_fields: Vec<String>,
+    pub assessment_version: u16,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PlayerAttributeCategory {
+    Technical,
+    Physical,
+    Mental,
+    Attacking,
+    Defensive,
+    Goalkeeping,
+}
+
+impl PlayerAttributeCategory {
+    const ALL: [Self; 6] = [
+        Self::Technical,
+        Self::Physical,
+        Self::Mental,
+        Self::Attacking,
+        Self::Defensive,
+        Self::Goalkeeping,
+    ];
+
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Technical => "Técnicos",
+            Self::Physical => "Físicos",
+            Self::Mental => "Mentais",
+            Self::Attacking => "Ofensivos",
+            Self::Defensive => "Defensivos",
+            Self::Goalkeeping => "Goleiro",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayerAttributeSet {
+    pub technical: u8,
+    pub physical: u8,
+    pub mental: u8,
+    pub attacking: u8,
+    pub defensive: u8,
+    pub goalkeeping: u8,
+}
+
+impl PlayerAttributeSet {
+    fn value(&self, category: PlayerAttributeCategory) -> u8 {
+        match category {
+            PlayerAttributeCategory::Technical => self.technical,
+            PlayerAttributeCategory::Physical => self.physical,
+            PlayerAttributeCategory::Mental => self.mental,
+            PlayerAttributeCategory::Attacking => self.attacking,
+            PlayerAttributeCategory::Defensive => self.defensive,
+            PlayerAttributeCategory::Goalkeeping => self.goalkeeping,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttributeProjection {
+    pub attribute_id: String,
+    pub label: String,
+    pub category: PlayerAttributeCategory,
+    pub perceived: KnowledgeValue,
+    pub confidence: u8,
+    pub source: String,
+    pub updated_at: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttributeGroupProjection {
+    pub category: PlayerAttributeCategory,
+    pub label: String,
+    pub attributes: Vec<AttributeProjection>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RatingKind {
+    CurrentAbility,
+    Position,
+    Role,
+    TacticalFit,
+    Contextual,
+    CoachRole,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RatingFactorImpact {
+    Positive,
+    Neutral,
+    Negative,
+    ContextOnly,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RatingFactor {
+    pub factor_id: String,
+    pub label: String,
+    pub value: u8,
+    pub weight: u8,
+    pub contribution: i16,
+    pub impact: RatingFactorImpact,
+    pub explanation: String,
+    pub source: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExplainableRating {
+    pub rating_kind: RatingKind,
+    pub context_id: String,
+    pub context_label: String,
+    pub real_value: Option<u8>,
+    pub perceived: KnowledgeValue,
+    pub confidence: u8,
+    pub source: String,
+    pub updated_at: u64,
+    pub scale_version: String,
+    pub factors: Vec<RatingFactor>,
+    pub summary: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PositionRatingProjection {
+    pub position_id: Position,
+    pub suitability: String,
+    pub rating: ExplainableRating,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RoleRatingProjection {
+    pub role_id: String,
+    pub role_label: String,
+    pub position_id: Position,
+    pub responsibilities: Vec<String>,
+    pub rating: ExplainableRating,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContractSummary {
+    pub club_id: String,
+    pub started_at: String,
+    pub expires_at: String,
+    pub squad_status: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonIdentity {
+    pub entity_id: String,
+    pub full_name: String,
+    pub known_name: String,
+    pub nationality: String,
+    pub birth_date: String,
+    pub age: u8,
+    pub club_id: String,
+    pub club_name: String,
+    pub club_short_name: String,
+    pub club_primary_color: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayerSportingProfile {
+    pub identity: PersonIdentity,
+    pub shirt_number: u8,
+    pub height_cm: u16,
+    pub weight_kg: Option<u16>,
+    pub preferred_foot: String,
+    pub squad_role: String,
+    pub natural_position: Position,
+    pub attributes: PlayerAttributeSet,
+    pub internal_potential: u8,
+    pub contract: Option<ContractSummary>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalPlayerState {
+    pub profile: PlayerSportingProfile,
+    pub condition: Option<u8>,
+    pub match_fitness: Option<u8>,
+    pub appearances: u16,
+    pub goals: u16,
+    pub assists: u16,
+    pub average_rating: Option<u8>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PotentialEstimate {
+    pub perceived: KnowledgeValue,
+    pub confidence: u8,
+    pub source: String,
+    pub updated_at: u64,
+    pub dynamic: bool,
+    pub explanation: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RatingSnapshot {
+    pub snapshot_id: String,
+    pub entity_id: String,
+    pub rating_kind: RatingKind,
+    pub value: u8,
+    pub position_id: Option<Position>,
+    pub role_id: Option<String>,
+    pub variation_id: Option<String>,
+    pub familiarity: Option<u8>,
+    pub confidence: u8,
+    pub source: String,
+    pub recorded_at: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttributeSnapshot {
+    pub snapshot_id: String,
+    pub player_id: String,
+    pub attributes: PlayerAttributeSet,
+    pub source: String,
+    pub recorded_at: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayerDevelopmentProjection {
+    pub player_id: String,
+    pub current_ability: u8,
+    pub potential_estimate: PotentialEstimate,
+    pub attribute_history: Vec<AttributeSnapshot>,
+    pub rating_history: Vec<RatingSnapshot>,
+    pub personality: Option<String>,
+    pub professionalism: Option<u8>,
+    pub ambition: Option<u8>,
+    pub status: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayerTrainingProfile {
+    pub player_id: String,
+    pub preferred_position: Position,
+    pub preferred_role_id: String,
+    pub future_individual_plan_id: Option<String>,
+    pub status: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayerStatisticsProjection {
+    pub appearances: u16,
+    pub minutes: Option<u32>,
+    pub goals: u16,
+    pub assists: u16,
+    pub cards: Option<u16>,
+    pub average_rating: Option<u8>,
+    pub source: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayerProfileProjection {
+    pub schema_version: u16,
+    pub revision: u64,
+    pub identity: PersonIdentity,
+    pub shirt_number: u8,
+    pub height_cm: u16,
+    pub weight_kg: Option<u16>,
+    pub preferred_foot: String,
+    pub squad_role: String,
+    pub natural_position: Position,
+    pub current_ability: ExplainableRating,
+    pub contextual_rating: ExplainableRating,
+    pub tactical_fit: ExplainableRating,
+    pub tactical_familiarity: Option<u8>,
+    pub position_ratings: Vec<PositionRatingProjection>,
+    pub role_ratings: Vec<RoleRatingProjection>,
+    pub attribute_groups: Vec<AttributeGroupProjection>,
+    pub condition: Option<u8>,
+    pub match_fitness: Option<u8>,
+    pub form: KnowledgeValue,
+    pub potential: PotentialEstimate,
+    pub knowledge: ScoutingAssessment,
+    pub strengths: Vec<String>,
+    pub weaknesses: Vec<String>,
+    pub alerts: Vec<String>,
+    pub contract: Option<ContractSummary>,
+    pub statistics: PlayerStatisticsProjection,
+    pub rating_history: Vec<RatingSnapshot>,
+    pub development: PlayerDevelopmentProjection,
+    pub training: PlayerTrainingProfile,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CoachAttributeSet {
+    pub tactical: u8,
+    pub preparation: u8,
+    pub adaptability: u8,
+    pub decision_making: u8,
+    pub technical_development: u8,
+    pub physical_development: u8,
+    pub mental_development: u8,
+    pub tactical_development: u8,
+    pub youth_development: u8,
+    pub motivation: u8,
+    pub communication: u8,
+    pub discipline: u8,
+    pub people_management: u8,
+    pub ability_judgement: u8,
+    pub potential_judgement: u8,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CoachSportingProfile {
+    pub identity: PersonIdentity,
+    pub role: String,
+    pub reputation: u8,
+    pub qualification: String,
+    pub experience_years: u8,
+    pub style: String,
+    pub preferred_formations: Vec<String>,
+    pub attributes: CoachAttributeSet,
+    pub specialties: Vec<String>,
+    pub contract: Option<ContractSummary>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CoachDevelopmentProfile {
+    pub coach_id: String,
+    pub technical_development: u8,
+    pub physical_development: u8,
+    pub mental_development: u8,
+    pub tactical_development: u8,
+    pub youth_development: u8,
+    pub position_adaptation: u8,
+    pub role_teaching: u8,
+    pub motivation: u8,
+    pub people_management: u8,
+    pub assessment_accuracy: u8,
+    pub specialties: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CoachProfileProjection {
+    pub schema_version: u16,
+    pub revision: u64,
+    pub identity: PersonIdentity,
+    pub role: String,
+    pub reputation: KnowledgeValue,
+    pub qualification: String,
+    pub experience_years: u8,
+    pub style: String,
+    pub preferred_formations: Vec<String>,
+    pub contextual_rating: ExplainableRating,
+    pub category_ratings: Vec<ExplainableRating>,
+    pub knowledge: ScoutingAssessment,
+    pub strengths: Vec<String>,
+    pub weaknesses: Vec<String>,
+    pub specialties: Vec<String>,
+    pub contract: Option<ContractSummary>,
+    pub career_history: Vec<String>,
+    pub rating_history: Vec<RatingSnapshot>,
+    pub development: CoachDevelopmentProfile,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GlobalProfileSearchResult {
+    pub entity_id: String,
+    pub entity_type: String,
+    pub name: String,
+    pub secondary_label: String,
+    pub route: String,
+    pub knowledge_level: KnowledgeLevel,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileWorld {
+    pub schema_version: u16,
+    pub revision: u64,
+    pub players: Vec<PlayerSportingProfile>,
+    pub external_players: Vec<ExternalPlayerState>,
+    pub coaches: Vec<CoachSportingProfile>,
+    pub assessments: Vec<ScoutingAssessment>,
+    pub rating_history: Vec<RatingSnapshot>,
+    pub attribute_history: Vec<AttributeSnapshot>,
+}
+
+fn clamp_score(value: i16) -> u8 {
+    value.clamp(0, 100) as u8
+}
+
+fn weighted(parts: &[(u8, u8)]) -> u8 {
+    let weight: u32 = parts.iter().map(|(_, weight)| u32::from(*weight)).sum();
+    if weight == 0 {
+        return 0;
+    }
+    let total: u32 = parts
+        .iter()
+        .map(|(value, weight)| u32::from(*value) * u32::from(*weight))
+        .sum();
+    ((total + weight / 2) / weight).min(100) as u8
+}
+
+fn attribute_seed(player: &Player) -> PlayerAttributeSet {
+    let base = i16::from(player.rating);
+    let (technical, physical, mental, attacking, defensive, goalkeeping) = match player.position {
+        Position::Gk => (base - 12, base + 2, base + 1, base - 24, base - 4, base + 4),
+        Position::Rb | Position::Lb => (base + 1, base + 4, base, base - 1, base + 2, base - 28),
+        Position::Cb => (base - 3, base + 3, base + 2, base - 8, base + 5, base - 26),
+        Position::Dm => (base + 1, base + 1, base + 4, base - 4, base + 4, base - 28),
+        Position::Cm => (base + 4, base, base + 3, base + 1, base - 1, base - 30),
+        Position::Am => (base + 5, base - 1, base + 2, base + 4, base - 8, base - 30),
+        Position::Rw | Position::Lw => (base + 4, base + 3, base, base + 5, base - 10, base - 30),
+        Position::St => (base + 2, base + 3, base + 1, base + 6, base - 11, base - 28),
+    };
+    PlayerAttributeSet {
+        technical: clamp_score(technical),
+        physical: clamp_score(physical),
+        mental: clamp_score(mental),
+        attacking: clamp_score(attacking),
+        defensive: clamp_score(defensive),
+        goalkeeping: clamp_score(goalkeeping),
+    }
+}
+
+fn birth_date_for(age: u8, index: usize) -> String {
+    let year = 2026_u16.saturating_sub(u16::from(age));
+    format!("{year}-{:02}-{:02}", index % 12 + 1, index % 27 + 1)
+}
+
+fn own_player_profile(player: &Player, club: &Club, index: usize) -> PlayerSportingProfile {
+    PlayerSportingProfile {
+        identity: PersonIdentity {
+            entity_id: player.id.clone(),
+            full_name: player.name.clone(),
+            known_name: player.short_name.clone(),
+            nationality: player.nationality.clone(),
+            birth_date: birth_date_for(player.age, index),
+            age: player.age,
+            club_id: club.id.clone(),
+            club_name: club.name.clone(),
+            club_short_name: club.short_name.clone(),
+            club_primary_color: club.primary_color.clone(),
+        },
+        shirt_number: player.shirt_number,
+        height_cm: player.height_cm,
+        weight_kg: Some(68 + (index as u16 * 3) % 19),
+        preferred_foot: format!("{:?}", player.preferred_foot).to_lowercase(),
+        squad_role: format!("{:?}", player.squad_role),
+        natural_position: player.position,
+        attributes: attribute_seed(player),
+        internal_potential: player.potential_rating.max(player.rating),
+        contract: Some(ContractSummary {
+            club_id: club.id.clone(),
+            started_at: "2025-01-01".to_owned(),
+            expires_at: format!("20{}-12-31", 27 + index % 4),
+            squad_status: format!("{:?}", player.squad_role),
+        }),
+    }
+}
+
+fn assessment(
+    entity_id: &str,
+    observer_club_id: &str,
+    level: KnowledgeLevel,
+    confidence: u8,
+    source: &str,
+    now: u64,
+) -> ScoutingAssessment {
+    let (known_fields, estimated_fields, hidden_fields) = match level {
+        KnowledgeLevel::OwnClub => (
+            vec!["identity", "attributes", "condition", "contract"],
+            vec!["potential"],
+            vec!["internalPotential"],
+        ),
+        KnowledgeLevel::WellKnown => (
+            vec!["identity", "career", "publicStatistics"],
+            vec!["attributes", "ratings", "potential"],
+            vec!["internalPotential"],
+        ),
+        KnowledgeLevel::Partial => (
+            vec!["identity", "publicStatistics"],
+            vec!["attributes", "ratings", "potential"],
+            vec!["condition", "internalPotential"],
+        ),
+        KnowledgeLevel::Limited => (
+            vec!["identity"],
+            vec!["ratings"],
+            vec!["attributes", "condition", "internalPotential"],
+        ),
+        KnowledgeLevel::Unknown => (
+            vec!["identity"],
+            vec![],
+            vec!["attributes", "ratings", "condition", "internalPotential"],
+        ),
+    };
+    ScoutingAssessment {
+        entity_id: entity_id.to_owned(),
+        observer_club_id: observer_club_id.to_owned(),
+        knowledge_level: level,
+        confidence,
+        source: source.to_owned(),
+        observed_at: now,
+        updated_at: now,
+        expires_at: (!matches!(level, KnowledgeLevel::OwnClub)).then_some(now + 90 * 86_400_000),
+        known_fields: known_fields.into_iter().map(str::to_owned).collect(),
+        estimated_fields: estimated_fields.into_iter().map(str::to_owned).collect(),
+        hidden_fields: hidden_fields.into_iter().map(str::to_owned).collect(),
+        assessment_version: ASSESSMENT_VERSION,
+    }
+}
+
+struct ExternalPlayerSeed<'a> {
+    id: &'a str,
+    name: &'a str,
+    known_name: &'a str,
+    nationality: &'a str,
+    age: u8,
+    position: Position,
+    rating: u8,
+    potential: u8,
+    club: &'a Club,
+    index: usize,
+}
+
+fn external_player(seed: ExternalPlayerSeed<'_>) -> ExternalPlayerState {
+    let ExternalPlayerSeed {
+        id,
+        name,
+        known_name,
+        nationality,
+        age,
+        position,
+        rating,
+        potential,
+        club,
+        index,
+    } = seed;
+    let seed_player = Player {
+        id: id.to_owned(),
+        name: name.to_owned(),
+        short_name: known_name.to_owned(),
+        shirt_number: 7 + index as u8,
+        position,
+        age,
+        nationality: nationality.to_owned(),
+        height_cm: 176 + index as u16 * 4,
+        preferred_foot: crate::PreferredFoot::Right,
+        squad_role: crate::SquadRole::KeyPlayer,
+        rating,
+        potential_rating: potential,
+        match_fitness: 91,
+        morale: 75,
+        condition: 94,
+        appearances: 14,
+        goals: 2 + index as u16 * 3,
+        assists: 1 + index as u16 * 2,
+        average_rating: 7.05 + index as f32 * 0.18,
+        selected: true,
+    };
+    ExternalPlayerState {
+        profile: PlayerSportingProfile {
+            identity: PersonIdentity {
+                entity_id: id.to_owned(),
+                full_name: name.to_owned(),
+                known_name: known_name.to_owned(),
+                nationality: nationality.to_owned(),
+                birth_date: birth_date_for(age, 20 + index),
+                age,
+                club_id: club.id.clone(),
+                club_name: club.name.clone(),
+                club_short_name: club.short_name.clone(),
+                club_primary_color: club.primary_color.clone(),
+            },
+            shirt_number: seed_player.shirt_number,
+            height_cm: seed_player.height_cm,
+            weight_kg: Some(73 + index as u16 * 4),
+            preferred_foot: "right".to_owned(),
+            squad_role: "KeyPlayer".to_owned(),
+            natural_position: position,
+            attributes: attribute_seed(&seed_player),
+            internal_potential: potential,
+            contract: Some(ContractSummary {
+                club_id: club.id.clone(),
+                started_at: "2024-01-01".to_owned(),
+                expires_at: "2028-12-31".to_owned(),
+                squad_status: "Jogador-chave".to_owned(),
+            }),
+        },
+        condition: Some(94),
+        match_fitness: Some(91),
+        appearances: seed_player.appearances,
+        goals: seed_player.goals,
+        assists: seed_player.assists,
+        average_rating: Some((seed_player.average_rating * 10.0).round() as u8),
+    }
+}
+
+fn coach(
+    id: &str,
+    name: &str,
+    nationality: &str,
+    age: u8,
+    club: &Club,
+    own: bool,
+) -> CoachSportingProfile {
+    let attributes = if own {
+        CoachAttributeSet {
+            tactical: 79,
+            preparation: 76,
+            adaptability: 74,
+            decision_making: 77,
+            technical_development: 81,
+            physical_development: 70,
+            mental_development: 78,
+            tactical_development: 82,
+            youth_development: 84,
+            motivation: 80,
+            communication: 83,
+            discipline: 72,
+            people_management: 81,
+            ability_judgement: 78,
+            potential_judgement: 80,
+        }
+    } else {
+        CoachAttributeSet {
+            tactical: 82,
+            preparation: 80,
+            adaptability: 78,
+            decision_making: 81,
+            technical_development: 74,
+            physical_development: 79,
+            mental_development: 73,
+            tactical_development: 77,
+            youth_development: 69,
+            motivation: 76,
+            communication: 72,
+            discipline: 84,
+            people_management: 75,
+            ability_judgement: 80,
+            potential_judgement: 73,
+        }
+    };
+    CoachSportingProfile {
+        identity: PersonIdentity {
+            entity_id: id.to_owned(),
+            full_name: name.to_owned(),
+            known_name: name.to_owned(),
+            nationality: nationality.to_owned(),
+            birth_date: birth_date_for(age, if own { 40 } else { 41 }),
+            age,
+            club_id: club.id.clone(),
+            club_name: club.name.clone(),
+            club_short_name: club.short_name.clone(),
+            club_primary_color: club.primary_color.clone(),
+        },
+        role: "Treinador principal".to_owned(),
+        reputation: if own { 72 } else { 76 },
+        qualification: "Licença Continental Pro".to_owned(),
+        experience_years: if own { 11 } else { 15 },
+        style: if own {
+            "Posse apoiada e desenvolvimento de jovens".to_owned()
+        } else {
+            "Bloco intenso e transições verticais".to_owned()
+        },
+        preferred_formations: if own {
+            vec!["4-3-3".to_owned(), "4-2-3-1".to_owned()]
+        } else {
+            vec!["4-4-2".to_owned(), "3-4-2-1".to_owned()]
+        },
+        attributes,
+        specialties: if own {
+            vec![
+                "Desenvolvimento de jovens".to_owned(),
+                "Ensino tático".to_owned(),
+            ]
+        } else {
+            vec![
+                "Preparação física".to_owned(),
+                "Organização defensiva".to_owned(),
+            ]
+        },
+        contract: Some(ContractSummary {
+            club_id: club.id.clone(),
+            started_at: "2025-01-01".to_owned(),
+            expires_at: "2027-12-31".to_owned(),
+            squad_status: "Treinador principal".to_owned(),
+        }),
+    }
+}
+
+impl ProfileWorld {
+    pub fn seed(state: &MatchdayState, now: u64) -> Self {
+        let players: Vec<_> = state
+            .players
+            .iter()
+            .enumerate()
+            .map(|(index, player)| own_player_profile(player, &state.club, index))
+            .collect();
+        let external_players = vec![
+            external_player(ExternalPlayerSeed {
+                id: "rv-fdv-01",
+                name: "Martín Gouveia",
+                known_name: "M. Gouveia",
+                nationality: "URU",
+                age: 25,
+                position: Position::Am,
+                rating: 79,
+                potential: 82,
+                club: &state.opponent,
+                index: 0,
+            }),
+            external_player(ExternalPlayerSeed {
+                id: "rv-fdv-02",
+                name: "Leandro Vilar",
+                known_name: "L. Vilar",
+                nationality: "BRA",
+                age: 22,
+                position: Position::St,
+                rating: 76,
+                potential: 84,
+                club: &state.opponent,
+                index: 1,
+            }),
+            external_player(ExternalPlayerSeed {
+                id: "rv-fdv-03",
+                name: "Nicolás Arce",
+                known_name: "N. Arce",
+                nationality: "ARG",
+                age: 29,
+                position: Position::Cb,
+                rating: 77,
+                potential: 78,
+                club: &state.opponent,
+                index: 2,
+            }),
+        ];
+        let coaches = vec![
+            coach(
+                "coach.aurora.head",
+                "Helena Sampaio",
+                "BRA",
+                43,
+                &state.club,
+                true,
+            ),
+            coach(
+                "coach.ferroviario.head",
+                "Raúl Mendonza",
+                "ARG",
+                49,
+                &state.opponent,
+                false,
+            ),
+        ];
+        let mut assessments: Vec<_> = players
+            .iter()
+            .map(|profile| {
+                assessment(
+                    &profile.identity.entity_id,
+                    &state.club.id,
+                    KnowledgeLevel::OwnClub,
+                    100,
+                    "Comissão técnica e rotina do clube",
+                    now,
+                )
+            })
+            .collect();
+        assessments.extend([
+            assessment(
+                "rv-fdv-01",
+                &state.club.id,
+                KnowledgeLevel::WellKnown,
+                82,
+                "Partidas anteriores e estatísticas públicas",
+                now,
+            ),
+            assessment(
+                "rv-fdv-02",
+                &state.club.id,
+                KnowledgeLevel::Partial,
+                58,
+                "Observação parcial da comissão",
+                now,
+            ),
+            assessment(
+                "rv-fdv-03",
+                &state.club.id,
+                KnowledgeLevel::Limited,
+                34,
+                "Informação pública limitada",
+                now,
+            ),
+            assessment(
+                "coach.aurora.head",
+                &state.club.id,
+                KnowledgeLevel::OwnClub,
+                100,
+                "Contrato e trabalho diário",
+                now,
+            ),
+            assessment(
+                "coach.ferroviario.head",
+                &state.club.id,
+                KnowledgeLevel::Partial,
+                61,
+                "Carreira pública e estilo observado",
+                now,
+            ),
+        ]);
+        let attribute_history = players
+            .iter()
+            .map(|profile| AttributeSnapshot {
+                snapshot_id: format!("{}.attributes.bootstrap", profile.identity.entity_id),
+                player_id: profile.identity.entity_id.clone(),
+                attributes: profile.attributes.clone(),
+                source: "Marco inicial da Fase 06.4".to_owned(),
+                recorded_at: now,
+            })
+            .collect();
+        Self {
+            schema_version: PROFILE_WORLD_SCHEMA_VERSION,
+            revision: 0,
+            players,
+            external_players,
+            coaches,
+            assessments,
+            rating_history: Vec::new(),
+            attribute_history,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema_version != PROFILE_WORLD_SCHEMA_VERSION {
+            return Err("A versão do catálogo de perfis é incompatível.".to_owned());
+        }
+        let mut ids = std::collections::HashSet::new();
+        for id in self
+            .players
+            .iter()
+            .map(|profile| profile.identity.entity_id.as_str())
+            .chain(
+                self.external_players
+                    .iter()
+                    .map(|player| player.profile.identity.entity_id.as_str()),
+            )
+            .chain(
+                self.coaches
+                    .iter()
+                    .map(|profile| profile.identity.entity_id.as_str()),
+            )
+        {
+            if id.is_empty() || !ids.insert(id) {
+                return Err("Os perfis precisam de IDs globais estáveis e únicos.".to_owned());
+            }
+        }
+        if self.assessments.iter().any(|assessment| {
+            assessment.confidence > 100 || assessment.assessment_version != ASSESSMENT_VERSION
+        }) {
+            return Err("A avaliação de conhecimento é inválida.".to_owned());
+        }
+        Ok(())
+    }
+
+    fn assessment_for(&self, entity_id: &str, observer_club_id: &str) -> ScoutingAssessment {
+        self.assessments
+            .iter()
+            .find(|assessment| {
+                assessment.entity_id == entity_id && assessment.observer_club_id == observer_club_id
+            })
+            .cloned()
+            .unwrap_or_else(|| {
+                assessment(
+                    entity_id,
+                    observer_club_id,
+                    KnowledgeLevel::Unknown,
+                    0,
+                    "Nenhuma fonte disponível",
+                    0,
+                )
+            })
+    }
+
+    pub fn search(&self, observer_club_id: &str, query: &str) -> Vec<GlobalProfileSearchResult> {
+        let query = query.trim().to_lowercase();
+        let matches = |identity: &PersonIdentity| {
+            query.is_empty()
+                || identity.full_name.to_lowercase().contains(&query)
+                || identity.known_name.to_lowercase().contains(&query)
+                || identity.club_name.to_lowercase().contains(&query)
+        };
+        let mut results: Vec<_> = self
+            .players
+            .iter()
+            .chain(self.external_players.iter().map(|player| &player.profile))
+            .filter(|profile| matches(&profile.identity))
+            .map(|profile| GlobalProfileSearchResult {
+                entity_id: profile.identity.entity_id.clone(),
+                entity_type: "player".to_owned(),
+                name: profile.identity.full_name.clone(),
+                secondary_label: format!(
+                    "{} · {:?}",
+                    profile.identity.club_name, profile.natural_position
+                ),
+                route: format!("/players/{}", profile.identity.entity_id),
+                knowledge_level: self
+                    .assessment_for(&profile.identity.entity_id, observer_club_id)
+                    .knowledge_level,
+            })
+            .collect();
+        results.extend(
+            self.coaches
+                .iter()
+                .filter(|coach| matches(&coach.identity))
+                .map(|coach| GlobalProfileSearchResult {
+                    entity_id: coach.identity.entity_id.clone(),
+                    entity_type: "coach".to_owned(),
+                    name: coach.identity.full_name.clone(),
+                    secondary_label: format!("{} · {}", coach.identity.club_name, coach.role),
+                    route: format!("/coaches/{}", coach.identity.entity_id),
+                    knowledge_level: self
+                        .assessment_for(&coach.identity.entity_id, observer_club_id)
+                        .knowledge_level,
+                }),
+        );
+        results.sort_by(|left, right| left.name.cmp(&right.name));
+        results
+    }
+}
+
+fn position_weights(position: Position) -> [(PlayerAttributeCategory, u8); 6] {
+    use PlayerAttributeCategory as Category;
+    match position {
+        Position::Gk => [
+            (Category::Goalkeeping, 65),
+            (Category::Mental, 15),
+            (Category::Physical, 10),
+            (Category::Technical, 5),
+            (Category::Defensive, 5),
+            (Category::Attacking, 0),
+        ],
+        Position::Rb | Position::Lb => [
+            (Category::Defensive, 30),
+            (Category::Physical, 25),
+            (Category::Technical, 20),
+            (Category::Mental, 15),
+            (Category::Attacking, 10),
+            (Category::Goalkeeping, 0),
+        ],
+        Position::Cb => [
+            (Category::Defensive, 45),
+            (Category::Mental, 25),
+            (Category::Physical, 20),
+            (Category::Technical, 10),
+            (Category::Attacking, 0),
+            (Category::Goalkeeping, 0),
+        ],
+        Position::Dm => [
+            (Category::Defensive, 30),
+            (Category::Mental, 25),
+            (Category::Technical, 25),
+            (Category::Physical, 15),
+            (Category::Attacking, 5),
+            (Category::Goalkeeping, 0),
+        ],
+        Position::Cm => [
+            (Category::Technical, 35),
+            (Category::Mental, 25),
+            (Category::Physical, 15),
+            (Category::Attacking, 15),
+            (Category::Defensive, 10),
+            (Category::Goalkeeping, 0),
+        ],
+        Position::Am => [
+            (Category::Technical, 35),
+            (Category::Attacking, 30),
+            (Category::Mental, 20),
+            (Category::Physical, 10),
+            (Category::Defensive, 5),
+            (Category::Goalkeeping, 0),
+        ],
+        Position::Rw | Position::Lw => [
+            (Category::Attacking, 35),
+            (Category::Technical, 30),
+            (Category::Physical, 20),
+            (Category::Mental, 10),
+            (Category::Defensive, 5),
+            (Category::Goalkeeping, 0),
+        ],
+        Position::St => [
+            (Category::Attacking, 45),
+            (Category::Technical, 25),
+            (Category::Physical, 15),
+            (Category::Mental, 15),
+            (Category::Defensive, 0),
+            (Category::Goalkeeping, 0),
+        ],
+    }
+}
+
+fn position_rating(attributes: &PlayerAttributeSet, position: Position) -> (u8, Vec<RatingFactor>) {
+    let weights = position_weights(position);
+    let value = weighted(
+        &weights
+            .iter()
+            .map(|(category, weight)| (attributes.value(*category), *weight))
+            .collect::<Vec<_>>(),
+    );
+    let factors = weights
+        .into_iter()
+        .filter(|(_, weight)| *weight > 0)
+        .map(|(category, weight)| {
+            let factor_value = attributes.value(category);
+            RatingFactor {
+                factor_id: format!("attribute.{category:?}").to_lowercase(),
+                label: category.label().to_owned(),
+                value: factor_value,
+                weight,
+                contribution: i16::from(factor_value) * i16::from(weight) / 100,
+                impact: if factor_value >= 75 {
+                    RatingFactorImpact::Positive
+                } else if factor_value < 60 {
+                    RatingFactorImpact::Negative
+                } else {
+                    RatingFactorImpact::Neutral
+                },
+                explanation: format!(
+                    "{} responde por {weight}% da avaliação desta posição.",
+                    category.label()
+                ),
+                source: "Atributos autoritativos do perfil".to_owned(),
+            }
+        })
+        .collect();
+    (value, factors)
+}
+
+fn perceived(value: u8, knowledge: &ScoutingAssessment, allow_exact: bool) -> KnowledgeValue {
+    match knowledge.knowledge_level {
+        KnowledgeLevel::OwnClub if allow_exact => KnowledgeValue::exact(value),
+        KnowledgeLevel::WellKnown => KnowledgeValue::range(value, 2),
+        KnowledgeLevel::Partial => KnowledgeValue::range(value, 5),
+        KnowledgeLevel::Limited => KnowledgeValue::qualitative(value),
+        KnowledgeLevel::Unknown => KnowledgeValue::unknown(),
+        KnowledgeLevel::OwnClub => KnowledgeValue::range(value, 3),
+    }
+}
+
+fn rating(
+    kind: RatingKind,
+    context_id: impl Into<String>,
+    context_label: impl Into<String>,
+    value: u8,
+    factors: Vec<RatingFactor>,
+    knowledge: &ScoutingAssessment,
+    summary: impl Into<String>,
+) -> ExplainableRating {
+    let exact = matches!(knowledge.knowledge_level, KnowledgeLevel::OwnClub);
+    ExplainableRating {
+        rating_kind: kind,
+        context_id: context_id.into(),
+        context_label: context_label.into(),
+        real_value: exact.then_some(value),
+        perceived: perceived(value, knowledge, true),
+        confidence: knowledge.confidence,
+        source: knowledge.source.clone(),
+        updated_at: knowledge.updated_at,
+        scale_version: RATING_SCALE_VERSION.to_owned(),
+        factors,
+        summary: summary.into(),
+    }
+}
+
+fn default_role(position: Position) -> (&'static str, &'static str, [&'static str; 2]) {
+    match position {
+        Position::Gk => (
+            "goalkeeper-support",
+            "Goleiro · Apoio",
+            ["Defender a meta", "Iniciar curto"],
+        ),
+        Position::Rb | Position::Lb => (
+            "fullback-support",
+            "Lateral · Apoio",
+            ["Dar amplitude", "Proteger corredor"],
+        ),
+        Position::Cb => (
+            "central-defender-defend",
+            "Zagueiro · Defesa",
+            ["Proteger profundidade", "Vencer duelos"],
+        ),
+        Position::Dm => (
+            "holding-midfielder-support",
+            "Volante · Suporte",
+            ["Proteger entrelinhas", "Circular seguro"],
+        ),
+        Position::Cm => (
+            "central-midfielder-support",
+            "Meia central · Suporte",
+            ["Conectar setores", "Dar continuidade"],
+        ),
+        Position::Am => (
+            "playmaker-attack",
+            "Armador · Ataque",
+            ["Criar entrelinhas", "Acelerar o último passe"],
+        ),
+        Position::Rw | Position::Lw => (
+            "winger-attack",
+            "Extremo · Ataque",
+            ["Atacar largura", "Chegar à área"],
+        ),
+        Position::St => (
+            "striker-attack",
+            "Atacante · Ataque",
+            ["Atacar profundidade", "Finalizar"],
+        ),
+    }
+}
+
+fn tactical_context<'a>(
+    state: &'a MatchdayState,
+    variation_id: Option<&str>,
+) -> Option<(&'a str, &'a TacticalModelSnapshot)> {
+    let library = state.tactical_library.as_ref()?;
+    let id = variation_id.unwrap_or(&library.active_variation_id);
+    library
+        .variations
+        .iter()
+        .find(|variation| variation.variation_id == id)
+        .and_then(|variation| {
+            variation
+                .tactical_model
+                .as_ref()
+                .map(|model| (variation.variation_id.as_str(), model))
+        })
+}
+
+fn attribute_groups(
+    attributes: &PlayerAttributeSet,
+    knowledge: &ScoutingAssessment,
+) -> Vec<AttributeGroupProjection> {
+    PlayerAttributeCategory::ALL
+        .into_iter()
+        .map(|category| {
+            let value = attributes.value(category);
+            AttributeGroupProjection {
+                category,
+                label: category.label().to_owned(),
+                attributes: vec![AttributeProjection {
+                    attribute_id: format!("attribute.{category:?}").to_lowercase(),
+                    label: format!("Capacidade {}", category.label().to_lowercase()),
+                    category,
+                    perceived: perceived(value, knowledge, true),
+                    confidence: knowledge.confidence,
+                    source: knowledge.source.clone(),
+                    updated_at: knowledge.updated_at,
+                }],
+            }
+        })
+        .collect()
+}
+
+fn contextual_player_rating(
+    profile: &PlayerSportingProfile,
+    state: &MatchdayState,
+    variation_id: Option<&str>,
+    knowledge: &ScoutingAssessment,
+) -> (
+    ExplainableRating,
+    ExplainableRating,
+    Option<u8>,
+    Position,
+    String,
+) {
+    let (active_variation_id, model) = tactical_context(state, variation_id)
+        .map(|(id, model)| (Some(id), Some(model)))
+        .unwrap_or((None, None));
+    let placement = active_variation_id.and_then(|id| {
+        state
+            .tactical_library
+            .as_ref()?
+            .variations
+            .iter()
+            .find(|variation| variation.variation_id == id)?
+            .placements
+            .iter()
+            .find(|placement| placement.player_id == profile.identity.entity_id)
+    });
+    let position = placement.map_or(profile.natural_position, |placement| placement.position_id);
+    let (position_value, _) = position_rating(&profile.attributes, position);
+    let (default_role_id, default_role_label, _) = default_role(position);
+    let role_id = placement
+        .and_then(|placement| placement.role_id.as_deref())
+        .unwrap_or(default_role_id)
+        .to_owned();
+    let role_value = position_value;
+    let familiarity = model.and_then(|model| {
+        model
+            .familiarity
+            .individuals
+            .iter()
+            .find(|candidate| candidate.player_id == profile.identity.entity_id)
+            .map(|candidate| candidate.contextual)
+    });
+    let tactical_fit_value = model.map_or(65, |model| {
+        let demand_match = 100_u8.abs_diff(model.resolved_strategy.physical_demand);
+        let physical_fit = 100_u8.saturating_sub(
+            profile
+                .attributes
+                .physical
+                .abs_diff(model.resolved_strategy.physical_demand),
+        );
+        weighted(&[
+            (physical_fit, 45),
+            (profile.attributes.mental, 35),
+            (100 - demand_match / 2, 20),
+        ])
+    });
+    let tactical_factors = vec![
+        RatingFactor {
+            factor_id: "tactical.physicalDemand".to_owned(),
+            label: "Exigência física".to_owned(),
+            value: profile.attributes.physical,
+            weight: 45,
+            contribution: i16::from(profile.attributes.physical) * 45 / 100,
+            impact: RatingFactorImpact::Neutral,
+            explanation:
+                "Compara o físico estrutural à exigência da variação, sem usar condição momentânea."
+                    .to_owned(),
+            source: "TacticalModelSnapshot schema 2".to_owned(),
+        },
+        RatingFactor {
+            factor_id: "tactical.mental".to_owned(),
+            label: "Leitura do plano".to_owned(),
+            value: profile.attributes.mental,
+            weight: 35,
+            contribution: i16::from(profile.attributes.mental) * 35 / 100,
+            impact: RatingFactorImpact::Neutral,
+            explanation:
+                "Representa capacidade mental para executar responsabilidades desta estrutura."
+                    .to_owned(),
+            source: "Atributos autoritativos + snapshot tático".to_owned(),
+        },
+    ];
+    let tactical_fit = rating(
+        RatingKind::TacticalFit,
+        active_variation_id.unwrap_or("no-active-variation"),
+        active_variation_id.map_or("Sem variação ativa", |_| "Encaixe na variação ativa"),
+        tactical_fit_value,
+        tactical_factors,
+        knowledge,
+        "Compatibilidade estrutural com a variação; não inclui condição, forma ou potencial.",
+    );
+    let familiarity_value = familiarity.unwrap_or(65);
+    let contextual_value = weighted(&[
+        (position_value, 50),
+        (role_value, 20),
+        (tactical_fit_value, 20),
+        (familiarity_value, 10),
+    ]);
+    let contextual = rating(
+        RatingKind::Contextual,
+        active_variation_id.unwrap_or("profile-context"),
+        format!(
+            "{} · {default_role_label}",
+            format!("{position:?}").to_uppercase()
+        ),
+        contextual_value,
+        vec![
+            RatingFactor {
+                factor_id: "context.position".to_owned(),
+                label: "Rating por posição".to_owned(),
+                value: position_value,
+                weight: 50,
+                contribution: i16::from(position_value) / 2,
+                impact: RatingFactorImpact::Neutral,
+                explanation: "Qualidade estrutural no espaço nominal selecionado.".to_owned(),
+                source: "Motor de ratings 0–100 v1".to_owned(),
+            },
+            RatingFactor {
+                factor_id: "context.role".to_owned(),
+                label: "Rating por função".to_owned(),
+                value: role_value,
+                weight: 20,
+                contribution: i16::from(role_value) / 5,
+                impact: RatingFactorImpact::Neutral,
+                explanation: "Qualidade para cumprir as responsabilidades da função.".to_owned(),
+                source: "Motor de ratings 0–100 v1".to_owned(),
+            },
+            RatingFactor {
+                factor_id: "context.tacticalFit".to_owned(),
+                label: "Encaixe tático".to_owned(),
+                value: tactical_fit_value,
+                weight: 20,
+                contribution: i16::from(tactical_fit_value) / 5,
+                impact: RatingFactorImpact::Neutral,
+                explanation: "Compatibilidade com exigências e responsabilidades da variação."
+                    .to_owned(),
+                source: "TacticalModelSnapshot schema 2".to_owned(),
+            },
+            RatingFactor {
+                factor_id: "context.familiarity".to_owned(),
+                label: "Familiaridade".to_owned(),
+                value: familiarity_value,
+                weight: 10,
+                contribution: i16::from(familiarity_value) / 10,
+                impact: RatingFactorImpact::ContextOnly,
+                explanation:
+                    "Conhecimento do plano vindo diretamente da 06.3; contado uma única vez."
+                        .to_owned(),
+                source: "TacticalFamiliaritySnapshot schema 1".to_owned(),
+            },
+        ],
+        knowledge,
+        "Estimativa contextual. Condição, forma e potencial permanecem separados.",
+    );
+    (contextual, tactical_fit, familiarity, position, role_id)
+}
+
+fn profile_for<'a>(world: &'a ProfileWorld, player_id: &str) -> Option<&'a PlayerSportingProfile> {
+    world
+        .players
+        .iter()
+        .find(|profile| profile.identity.entity_id == player_id)
+        .or_else(|| {
+            world
+                .external_players
+                .iter()
+                .find(|player| player.profile.identity.entity_id == player_id)
+                .map(|player| &player.profile)
+        })
+}
+
+fn state_for_player(
+    world: &ProfileWorld,
+    state: &MatchdayState,
+    player_id: &str,
+) -> (Option<u8>, Option<u8>, u16, u16, u16, Option<u8>) {
+    if let Some(player) = state.players.iter().find(|player| player.id == player_id) {
+        return (
+            Some(player.condition),
+            Some(player.match_fitness),
+            player.appearances,
+            player.goals,
+            player.assists,
+            Some((player.average_rating * 10.0).round() as u8),
+        );
+    }
+    world
+        .external_players
+        .iter()
+        .find(|player| player.profile.identity.entity_id == player_id)
+        .map(|player| {
+            (
+                player.condition,
+                player.match_fitness,
+                player.appearances,
+                player.goals,
+                player.assists,
+                player.average_rating,
+            )
+        })
+        .unwrap_or((None, None, 0, 0, 0, None))
+}
+
+pub fn project_player_profile(
+    world: &mut ProfileWorld,
+    state: &MatchdayState,
+    player_id: &str,
+    observer_club_id: &str,
+    variation_id: Option<&str>,
+    now: u64,
+) -> Result<PlayerProfileProjection, String> {
+    world.validate()?;
+    let profile = profile_for(world, player_id)
+        .cloned()
+        .ok_or_else(|| "Jogador não encontrado.".to_owned())?;
+    let knowledge = world.assessment_for(player_id, observer_club_id);
+    let (current_value, current_factors) =
+        position_rating(&profile.attributes, profile.natural_position);
+    let current_ability = rating(
+        RatingKind::CurrentAbility,
+        "structural",
+        "Capacidade atual estrutural",
+        current_value,
+        current_factors,
+        &knowledge,
+        "Qualidade estrutural sem condição, forma, familiaridade ou potencial.",
+    );
+    let (contextual_rating, tactical_fit, familiarity, active_position, role_id) =
+        contextual_player_rating(&profile, state, variation_id, &knowledge);
+    let positions = [
+        Position::Gk,
+        Position::Rb,
+        Position::Cb,
+        Position::Lb,
+        Position::Dm,
+        Position::Cm,
+        Position::Am,
+        Position::Rw,
+        Position::Lw,
+        Position::St,
+    ];
+    let mut position_ratings: Vec<_> = positions
+        .into_iter()
+        .map(|position| {
+            let (value, factors) = position_rating(&profile.attributes, position);
+            let suitability = if position == profile.natural_position {
+                "Natural"
+            } else if value + 6 >= current_value {
+                "Aceitável"
+            } else {
+                "Improvisada"
+            };
+            PositionRatingProjection {
+                position_id: position,
+                suitability: suitability.to_owned(),
+                rating: rating(
+                    RatingKind::Position,
+                    format!("position.{position:?}").to_lowercase(),
+                    format!("Rating como {position:?}"),
+                    value,
+                    factors,
+                    &knowledge,
+                    "Qualidade estrutural para este espaço nominal.",
+                ),
+            }
+        })
+        .collect();
+    position_ratings.sort_by(|left, right| {
+        right
+            .rating
+            .real_value
+            .unwrap_or(right.rating.perceived.maximum.unwrap_or(0))
+            .cmp(
+                &left
+                    .rating
+                    .real_value
+                    .unwrap_or(left.rating.perceived.maximum.unwrap_or(0)),
+            )
+    });
+    let (default_role_id, default_role_label, responsibilities) = default_role(active_position);
+    let role_value = position_rating(&profile.attributes, active_position).0;
+    let role_rating = rating(
+        RatingKind::Role,
+        role_id.clone(),
+        default_role_label,
+        role_value,
+        vec![RatingFactor {
+            factor_id: "role.positionBase".to_owned(),
+            label: "Base posicional".to_owned(),
+            value: role_value,
+            weight: 100,
+            contribution: i16::from(role_value),
+            impact: RatingFactorImpact::Neutral,
+            explanation: "A função especializa a posição sem duplicar o peso dos mesmos atributos."
+                .to_owned(),
+            source: "Motor de ratings 0–100 v1".to_owned(),
+        }],
+        &knowledge,
+        "Qualidade para as responsabilidades desta função.",
+    );
+    let role_ratings = vec![RoleRatingProjection {
+        role_id: if role_id.is_empty() {
+            default_role_id.to_owned()
+        } else {
+            role_id.clone()
+        },
+        role_label: default_role_label.to_owned(),
+        position_id: active_position,
+        responsibilities: responsibilities.into_iter().map(str::to_owned).collect(),
+        rating: role_rating,
+    }];
+    let potential = PotentialEstimate {
+        perceived: perceived(profile.internal_potential, &knowledge, false),
+        confidence: if matches!(knowledge.knowledge_level, KnowledgeLevel::OwnClub) {
+            82
+        } else {
+            knowledge.confidence.saturating_sub(8)
+        },
+        source: knowledge.source.clone(),
+        updated_at: knowledge.updated_at,
+        dynamic: false,
+        explanation: "Estimativa atual; potencial dinâmico pertence à Fase 06.8.".to_owned(),
+    };
+    let (condition, match_fitness, appearances, goals, assists, average_rating) =
+        state_for_player(world, state, player_id);
+    let exact_state = matches!(knowledge.knowledge_level, KnowledgeLevel::OwnClub);
+    let visible_condition = exact_state.then_some(condition).flatten();
+    let visible_fitness = exact_state.then_some(match_fitness).flatten();
+    let form = average_rating.map_or_else(KnowledgeValue::unknown, |value| {
+        perceived(value, &knowledge, true)
+    });
+    let snapshot = RatingSnapshot {
+        snapshot_id: format!(
+            "{}.{}.{}.{}",
+            player_id,
+            contextual_rating.context_id,
+            contextual_rating
+                .real_value
+                .unwrap_or(contextual_rating.perceived.maximum.unwrap_or(0)),
+            world.revision + 1
+        ),
+        entity_id: player_id.to_owned(),
+        rating_kind: RatingKind::Contextual,
+        value: contextual_rating
+            .real_value
+            .unwrap_or(contextual_rating.perceived.maximum.unwrap_or(current_value)),
+        position_id: Some(active_position),
+        role_id: Some(role_id),
+        variation_id: variation_id.map(str::to_owned).or_else(|| {
+            state
+                .tactical_library
+                .as_ref()
+                .map(|library| library.active_variation_id.clone())
+        }),
+        familiarity,
+        confidence: knowledge.confidence,
+        source: knowledge.source.clone(),
+        recorded_at: now,
+    };
+    let should_record = world
+        .rating_history
+        .iter()
+        .rev()
+        .find(|candidate| candidate.entity_id == player_id)
+        .is_none_or(|previous| {
+            previous.value != snapshot.value
+                || previous.position_id != snapshot.position_id
+                || previous.role_id != snapshot.role_id
+                || previous.variation_id != snapshot.variation_id
+                || previous.familiarity != snapshot.familiarity
+                || previous.confidence != snapshot.confidence
+        });
+    if should_record {
+        world.rating_history.push(snapshot);
+        world.revision += 1;
+    }
+    let rating_history: Vec<_> = world
+        .rating_history
+        .iter()
+        .filter(|snapshot| snapshot.entity_id == player_id)
+        .cloned()
+        .collect();
+    let attribute_history: Vec<_> = world
+        .attribute_history
+        .iter()
+        .filter(|snapshot| snapshot.player_id == player_id)
+        .cloned()
+        .collect();
+    let mut ranked: Vec<_> = PlayerAttributeCategory::ALL
+        .into_iter()
+        .map(|category| {
+            (
+                category.label().to_owned(),
+                profile.attributes.value(category),
+            )
+        })
+        .collect();
+    ranked.sort_by_key(|(_, value)| *value);
+    let weaknesses = ranked
+        .iter()
+        .take(2)
+        .map(|(label, _)| label.clone())
+        .collect();
+    let strengths = ranked
+        .iter()
+        .rev()
+        .take(2)
+        .map(|(label, _)| label.clone())
+        .collect();
+    let mut alerts = Vec::new();
+    if knowledge.confidence < 60 {
+        alerts.push(
+            "Avaliação com baixa confiança; valores aparecem como faixa ou descrição.".to_owned(),
+        );
+    }
+    if knowledge
+        .expires_at
+        .is_some_and(|expires_at| expires_at <= now)
+    {
+        alerts
+            .push("Informação desatualizada; solicite nova observação em fase futura.".to_owned());
+    }
+    if condition.is_some_and(|value| value < 90) && exact_state {
+        alerts.push("Condição atual requer atenção antes da próxima partida.".to_owned());
+    }
+    let development = PlayerDevelopmentProjection {
+        player_id: player_id.to_owned(),
+        current_ability: current_value,
+        potential_estimate: potential.clone(),
+        attribute_history,
+        rating_history: rating_history.clone(),
+        personality: None,
+        professionalism: None,
+        ambition: None,
+        status: "Fundação disponível; progressão dinâmica ainda não implementada.".to_owned(),
+    };
+    Ok(PlayerProfileProjection {
+        schema_version: PROFILE_PROJECTION_SCHEMA_VERSION,
+        revision: world.revision,
+        identity: profile.identity,
+        shirt_number: profile.shirt_number,
+        height_cm: profile.height_cm,
+        weight_kg: profile.weight_kg,
+        preferred_foot: profile.preferred_foot,
+        squad_role: profile.squad_role,
+        natural_position: profile.natural_position,
+        current_ability,
+        contextual_rating,
+        tactical_fit,
+        tactical_familiarity: familiarity,
+        position_ratings,
+        role_ratings,
+        attribute_groups: attribute_groups(&profile.attributes, &knowledge),
+        condition: visible_condition,
+        match_fitness: visible_fitness,
+        form,
+        potential: potential.clone(),
+        knowledge: knowledge.clone(),
+        strengths,
+        weaknesses,
+        alerts,
+        contract: profile.contract,
+        statistics: PlayerStatisticsProjection {
+            appearances,
+            minutes: None,
+            goals,
+            assists,
+            cards: None,
+            average_rating,
+            source: if exact_state {
+                "Registro da carreira".to_owned()
+            } else {
+                "Estatísticas públicas disponíveis".to_owned()
+            },
+        },
+        rating_history,
+        development,
+        training: PlayerTrainingProfile {
+            player_id: player_id.to_owned(),
+            preferred_position: active_position,
+            preferred_role_id: default_role_id.to_owned(),
+            future_individual_plan_id: None,
+            status: "Nenhum plano individual: o sistema de treinamento pertence à Fase 06.8."
+                .to_owned(),
+        },
+    })
+}
+
+fn coach_categories(attributes: &CoachAttributeSet) -> Vec<(&'static str, u8)> {
+    vec![
+        (
+            "Tática",
+            weighted(&[
+                (attributes.tactical, 50),
+                (attributes.decision_making, 30),
+                (attributes.adaptability, 20),
+            ]),
+        ),
+        (
+            "Preparação",
+            weighted(&[
+                (attributes.preparation, 60),
+                (attributes.discipline, 20),
+                (attributes.communication, 20),
+            ]),
+        ),
+        (
+            "Desenvolvimento",
+            weighted(&[
+                (attributes.technical_development, 20),
+                (attributes.physical_development, 20),
+                (attributes.mental_development, 20),
+                (attributes.tactical_development, 20),
+                (attributes.youth_development, 20),
+            ]),
+        ),
+        (
+            "Gestão humana",
+            weighted(&[
+                (attributes.people_management, 45),
+                (attributes.communication, 30),
+                (attributes.motivation, 25),
+            ]),
+        ),
+        (
+            "Avaliação",
+            weighted(&[
+                (attributes.ability_judgement, 55),
+                (attributes.potential_judgement, 45),
+            ]),
+        ),
+    ]
+}
+
+pub fn project_coach_profile(
+    world: &mut ProfileWorld,
+    coach_id: &str,
+    observer_club_id: &str,
+    now: u64,
+) -> Result<CoachProfileProjection, String> {
+    world.validate()?;
+    let coach = world
+        .coaches
+        .iter()
+        .find(|coach| coach.identity.entity_id == coach_id)
+        .cloned()
+        .ok_or_else(|| "Treinador não encontrado.".to_owned())?;
+    let knowledge = world.assessment_for(coach_id, observer_club_id);
+    let categories = coach_categories(&coach.attributes);
+    let category_ratings: Vec<_> = categories
+        .iter()
+        .map(|(label, value)| {
+            rating(
+                RatingKind::CoachRole,
+                format!("coach.{}", label.to_lowercase().replace(' ', "-")),
+                *label,
+                *value,
+                vec![RatingFactor {
+                    factor_id: format!("coach.{}", label.to_lowercase().replace(' ', "-")),
+                    label: (*label).to_owned(),
+                    value: *value,
+                    weight: 100,
+                    contribution: i16::from(*value),
+                    impact: RatingFactorImpact::Neutral,
+                    explanation: "Composição determinística dos atributos desta categoria."
+                        .to_owned(),
+                    source: "Motor de ratings de treinadores v1".to_owned(),
+                }],
+                &knowledge,
+                "Categoria independente; não existe OVR único de treinador.",
+            )
+        })
+        .collect();
+    let contextual_value = weighted(&[
+        (categories[0].1, 35),
+        (categories[1].1, 20),
+        (categories[2].1, 15),
+        (categories[3].1, 20),
+        (categories[4].1, 10),
+    ]);
+    let contextual_rating = rating(
+        RatingKind::CoachRole,
+        "head-coach",
+        "Treinador principal",
+        contextual_value,
+        categories
+            .iter()
+            .zip([35, 20, 15, 20, 10])
+            .map(|((label, value), weight)| RatingFactor {
+                factor_id: format!("coach.{}", label.to_lowercase().replace(' ', "-")),
+                label: (*label).to_owned(),
+                value: *value,
+                weight,
+                contribution: i16::from(*value) * i16::from(weight) / 100,
+                impact: RatingFactorImpact::Neutral,
+                explanation: format!(
+                    "Relevância de {weight}% para o cargo de treinador principal."
+                ),
+                source: "Motor de ratings de treinadores v1".to_owned(),
+            })
+            .collect(),
+        &knowledge,
+        "Adequação ao cargo atual; outras funções usam pesos próprios.",
+    );
+    let snapshot = RatingSnapshot {
+        snapshot_id: format!(
+            "{coach_id}.head-coach.{}.{}",
+            contextual_value,
+            world.revision + 1
+        ),
+        entity_id: coach_id.to_owned(),
+        rating_kind: RatingKind::CoachRole,
+        value: contextual_value,
+        position_id: None,
+        role_id: Some("head-coach".to_owned()),
+        variation_id: None,
+        familiarity: None,
+        confidence: knowledge.confidence,
+        source: knowledge.source.clone(),
+        recorded_at: now,
+    };
+    if world
+        .rating_history
+        .iter()
+        .rev()
+        .find(|candidate| candidate.entity_id == coach_id)
+        .is_none_or(|previous| {
+            previous.value != snapshot.value || previous.confidence != snapshot.confidence
+        })
+    {
+        world.rating_history.push(snapshot);
+        world.revision += 1;
+    }
+    let rating_history = world
+        .rating_history
+        .iter()
+        .filter(|snapshot| snapshot.entity_id == coach_id)
+        .cloned()
+        .collect();
+    let mut strengths: Vec<_> = categories
+        .iter()
+        .filter(|(_, value)| *value >= 78)
+        .map(|(label, _)| (*label).to_owned())
+        .collect();
+    if strengths.is_empty() {
+        strengths.push("Perfil equilibrado".to_owned());
+    }
+    let weaknesses = categories
+        .iter()
+        .filter(|(_, value)| *value < 72)
+        .map(|(label, _)| (*label).to_owned())
+        .collect();
+    Ok(CoachProfileProjection {
+        schema_version: PROFILE_PROJECTION_SCHEMA_VERSION,
+        revision: world.revision,
+        identity: coach.identity.clone(),
+        role: coach.role,
+        reputation: perceived(coach.reputation, &knowledge, true),
+        qualification: coach.qualification,
+        experience_years: coach.experience_years,
+        style: coach.style,
+        preferred_formations: coach.preferred_formations,
+        contextual_rating,
+        category_ratings,
+        knowledge: knowledge.clone(),
+        strengths,
+        weaknesses,
+        specialties: coach.specialties.clone(),
+        contract: coach.contract,
+        career_history: vec![
+            format!("Atual · {}", coach.identity.club_name),
+            "Histórico anterior não disponível nesta base inicial.".to_owned(),
+        ],
+        rating_history,
+        development: CoachDevelopmentProfile {
+            coach_id: coach_id.to_owned(),
+            technical_development: coach.attributes.technical_development,
+            physical_development: coach.attributes.physical_development,
+            mental_development: coach.attributes.mental_development,
+            tactical_development: coach.attributes.tactical_development,
+            youth_development: coach.attributes.youth_development,
+            position_adaptation: weighted(&[
+                (coach.attributes.tactical_development, 60),
+                (coach.attributes.communication, 40),
+            ]),
+            role_teaching: weighted(&[
+                (coach.attributes.tactical_development, 55),
+                (coach.attributes.technical_development, 45),
+            ]),
+            motivation: coach.attributes.motivation,
+            people_management: coach.attributes.people_management,
+            assessment_accuracy: weighted(&[
+                (coach.attributes.ability_judgement, 50),
+                (coach.attributes.potential_judgement, 50),
+            ]),
+            specialties: coach.specialties,
+        },
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const NOW: u64 = 1_784_102_400_000;
+
+    #[test]
+    fn player_rating_is_deterministic_and_keeps_temporary_state_separate() {
+        let state = MatchdayState::default();
+        let mut world = ProfileWorld::seed(&state, NOW);
+        let first = project_player_profile(&mut world, &state, "rv-09", &state.club.id, None, NOW)
+            .expect("player profile");
+        let second = project_player_profile(
+            &mut world,
+            &state,
+            "rv-09",
+            &state.club.id,
+            None,
+            NOW + 86_400_000,
+        )
+        .expect("same player profile opened later");
+        assert_eq!(first.current_ability, second.current_ability);
+        assert_eq!(first.contextual_rating, second.contextual_rating);
+        assert_eq!(first.rating_history.len(), 1);
+        assert_eq!(second.rating_history.len(), 1);
+        assert_eq!(second.contextual_rating.updated_at, NOW);
+        assert!(!first.current_ability.factors.iter().any(|factor| {
+            matches!(
+                factor.factor_id.as_str(),
+                "condition" | "form" | "potential"
+            )
+        }));
+        assert_eq!(first.condition, Some(98));
+        assert!(!first.potential.dynamic);
+    }
+
+    #[test]
+    fn external_profiles_never_expose_internal_values_without_own_club_knowledge() {
+        let state = MatchdayState::default();
+        let mut world = ProfileWorld::seed(&state, NOW);
+        for player_id in ["rv-fdv-01", "rv-fdv-02", "rv-fdv-03"] {
+            let profile =
+                project_player_profile(&mut world, &state, player_id, &state.club.id, None, NOW)
+                    .expect("external player profile");
+            assert_eq!(profile.current_ability.real_value, None);
+            assert_eq!(profile.contextual_rating.real_value, None);
+            assert_ne!(profile.potential.perceived.kind, KnowledgeValueKind::Exact);
+            assert_eq!(profile.condition, None);
+        }
+    }
+
+    #[test]
+    fn tactical_context_consumes_the_existing_variation_and_familiarity_once() {
+        let state = MatchdayState::default();
+        let library = state.tactical_library.as_ref().expect("tactical library");
+        let variation = &library.variations[0];
+        let model = variation.tactical_model.as_ref().expect("tactical model");
+        let mut world = ProfileWorld::seed(&state, NOW);
+        let profile = project_player_profile(
+            &mut world,
+            &state,
+            "rv-01",
+            &state.club.id,
+            Some(&variation.variation_id),
+            NOW,
+        )
+        .expect("profile with tactics");
+        let canonical = model
+            .familiarity
+            .individuals
+            .iter()
+            .find(|candidate| candidate.player_id == "rv-01")
+            .expect("canonical familiarity")
+            .contextual;
+        assert_eq!(profile.tactical_familiarity, Some(canonical));
+        assert_eq!(
+            profile
+                .contextual_rating
+                .factors
+                .iter()
+                .filter(|factor| factor.factor_id == "context.familiarity")
+                .count(),
+            1
+        );
+        assert_eq!(
+            profile.rating_history[0].variation_id,
+            Some(variation.variation_id.clone())
+        );
+    }
+
+    #[test]
+    fn coaches_are_first_class_contextual_and_explainable_entities() {
+        let state = MatchdayState::default();
+        let mut world = ProfileWorld::seed(&state, NOW);
+        let coach = project_coach_profile(&mut world, "coach.aurora.head", &state.club.id, NOW)
+            .expect("coach profile");
+        assert_eq!(coach.category_ratings.len(), 5);
+        assert_eq!(coach.contextual_rating.rating_kind, RatingKind::CoachRole);
+        assert!(!coach.development.specialties.is_empty());
+        assert_eq!(coach.rating_history.len(), 1);
+    }
+
+    #[test]
+    fn search_uses_global_ids_and_routes_for_players_and_coaches() {
+        let state = MatchdayState::default();
+        let world = ProfileWorld::seed(&state, NOW);
+        let results = world.search(&state.club.id, "ferroviário");
+        assert!(
+            results
+                .iter()
+                .any(|result| result.route.starts_with("/players/"))
+        );
+        assert!(
+            results
+                .iter()
+                .any(|result| result.route.starts_with("/coaches/"))
+        );
+        assert!(results.iter().all(|result| !result.entity_id.is_empty()));
+    }
+}

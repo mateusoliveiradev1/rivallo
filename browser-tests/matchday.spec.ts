@@ -1,6 +1,10 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import type { TableViewRepositoryState } from '../apps/desktop/src/matchday/client.js';
+import {
+  coachProfileFixture,
+  playerProfileFixture,
+} from '../apps/desktop/src/profiles/test-fixtures.js';
 import { SQUAD_SYSTEM_VIEW } from '../apps/desktop/src/matchday/squad-table-schema.js';
 import { createTacticalPlan } from '../apps/desktop/src/matchday/tactics-model.js';
 import {
@@ -605,9 +609,42 @@ const initialState: MatchdayState = {
   },
 };
 
+const browserPlayerProfiles = [
+  ...initialState.players.map((player) =>
+    playerProfileFixture({
+      entityId: player.id,
+      fullName: player.name,
+      knownName: player.shortName,
+      position: player.position,
+      nationality: player.nationality,
+    }),
+  ),
+  playerProfileFixture({
+    entityId: 'rv-fdv-01',
+    fullName: 'Martín Gouveia',
+    knownName: 'M. Gouveia',
+    position: 'ST',
+    nationality: 'URU',
+    knowledge: 'partial',
+  }),
+];
+const browserCoachProfiles = [
+  coachProfileFixture(),
+  coachProfileFixture({ entityId: 'coach.ferroviario.head', external: true }),
+];
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(
-    ({ seed, storageKey, strategyCatalog, tableSeed, tableStorageKey, tableControlKey }) => {
+    ({
+      seed,
+      storageKey,
+      strategyCatalog,
+      tableSeed,
+      tableStorageKey,
+      tableControlKey,
+      playerProfiles,
+      coachProfiles,
+    }) => {
       let state: MatchdayState = structuredClone(seed);
       let tableState: TableViewRepositoryState = structuredClone(tableSeed);
       try {
@@ -780,6 +817,41 @@ test.beforeEach(async ({ page }) => {
             };
           }
           if (command === 'matchday_state') return state;
+          if (command === 'player_profile') {
+            const profile = playerProfiles.find(
+              ({ identity }) => identity.entityId === args.playerId,
+            );
+            if (!profile) throw new Error('Jogador não encontrado.');
+            return structuredClone(profile);
+          }
+          if (command === 'coach_profile') {
+            const profile = coachProfiles.find(
+              ({ identity }) => identity.entityId === args.coachId,
+            );
+            if (!profile) throw new Error('Treinador não encontrado.');
+            return structuredClone(profile);
+          }
+          if (command === 'search_profiles') {
+            const query = String(args.query ?? '').toLocaleLowerCase('pt-BR');
+            return [...playerProfiles, ...coachProfiles]
+              .filter((profile) =>
+                [profile.identity.fullName, profile.identity.knownName, profile.identity.clubName]
+                  .join(' ')
+                  .toLocaleLowerCase('pt-BR')
+                  .includes(query),
+              )
+              .map((profile) => {
+                const player = 'naturalPosition' in profile;
+                return {
+                  entityId: profile.identity.entityId,
+                  entityType: player ? ('player' as const) : ('coach' as const),
+                  name: profile.identity.fullName,
+                  secondaryLabel: `${profile.identity.clubName} · ${player ? profile.naturalPosition : profile.role}`,
+                  route: `/${player ? 'players' : 'coaches'}/${profile.identity.entityId}`,
+                  knowledgeLevel: profile.knowledge.knowledgeLevel,
+                };
+              });
+          }
           if (command === 'tactical_strategy_catalog') return structuredClone(strategyCatalog);
           if (command === 'preview_tactical_plan') {
             const proposal = args.proposal as TacticalPlanProposal;
@@ -1046,6 +1118,8 @@ test.beforeEach(async ({ page }) => {
       tableSeed: tableViewSeed,
       tableStorageKey: tableViewBridgeStateKey,
       tableControlKey: tableViewBridgeControlKey,
+      playerProfiles: browserPlayerProfiles,
+      coachProfiles: browserCoachProfiles,
     },
   );
 });
@@ -1072,6 +1146,67 @@ test('opens Elenco as a dedicated table workspace without rendering the tactical
     true,
   );
   await page.screenshot({ path: testInfo.outputPath('elenco.png'), fullPage: true });
+});
+
+test('opens global player and coach profiles with partial knowledge and responsive disclosure', async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== 'desktop-1366x768',
+    'The complete profile matrix only needs one Chromium project.',
+  );
+
+  await page.goto(developmentUrl);
+  const search = page.getByRole('searchbox', { name: 'Buscar jogadores e treinadores' });
+  await search.fill('Martín');
+  await page.getByRole('button', { name: /Martín Gouveia/u }).click();
+  await expect(page).toHaveURL(/\/players\/rv-fdv-01$/u);
+  await expect(page.getByRole('heading', { name: 'M. Gouveia' })).toBeVisible();
+  await expect(page.getByText('Observação parcial', { exact: true })).toBeVisible();
+  await expect(page.getByText('73–81').first()).toBeVisible();
+
+  const rolesTab = page.getByRole('tab', { name: 'Posições e funções' });
+  await rolesTab.click();
+  await expect(page.getByRole('heading', { name: 'Encaixe no plano' })).toBeVisible();
+  await rolesTab.press('ArrowRight');
+  await expect(page.getByRole('tab', { name: 'Desempenho' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await page.getByRole('tab', { name: 'Visão geral' }).click();
+
+  for (const viewport of screenshotViewports) {
+    await page.setViewportSize(viewport);
+    await expect(page.locator('.profile-screen')).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    await page.screenshot({
+      path: `.planning/phases/06.4-sm-5-player-coach-profiles-and-explainable-ratings/screenshots/player-profile-${viewport.width}x${viewport.height}.png`,
+      fullPage: true,
+    });
+  }
+
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await search.fill('Héctor');
+  await page.getByRole('button', { name: /Héctor Salvatierra/u }).click();
+  await expect(page).toHaveURL(/\/coaches\/coach\.ferroviario\.head$/u);
+  await expect(page.getByRole('heading', { name: 'H. Salvatierra' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Capacidades' }).click();
+  await expect(page.getByText('Desenvolvimento de jovens')).toBeVisible();
+  await expect(page.getByText('Precisão de avaliação')).toBeVisible();
+  await page.screenshot({
+    path: '.planning/phases/06.4-sm-5-player-coach-profiles-and-explainable-ratings/screenshots/coach-profile-1366x768.png',
+    fullPage: true,
+  });
+
+  await page.evaluate(() => {
+    document.body.style.zoom = '2';
+  });
+  await expect(page.getByRole('tab', { name: 'Capacidades' })).toBeVisible();
+  await page.evaluate(() => {
+    document.body.style.zoom = '';
+  });
 });
 
 test('changes the dedicated tactical plan, plays the match, and reveals the result feed', async ({

@@ -90,13 +90,13 @@ Cada fase abaixo registra objetivo, problema, dependências, entradas, saídas, 
 - **Autoridade/persistência/testes:** Rust possui validação, precedência, análise e familiaridade; persistence por tactic repository/event history; testes de regra, conflito, migração, restore e honest empty states.
 - **Aceite/fora/riscos/gate/checkpoint:** modelos restauram exatamente e cada efeito declara se é consumido; scouting amplo e IA adversária ficam fora; risco combinatório contido por opções discretas e resolução determinística; gate semântico aprovado; checkpoint final registrado pelo commit desta entrega.
 
-### Phase 06.4: Player/Coach Profiles and Explainable Ratings — não iniciada
+### Phase 06.4: Player/Coach Profiles and Explainable Ratings — concluída
 
 - **Objetivo/problema:** criar perfis estáveis e avaliações contextuais explicáveis; substitui números opacos e duplicação entre inspector/página.
 - **Dependências/entradas/saídas:** depende de 06.3; recebe entidades adapter-fed e contexto tático; entrega read models de jogador/treinador, escala ADR, rating components, confiança e histórico.
 - **Contratos/consumidores/rotas/interfaces:** consumido por Elenco, Clube, Comissão, Observação, 06.6, 06.8 e mercado; interfaces por entity routes, inspector e queries tipadas.
 - **Autoridade/persistência/testes:** Rust possui fórmulas e incerteza; projeções persistem versões/histórico; testes determinísticos de fórmula, navegação, partial/unknown, acessibilidade e non-regression.
-- **Aceite/fora/riscos/gate/checkpoint:** origem/componentes/contexto/confiança visíveis; scouting global e ratings decorativos fora; risco de falsa precisão; gate de entidades; checkpoint `06.4`.
+- **Aceite/fora/riscos/gate/checkpoint:** origem/componentes/contexto/confiança visíveis; scouting global e ratings decorativos fora; risco de falsa precisão contido por valor percebido e explicabilidade; gate de entidades aprovado; checkpoint final registrado pelo commit desta entrega.
 
 ### Phase 06.5: World Database, Editors and Modding Foundation
 
@@ -311,7 +311,7 @@ O MVP1 falha se qualquer rota principal não abrir, não tiver fonte autoritativ
 
 ## Decisões pendentes, com dono futuro
 
-- 06.4: ADR de escala/composição de ratings.
+- 06.4: ADR de escala/composição resolvida em `docs/adr/ADR-0013-explainable-rating-scale-and-knowledge.md`.
 - 06.5: serialização canônica de patches e política de assinatura de pacote.
 - 06.7: algoritmo de scheduling e política de timezone/remarcação.
 - 07.2: granularidade do event log e orçamento de performance.

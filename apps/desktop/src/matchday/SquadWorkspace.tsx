@@ -7,6 +7,7 @@ import {
   type TableViewCommandResult,
   type TableViewState,
 } from '../table-view/table-view-engine.js';
+import { PlayerInspector } from '../profiles/components.js';
 
 import {
   DataTableHeader,
@@ -154,6 +155,7 @@ interface SquadWorkspaceProps {
   readonly error: string;
   readonly saving: boolean;
   readonly onFocusPlayer: (playerId: string) => void;
+  readonly onOpenProfile: (playerId: string) => void;
   readonly onTogglePlayer: (player: Player) => void;
   readonly onSave: () => void;
   readonly onClearFilters: () => void;
@@ -195,6 +197,7 @@ export function SquadWorkspace({
   error,
   saving,
   onFocusPlayer,
+  onOpenProfile,
   onTogglePlayer,
   onSave,
   onClearFilters,
@@ -210,9 +213,6 @@ export function SquadWorkspace({
 }: SquadWorkspaceProps) {
   const focusedPlayer =
     state.players.find((player) => player.id === focusedPlayerId) ?? state.players[0];
-  const focusedIndex = focusedPlayer
-    ? state.players.findIndex((player) => player.id === focusedPlayer.id)
-    : -1;
   const focusedSelected = focusedPlayer ? selectedIds.includes(focusedPlayer.id) : false;
   const activeSortPreset =
     squadSortPresets.find(
@@ -618,64 +618,12 @@ export function SquadWorkspace({
         </section>
 
         {showPlayerDetails && focusedPlayer && (
-          <aside className="player-dossier" aria-label={`Resumo de ${focusedPlayer.name}`}>
-            <header>
-              <PlayerFace decorative index={focusedIndex} name={focusedPlayer.name} size={96} />
-              <div>
-                <span>{positionLongLabels[focusedPlayer.position]}</span>
-                <h2>{focusedPlayer.name}</h2>
-                <small className="dossier-meta">
-                  <span>
-                    Camisa {focusedPlayer.shirtNumber} · {focusedPlayer.age} anos ·
-                  </span>
-                  <NationalityDisplay codes={[focusedPlayer.nationality]} enableKeyboardTooltip />
-                </small>
-              </div>
-              <strong className="dossier-rating">
-                <b>{focusedPlayer.rating}</b>
-                <small>OVR</small>
-              </strong>
-            </header>
-            <section className="dossier-readiness">
-              <div>
-                <span>Condição para o jogo</span>
-                <strong>{focusedPlayer.condition}%</strong>
-              </div>
-              <i aria-hidden="true">
-                <b style={{ '--condition': `${focusedPlayer.condition}%` } as CSSProperties} />
-              </i>
-              <p>
-                {focusedPlayer.condition >= 90
-                  ? 'Pronto para iniciar'
-                  : 'Requer atenção da comissão'}
-              </p>
-            </section>
-            <dl className="dossier-facts">
-              <div>
-                <dt>Posição natural</dt>
-                <dd>{positionLabels[focusedPlayer.position]}</dd>
-              </div>
-              <div>
-                <dt>Papel no elenco</dt>
-                <dd>{squadRoleLabels[focusedPlayer.squadRole]}</dd>
-              </div>
-              <div>
-                <dt>Temporada</dt>
-                <dd>
-                  {focusedPlayer.appearances} J · {focusedPlayer.goals} G · {focusedPlayer.assists}{' '}
-                  A
-                </dd>
-              </div>
-              <div>
-                <dt>Status</dt>
-                <dd>{focusedSelected ? 'No XI inicial' : 'Disponível no banco'}</dd>
-              </div>
-            </dl>
-            <section className="dossier-note">
-              <Icon name="information" size={16} />
-              <p>Selecione o jogador e ajuste sua posição detalhada na tela de Táticas.</p>
-            </section>
-            <footer>
+          <aside className="player-dossier">
+            <PlayerInspector
+              onOpenProfile={onOpenProfile}
+              playerId={focusedPlayer.id}
+              variationId={state.tacticalLibrary?.activeVariationId}
+            >
               <Button
                 leadingIcon={focusedSelected ? 'close' : 'add'}
                 onClick={() => onTogglePlayer(focusedPlayer)}
@@ -689,11 +637,11 @@ export function SquadWorkspace({
                 loading={saving}
                 loadingLabel="Salvando…"
                 onClick={onSave}
-                variant="primary"
+                variant="secondary"
               >
                 Salvar escalação
               </Button>
-            </footer>
+            </PlayerInspector>
           </aside>
         )}
       </div>

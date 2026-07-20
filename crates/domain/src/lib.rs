@@ -1,6 +1,7 @@
 //! Framework-independent primitives shared by the modular-monolith core.
 
 mod matchday;
+mod profiles;
 mod tactics;
 
 pub use matchday::{
@@ -10,6 +11,18 @@ pub use matchday::{
     TacticalLibraryCommand, TacticalLine, TacticalPlanEvent, TacticalPlanProposal,
     TacticalPlanSnapshot, TacticalPlanUpdate, TacticalPlayerPlacement, TacticalSide,
     TacticalVariationLibrarySnapshot, TacticalZone,
+};
+pub use profiles::{
+    ASSESSMENT_VERSION, AttributeGroupProjection, AttributeProjection, AttributeSnapshot,
+    CoachAttributeSet, CoachDevelopmentProfile, CoachProfileProjection, CoachSportingProfile,
+    ContractSummary, ExplainableRating, ExternalPlayerState, GlobalProfileSearchResult,
+    KnowledgeLevel, KnowledgeValue, KnowledgeValueKind, PROFILE_PROJECTION_SCHEMA_VERSION,
+    PROFILE_WORLD_SCHEMA_VERSION, PersonIdentity, PlayerAttributeCategory, PlayerAttributeSet,
+    PlayerDevelopmentProjection, PlayerProfileProjection, PlayerSportingProfile,
+    PlayerStatisticsProjection, PlayerTrainingProfile, PositionRatingProjection, PotentialEstimate,
+    ProfileWorld, RATING_SCALE_VERSION, RatingFactor, RatingFactorImpact, RatingKind,
+    RatingSnapshot, RoleRatingProjection, ScoutingAssessment, project_coach_profile,
+    project_player_profile,
 };
 pub use tactics::{
     FamiliarityChange, FamiliarityDimension, GoalkeeperDistribution, InPossessionStrategy,

@@ -2,18 +2,28 @@
 
 mod matchday;
 mod persistence;
+mod profiles;
 mod table_view;
 
 pub use matchday::{MatchdayRepository, MatchdayService, MatchdayServiceError};
 pub use persistence::{LocalPersistenceError, LocalPersistencePort};
+pub use profiles::{ProfileRepository, ProfileService};
 pub use rivallo_domain::{
-    Club, CustomFormationIdentity, Formation, LineupSelection, MatchEvent, MatchResult,
-    MatchdayState, Player, Position, PreferredFoot, SeasonRecord, SquadRole,
-    TACTICAL_PLAN_SCHEMA_VERSION, TacticalApproach, TacticalLibraryCommand, TacticalLine,
-    TacticalMatchSnapshot, TacticalModelConfig, TacticalModelSnapshot, TacticalPlanEvent,
-    TacticalPlanPreview, TacticalPlanProposal, TacticalPlanSnapshot, TacticalPlanUpdate,
-    TacticalPlayerPlacement, TacticalSide, TacticalStrategyConfig, TacticalStrategyPresetId,
-    TacticalStrategyPresetSummary, TacticalVariationLibrarySnapshot, TacticalZone,
+    AttributeGroupProjection, AttributeProjection, AttributeSnapshot, Club, CoachAttributeSet,
+    CoachDevelopmentProfile, CoachProfileProjection, CoachSportingProfile, ContractSummary,
+    CustomFormationIdentity, ExplainableRating, ExternalPlayerState, Formation,
+    GlobalProfileSearchResult, KnowledgeLevel, KnowledgeValue, KnowledgeValueKind, LineupSelection,
+    MatchEvent, MatchResult, MatchdayState, PersonIdentity, Player, PlayerAttributeCategory,
+    PlayerAttributeSet, PlayerDevelopmentProjection, PlayerProfileProjection,
+    PlayerSportingProfile, PlayerStatisticsProjection, PlayerTrainingProfile, Position,
+    PositionRatingProjection, PotentialEstimate, PreferredFoot, ProfileWorld, RATING_SCALE_VERSION,
+    RatingFactor, RatingFactorImpact, RatingKind, RatingSnapshot, RoleRatingProjection,
+    ScoutingAssessment, SeasonRecord, SquadRole, TACTICAL_PLAN_SCHEMA_VERSION, TacticalApproach,
+    TacticalLibraryCommand, TacticalLine, TacticalMatchSnapshot, TacticalModelConfig,
+    TacticalModelSnapshot, TacticalPlanEvent, TacticalPlanPreview, TacticalPlanProposal,
+    TacticalPlanSnapshot, TacticalPlanUpdate, TacticalPlayerPlacement, TacticalSide,
+    TacticalStrategyConfig, TacticalStrategyPresetId, TacticalStrategyPresetSummary,
+    TacticalVariationLibrarySnapshot, TacticalZone,
 };
 pub use table_view::{
     CURRENT_ENVELOPE_VERSION, ColumnId, ColumnPinning, ColumnPinningSide, CreateTableViewRequest,

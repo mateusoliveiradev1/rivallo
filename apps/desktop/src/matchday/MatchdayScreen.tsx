@@ -3,11 +3,19 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 
 import { TableViewStatus } from '../ui/DataTable/index.js';
+import { ProfileScreen } from '../profiles/ProfileScreen.js';
+import type { GlobalProfileSearchResult, ProfileRoute } from '../profiles/types.js';
 import { Button } from '../ui/primitives/actions.js';
 import { Tooltip } from '../ui/primitives/disclosure.js';
 import { Skeleton, Status } from '../ui/primitives/feedback.js';
 import { Toast } from '../ui/primitives/toast.js';
-import { loadMatchday, playNextMatch, saveTacticalPlan, updateTacticalLibrary } from './client.js';
+import {
+  loadMatchday,
+  playNextMatch,
+  saveTacticalPlan,
+  searchProfiles,
+  updateTacticalLibrary,
+} from './client.js';
 import {
   defaultSquadSort,
   type ActiveScreen,
@@ -208,6 +216,18 @@ const UI_PREFERENCES_KEY = 'rivallo.squad-ui.v4';
 const LEGACY_UI_PREFERENCES_KEYS = ['rivallo.squad-ui.v3', 'rivallo.squad-ui.v2'] as const;
 const TACTICS_LAYOUT_KEY = 'rivallo.tactics-layout.v1';
 
+export const parseProfileRoute = (pathname: string): ProfileRoute | null => {
+  const match = /^\/(players|coaches)\/([^/]+)\/?$/u.exec(pathname);
+  if (!match?.[1] || !match[2]) return null;
+  return {
+    kind: match[1] === 'players' ? 'player' : 'coach',
+    entityId: decodeURIComponent(match[2]),
+  };
+};
+
+const profilePath = (route: ProfileRoute) =>
+  `/${route.kind === 'player' ? 'players' : 'coaches'}/${encodeURIComponent(route.entityId)}`;
+
 const defaultPreferences = (): UiPreferences => ({
   sidebarCollapsed: typeof window !== 'undefined' && window.innerWidth < 1240,
   activeScreen: 'squad',
@@ -319,6 +339,14 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
   const [error, setError] = useState('');
   const [resultOpen, setResultOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [profileRoute, setProfileRoute] = useState<ProfileRoute | null>(() =>
+    typeof window === 'undefined' ? null : parseProfileRoute(window.location.pathname),
+  );
+  const [profileSearchResults, setProfileSearchResults] = useState<
+    readonly GlobalProfileSearchResult[]
+  >([]);
+  const [profileSearchOpen, setProfileSearchOpen] = useState(false);
+  const [profileSearchBusy, setProfileSearchBusy] = useState(false);
   const [positionFilterControlVisible, setPositionFilterControlVisible] = useState(false);
   const [focusedPlayerId, setFocusedPlayerId] = useState<string | null>(null);
   const [activeTacticalTool, setActiveTacticalTool] = useState<TacticalTool>('tactics');
@@ -342,6 +370,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
   const savedViewRetryRef = useRef<SavedViewRetryContext | null>(null);
   const savedViewContinuationRef = useRef(0);
   const tacticalSaveOperationRef = useRef(0);
+  const profileSearchOperationRef = useRef(0);
 
   const selectedIds = useMemo(() => selectedIdsFromSlots(lineupSlots), [lineupSlots]);
   const durableFilters = useMemo(
@@ -362,6 +391,40 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
           direction: primarySort.direction,
         };
   const density = tableView.proposal.density as Density;
+
+  useEffect(() => {
+    const handlePopState = () => setProfileRoute(parseProfileRoute(window.location.pathname));
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    const normalizedQuery = query.trim();
+    if (normalizedQuery.length < 2) {
+      profileSearchOperationRef.current += 1;
+      setProfileSearchResults([]);
+      setProfileSearchBusy(false);
+      return;
+    }
+    const operation = ++profileSearchOperationRef.current;
+    setProfileSearchBusy(true);
+    const timer = window.setTimeout(() => {
+      void searchProfiles(normalizedQuery)
+        .then((results) => {
+          if (operation === profileSearchOperationRef.current) setProfileSearchResults(results);
+        })
+        .catch(() => {
+          if (operation === profileSearchOperationRef.current) setProfileSearchResults([]);
+        })
+        .finally(() => {
+          if (operation === profileSearchOperationRef.current) setProfileSearchBusy(false);
+        });
+    }, 180);
+    return () => {
+      window.clearTimeout(timer);
+      profileSearchOperationRef.current += 1;
+    };
+  }, [query]);
 
   useEffect(() => {
     if (
@@ -811,12 +874,35 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
     await continueAfterSavedView(target, continuationId);
   };
 
+  const openProfile = (route: ProfileRoute) => {
+    window.history.pushState({ rivalloProfile: true }, '', profilePath(route));
+    setProfileRoute(route);
+    setProfileSearchOpen(false);
+    setQuery('');
+  };
+
+  const returnFromProfile = () => {
+    if (window.history.state?.rivalloProfile === true) {
+      window.history.back();
+      return;
+    }
+    window.history.replaceState(null, '', '/');
+    setProfileRoute(null);
+  };
+
+  const closeProfileForWorkspace = () => {
+    if (!profileRoute) return;
+    window.history.replaceState(null, '', '/');
+    setProfileRoute(null);
+  };
+
   const setActiveScreen = (activeScreen: ActiveScreen) => {
     if (busyAction !== null) return;
     if (preferences.activeScreen === 'squad' && activeScreen !== 'squad' && tableView.dirty) {
       setSavedViewDirtyTarget({ kind: 'screen', screen: 'tactics', name: 'Táticas' });
       return;
     }
+    closeProfileForWorkspace();
     updatePreference('activeScreen', activeScreen);
   };
 
@@ -1338,7 +1424,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
           {navigationGroups.map((group, groupIndex) => (
             <div className="manager-navigation__group" key={groupIndex}>
               {group.map((item) => {
-                const active = item.id === preferences.activeScreen;
+                const active = !profileRoute && item.id === preferences.activeScreen;
                 return (
                   <button
                     aria-current={active ? 'page' : undefined}
@@ -1402,31 +1488,67 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
 
       <div className="manager-surface">
         <header className="manager-topbar" data-tauri-drag-region>
-          <label
-            className="global-search"
-            data-disabled={preferences.activeScreen === 'tactics' || undefined}
-            title={
-              preferences.activeScreen === 'tactics'
-                ? 'A busca do elenco fica disponível na tela de Elenco.'
-                : undefined
-            }
+          <div
+            className="global-search-wrap"
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) setProfileSearchOpen(false);
+            }}
           >
-            <Icon name="search" size={16} />
-            <span className="sr-only">
-              {preferences.activeScreen === 'tactics'
-                ? 'Busca disponível na tela de Elenco'
-                : 'Buscar jogador no elenco'}
-            </span>
-            <input
-              disabled={preferences.activeScreen === 'tactics'}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={
-                preferences.activeScreen === 'tactics' ? 'Busca no Elenco' : 'Buscar jogador'
-              }
-              type="search"
-              value={query}
-            />
-          </label>
+            <label className="global-search">
+              <Icon name="search" size={16} />
+              <span className="sr-only">Buscar jogadores e treinadores</span>
+              <input
+                aria-controls="global-profile-results"
+                aria-expanded={profileSearchOpen && query.trim().length >= 2}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setProfileSearchOpen(true);
+                }}
+                onFocus={() => setProfileSearchOpen(true)}
+                placeholder="Buscar jogador ou treinador"
+                type="search"
+                value={query}
+              />
+              {profileSearchBusy && (
+                <Icon className="global-search__busy" name="loading" size={16} />
+              )}
+            </label>
+            {profileSearchOpen && query.trim().length >= 2 && (
+              <div className="global-profile-results" id="global-profile-results">
+                {profileSearchBusy ? (
+                  <span>Buscando perfis…</span>
+                ) : profileSearchResults.length === 0 ? (
+                  <span>Nenhum perfil encontrado.</span>
+                ) : (
+                  <ul>
+                    {profileSearchResults.map((result) => (
+                      <li key={result.entityId}>
+                        <button
+                          onClick={() =>
+                            openProfile({
+                              kind: result.entityType,
+                              entityId: result.entityId,
+                            })
+                          }
+                          type="button"
+                        >
+                          <Icon
+                            name={result.entityType === 'player' ? 'people' : 'staff'}
+                            size={16}
+                          />
+                          <span>
+                            <strong>{result.name}</strong>
+                            <small>{result.secondaryLabel}</small>
+                          </span>
+                          <em>{result.entityType === 'player' ? 'Jogador' : 'Treinador'}</em>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
           <div className="manager-topbar__time">
             <strong>TER 15 JUL 2026</strong>
             <span>09:15</span>
@@ -1465,7 +1587,14 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
         </header>
 
         <main className="manager-main">
-          {preferences.activeScreen === 'squad' ? (
+          {profileRoute ? (
+            <ProfileScreen
+              onBack={returnFromProfile}
+              onNavigate={openProfile}
+              route={profileRoute}
+              variationId={state.tacticalLibrary?.activeVariationId}
+            />
+          ) : preferences.activeScreen === 'squad' ? (
             <>
               <SquadWorkspace
                 density={density}
@@ -1478,6 +1607,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
                   tableView.dispatch({ type: 'density.set', density: nextDensity })
                 }
                 onFocusPlayer={setFocusedPlayerId}
+                onOpenProfile={(playerId) => openProfile({ kind: 'player', entityId: playerId })}
                 onPositionFilterChange={setPositionFilter}
                 onPositionFilterVisibleChange={setPositionFilterVisible}
                 onRoleFilterChange={setRoleFilter}
@@ -1554,6 +1684,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
                 )
               }
               onFocusPlayer={setFocusedPlayerId}
+              onOpenProfile={(playerId) => openProfile({ kind: 'player', entityId: playerId })}
               onPitchModeChange={(pitchMode) => updatePreference('pitchMode', pitchMode)}
               onRenameVariation={renameVariation}
               onSave={saveLineup}

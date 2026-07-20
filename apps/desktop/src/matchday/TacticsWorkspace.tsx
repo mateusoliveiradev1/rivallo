@@ -56,6 +56,7 @@ interface TacticsWorkspaceProps {
   readonly onPitchModeChange: (mode: PitchMode) => void;
   readonly onActiveToolChange: (tool: TacticalTool) => void;
   readonly onFocusPlayer: (playerId: string) => void;
+  readonly onOpenProfile: (playerId: string) => void;
   readonly onUndo: () => void;
   readonly onDiscard: () => void;
   readonly onSave: () => Promise<TacticalPlanSnapshot | null>;
@@ -646,6 +647,7 @@ export function TacticsWorkspace({
   onPitchModeChange,
   onActiveToolChange,
   onFocusPlayer,
+  onOpenProfile,
   onUndo,
   onDiscard,
   onSave,
@@ -3602,6 +3604,13 @@ export function TacticsWorkspace({
                       `${model.opposition.instructions.filter(({ targetId }) => targetId === focusedPlayer.id).length} responsabilidades de oposição`}
                   </b>
                 </span>
+                <Button
+                  className="tactics-focus-player__profile"
+                  onClick={() => onOpenProfile(focusedPlayer.id)}
+                  variant="secondary"
+                >
+                  Abrir perfil
+                </Button>
               </>
             ) : (
               <span className="tactics-focus-team">
