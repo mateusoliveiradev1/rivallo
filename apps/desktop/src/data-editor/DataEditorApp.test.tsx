@@ -6,6 +6,7 @@ import { DataEditorApp } from './DataEditorApp.js';
 const clientMock = vi.hoisted(() => ({
   exportDataPackageSource: vi.fn(),
   loadDataPackageCatalog: vi.fn(),
+  loadWorldDatabaseSummary: vi.fn(),
   validateDataPackageSource: vi.fn(),
 }));
 
@@ -27,6 +28,13 @@ describe('DataEditorApp', () => {
         validation: validReport,
       },
     ]);
+    clientMock.loadWorldDatabaseSummary.mockReset().mockResolvedValue({
+      packageId: 'official.rivallo.foundation',
+      version: '1.0.0',
+      schemaVersion: 1,
+      fingerprintAlgorithm: 'fnv1a64',
+      worldFingerprint: 'e581b5521d09cf7b',
+    });
     clientMock.validateDataPackageSource.mockReset().mockResolvedValue({
       valid: false,
       diagnostics: [
@@ -50,6 +58,9 @@ describe('DataEditorApp', () => {
     render(<DataEditorApp />);
     expect(await screen.findByText('Rivallo Foundation')).toBeInstanceOf(HTMLElement);
     expect(screen.getByText('Base ativa')).toBeInstanceOf(HTMLElement);
+    expect(screen.getByText('Snapshot ativo')).toBeInstanceOf(HTMLElement);
+    expect(screen.getAllByText('official.rivallo.foundation')).toHaveLength(2);
+    expect(screen.getByText('e581b5521d09cf7b')).toBeInstanceOf(HTMLElement);
 
     fireEvent.click(screen.getByRole('button', { name: 'Validar' }));
     expect(await screen.findByText('package.reference_missing')).toBeInstanceOf(HTMLElement);
@@ -65,5 +76,6 @@ describe('DataEditorApp', () => {
     await waitFor(() => {
       expect(screen.getByText(/não foi ativado em nenhuma carreira/u)).toBeInstanceOf(HTMLElement);
     });
+    expect(clientMock.loadDataPackageCatalog).toHaveBeenCalledTimes(2);
   });
 });

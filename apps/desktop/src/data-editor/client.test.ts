@@ -4,6 +4,7 @@ import {
   decodeValidationReport,
   exportDataPackageSource,
   loadDataPackageCatalog,
+  loadWorldDatabaseSummary,
   validateDataPackageSource,
 } from './client.js';
 
@@ -45,6 +46,29 @@ describe('data editor client', () => {
       { source },
       undefined,
     );
+  });
+
+  it('decodes the active base and world fingerprint from the runtime status', async () => {
+    invokeMock.mockResolvedValue({
+      schemaVersion: 1,
+      packages: [
+        {
+          packageId: 'official.rivallo.foundation',
+          version: '1.0.0',
+          contentType: 'base',
+        },
+      ],
+      fingerprint: { algorithm: 'fnv1a64', value: 'e581b5521d09cf7b' },
+    });
+
+    await expect(loadWorldDatabaseSummary()).resolves.toEqual({
+      packageId: 'official.rivallo.foundation',
+      version: '1.0.0',
+      schemaVersion: 1,
+      fingerprintAlgorithm: 'fnv1a64',
+      worldFingerprint: 'e581b5521d09cf7b',
+    });
+    expect(invokeMock).toHaveBeenCalledWith('world_database_status', {}, undefined);
   });
 
   it('preserves structured validation diagnostics returned as an export rejection', async () => {

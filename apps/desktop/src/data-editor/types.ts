@@ -45,3 +45,11 @@ export interface DataPackageAuthoringSource {
   readonly worldJson: string | null;
   readonly patchesJson: string | null;
 }
+
+export interface WorldDatabaseSummary {
+  readonly packageId: string;
+  readonly version: string;
+  readonly schemaVersion: number;
+  readonly fingerprintAlgorithm: string;
+  readonly worldFingerprint: string;
+}

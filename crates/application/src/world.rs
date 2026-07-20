@@ -1,5 +1,5 @@
 use rivallo_domain::{
-    ContentPackage, PackageManifest, PackageValidationReport, PackageVisibility,
+    ContentPackage, DataPackageType, PackageManifest, PackageValidationReport, PackageVisibility,
     ResolvedWorldDatabase, resolve_world_packages, validate_package,
 };
 use serde::{Deserialize, Serialize};
@@ -38,20 +38,42 @@ impl<R: WorldPackageRepository> WorldDatabaseService<R> {
             .into_iter()
             .map(|package| package.manifest.package_id)
             .collect::<std::collections::HashSet<_>>();
-        Ok(self
+        let packages = self
             .repository
             .load_available_packages()?
             .into_iter()
-            .map(|package| DataPackageCatalogEntry {
-                active: active_ids.contains(&package.manifest.package_id),
-                validation: validate_package(&package),
-                manifest: package.manifest,
+            .map(|package| {
+                let validation = self.validate_candidate(&package);
+                DataPackageCatalogEntry {
+                    active: active_ids.contains(&package.manifest.package_id),
+                    validation,
+                    manifest: package.manifest,
+                }
             })
-            .collect())
+            .collect::<Vec<_>>();
+        Ok(packages)
     }
 
     pub fn validate_candidate(&self, package: &ContentPackage) -> PackageValidationReport {
-        validate_package(package)
+        let validation = validate_package(package);
+        if !validation.valid {
+            return validation;
+        }
+        let packages = if package.manifest.content_type == DataPackageType::Base {
+            vec![package.clone()]
+        } else {
+            let mut active = match self.repository.load_active_packages() {
+                Ok(active) => active,
+                Err(report) => return report,
+            };
+            active.retain(|candidate| candidate.manifest.package_id != package.manifest.package_id);
+            active.push(package.clone());
+            active
+        };
+        match resolve_world_packages(packages) {
+            Ok(resolved) => resolved.validation,
+            Err(report) => report,
+        }
     }
 
     pub fn export_candidate(
@@ -72,7 +94,7 @@ impl<R: WorldPackageRepository> WorldDatabaseService<R> {
                 Some("Use somente o ambiente privado explicitamente isolado; o export público aceita visibility=public.".to_owned()),
             ));
         }
-        let validation = validate_package(package);
+        let validation = self.validate_candidate(package);
         if !validation.valid {
             return Err(validation);
         }
@@ -85,7 +107,10 @@ impl<R: WorldPackageRepository> WorldDatabaseService<R> {
 mod tests {
     use std::{cell::Cell, rc::Rc};
 
-    use rivallo_domain::{DataPackageType, PackageVisibility, WorldPackageData};
+    use rivallo_domain::{
+        DataPackageType, PackageDependency, PackagePatchOperation, PackageVisibility, WorldEntity,
+        WorldEntityKind, WorldPackageData,
+    };
 
     use super::*;
 
@@ -187,5 +212,45 @@ mod tests {
             "package.private_development_isolated"
         );
         assert_eq!(repository.save_count.get(), 0);
+    }
+
+    #[test]
+    fn mod_candidate_is_resolved_against_the_active_base_before_validation_passes() {
+        let base = official_package();
+        let mut broken_profile = base.world.as_ref().expect("world").profiles.players[0].clone();
+        broken_profile.identity.club_id = "club.missing".to_owned();
+        let mut candidate = base.clone();
+        candidate.manifest.package_id = "community.uat.broken-reference".to_owned();
+        candidate.manifest.content_type = DataPackageType::Mod;
+        candidate.manifest.dependencies = vec![PackageDependency {
+            package_id: "official.rivallo.foundation".to_owned(),
+            version_requirement: ">=1.0.0 <2.0.0".to_owned(),
+            optional: false,
+        }];
+        candidate.manifest.entrypoints.patches = Some("data/patches.json".to_owned());
+        candidate.manifest.checksum =
+            "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_owned();
+        candidate.world = None;
+        candidate.patches = vec![rivallo_domain::PackagePatch {
+            operation: PackagePatchOperation::Replace,
+            entity_kind: WorldEntityKind::PlayerProfile,
+            target_id: broken_profile.identity.entity_id.clone(),
+            entity: Some(WorldEntity::PlayerProfile(broken_profile)),
+            reason: "UAT broken reference".to_owned(),
+        }];
+        let service = WorldDatabaseService::new(RepositoryFixture {
+            active: vec![base],
+            available: Vec::new(),
+            save_count: Rc::new(Cell::new(0)),
+        });
+
+        let report = service.validate_candidate(&candidate);
+
+        assert!(!report.valid);
+        assert!(report.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "world.broken_club_reference"
+                && diagnostic.field.as_deref() == Some("identity.clubId")
+                && diagnostic.reference.as_deref() == Some("club.missing")
+        }));
     }
 }

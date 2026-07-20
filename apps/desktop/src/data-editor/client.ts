@@ -5,6 +5,7 @@ import type {
   DataPackageCatalogEntry,
   PackageValidationDiagnostic,
   PackageValidationReport,
+  WorldDatabaseSummary,
 } from './types.js';
 
 const record = (value: unknown): Record<string, unknown> | null =>
@@ -54,6 +55,32 @@ export const decodeValidationReport = (value: unknown): PackageValidationReport 
 
 export const loadDataPackageCatalog = async (): Promise<readonly DataPackageCatalogEntry[]> =>
   invoke<DataPackageCatalogEntry[]>('data_package_catalog');
+
+export const loadWorldDatabaseSummary = async (): Promise<WorldDatabaseSummary> => {
+  const status = record(await invoke<unknown>('world_database_status'));
+  const fingerprint = record(status?.fingerprint);
+  const packages = Array.isArray(status?.packages) ? status.packages : [];
+  const base = packages.map(record).find((manifest) => manifest?.contentType === 'base');
+  if (
+    !status ||
+    typeof status.schemaVersion !== 'number' ||
+    !fingerprint ||
+    typeof fingerprint.algorithm !== 'string' ||
+    typeof fingerprint.value !== 'string' ||
+    !base ||
+    typeof base.packageId !== 'string' ||
+    typeof base.version !== 'string'
+  ) {
+    throw new Error('O runtime retornou um status mundial incompatível.');
+  }
+  return {
+    packageId: base.packageId,
+    version: base.version,
+    schemaVersion: status.schemaVersion,
+    fingerprintAlgorithm: fingerprint.algorithm,
+    worldFingerprint: fingerprint.value,
+  };
+};
 
 export const validateDataPackageSource = async (
   source: DataPackageAuthoringSource,

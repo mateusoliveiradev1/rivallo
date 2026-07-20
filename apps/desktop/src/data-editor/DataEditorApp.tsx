@@ -5,6 +5,7 @@ import { Skeleton, Status } from '../ui/primitives/feedback.js';
 import {
   exportDataPackageSource,
   loadDataPackageCatalog,
+  loadWorldDatabaseSummary,
   validateDataPackageSource,
 } from './client.js';
 import { PackageValidationSummary } from './PackageValidationSummary.js';
@@ -12,6 +13,7 @@ import type {
   DataPackageAuthoringSource,
   DataPackageCatalogEntry,
   PackageValidationReport,
+  WorldDatabaseSummary,
 } from './types.js';
 
 import './data-editor.css';
@@ -61,6 +63,7 @@ const patchesTemplate = JSON.stringify([], null, 2);
 export function DataEditorApp() {
   const [catalog, setCatalog] = useState<readonly DataPackageCatalogEntry[]>([]);
   const [catalogState, setCatalogState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [worldSummary, setWorldSummary] = useState<WorldDatabaseSummary | null>(null);
   const [manifestJson, setManifestJson] = useState(manifestTemplate);
   const [worldJson, setWorldJson] = useState('');
   const [patchesJson, setPatchesJson] = useState(patchesTemplate);
@@ -71,10 +74,11 @@ export function DataEditorApp() {
 
   useEffect(() => {
     let active = true;
-    void loadDataPackageCatalog()
-      .then((entries) => {
+    void Promise.all([loadDataPackageCatalog(), loadWorldDatabaseSummary()])
+      .then(([entries, summary]) => {
         if (!active) return;
         setCatalog(entries);
+        setWorldSummary(summary);
         setCatalogState('ready');
       })
       .catch(() => {
@@ -117,7 +121,16 @@ export function DataEditorApp() {
       const nextReport = await exportDataPackageSource(source);
       setReport(nextReport);
       if (nextReport.valid) {
-        setMessage('Pacote exportado no catálogo local. Ele não foi ativado em nenhuma carreira.');
+        try {
+          setCatalog(await loadDataPackageCatalog());
+          setMessage(
+            'Pacote exportado e catálogo atualizado. Ele não foi ativado em nenhuma carreira.',
+          );
+        } catch {
+          setMessage(
+            'Pacote exportado, mas o catálogo visual não pôde ser atualizado. Reabra o editor. Ele não foi ativado em nenhuma carreira.',
+          );
+        }
       } else {
         setMessage('A exportação foi bloqueada. Revise os diagnósticos abaixo.');
       }
@@ -152,26 +165,51 @@ export function DataEditorApp() {
             </Status>
           )}
           {catalogState === 'ready' && (
-            <ul>
-              {catalog.map((entry) => (
-                <li key={entry.manifest.packageId}>
-                  <div>
-                    <strong>{entry.manifest.name}</strong>
-                    <span>{entry.manifest.packageId}</span>
-                  </div>
+            <>
+              {worldSummary && (
+                <section aria-labelledby="active-snapshot-heading" className="data-editor-snapshot">
+                  <h3 id="active-snapshot-heading">Snapshot ativo</h3>
                   <dl>
                     <div>
-                      <dt>Versão</dt>
-                      <dd>{entry.manifest.version}</dd>
+                      <dt>packageId</dt>
+                      <dd>{worldSummary.packageId}</dd>
                     </div>
                     <div>
-                      <dt>Estado</dt>
-                      <dd>{entry.active ? 'Base ativa' : 'Disponível, inativo'}</dd>
+                      <dt>Versão</dt>
+                      <dd>{worldSummary.version}</dd>
+                    </div>
+                    <div>
+                      <dt>Schema</dt>
+                      <dd>{worldSummary.schemaVersion}</dd>
+                    </div>
+                    <div>
+                      <dt>Fingerprint ({worldSummary.fingerprintAlgorithm})</dt>
+                      <dd>{worldSummary.worldFingerprint}</dd>
                     </div>
                   </dl>
-                </li>
-              ))}
-            </ul>
+                </section>
+              )}
+              <ul>
+                {catalog.map((entry) => (
+                  <li key={entry.manifest.packageId}>
+                    <div>
+                      <strong>{entry.manifest.name}</strong>
+                      <span>{entry.manifest.packageId}</span>
+                    </div>
+                    <dl>
+                      <div>
+                        <dt>Versão</dt>
+                        <dd>{entry.manifest.version}</dd>
+                      </div>
+                      <div>
+                        <dt>Estado</dt>
+                        <dd>{entry.active ? 'Base ativa' : 'Disponível, inativo'}</dd>
+                      </div>
+                    </dl>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
         </aside>
 
