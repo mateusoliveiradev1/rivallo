@@ -726,6 +726,12 @@ describe('MatchdayScreen', () => {
     render(<MatchdayScreen serviceOwnership="owned" />);
     await screen.findByRole('heading', { name: 'Visão geral do elenco' });
 
+    const careerReturnButton = screen.getByRole('button', { name: 'Voltar ao Menu Principal' });
+    const sidebarFooter = careerReturnButton.closest('.manager-sidebar__footer');
+    expect(careerReturnButton.textContent).toBe('');
+    expect(sidebarFooter).toBeInstanceOf(HTMLElement);
+    expect(within(sidebarFooter as HTMLElement).getAllByRole('button')).toHaveLength(3);
+
     fireEvent.click(screen.getByRole('button', { name: 'Recolher navegação' }));
     expect(screen.getByRole('button', { name: 'Expandir navegação' })).toBeInstanceOf(
       HTMLButtonElement,

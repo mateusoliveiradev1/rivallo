@@ -354,7 +354,7 @@
 
 .manager-sidebar__footer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 44px;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
   gap: var(--rv-space-1);
   align-items: center;
   padding: var(--rv-space-1) var(--rv-space-2);
@@ -378,11 +378,6 @@
   line-height: var(--rv-type-12-line-height);
 }
 
-.manager-sidebar__footer button:first-child {
-  justify-content: flex-start;
-  padding: 0 var(--rv-space-2);
-}
-
 .manager-sidebar__return {
   color: var(--rv-color-text) !important;
 }
@@ -396,12 +391,7 @@
   grid-template-columns: 1fr;
 }
 
-.manager-shell[data-sidebar-collapsed] .manager-sidebar__footer button:first-child {
-  justify-content: center;
-  padding: 0;
-}
-
-.manager-shell[data-sidebar-collapsed] .manager-sidebar__footer button:first-child span {
+.manager-shell[data-sidebar-collapsed] .manager-sidebar__footer button span {
   display: none;
 }
 

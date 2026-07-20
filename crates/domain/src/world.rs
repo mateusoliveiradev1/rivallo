@@ -938,6 +938,26 @@ fn validate_world_references(
     report: &mut PackageValidationReport,
 ) {
     let club_ids: HashSet<_> = world.clubs.iter().map(|value| value.id.as_str()).collect();
+    for club in &world.clubs {
+        if let Some(history) = club.history_summary.as_deref() {
+            let length = history.trim().chars().count();
+            let unsafe_control = history.chars().any(|character| {
+                character.is_control() && !matches!(character, '\n' | '\r' | '\t')
+            });
+            if length > 1_200 || unsafe_control {
+                report.error(
+                    package,
+                    "world.invalid_club_history",
+                    Some(&club.id),
+                    Some("historySummary"),
+                    None,
+                    None,
+                    "A história do clube deve ser texto simples com até 1.200 caracteres.",
+                    Some("Remova caracteres de controle ou reduza o resumo histórico."),
+                );
+            }
+        }
+    }
     for active_club in [&world.matchday.club, &world.matchday.opponent] {
         if !club_ids.contains(active_club.id.as_str()) {
             broken_reference(package, report, "matchday", "clubId", &active_club.id);

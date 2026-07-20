@@ -28,8 +28,11 @@ const knowledgeLabels: Record<KnowledgeLevel, string> = {
 };
 
 const formatDate = (value: number | string) => {
+  if (value === 0 || value === '' || value === 'career-start' || value === 'indefinido') {
+    return 'Não informado';
+  }
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? 'Data indisponível' : date.toLocaleDateString('pt-BR');
+  return Number.isNaN(date.getTime()) ? 'Não informado' : date.toLocaleDateString('pt-BR');
 };
 
 export function EstimatedRange({

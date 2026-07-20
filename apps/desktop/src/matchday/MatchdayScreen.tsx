@@ -3,9 +3,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react';
 
 import { exitApplication, operationId, saveCareer } from '../career/client.js';
+import { useActiveCoachPortrait } from '../career/CareerPortrait.js';
 import type { CareerFailure, CareerSlot } from '../career/types.js';
 import { TableViewStatus } from '../ui/DataTable/index.js';
 import { ProfileScreen } from '../profiles/ProfileScreen.js';
+import { CoachFace } from '../profiles/CoachFace.js';
 import { EntityLink, entityPath } from '../profiles/EntityProfileSystem.js';
 import type { GlobalProfileSearchResult, ProfileRoute } from '../profiles/types.js';
 import { Button } from '../ui/primitives/actions.js';
@@ -270,6 +272,8 @@ export function describeTableViewRejection(
 const UI_PREFERENCES_KEY = 'rivallo.squad-ui.v4';
 const LEGACY_UI_PREFERENCES_KEYS = ['rivallo.squad-ui.v3', 'rivallo.squad-ui.v2'] as const;
 const TACTICS_LAYOUT_KEY = 'rivallo.tactics-layout.v1';
+const tacticsLayoutKey = (careerId: string) =>
+  `${TACTICS_LAYOUT_KEY}:${encodeURIComponent(careerId)}`;
 
 export const parseProfileRoute = (pathname: string): ProfileRoute | null => {
   const match = /^\/(players|coaches|clubs|nations)\/([^/]+)\/?$/u.exec(pathname);
@@ -405,12 +409,12 @@ const interleaveSearchResults = (
   return visible;
 };
 
-const readStoredLineup = (players: readonly Player[]): LineupSlots | null => {
+const readStoredLineup = (players: readonly Player[], careerId: string): LineupSlots | null => {
   try {
-    return normalizeStoredSlots(
-      JSON.parse(window.localStorage.getItem(TACTICS_LAYOUT_KEY) ?? 'null'),
-      players,
-    );
+    const scoped = window.localStorage.getItem(tacticsLayoutKey(careerId));
+    const legacy =
+      careerId === 'career.legacy.aurora' ? window.localStorage.getItem(TACTICS_LAYOUT_KEY) : null;
+    return normalizeStoredSlots(JSON.parse(scoped ?? legacy ?? 'null'), players);
   } catch {
     return null;
   }
@@ -423,6 +427,7 @@ export function MatchdayScreen({
   onCareerSaved = () => undefined,
   onReturnToMenu = () => undefined,
 }: MatchdayScreenProps) {
+  const activeCoachPortrait = useActiveCoachPortrait(career.managerId);
   const [state, setState] = useState<MatchdayState | null>(null);
   const [lineupSlots, setLineupSlots] = useState<LineupSlots>(() => Array(11).fill(null));
   const [savedLineupSlots, setSavedLineupSlots] = useState<LineupSlots>(() => Array(11).fill(null));
@@ -625,7 +630,7 @@ export function MatchdayScreen({
     const normalizedPreferred = preferredSlots
       ? normalizeStoredSlots(preferredSlots, nextState.players)
       : null;
-    const stored = readStoredLineup(nextState.players);
+    const stored = readStoredLineup(nextState.players, career.careerId);
     const legacyLayout =
       normalizedPreferred && hasSameSelectedPlayers(normalizedPreferred, serverIds)
         ? normalizedPreferred
@@ -1795,13 +1800,17 @@ export function MatchdayScreen({
           className="manager-sidebar__career"
           title={`${career.displayName} · ${career.baseSnapshot.basePackageId}`}
         >
-          <span
-            aria-label={`Escudo de ${career.clubName}`}
-            className="manager-sidebar__career-crest"
-            style={{ '--club-color': career.clubPrimaryColor } as CSSProperties}
-          >
-            {career.clubShortName}
-          </span>
+          {activeCoachPortrait ? (
+            <CoachFace decorative entityId={career.managerId} name={career.managerName} size={38} />
+          ) : (
+            <span
+              aria-label={`Escudo de ${career.clubName}`}
+              className="manager-sidebar__career-crest"
+              style={{ '--club-color': career.clubPrimaryColor } as CSSProperties}
+            >
+              {career.clubShortName}
+            </span>
+          )}
           <span>
             <strong>{career.clubName}</strong>
             <small>{career.managerName}</small>
@@ -1827,7 +1836,6 @@ export function MatchdayScreen({
               type="button"
             >
               <Icon name="previous" size={20} />
-              <span>Voltar ao Menu Principal</span>
             </button>
           </Tooltip>
           <button

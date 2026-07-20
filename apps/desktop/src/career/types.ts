@@ -40,6 +40,11 @@ export interface CareerSlotSummary {
   readonly backupCount: number;
 }
 
+export interface CareerPortrait {
+  readonly mimeType: string;
+  readonly bytes: readonly number[];
+}
+
 export interface CareerWorldSnapshot {
   readonly basePackageId: string;
   readonly basePackageVersion: string;
@@ -189,10 +194,51 @@ export type CoachBackground =
   | 'beginner'
   | 'balanced';
 
+export type CoachArchetype =
+  | 'balanced'
+  | 'strategist'
+  | 'peopleManager'
+  | 'youthDeveloper'
+  | 'analyst'
+  | 'formerPlayer'
+  | 'matchPreparer';
+
+export interface CoachAttributeBudgetLine {
+  readonly attributeId: keyof CoachAttributes;
+  readonly value: number;
+  readonly cost: number;
+  readonly nextCost: number | null;
+  readonly cap: number;
+}
+
+export interface CoachCreationEvaluation {
+  readonly schemaVersion: number;
+  readonly costModelVersion: string;
+  readonly budget: number;
+  readonly usedPoints: number;
+  readonly remainingPoints: number;
+  readonly attributeCap: number;
+  readonly capReason: string;
+  readonly highAttributeLimit: number;
+  readonly highAttributeCount: number;
+  readonly specialtyLimit: number;
+  readonly contextualRating: number;
+  readonly reputationCap: number;
+  readonly experienceCap: number;
+  readonly balanceLabel:
+    'Perfil equilibrado' | 'Especialista' | 'Muito concentrado' | 'Configuração inválida';
+  readonly strengths: readonly string[];
+  readonly limitations: readonly string[];
+  readonly attributeLines: readonly CoachAttributeBudgetLine[];
+  readonly valid: boolean;
+  readonly errors: readonly string[];
+}
+
 export interface PortraitUpload {
   readonly fileName: string;
   readonly mimeType: string;
   readonly bytes: readonly number[];
+  readonly derivatives: Readonly<Record<string, readonly number[]>>;
 }
 
 export interface CoachCreatorDraft {
@@ -206,6 +252,7 @@ export interface CoachCreatorDraft {
   age: number;
   languages: string[];
   background: CoachBackground;
+  archetype: CoachArchetype;
   qualification: string;
   experienceYears: number;
   reputation: number;
@@ -214,6 +261,8 @@ export interface CoachCreatorDraft {
   specialties: string[];
   attributes: CoachAttributes;
   appearance: {
+    seed: number;
+    rendererVersion: number;
     skinTone: number;
     faceShape: string;
     hairStyle: string;

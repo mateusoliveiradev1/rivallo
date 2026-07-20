@@ -10,7 +10,7 @@ import {
 
 const invokeMock = vi.fn();
 
-const source = { manifestJson: '{}', worldJson: null, patchesJson: '[]' };
+const source = { manifestJson: '{}', worldJson: null, patchesJson: '[]', assets: [] };
 const report = {
   valid: false,
   diagnostics: [

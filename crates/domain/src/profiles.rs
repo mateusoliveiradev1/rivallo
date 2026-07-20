@@ -713,6 +713,8 @@ pub struct CoachSportingProfile {
     pub attributes: CoachAttributeSet,
     pub specialties: Vec<String>,
     pub contract: Option<ContractSummary>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub portrait_asset_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -751,6 +753,7 @@ pub struct CoachProfileProjection {
     pub weaknesses: Vec<String>,
     pub specialties: Vec<String>,
     pub contract: Option<ContractSummary>,
+    pub portrait_asset_id: Option<String>,
     pub career_history: Vec<String>,
     pub rating_history: Vec<RatingSnapshot>,
     pub development: CoachDevelopmentProfile,
@@ -800,6 +803,7 @@ pub struct ClubProfileProjection {
     pub country_code: Option<String>,
     pub competition_name: Option<String>,
     pub stadium_name: Option<String>,
+    pub history_summary: Option<String>,
     pub current_position: Option<u16>,
     pub next_fixture: Option<String>,
     pub form: Vec<String>,
@@ -1225,6 +1229,7 @@ fn coach(
             expires_at: "2027-12-31".to_owned(),
             squad_status: "Treinador principal".to_owned(),
         }),
+        portrait_asset_id: None,
     }
 }
 
@@ -1775,7 +1780,13 @@ pub fn project_club_profile(
     let staff: Vec<_> = world
         .coaches
         .iter()
-        .filter(|coach| coach.identity.club_id == club.id)
+        .filter(|coach| {
+            coach.identity.club_id == club.id
+                && coach.role == "Treinador principal"
+                && coach.contract.as_ref().is_some_and(|contract| {
+                    contract.club_id == club.id && contract.squad_status == "Treinador principal"
+                })
+        })
         .map(|coach| coach_reference(world, coach, observer_club_id))
         .collect();
     let head_coach = staff.first().cloned();
@@ -1825,6 +1836,7 @@ pub fn project_club_profile(
         country_code,
         competition_name,
         stadium_name,
+        history_summary: club.history_summary.clone(),
         current_position: None,
         next_fixture: None,
         form: Vec::new(),
@@ -2341,7 +2353,7 @@ fn state_for_player(
             player.appearances,
             player.goals,
             player.assists,
-            Some((player.average_rating * 10.0).round() as u8),
+            (player.appearances > 0).then(|| (player.average_rating * 10.0).round() as u8),
         );
     }
     world
@@ -2628,10 +2640,10 @@ pub fn project_player_profile(
         contract: profile.contract,
         statistics: PlayerStatisticsProjection {
             appearances,
-            minutes: None,
+            minutes: (appearances == 0).then_some(0),
             goals,
             assists,
-            cards: None,
+            cards: (appearances == 0).then_some(0),
             average_rating,
             source: if exact_state {
                 "Registro da carreira".to_owned()
@@ -2833,6 +2845,7 @@ pub fn project_coach_profile(
         weaknesses,
         specialties: coach.specialties.clone(),
         contract: coach.contract,
+        portrait_asset_id: coach.portrait_asset_id,
         career_history: vec![
             format!("Atual · {}", coach.identity.club_name),
             "Histórico anterior não disponível nesta base inicial.".to_owned(),

@@ -15,12 +15,13 @@ pub use rivallo_application::{
     AssetReference, AssistanceProfile, AttributeGroupProjection, AttributeProjection,
     AttributeSnapshot, CAREER_SCHEMA_VERSION, COACH_CREATOR_SCHEMA_VERSION, CareerIntegrity,
     CareerRouteContext, CareerSaveState, CareerSlot, CareerWorldSnapshot, ClubProfileProjection,
-    ClubTacticalIdentityProjection, CoachAppearance, CoachAttributeSet, CoachBackground,
-    CoachCreatorDraft, CoachDevelopmentProfile, CoachProfileProjection, CoachSportingProfile,
-    ColumnId, ColumnPinning, ColumnPinningSide, ContentPackage, ContractSummary,
-    CustomFormationIdentity, DataPackageCatalogEntry, EntityProfileReference, ExplainableRating,
-    ExternalPlayerState, FilterGroupId, FilterGroupLogic, FilterId, FilterOperator, FilterValue,
-    Formation, GlobalProfileSearchResult, KnowledgeLevel, KnowledgeValue, KnowledgeValueKind,
+    ClubTacticalIdentityProjection, CoachAppearance, CoachArchetype, CoachAttributeBudgetLine,
+    CoachAttributeSet, CoachBackground, CoachCreationEvaluation, CoachCreatorDraft,
+    CoachDevelopmentProfile, CoachProfileProjection, CoachSportingProfile, ColumnId, ColumnPinning,
+    ColumnPinningSide, ContentPackage, ContractSummary, CustomFormationIdentity,
+    DataPackageCatalogEntry, EntityProfileReference, ExplainableRating, ExternalPlayerState,
+    FilterGroupId, FilterGroupLogic, FilterId, FilterOperator, FilterValue, Formation,
+    GlobalProfileSearchResult, KnowledgeLevel, KnowledgeValue, KnowledgeValueKind,
     LegacyImportOutcome, LegacyImportReceipt, LegacyTableViewImport, LineupSelection,
     MatchdayState, Nation, NationProfileProjection, NullOrder, OwnerScope, PackageCoverageReport,
     PackageManifest, PackagePatch, PackageValidationDiagnostic, PackageValidationReport,
@@ -38,10 +39,10 @@ pub use rivallo_application::{
     TacticalPlanPreview, TacticalPlanProposal, TacticalPlanSnapshot, TacticalPlanUpdate,
     TacticalPlayerPlacement, TacticalSide, TacticalStrategyPresetSummary,
     TacticalVariationLibrarySnapshot, TacticalZone, ViewId, ViewMutability, ViewProvenance,
-    WindowId, squad_system_default_repository_state,
+    WindowId, evaluate_coach_creation, squad_system_default_repository_state,
 };
 pub use table_view::{FileTableViewRepository, TableViewCoordinator};
-pub use world::{FileWorldPackageRepository, WorldDatabaseCoordinator};
+pub use world::{AuthoringAssetUpload, FileWorldPackageRepository, WorldDatabaseCoordinator};
 
 pub use runtime::{
     CancellationToken, LOCAL_API_ADDRESS, LOCAL_API_PORT, LOCAL_API_SERVICE_ID,
@@ -116,8 +117,8 @@ pub fn prepare_contract_export<T>(prepared_input: T) -> ContractExportPreparatio
 }
 
 pub use career::{
-    CareerCoachChoice, CareerCoordinator, CareerFailure, CareerSlotSummary, CreateCareerRequest,
-    SaveCareerRequest,
+    CareerCoachChoice, CareerCoordinator, CareerFailure, CareerPortrait, CareerSlotSummary,
+    CreateCareerRequest, SaveCareerRequest,
 };
 
 #[cfg(test)]

@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 
 import { Button } from '../ui/primitives/actions.js';
 import { Status } from '../ui/primitives/feedback.js';
+import { CareerPortrait } from './CareerPortrait.js';
 import { MenuShell } from './MenuShell.js';
 import type { CareerSlotSummary } from './types.js';
 
@@ -72,12 +73,20 @@ export function MainMenu({
 
           {lastCareer ? (
             <div className="continue-career">
-              <div
-                aria-label={`Escudo de ${lastCareer.clubName}`}
-                className="continue-career__crest"
-                style={{ '--career-club-color': lastCareer.clubPrimaryColor } as CSSProperties}
-              >
-                {lastCareer.clubShortName}
+              <div className="continue-career__visual">
+                <CareerPortrait
+                  careerId={lastCareer.careerId}
+                  className="career-portrait career-portrait--large"
+                  fallback={<span>{lastCareer.managerName.slice(0, 2).toUpperCase()}</span>}
+                  managerName={lastCareer.managerName}
+                />
+                <div
+                  aria-label={`Escudo de ${lastCareer.clubName}`}
+                  className="continue-career__crest"
+                  style={{ '--career-club-color': lastCareer.clubPrimaryColor } as CSSProperties}
+                >
+                  {lastCareer.clubShortName}
+                </div>
               </div>
               <div className="continue-career__identity">
                 <span>

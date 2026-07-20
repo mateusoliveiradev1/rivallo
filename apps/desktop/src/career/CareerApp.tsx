@@ -4,6 +4,7 @@ import { MatchdayScreen } from '../matchday/MatchdayScreen.js';
 import { Button } from '../ui/primitives/actions.js';
 import { Skeleton, Status } from '../ui/primitives/feedback.js';
 import { exitApplication, loadCareer, loadCareerBoot } from './client.js';
+import { CareerPortraitProvider } from './CareerPortrait.js';
 import { LoadCareerScreen } from './LoadCareerScreen.js';
 import { MainMenu } from './MainMenu.js';
 import { MenuShell } from './MenuShell.js';
@@ -119,13 +120,15 @@ export function CareerApp({ serviceOwnership }: CareerAppProps) {
 
   if (activeSlot && route === 'career') {
     return (
-      <MatchdayScreen
-        career={activeSlot}
-        exitRequestToken={safeExitRequest}
-        onCareerSaved={setActiveSlot}
-        onReturnToMenu={() => void returnToMenu()}
-        serviceOwnership={serviceOwnership}
-      />
+      <CareerPortraitProvider careerId={activeSlot.careerId} managerId={activeSlot.managerId}>
+        <MatchdayScreen
+          career={activeSlot}
+          exitRequestToken={safeExitRequest}
+          onCareerSaved={setActiveSlot}
+          onReturnToMenu={() => void returnToMenu()}
+          serviceOwnership={serviceOwnership}
+        />
+      </CareerPortraitProvider>
     );
   }
 
@@ -187,6 +190,7 @@ export function CareerApp({ serviceOwnership }: CareerAppProps) {
           setActiveSlot(slot);
           navigate('career', `/career/${encodeURIComponent(slot.careerId)}`);
         }}
+        onExit={() => void exitApplication()}
       />
     );
   }

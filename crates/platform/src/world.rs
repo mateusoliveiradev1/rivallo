@@ -7,12 +7,28 @@ use rivallo_application::{
     PackageValidationReport, PackageVisibility, ResolvedWorldDatabase, WorldDatabaseService,
     WorldEntityKind, WorldPackageData, WorldPackageRepository,
 };
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 const MAX_MANIFEST_BYTES: u64 = 256 * 1024;
 const MAX_WORLD_BYTES: u64 = 16 * 1024 * 1024;
 const MAX_PATCH_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_ASSET_BYTES: u64 = 16 * 1024 * 1024;
+const MAX_AUTHORING_ASSETS: usize = 128;
+const MAX_AUTHORING_ASSET_TOTAL_BYTES: usize = 64 * 1024 * 1024;
+
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AuthoringAssetUpload {
+    pub id: String,
+    pub entity_id: String,
+    pub kind: String,
+    pub path: String,
+    pub media_type: String,
+    pub bytes: Vec<u8>,
+    pub provenance: String,
+    pub rights: String,
+}
 
 const OFFICIAL_MANIFEST: &str =
     include_str!("../../../data/packages/official.rivallo.foundation/manifest.json");
@@ -192,8 +208,18 @@ impl FileWorldPackageRepository {
     }
 
     fn write_package(&self, package: &ContentPackage) -> Result<(), PackageValidationReport> {
+        self.write_package_with_assets(package, &[])
+    }
+
+    fn write_package_with_assets(
+        &self,
+        package: &ContentPackage,
+        assets: &[AuthoringAssetUpload],
+    ) -> Result<(), PackageValidationReport> {
         reject_public_export(package)?;
-        reject_unmaterialized_assets(package)?;
+        if assets.is_empty() {
+            reject_unmaterialized_assets(package)?;
+        }
         fs::create_dir_all(&self.user_packages_root).map_err(|error| {
             io_report(
                 &self.user_packages_root,
@@ -253,6 +279,13 @@ impl FileWorldPackageRepository {
             let patches_path = resolve_entrypoint(&temporary, patches_entrypoint)?;
             write_synced(&patches_path, &patch_bytes)?;
         }
+        for asset in assets {
+            let asset_path = resolve_entrypoint(&temporary, &asset.path)?;
+            write_synced(&asset_path, &asset.bytes)?;
+        }
+        if !assets.is_empty() {
+            validate_asset_files(&temporary, package.manifest.assets.iter())?;
+        }
         let mut manifest = package.manifest.clone();
         let mut content = world_bytes;
         content.extend(patch_bytes);
@@ -296,12 +329,17 @@ impl WorldPackageRepository for FileWorldPackageRepository {
 
 pub struct WorldDatabaseCoordinator {
     service: WorldDatabaseService<FileWorldPackageRepository>,
+    user_packages_root: PathBuf,
 }
 
 impl WorldDatabaseCoordinator {
     pub fn new(user_packages_root: impl Into<PathBuf>) -> Self {
+        let user_packages_root = user_packages_root.into();
         Self {
-            service: WorldDatabaseService::new(FileWorldPackageRepository::new(user_packages_root)),
+            service: WorldDatabaseService::new(FileWorldPackageRepository::new(
+                user_packages_root.clone(),
+            )),
+            user_packages_root,
         }
     }
 
@@ -336,8 +374,9 @@ impl WorldDatabaseCoordinator {
         manifest_json: &str,
         world_json: Option<&str>,
         patches_json: Option<&str>,
+        assets: &[AuthoringAssetUpload],
     ) -> PackageValidationReport {
-        match parse_authoring_package(manifest_json, world_json, patches_json) {
+        match prepare_authoring_package(manifest_json, world_json, patches_json, assets) {
             Ok(package) => self.service.validate_candidate(&package),
             Err(report) => report,
         }
@@ -348,9 +387,99 @@ impl WorldDatabaseCoordinator {
         manifest_json: &str,
         world_json: Option<&str>,
         patches_json: Option<&str>,
+        assets: &[AuthoringAssetUpload],
     ) -> Result<PackageValidationReport, PackageValidationReport> {
-        let package = parse_authoring_package(manifest_json, world_json, patches_json)?;
-        self.service.export_candidate(&package)
+        let package = prepare_authoring_package(manifest_json, world_json, patches_json, assets)?;
+        let validation = self.service.validate_candidate(&package);
+        if !validation.valid {
+            return Err(validation);
+        }
+        FileWorldPackageRepository::new(&self.user_packages_root)
+            .write_package_with_assets(&package, assets)?;
+        Ok(validation)
+    }
+}
+
+fn prepare_authoring_package(
+    manifest_json: &str,
+    world_json: Option<&str>,
+    patches_json: Option<&str>,
+    assets: &[AuthoringAssetUpload],
+) -> Result<ContentPackage, PackageValidationReport> {
+    let mut package = parse_authoring_package(manifest_json, world_json, patches_json)?;
+    if assets.is_empty() {
+        return Ok(package);
+    }
+    if assets.len() > MAX_AUTHORING_ASSETS
+        || assets.iter().map(|asset| asset.bytes.len()).sum::<usize>()
+            > MAX_AUTHORING_ASSET_TOTAL_BYTES
+    {
+        return Err(PackageValidationReport::blocking(
+            "<editor>/assets",
+            "package.authoring_assets_too_large",
+            Some(package.manifest.package_id.clone()),
+            Some("assets".to_owned()),
+            None,
+            Some(assets.len().to_string()),
+            "O conjunto de imagens excede os limites seguros do editor.",
+            Some("Use até 128 imagens e 64 MB no total.".to_owned()),
+        ));
+    }
+    let mut ids = std::collections::HashSet::new();
+    let mut paths = std::collections::HashSet::new();
+    let mut references = Vec::with_capacity(assets.len());
+    for asset in assets {
+        let safe_path = !asset.path.contains("..")
+            && asset.path.starts_with("assets/")
+            && asset
+                .path
+                .bytes()
+                .all(|value| value.is_ascii_alphanumeric() || b"/._-".contains(&value));
+        let safe_identity = !asset.id.trim().is_empty()
+            && !asset.entity_id.trim().is_empty()
+            && !asset.kind.trim().is_empty()
+            && ids.insert(asset.id.clone())
+            && paths.insert(asset.path.clone());
+        if !safe_path
+            || !safe_identity
+            || asset.bytes.is_empty()
+            || asset.bytes.len() as u64 > MAX_ASSET_BYTES
+            || !valid_image_payload(&asset.media_type, &asset.bytes)
+        {
+            return Err(PackageValidationReport::blocking(
+                "<editor>/assets",
+                "package.authoring_asset_invalid",
+                Some(asset.id.clone()),
+                Some("asset".to_owned()),
+                None,
+                Some(asset.path.clone()),
+                "A imagem precisa ser PNG, JPEG ou WebP válido, com caminho e identidade seguros.",
+                Some("Escolha novamente uma imagem local de até 16 MB.".to_owned()),
+            ));
+        }
+        references.push(rivallo_application::AssetReference {
+            id: asset.id.clone(),
+            entity_id: Some(asset.entity_id.clone()),
+            kind: asset.kind.clone(),
+            path: asset.path.clone(),
+            media_type: asset.media_type.clone(),
+            checksum: format!("sha256:{:x}", Sha256::digest(&asset.bytes)),
+            provenance: asset.provenance.trim().to_owned(),
+            rights: asset.rights.trim().to_owned(),
+            private_use: false,
+        });
+    }
+    package.manifest.entrypoints.assets = Some("assets".to_owned());
+    package.manifest.assets = references;
+    Ok(package)
+}
+
+fn valid_image_payload(media_type: &str, bytes: &[u8]) -> bool {
+    match media_type {
+        "image/png" => bytes.starts_with(b"\x89PNG\r\n\x1a\n"),
+        "image/jpeg" => bytes.starts_with(&[0xff, 0xd8, 0xff]),
+        "image/webp" => bytes.len() >= 12 && &bytes[..4] == b"RIFF" && &bytes[8..12] == b"WEBP",
+        _ => false,
     }
 }
 
@@ -713,6 +842,141 @@ mod tests {
             .expect("time after epoch")
             .as_nanos();
         std::env::temp_dir().join(format!("rivallo-world-{label}-{nonce}"))
+    }
+
+    fn authoring_manifest(package_id: &str) -> String {
+        let mut manifest: PackageManifest =
+            serde_json::from_str(OFFICIAL_MANIFEST).expect("manifest fixture");
+        manifest.package_id = package_id.to_owned();
+        manifest.name = "Community asset fixture".to_owned();
+        manifest.content_type = DataPackageType::Mod;
+        manifest.assets.clear();
+        serde_json::to_string(&manifest).expect("authoring manifest json")
+    }
+
+    fn authoring_asset(media_type: &str, path: &str, bytes: Vec<u8>) -> AuthoringAssetUpload {
+        AuthoringAssetUpload {
+            id: "asset.community.coach.portrait".to_owned(),
+            entity_id: "community.coach".to_owned(),
+            kind: "coachPortrait".to_owned(),
+            path: path.to_owned(),
+            media_type: media_type.to_owned(),
+            bytes,
+            provenance: "Community test".to_owned(),
+            rights: "Original content".to_owned(),
+        }
+    }
+
+    #[test]
+    fn authoring_png_is_materialized_with_authoritative_checksum() {
+        let root = temporary_root("authoring-png");
+        let asset = authoring_asset(
+            "image/png",
+            "assets/coachPortrait/community-coach.png",
+            b"\x89PNG\r\n\x1a\ncommunity-image".to_vec(),
+        );
+        let package = prepare_authoring_package(
+            &authoring_manifest("community.example.authoring-png"),
+            None,
+            None,
+            std::slice::from_ref(&asset),
+        )
+        .expect("valid PNG upload");
+        let expected_checksum = format!("sha256:{:x}", Sha256::digest(&asset.bytes));
+
+        assert_eq!(package.manifest.assets.len(), 1);
+        assert_eq!(package.manifest.assets[0].checksum, expected_checksum);
+        FileWorldPackageRepository::new(&root)
+            .write_package_with_assets(&package, std::slice::from_ref(&asset))
+            .expect("materialize image atomically");
+
+        let package_root = root.join("community.example.authoring-png");
+        assert_eq!(
+            fs::read(package_root.join(&asset.path)).expect("materialized image"),
+            asset.bytes
+        );
+        let persisted_manifest: PackageManifest = serde_json::from_slice(
+            &fs::read(package_root.join("manifest.json")).expect("persisted manifest"),
+        )
+        .expect("manifest schema");
+        assert_eq!(persisted_manifest.assets[0].checksum, expected_checksum);
+        fs::remove_dir_all(root).expect("cleanup fixture");
+    }
+
+    #[test]
+    fn authoring_rejects_false_mime_and_svg_uploads() {
+        let false_mime = authoring_asset(
+            "image/png",
+            "assets/coachPortrait/community-coach.png",
+            b"\xff\xd8\xffnot-a-png".to_vec(),
+        );
+        let report = prepare_authoring_package(
+            &authoring_manifest("community.example.false-mime"),
+            None,
+            None,
+            &[false_mime],
+        )
+        .expect_err("declared MIME must match the file signature");
+        assert_eq!(
+            report.diagnostics[0].code,
+            "package.authoring_asset_invalid"
+        );
+
+        let svg = authoring_asset(
+            "image/svg+xml",
+            "assets/coachPortrait/community-coach.svg",
+            br#"<svg xmlns="http://www.w3.org/2000/svg"/>"#.to_vec(),
+        );
+        let report = prepare_authoring_package(
+            &authoring_manifest("community.example.svg"),
+            None,
+            None,
+            &[svg],
+        )
+        .expect_err("SVG authoring uploads are never accepted");
+        assert_eq!(
+            report.diagnostics[0].code,
+            "package.authoring_asset_invalid"
+        );
+    }
+
+    #[test]
+    fn authoring_rejects_asset_path_traversal_and_oversize_images() {
+        let traversal = authoring_asset(
+            "image/png",
+            "assets/../outside.png",
+            b"\x89PNG\r\n\x1a\nfixture".to_vec(),
+        );
+        let report = prepare_authoring_package(
+            &authoring_manifest("community.example.traversal"),
+            None,
+            None,
+            &[traversal],
+        )
+        .expect_err("asset path traversal must be rejected");
+        assert_eq!(
+            report.diagnostics[0].code,
+            "package.authoring_asset_invalid"
+        );
+
+        let mut bytes = vec![0; MAX_ASSET_BYTES as usize + 1];
+        bytes[..8].copy_from_slice(b"\x89PNG\r\n\x1a\n");
+        let oversized = authoring_asset(
+            "image/png",
+            "assets/coachPortrait/community-coach.png",
+            bytes,
+        );
+        let report = prepare_authoring_package(
+            &authoring_manifest("community.example.oversized"),
+            None,
+            None,
+            &[oversized],
+        )
+        .expect_err("individual authoring assets have a hard size limit");
+        assert_eq!(
+            report.diagnostics[0].code,
+            "package.authoring_asset_invalid"
+        );
     }
 
     #[test]

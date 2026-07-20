@@ -7,8 +7,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use rivallo_application::{
     AssistanceProfile, CAREER_SCHEMA_VERSION, CareerIntegrity, CareerRouteContext, CareerSaveState,
-    CareerSlot, CareerWorldSnapshot, CoachCreatorDraft, DataPackageType, MatchdayState,
-    PackageVisibility, ProfileWorld, ResolvedWorldDatabase, SeasonRecord,
+    CareerSlot, CareerWorldSnapshot, CoachCreatorDraft, DataPackageType, KnowledgeLevel,
+    MatchdayState, PackageVisibility, ProfileWorld, ResolvedWorldDatabase, ScoutingAssessment,
+    SeasonRecord, project_coach_profile,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -17,6 +18,10 @@ use crate::{MatchdayCoordinator, ProfileCoordinator, WorldDatabaseCoordinator};
 
 const INDEX_SCHEMA_VERSION: u16 = 1;
 const MAX_BACKUPS: usize = 5;
+const MAX_PORTRAIT_BYTES: u64 = 5 * 1024 * 1024;
+const INITIAL_CONDITION: u8 = 100;
+const INITIAL_MATCH_FITNESS: u8 = 100;
+const INITIAL_MORALE: u8 = 70;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(
@@ -58,6 +63,13 @@ pub struct CareerFailure {
     pub code: String,
     pub message: String,
     pub details: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CareerPortrait {
+    pub mime_type: String,
+    pub bytes: Vec<u8>,
 }
 
 impl CareerFailure {
@@ -305,6 +317,42 @@ impl CareerCoordinator {
         Ok(summaries)
     }
 
+    pub fn portrait(&self, career_id: &str) -> Result<Option<CareerPortrait>, CareerFailure> {
+        let _guard = self.lock()?;
+        let slot = self.read_slot(career_id)?;
+        let Some(asset) = slot.portrait_asset.as_deref() else {
+            return Ok(None);
+        };
+        let mime_type = match asset {
+            "assets/coach-portrait.png" => "image/png",
+            "assets/coach-portrait.jpeg" => "image/jpeg",
+            "assets/coach-portrait.webp" => "image/webp",
+            _ => {
+                return Err(CareerFailure::new(
+                    "career.portrait_path_invalid",
+                    "O retrato salvo possui um caminho invÃ¡lido.",
+                ));
+            }
+        };
+        let path = self.slot_dir(career_id).join(asset);
+        let metadata = fs::metadata(&path).map_err(|error| {
+            CareerFailure::new("career.portrait_read_failed", error.to_string())
+        })?;
+        if metadata.len() == 0 || metadata.len() > MAX_PORTRAIT_BYTES {
+            return Err(CareerFailure::new(
+                "career.portrait_size_invalid",
+                "O retrato salvo excede o limite permitido.",
+            ));
+        }
+        let bytes = fs::read(path).map_err(|error| {
+            CareerFailure::new("career.portrait_read_failed", error.to_string())
+        })?;
+        Ok(Some(CareerPortrait {
+            mime_type: mime_type.to_owned(),
+            bytes,
+        }))
+    }
+
     pub fn last_valid(&self) -> Result<Option<CareerSlotSummary>, CareerFailure> {
         let _guard = self.lock()?;
         let index = self.read_index()?;
@@ -404,6 +452,13 @@ impl CareerCoordinator {
         let now = now_ms();
         let career_id = career_id(&request.operation_id, now);
         let mut profiles = resolved.world.profiles.clone();
+        let career_start_date = request.current_date.clone();
+        let career_start_ms = iso_date_to_unix_ms(&career_start_date).ok_or_else(|| {
+            CareerFailure::new(
+                "career.start_date_invalid",
+                "A data inicial da carreira não é uma data válida.",
+            )
+        })?;
         let (manager_id, manager_name, portrait) = match request.coach {
             CareerCoachChoice::Existing { coach_id } => {
                 let coach = profiles
@@ -440,20 +495,80 @@ impl CareerCoordinator {
                 })?;
                 let portrait = draft.portrait.clone();
                 let coach_id = format!("career:{career_id}:coach:1");
-                let coach = (*draft).into_profile(coach_id.clone(), &club);
+                let portrait_asset_id = portrait
+                    .as_ref()
+                    .map(|_| format!("career:{career_id}:asset:coach-portrait"));
+                for previous in profiles.coaches.iter_mut().filter(|coach| {
+                    coach.identity.club_id == club.id && coach.role == "Treinador principal"
+                }) {
+                    previous.role = "Treinador anterior".to_owned();
+                    if let Some(contract) = &mut previous.contract {
+                        contract.expires_at = career_start_date.clone();
+                        contract.squad_status = "Vínculo encerrado".to_owned();
+                    }
+                }
+                let coach = (*draft).into_profile(
+                    coach_id.clone(),
+                    &club,
+                    &career_start_date,
+                    portrait_asset_id,
+                );
                 let manager_name = coach.identity.known_name.clone();
                 profiles.coaches.push(coach);
+                profiles.assessments.retain(|assessment| {
+                    !(assessment.entity_id == coach_id && assessment.observer_club_id == club.id)
+                });
+                profiles.assessments.push(ScoutingAssessment {
+                    entity_id: coach_id.clone(),
+                    observer_club_id: club.id.clone(),
+                    knowledge_level: KnowledgeLevel::OwnClub,
+                    confidence: 100,
+                    source: "Criado pelo usuário".to_owned(),
+                    observed_at: career_start_ms,
+                    updated_at: career_start_ms,
+                    expires_at: None,
+                    known_fields: vec![
+                        "identity".to_owned(),
+                        "attributes".to_owned(),
+                        "career".to_owned(),
+                        "contract".to_owned(),
+                        "appearance".to_owned(),
+                    ],
+                    estimated_fields: Vec::new(),
+                    hidden_fields: Vec::new(),
+                    assessment_version: 1,
+                });
                 profiles.revision += 1;
                 profiles
                     .validate()
                     .map_err(|error| CareerFailure::new("career.coach_profile_invalid", error))?;
+                project_coach_profile(&mut profiles, &coach_id, &club.id, career_start_ms)
+                    .map_err(|error| CareerFailure::new("career.coach_rating_invalid", error))?;
                 (coach_id, manager_name, portrait)
             }
         };
 
         let mut matchday = resolved.world.matchday.clone();
         matchday.club = club.clone();
-        matchday.round = 1;
+        matchday.round = 0;
+        for (index, player) in matchday.players.iter_mut().enumerate() {
+            player.appearances = 0;
+            player.goals = 0;
+            player.assists = 0;
+            player.average_rating = 0.0;
+            player.condition = INITIAL_CONDITION;
+            player.match_fitness = INITIAL_MATCH_FITNESS;
+            player.morale = INITIAL_MORALE;
+            player.selected = index < 11;
+        }
+        for player in &mut profiles.external_players {
+            player.appearances = 0;
+            player.goals = 0;
+            player.assists = 0;
+            player.average_rating = None;
+            player.condition = Some(INITIAL_CONDITION);
+            player.match_fitness = Some(INITIAL_MATCH_FITNESS);
+        }
         matchday.record = SeasonRecord::default();
         matchday.last_result = None;
         let snapshot = world_snapshot(resolved, now)?;
@@ -462,6 +577,24 @@ impl CareerCoordinator {
                 rivallo_application::validate_portrait(portrait).expect("validated portrait");
             format!("assets/coach-portrait.{kind}")
         });
+        let active_head_coaches = profiles
+            .coaches
+            .iter()
+            .filter(|coach| {
+                coach.identity.club_id == club.id
+                    && coach.role == "Treinador principal"
+                    && coach.contract.as_ref().is_some_and(|contract| {
+                        contract.club_id == club.id
+                            && contract.squad_status == "Treinador principal"
+                    })
+            })
+            .count();
+        if active_head_coaches != 1 {
+            return Err(CareerFailure::new(
+                "career.head_coach_invariant_failed",
+                "A carreira precisa possuir exatamente um treinador principal ativo.",
+            ));
+        }
         let slot = CareerSlot {
             schema_version: CAREER_SCHEMA_VERSION,
             career_id: career_id.clone(),
@@ -514,6 +647,7 @@ impl CareerCoordinator {
     ) -> Result<CareerSlot, CareerFailure> {
         let _guard = self.lock()?;
         let mut slot = self.read_slot(career_id)?;
+        repair_precompetition_slot(&mut slot)?;
         matchday
             .replace_state(slot.matchday.clone())
             .map_err(|error| CareerFailure::new("career.matchday_restore_failed", error))?;
@@ -803,6 +937,39 @@ impl CareerCoordinator {
             .map_err(|error| {
                 CareerFailure::new("career.portrait_write_failed", error.to_string())
             })?;
+            let derivative_names = [
+                ("profile", "profile"),
+                ("card", "card"),
+                ("miniCard", "mini-card"),
+                ("sidebar", "sidebar"),
+            ];
+            let mut derivative_paths = BTreeMap::new();
+            for (key, file_name) in derivative_names {
+                if let Some(bytes) = portrait.derivatives.get(key) {
+                    sync_write(
+                        &assets.join(format!("coach-portrait-{file_name}.png")),
+                        bytes,
+                    )
+                    .map_err(|error| {
+                        CareerFailure::new("career.portrait_write_failed", error.to_string())
+                    })?;
+                    derivative_paths
+                        .insert(key.to_owned(), format!("coach-portrait-{file_name}.png"));
+                }
+            }
+            let digest = Sha256::digest(&portrait.bytes);
+            let metadata = serde_json::json!({
+                "assetId": format!("career:{}:asset:coach-portrait", slot.career_id),
+                "sha256": format!("{digest:x}"),
+                "original": format!("coach-portrait.{kind}"),
+                "derivatives": derivative_paths,
+                "rendererVersion": 1
+            });
+            atomic_write_json(
+                &assets.join("coach-portrait.meta.json"),
+                &metadata,
+                "career.portrait_write_failed",
+            )?;
         }
         let envelope = envelope(slot)?;
         atomic_write_json(
@@ -875,6 +1042,151 @@ impl CareerCoordinator {
     fn backup_count(&self, career_id: &str) -> usize {
         self.backup_names(career_id).map_or(0, |items| items.len())
     }
+}
+
+fn repair_precompetition_slot(slot: &mut CareerSlot) -> Result<bool, CareerFailure> {
+    if slot.sporting_state != "awaitingCompetitionInitialization" {
+        return Ok(false);
+    }
+    let clean_initial_state = slot.matchday.round == 0
+        && slot.matchday.record == SeasonRecord::default()
+        && slot.matchday.last_result.is_none()
+        && slot
+            .matchday
+            .players
+            .iter()
+            .enumerate()
+            .all(|(index, player)| {
+                player.appearances == 0
+                    && player.goals == 0
+                    && player.assists == 0
+                    && player.average_rating == 0.0
+                    && player.condition == INITIAL_CONDITION
+                    && player.match_fitness == INITIAL_MATCH_FITNESS
+                    && player.morale == INITIAL_MORALE
+                    && player.selected == (index < 11)
+            })
+        && slot.profiles.external_players.iter().all(|player| {
+            player.appearances == 0
+                && player.goals == 0
+                && player.assists == 0
+                && player.average_rating.is_none()
+                && player.condition == Some(INITIAL_CONDITION)
+                && player.match_fitness == Some(INITIAL_MATCH_FITNESS)
+        });
+    let created_manager = slot.manager_id.starts_with("career:");
+    let active_head_coaches = slot
+        .profiles
+        .coaches
+        .iter()
+        .filter(|coach| {
+            coach.identity.club_id == slot.club_id && coach.role == "Treinador principal"
+        })
+        .count();
+    let manager_assessment_complete = slot.profiles.assessments.iter().any(|assessment| {
+        assessment.entity_id == slot.manager_id
+            && assessment.observer_club_id == slot.club_id
+            && assessment.knowledge_level == KnowledgeLevel::OwnClub
+            && assessment.confidence == 100
+            && assessment.source == "Criado pelo usuário"
+            && assessment.updated_at > 0
+    });
+    let created_manager_needs_repair =
+        created_manager && (active_head_coaches != 1 || !manager_assessment_complete);
+    if clean_initial_state && !created_manager_needs_repair {
+        return Ok(false);
+    }
+    let before = slot.clone();
+    for (index, player) in slot.matchday.players.iter_mut().enumerate() {
+        player.appearances = 0;
+        player.goals = 0;
+        player.assists = 0;
+        player.average_rating = 0.0;
+        player.condition = INITIAL_CONDITION;
+        player.match_fitness = INITIAL_MATCH_FITNESS;
+        player.morale = INITIAL_MORALE;
+        player.selected = index < 11;
+    }
+    slot.matchday.round = 0;
+    slot.matchday.record = SeasonRecord::default();
+    slot.matchday.last_result = None;
+    for player in &mut slot.profiles.external_players {
+        player.appearances = 0;
+        player.goals = 0;
+        player.assists = 0;
+        player.average_rating = None;
+        player.condition = Some(INITIAL_CONDITION);
+        player.match_fitness = Some(INITIAL_MATCH_FITNESS);
+    }
+
+    if created_manager_needs_repair {
+        for coach in slot
+            .profiles
+            .coaches
+            .iter_mut()
+            .filter(|coach| coach.identity.club_id == slot.club_id)
+        {
+            if coach.identity.entity_id == slot.manager_id {
+                coach.role = "Treinador principal".to_owned();
+                if slot.portrait_asset.is_some() && coach.portrait_asset_id.is_none() {
+                    coach.portrait_asset_id =
+                        Some(format!("career:{}:asset:coach-portrait", slot.career_id));
+                }
+                if let Some(contract) = &mut coach.contract {
+                    contract.club_id.clone_from(&slot.club_id);
+                    contract.started_at.clone_from(&slot.current_date);
+                    contract.expires_at.clear();
+                    contract.squad_status = "Treinador principal".to_owned();
+                }
+            } else if coach.role == "Treinador principal" {
+                coach.role = "Treinador anterior".to_owned();
+                if let Some(contract) = &mut coach.contract {
+                    contract.expires_at.clone_from(&slot.current_date);
+                    contract.squad_status = "Vínculo encerrado".to_owned();
+                }
+            }
+        }
+
+        let career_start_ms = iso_date_to_unix_ms(&slot.current_date).ok_or_else(|| {
+            CareerFailure::new(
+                "career.start_date_invalid",
+                "A data inicial da carreira não é uma data válida.",
+            )
+        })?;
+        slot.profiles.assessments.retain(|assessment| {
+            !(assessment.entity_id == slot.manager_id
+                && assessment.observer_club_id == slot.club_id)
+        });
+        slot.profiles.assessments.push(ScoutingAssessment {
+            entity_id: slot.manager_id.clone(),
+            observer_club_id: slot.club_id.clone(),
+            knowledge_level: KnowledgeLevel::OwnClub,
+            confidence: 100,
+            source: "Criado pelo usuário".to_owned(),
+            observed_at: career_start_ms,
+            updated_at: career_start_ms,
+            expires_at: None,
+            known_fields: vec![
+                "identity".to_owned(),
+                "attributes".to_owned(),
+                "career".to_owned(),
+                "contract".to_owned(),
+                "appearance".to_owned(),
+            ],
+            estimated_fields: Vec::new(),
+            hidden_fields: Vec::new(),
+            assessment_version: 1,
+        });
+        slot.profiles.revision = slot.profiles.revision.saturating_add(1);
+        project_coach_profile(
+            &mut slot.profiles,
+            &slot.manager_id,
+            &slot.club_id,
+            career_start_ms,
+        )
+        .map_err(|error| CareerFailure::new("career.coach_rating_invalid", error))?;
+    }
+    Ok(*slot != before)
 }
 
 fn world_snapshot(
@@ -1033,6 +1345,46 @@ fn now_ms() -> u64 {
         .as_millis()
         .try_into()
         .unwrap_or(u64::MAX)
+}
+
+fn iso_date_to_unix_ms(value: &str) -> Option<u64> {
+    let mut parts = value.split('-');
+    let year = parts.next()?.parse::<i64>().ok()?;
+    let month = parts.next()?.parse::<u32>().ok()?;
+    let day = parts.next()?.parse::<u32>().ok()?;
+    if parts.next().is_some() || !(1..=12).contains(&month) {
+        return None;
+    }
+    let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    let days_in_month = [
+        31,
+        if leap { 29 } else { 28 },
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
+    ];
+    if day == 0 || day > days_in_month[month as usize - 1] {
+        return None;
+    }
+    let adjusted_year = year - i64::from(month <= 2);
+    let era = if adjusted_year >= 0 {
+        adjusted_year
+    } else {
+        adjusted_year - 399
+    } / 400;
+    let year_of_era = adjusted_year - era * 400;
+    let shifted_month = i64::from(month) + if month > 2 { -3 } else { 9 };
+    let day_of_year = (153 * shifted_month + 2) / 5 + i64::from(day) - 1;
+    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+    let unix_days = era * 146_097 + day_of_era - 719_468;
+    u64::try_from(unix_days).ok()?.checked_mul(86_400_000)
 }
 
 fn hex(bytes: &[u8]) -> String {

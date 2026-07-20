@@ -251,6 +251,7 @@ export interface CoachProfileProjection {
   readonly weaknesses: readonly string[];
   readonly specialties: readonly string[];
   readonly contract: ContractSummary | null;
+  readonly portraitAssetId: string | null;
   readonly careerHistory: readonly string[];
   readonly ratingHistory: readonly RatingSnapshot[];
   readonly development: CoachDevelopmentProfile;
@@ -296,6 +297,7 @@ export interface ClubProfileProjection {
   readonly countryCode: string | null;
   readonly competitionName: string | null;
   readonly stadiumName: string | null;
+  readonly historySummary: string | null;
   readonly currentPosition: number | null;
   readonly nextFixture: string | null;
   readonly form: readonly string[];

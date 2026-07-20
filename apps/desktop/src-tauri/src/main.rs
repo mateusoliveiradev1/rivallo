@@ -5,8 +5,9 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use rivallo_platform::{
-    AssetReference, CareerCoordinator, CareerFailure, CareerSlot, CareerSlotSummary,
-    ClubProfileProjection, CoachProfileProjection, ColumnId, ColumnPinning, ColumnPinningSide,
+    AssetReference, AuthoringAssetUpload, CareerCoordinator, CareerFailure, CareerPortrait,
+    CareerSlot, CareerSlotSummary, ClubProfileProjection, CoachCreationEvaluation,
+    CoachCreatorDraft, CoachProfileProjection, ColumnId, ColumnPinning, ColumnPinningSide,
     ContentPackage, CreateCareerRequest, DataPackageCatalogEntry, FilterGroupId, FilterGroupLogic,
     FilterId, FilterOperator, FilterValue, Formation, GlobalProfileSearchResult, LOCAL_API_ADDRESS,
     LegacyImportOutcome, LegacyImportReceipt, LegacyTableViewImport, LineupSelection,
@@ -20,7 +21,7 @@ use rivallo_platform::{
     TableViewValidationError, TacticalApproach, TacticalLibraryCommand, TacticalMatchSnapshot,
     TacticalPlanPreview, TacticalPlanProposal, TacticalPlanUpdate, TacticalStrategyPresetSummary,
     ViewId, ViewMutability, ViewProvenance, WindowId, WorldDatabaseCoordinator,
-    squad_system_default_repository_state, validate_readiness_response,
+    evaluate_coach_creation, squad_system_default_repository_state, validate_readiness_response,
 };
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, RunEvent, State};
@@ -208,6 +209,8 @@ struct DataPackageAuthoringDto {
     manifest_json: String,
     world_json: Option<String>,
     patches_json: Option<String>,
+    #[serde(default)]
+    assets: Vec<AuthoringAssetUpload>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -1601,6 +1604,7 @@ fn validate_data_package_source(
         &source.manifest_json,
         source.world_json.as_deref(),
         source.patches_json.as_deref(),
+        &source.assets,
     )
 }
 
@@ -1613,6 +1617,7 @@ fn export_data_package_source(
         &source.manifest_json,
         source.world_json.as_deref(),
         source.patches_json.as_deref(),
+        &source.assets,
     )
 }
 
@@ -1674,6 +1679,19 @@ fn last_valid_career(
 ) -> Result<Option<CareerSlotSummary>, CareerFailure> {
     ensure_legacy_career(&careers, &world, &gameplay, &profiles)?;
     careers.last_valid()
+}
+
+#[tauri::command]
+fn career_portrait(
+    career_id: String,
+    careers: State<'_, Arc<CareerCoordinator>>,
+) -> Result<Option<CareerPortrait>, CareerFailure> {
+    careers.portrait(&career_id)
+}
+
+#[tauri::command]
+fn preview_coach_creation(draft: CoachCreatorDraft) -> CoachCreationEvaluation {
+    evaluate_coach_creation(&draft)
 }
 
 #[tauri::command]
@@ -1857,6 +1875,8 @@ fn main() {
             preview_career_composition,
             career_slots,
             last_valid_career,
+            career_portrait,
+            preview_coach_creation,
             create_career,
             load_career,
             save_career,

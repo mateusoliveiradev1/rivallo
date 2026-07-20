@@ -9,7 +9,8 @@ mod world;
 pub use career::{
     AssistanceProfile, CAREER_SCHEMA_VERSION, COACH_CREATOR_SCHEMA_VERSION, CareerIntegrity,
     CareerRouteContext, CareerSaveState, CareerSlot, CareerWorldSnapshot, CoachAppearance,
-    CoachBackground, CoachCreatorDraft, PortraitUpload, validate_portrait,
+    CoachArchetype, CoachAttributeBudgetLine, CoachBackground, CoachCreationEvaluation,
+    CoachCreatorDraft, PortraitUpload, evaluate_coach_creation, validate_portrait,
 };
 pub use matchday::{
     Club, CustomFormationIdentity, Formation, LineupSelection, MatchEvent, MatchResult,

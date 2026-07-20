@@ -33,6 +33,7 @@ export interface Club {
   readonly countryCode?: string | null;
   readonly competitionName?: string | null;
   readonly stadiumName?: string | null;
+  readonly historySummary?: string | null;
 }
 
 export interface Player {

@@ -148,6 +148,8 @@ pub struct Club {
     pub competition_name: Option<String>,
     #[serde(default)]
     pub stadium_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub history_summary: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -770,6 +772,7 @@ fn legacy_hardcoded_matchday_fixture() -> MatchdayState {
             country_code: Some("BRA".to_owned()),
             competition_name: Some("Liga Horizonte".to_owned()),
             stadium_name: None,
+            history_summary: None,
         },
         opponent: Club {
             id: "ferroviario-do-vale".to_owned(),
@@ -780,6 +783,7 @@ fn legacy_hardcoded_matchday_fixture() -> MatchdayState {
             country_code: Some("BRA".to_owned()),
             competition_name: Some("Liga Horizonte".to_owned()),
             stadium_name: None,
+            history_summary: None,
         },
         round: 1,
         players: vec![

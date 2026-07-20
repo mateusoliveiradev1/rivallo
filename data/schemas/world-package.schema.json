@@ -26,7 +26,22 @@
     "profiles": { "type": "object" },
     "clubs": {
       "type": "array",
-      "items": { "type": "object", "required": ["id", "name", "shortName"] }
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "shortName", "city", "primaryColor"],
+        "properties": {
+          "id": { "$ref": "#/$defs/stableId" },
+          "name": { "$ref": "#/$defs/name" },
+          "shortName": { "type": "string", "minLength": 1, "maxLength": 8 },
+          "city": { "type": "string", "minLength": 1, "maxLength": 160 },
+          "primaryColor": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+          "countryCode": { "type": ["string", "null"], "maxLength": 3 },
+          "competitionName": { "type": ["string", "null"], "maxLength": 160 },
+          "stadiumName": { "type": ["string", "null"], "maxLength": 160 },
+          "historySummary": { "type": ["string", "null"], "maxLength": 1200 }
+        }
+      }
     },
     "nations": {
       "type": "array",

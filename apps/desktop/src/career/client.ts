@@ -4,8 +4,11 @@ import { loadDataPackageCatalog } from '../data-editor/client.js';
 import type {
   CareerBootData,
   CareerFailure,
+  CareerPortrait,
   CareerSlot,
   CareerSlotSummary,
+  CoachCreationEvaluation,
+  CoachCreatorDraft,
   CreateCareerRequest,
   ResolvedWorldDatabase,
   SaveCareerRequest,
@@ -59,6 +62,12 @@ export const createCareer = (request: CreateCareerRequest) =>
   call<CareerSlot>('create_career', { request });
 
 export const loadCareer = (careerId: string) => call<CareerSlot>('load_career', { careerId });
+
+export const loadCareerPortrait = (careerId: string) =>
+  call<CareerPortrait | null>('career_portrait', { careerId });
+
+export const previewCoachCreation = (draft: CoachCreatorDraft) =>
+  call<CoachCreationEvaluation>('preview_coach_creation', { draft });
 
 export const saveCareer = (request: SaveCareerRequest) =>
   call<CareerSlot>('save_career', { request });

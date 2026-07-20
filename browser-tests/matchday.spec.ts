@@ -26,6 +26,7 @@ import {
 
 const developmentUrl = 'http://127.0.0.1:4173/career/career.legacy.aurora';
 const mainMenuUrl = 'http://127.0.0.1:4173/main-menu';
+const dataEditorUrl = 'http://127.0.0.1:4173/data-editor';
 const bridgeStateKey = 'rivallo.browser-test.matchday-state';
 const tableViewBridgeStateKey = 'rivallo.browser-test.table-view-state';
 const tableViewBridgeControlKey = 'rivallo.browser-test.table-view-control';
@@ -993,15 +994,99 @@ test.beforeEach(async ({ page }) => {
             return { state: 'ready', ownership: 'owned' };
           }
           if (command === 'data_package_catalog') return structuredClone(catalog);
+          if (command === 'world_database_status') {
+            return {
+              schemaVersion: composition.schemaVersion,
+              packages: structuredClone(composition.packages),
+              fingerprint: structuredClone(composition.fingerprint),
+            };
+          }
+          if (command === 'validate_data_package_source') {
+            return { valid: true, diagnostics: [] };
+          }
+          if (command === 'export_data_package_source') {
+            return { valid: true, diagnostics: [] };
+          }
           const emptyCareers = new URLSearchParams(window.location.search).has('empty-careers');
           if (command === 'career_slots')
             return emptyCareers ? [] : [structuredClone(careerSummary)];
           if (command === 'last_valid_career')
             return emptyCareers ? null : structuredClone(careerSummary);
+          if (command === 'career_portrait') return null;
           if (command === 'load_career') {
             return { ...structuredClone(careerSlot), matchday: structuredClone(state) };
           }
           if (command === 'preview_career_composition') return structuredClone(composition);
+          if (command === 'preview_coach_creation') {
+            const draft = args.draft as {
+              background: string;
+              experienceYears: number;
+              reputation: number;
+              specialties: string[];
+              attributes: Record<string, number>;
+            };
+            const policy = {
+              professionalPlayer: { budget: 165, cap: 67, experience: 15, reputation: 58, high: 4 },
+              amateurPlayer: { budget: 145, cap: 64, experience: 10, reputation: 52, high: 3 },
+              tacticalAnalyst: { budget: 140, cap: 63, experience: 8, reputation: 50, high: 3 },
+              youthDeveloper: { budget: 140, cap: 63, experience: 8, reputation: 50, high: 3 },
+              peopleManager: { budget: 140, cap: 63, experience: 8, reputation: 50, high: 3 },
+              beginner: { budget: 92, cap: 54, experience: 2, reputation: 38, high: 0 },
+              balanced: { budget: 128, cap: 60, experience: 6, reputation: 46, high: 2 },
+            }[draft.background] ?? { budget: 128, cap: 60, experience: 6, reputation: 46, high: 2 };
+            const progressiveCost = (value: number) =>
+              value <= 40
+                ? 0
+                : value <= 50
+                  ? value - 40
+                  : value <= 60
+                    ? 10 + (value - 50) * 2
+                    : 30 + (value - 60) * 3;
+            const cap = Math.min(70, policy.cap + 1);
+            const attributeLines = Object.entries(draft.attributes).map(([attributeId, value]) => ({
+              attributeId,
+              value,
+              cost: progressiveCost(value),
+              nextCost: value < cap ? progressiveCost(value + 1) - progressiveCost(value) : null,
+              cap,
+            }));
+            const budget =
+              policy.budget + 8 + Math.min(draft.experienceYears, policy.experience) * 2;
+            const usedPoints =
+              attributeLines.reduce((total, line) => total + line.cost, 0) +
+              draft.specialties.length * 8;
+            const highAttributeCount = Object.values(draft.attributes).filter(
+              (value) => value >= 60,
+            ).length;
+            const errors = [
+              ...(draft.experienceYears > policy.experience ? ['experiência acima do limite'] : []),
+              ...(draft.reputation > policy.reputation ? ['reputação acima do limite'] : []),
+              ...(attributeLines.some((line) => line.value > cap) ? ['cap excedido'] : []),
+              ...(usedPoints > budget ? ['orçamento excedido'] : []),
+              ...(highAttributeCount > policy.high ? ['capacidades 60+ acima do limite'] : []),
+            ];
+            return {
+              schemaVersion: 1,
+              costModelVersion: 'rivallo.coach-creation-budget.v2',
+              budget,
+              usedPoints,
+              remainingPoints: budget - usedPoints,
+              attributeCap: cap,
+              capReason: 'Histórico e licença',
+              highAttributeLimit: policy.high,
+              highAttributeCount,
+              specialtyLimit: draft.background === 'beginner' ? 1 : 2,
+              contextualRating: 40,
+              reputationCap: policy.reputation,
+              experienceCap: policy.experience,
+              balanceLabel: errors.length ? 'Configuração inválida' : 'Perfil equilibrado',
+              strengths: ['Tática', 'Gestão humana'],
+              limitations: ['Avaliação', 'Desenvolvimento'],
+              attributeLines,
+              valid: errors.length === 0,
+              errors,
+            };
+          }
           if (command === 'create_career') {
             const request = args.request as {
               displayName: string;
@@ -1684,6 +1769,12 @@ test('completes the New Career wizard with the official frozen composition', asy
   await page.goto(mainMenuUrl);
   await page.getByRole('button', { name: 'Nova carreira' }).click();
 
+  await page.getByRole('button', { name: 'Fechar Rivallo' }).click();
+  const exitDraftDialog = page.getByRole('alertdialog', { name: 'Sair do Rivallo?' });
+  await expect(exitDraftDialog).toBeVisible();
+  await exitDraftDialog.getByRole('button', { name: 'Continuar configurando' }).click();
+  await expect(exitDraftDialog).toBeHidden();
+
   await expect(
     page.getByRole('heading', { name: 'Escolha os dados desta carreira' }),
   ).toBeVisible();
@@ -1743,6 +1834,79 @@ test('completes the New Career wizard with the official frozen composition', asy
 
   await expect(page.getByRole('heading', { name: 'Visão geral do elenco' })).toBeVisible();
   await expect(page.getByText('Aguardando temporada')).toBeVisible();
+});
+
+test('creates and exports a guided mod without exposing JSON editors', async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(60_000);
+  test.skip(
+    testInfo.project.name !== 'desktop-1366x768',
+    'The guided editor journey is covered once at the minimum desktop height.',
+  );
+  const nativeDialogs: string[] = [];
+  page.on('dialog', async (dialog) => {
+    nativeDialogs.push(`${dialog.type()}: ${dialog.message()}`);
+    await dialog.dismiss();
+  });
+  await page.goto(dataEditorUrl);
+  await expect(
+    page.getByRole('heading', { name: 'Crie um mod sem editar arquivos' }),
+  ).toBeVisible();
+  await expect(page.locator('textarea[aria-label*="manifest"]')).toHaveCount(0);
+
+  await page.getByRole('textbox', { name: 'Seu nome ou apelido' }).fill('Lívia');
+  await page
+    .getByRole('textbox', { name: 'O que este mod faz?' })
+    .fill('Atualiza o clube para a nova temporada.');
+  await page.getByRole('button', { name: 'Continuar' }).click();
+  await expect(page.getByRole('heading', { name: 'O que você quer mudar?' })).toBeVisible();
+  for (const viewport of [
+    { width: 1024, height: 768 },
+    { width: 1366, height: 768 },
+    { width: 1920, height: 1080 },
+  ]) {
+    await page.setViewportSize(viewport);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    await page.screenshot({
+      path: testInfo.outputPath(`community-mod-club-${viewport.width}x${viewport.height}.png`),
+      fullPage: true,
+    });
+  }
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.getByRole('tab', { name: 'Jogador' }).click();
+  await page.screenshot({ path: testInfo.outputPath('community-mod-player.png'), fullPage: true });
+  await page.getByRole('tab', { name: 'Treinador' }).click();
+  await page.screenshot({ path: testInfo.outputPath('community-mod-coach.png'), fullPage: true });
+  await page.getByRole('tab', { name: 'Clube' }).click();
+  await page.getByRole('radio', { name: 'Editar existente' }).click();
+  await page.getByRole('button', { name: 'Salvar edição do clube' }).click();
+  await expect(page.getByRole('heading', { name: 'Mudanças adicionadas' })).toBeVisible();
+  await page.getByRole('button', { name: 'Continuar' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Revise antes de exportar' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('guided-mod-editor.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Validar mod' }).click();
+  await expect(page.getByText('Tudo certo. O mod está pronto para exportar.')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Fechar Rivallo' }).click();
+  const leaveDialog = page.getByRole('alertdialog', { name: 'Descartar o mod não exportado?' });
+  await expect(leaveDialog).toBeVisible();
+  await leaveDialog.getByRole('button', { name: 'Continuar editando' }).click();
+  await page.getByRole('button', { name: 'Exportar mod' }).click();
+  await expect(page.getByText(/Mod exportado com sucesso/u)).toBeVisible();
+
+  await page.getByRole('button', { name: 'Sobre o mod' }).click();
+  await page
+    .getByRole('textbox', { name: 'O que este mod faz?' })
+    .fill('Atualiza o clube e inclui uma segunda revisão comunitária.');
+  await page.getByRole('button', { name: 'Voltar ao Menu Principal' }).click();
+  await expect(leaveDialog).toBeVisible();
+  await leaveDialog.getByRole('button', { name: 'Descartar e voltar' }).click();
+  await expect(page).toHaveURL(mainMenuUrl);
+  expect(nativeDialogs).toEqual([]);
 });
 
 test('opens Elenco as a dedicated table workspace without rendering the tactical field', async ({

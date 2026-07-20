@@ -46,7 +46,7 @@ export function WindowControls() {
           className="window-controls__close"
           onClick={() => {
             const request = new Event('rivallo:window-close-requested', { cancelable: true });
-            if (window.dispatchEvent(request)) runWindowAction(() => windowCommand('close'));
+            if (window.dispatchEvent(request)) runWindowAction(() => invoke('exit_application'));
           }}
           type="button"
         >

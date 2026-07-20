@@ -10,6 +10,7 @@ import {
   renameCareer,
   restoreCareerBackup,
 } from './client.js';
+import { CareerPortrait } from './CareerPortrait.js';
 import { MenuShell } from './MenuShell.js';
 import type { CareerFailure, CareerSlot, CareerSlotSummary } from './types.js';
 
@@ -75,12 +76,20 @@ export function LoadCareerScreen({
           <div className="career-slot-list">
             {slots.map((slot) => (
               <article className="career-slot-row" key={slot.careerId}>
-                <div
-                  aria-label={`Escudo de ${slot.clubName}`}
-                  className="career-slot-row__crest"
-                  style={{ '--career-club-color': slot.clubPrimaryColor } as CSSProperties}
-                >
-                  {slot.clubShortName}
+                <div className="career-slot-row__visual">
+                  <CareerPortrait
+                    careerId={slot.careerId}
+                    className="career-portrait career-portrait--small"
+                    fallback={<span>{slot.managerName.slice(0, 2).toUpperCase()}</span>}
+                    managerName={slot.managerName}
+                  />
+                  <div
+                    aria-label={`Escudo de ${slot.clubName}`}
+                    className="career-slot-row__crest"
+                    style={{ '--career-club-color': slot.clubPrimaryColor } as CSSProperties}
+                  >
+                    {slot.clubShortName}
+                  </div>
                 </div>
                 <div className="career-slot-row__identity">
                   <span>{slot.displayName}</span>

@@ -263,6 +263,7 @@ export const coachProfileFixture = ({
 } = {}): CoachProfileProjection => ({
   schemaVersion: 1,
   revision: 1,
+  portraitAssetId: null,
   identity: {
     entityId,
     fullName: external ? 'Héctor Salvatierra' : 'Marcelo Nunes',

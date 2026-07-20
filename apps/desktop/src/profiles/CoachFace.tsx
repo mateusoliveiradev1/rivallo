@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 
+import { useActiveCoachPortrait } from '../career/CareerPortrait.js';
 import { resolveWorldEntityAsset } from '../world-reference-catalog.js';
 
 interface CoachFaceProps {
@@ -24,7 +25,8 @@ export function CoachFace({
   size = 40,
   decorative = false,
 }: CoachFaceProps) {
-  const source = resolveWorldEntityAsset(entityId, 'coachPortrait');
+  const careerSource = useActiveCoachPortrait(entityId);
+  const source = careerSource ?? resolveWorldEntityAsset(entityId, 'coachPortrait');
   const style = { '--player-face-size': `${size}px` } as CSSProperties;
   return (
     <span

@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type {
   DataPackageAuthoringSource,
   DataPackageCatalogEntry,
+  ModAuthoringWorld,
   PackageValidationDiagnostic,
   PackageValidationReport,
   WorldDatabaseSummary,
@@ -55,6 +56,36 @@ export const decodeValidationReport = (value: unknown): PackageValidationReport 
 
 export const loadDataPackageCatalog = async (): Promise<readonly DataPackageCatalogEntry[]> =>
   invoke<DataPackageCatalogEntry[]>('data_package_catalog');
+
+export const loadModAuthoringWorld = async (packageId: string): Promise<ModAuthoringWorld> => {
+  const resolved = record(
+    await invoke<unknown>('preview_career_composition', { packageIds: [packageId] }),
+  );
+  const world = record(resolved?.world);
+  const matchday = record(world?.matchday);
+  const profiles = record(world?.profiles);
+  if (
+    !world ||
+    !Array.isArray(world.clubs) ||
+    !Array.isArray(world.nations) ||
+    !matchday ||
+    !Array.isArray(matchday.players) ||
+    !record(matchday.club) ||
+    !profiles ||
+    !Array.isArray(profiles.players) ||
+    !Array.isArray(profiles.coaches)
+  ) {
+    throw new Error('A base selecionada não pode ser aberta no editor guiado.');
+  }
+  return {
+    clubs: world.clubs,
+    players: matchday.players,
+    playerProfiles: profiles.players,
+    coaches: profiles.coaches,
+    nations: world.nations,
+    activeClubId: record(matchday.club)?.id,
+  } as ModAuthoringWorld;
+};
 
 export const loadWorldDatabaseSummary = async (): Promise<WorldDatabaseSummary> => {
   const status = record(await invoke<unknown>('world_database_status'));

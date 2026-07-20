@@ -4,13 +4,14 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { DataPackageCatalogEntry } from '../data-editor/types.js';
 import { Button } from '../ui/primitives/actions.js';
 import { Skeleton, Status } from '../ui/primitives/feedback.js';
-import { CoachCreator, defaultCoachDraft } from './CoachCreator.js';
+import { CoachCreator, defaultCoachDraft, isCoachDraftReady } from './CoachCreator.js';
 import { createCareer, operationId, previewCareerComposition } from './client.js';
 import { MenuShell } from './MenuShell.js';
 import type {
   AssistanceProfile,
   CareerFailure,
   CareerSlot,
+  CoachCreationEvaluation,
   CoachCreatorDraft,
   ResolvedWorldDatabase,
   WorldCoach,
@@ -30,6 +31,7 @@ interface NewCareerWizardProps {
   readonly catalog: readonly DataPackageCatalogEntry[];
   readonly onCancel: () => void;
   readonly onCreated: (slot: CareerSlot) => void;
+  readonly onExit: () => void;
 }
 
 const assistanceCopy: Record<
@@ -50,7 +52,7 @@ const assistanceCopy: Record<
   },
 };
 
-export function NewCareerWizard({ catalog, onCancel, onCreated }: NewCareerWizardProps) {
+export function NewCareerWizard({ catalog, onCancel, onCreated, onExit }: NewCareerWizardProps) {
   const bases = catalog.filter(
     (entry) => entry.manifest.contentType === 'base' && entry.manifest.visibility === 'public',
   );
@@ -73,10 +75,11 @@ export function NewCareerWizard({ catalog, onCancel, onCreated }: NewCareerWizar
   const [coachMode, setCoachMode] = useState<'existing' | 'created'>('existing');
   const [existingCoachId, setExistingCoachId] = useState('');
   const [coachDraft, setCoachDraft] = useState<CoachCreatorDraft>(() => defaultCoachDraft());
+  const [coachEvaluation, setCoachEvaluation] = useState<CoachCreationEvaluation | null>(null);
   const [assistance, setAssistance] = useState<AssistanceProfile>('balanced');
   const [creating, setCreating] = useState(false);
   const [creationError, setCreationError] = useState<CareerFailure | null>(null);
-  const [cancelConfirm, setCancelConfirm] = useState(false);
+  const [cancelIntent, setCancelIntent] = useState<'menu' | 'exit' | null>(null);
   const compositionOperation = useRef(0);
   const creationOperationId = useRef(operationId('career-create'));
 
@@ -123,6 +126,15 @@ export function NewCareerWizard({ catalog, onCancel, onCreated }: NewCareerWizar
       compositionOperation.current += 1;
     };
   }, [selectedBaseId, selectedPackageIds]);
+
+  useEffect(() => {
+    const protectWindowClose = (event: Event) => {
+      event.preventDefault();
+      setCancelIntent('exit');
+    };
+    window.addEventListener('rivallo:window-close-requested', protectWindowClose);
+    return () => window.removeEventListener('rivallo:window-close-requested', protectWindowClose);
+  }, []);
 
   const season = composition?.world.competitions
     .flatMap((competition) => competition.seasons)
@@ -175,9 +187,7 @@ export function NewCareerWizard({ catalog, onCancel, onCreated }: NewCareerWizar
   const coachValid =
     coachMode === 'existing'
       ? Boolean(existingCoachId)
-      : coachDraft.firstName.trim().length > 0 &&
-        coachDraft.lastName.trim().length > 0 &&
-        coachDraft.knownName.trim().length > 0;
+      : isCoachDraftReady(coachDraft, coachEvaluation);
   const validations = [
     Boolean(composition?.validation.valid && selectedBaseId),
     Boolean(displayName.trim() && seasonRef && currentDate),
@@ -233,7 +243,7 @@ export function NewCareerWizard({ catalog, onCancel, onCreated }: NewCareerWizar
   return (
     <MenuShell
       description="A carreira só é gravada depois da revisão final. Você pode voltar sem perder este draft durante a sessão."
-      onBack={() => setCancelConfirm(true)}
+      onBack={() => setCancelIntent('menu')}
       title="Nova carreira"
     >
       <div className="career-wizard">
@@ -413,6 +423,20 @@ export function NewCareerWizard({ catalog, onCancel, onCreated }: NewCareerWizar
                           <dd>{selectedBase?.manifest.name}</dd>
                         </div>
                       </dl>
+                      <section className="club-preview__history">
+                        <h4>Sobre o clube</h4>
+                        <p>
+                          {selectedClub.club.historySummary?.trim() ||
+                            'História não informada nesta base.'}
+                        </p>
+                        {selectedClub.club.historySummary &&
+                          selectedClub.club.historySummary.length > 220 && (
+                            <details>
+                              <summary>Ler mais</summary>
+                              <p>{selectedClub.club.historySummary}</p>
+                            </details>
+                          )}
+                      </section>
                       {!selectedClub.available && (
                         <Status headingLevel={3} label="Clube indisponível" variant="warning">
                           <p>{selectedClub.reasons.join(' · ')}</p>
@@ -478,6 +502,7 @@ export function NewCareerWizard({ catalog, onCancel, onCreated }: NewCareerWizar
                   draft={coachDraft}
                   nations={composition?.world.nations ?? []}
                   onChange={setCoachDraft}
+                  onEvaluation={setCoachEvaluation}
                 />
               )}
             </section>
@@ -526,6 +551,7 @@ export function NewCareerWizard({ catalog, onCancel, onCreated }: NewCareerWizar
               assistance={assistance}
               club={selectedClub}
               coachDraft={coachDraft}
+              coachEvaluation={coachEvaluation}
               coachMode={coachMode}
               composition={composition}
               displayName={displayName}
@@ -603,22 +629,39 @@ export function NewCareerWizard({ catalog, onCancel, onCreated }: NewCareerWizar
         </footer>
       </div>
 
-      {cancelConfirm && (
+      {cancelIntent && (
         <div className="career-action-overlay" role="presentation">
           <section
             aria-labelledby="cancel-wizard-title"
             className="career-action-dialog"
             role="alertdialog"
           >
-            <h2 id="cancel-wizard-title">Cancelar Nova Carreira?</h2>
-            <p>O draft desta sessão será descartado. Nenhum slot ou treinador foi criado ainda.</p>
+            <h2 id="cancel-wizard-title">
+              {creating
+                ? 'A carreira ainda está sendo criada'
+                : cancelIntent === 'exit'
+                  ? 'Sair do Rivallo?'
+                  : 'Cancelar Nova Carreira?'}
+            </h2>
+            <p>
+              {creating
+                ? 'Aguarde a gravação segura terminar. O aplicativo não será fechado no meio da operação.'
+                : cancelIntent === 'exit'
+                  ? 'As escolhas desta Nova Carreira ainda não foram gravadas. Ao sair, este rascunho será descartado.'
+                  : 'As escolhas desta sessão serão descartadas. Nenhuma carreira ou treinador foi criado ainda.'}
+            </p>
             <div>
-              <Button onClick={() => setCancelConfirm(false)} variant="secondary">
-                Continuar configurando
+              <Button onClick={() => setCancelIntent(null)} variant="secondary">
+                {creating ? 'Continuar aguardando' : 'Continuar configurando'}
               </Button>
-              <Button onClick={onCancel} variant="destructive-proof">
-                Descartar draft
-              </Button>
+              {!creating && (
+                <Button
+                  onClick={cancelIntent === 'exit' ? onExit : onCancel}
+                  variant="destructive-proof"
+                >
+                  {cancelIntent === 'exit' ? 'Descartar e sair' : 'Descartar e voltar'}
+                </Button>
+              )}
             </div>
           </section>
         </div>
@@ -861,6 +904,7 @@ interface ReviewStepProps {
   readonly coachMode: 'existing' | 'created';
   readonly existingCoach: WorldCoach | null;
   readonly coachDraft: CoachCreatorDraft;
+  readonly coachEvaluation: CoachCreationEvaluation | null;
   readonly displayName: string;
   readonly seasonLabel: string;
   readonly assistance: AssistanceProfile;
@@ -880,6 +924,7 @@ function ReviewStep({
   coachMode,
   existingCoach,
   coachDraft,
+  coachEvaluation,
   displayName,
   seasonLabel,
   assistance,
@@ -930,8 +975,32 @@ function ReviewStep({
           <p>
             {coachMode === 'existing'
               ? 'Entidade existente da base'
-              : `${coachDraft.background} · entidade do save`}
+              : `${coachDraft.background} · ${coachDraft.qualification} · entidade do save`}
           </p>
+          {coachMode === 'created' && coachEvaluation && (
+            <dl className="review-coach-balance">
+              <div>
+                <dt>Avaliação contextual</dt>
+                <dd>{coachEvaluation.contextualRating}</dd>
+              </div>
+              <div>
+                <dt>Pontos restantes</dt>
+                <dd>{coachEvaluation.remainingPoints}</dd>
+              </div>
+              <div>
+                <dt>Equilíbrio</dt>
+                <dd>{coachEvaluation.balanceLabel}</dd>
+              </div>
+              <div>
+                <dt>Forças</dt>
+                <dd>{coachEvaluation.strengths.join(' · ')}</dd>
+              </div>
+              <div>
+                <dt>Limitações</dt>
+                <dd>{coachEvaluation.limitations.join(' · ')}</dd>
+              </div>
+            </dl>
+          )}
         </section>
         <section>
           <h3>Slot</h3>

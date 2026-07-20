@@ -1,9 +1,9 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
 
-import { CoachCreator, defaultCoachDraft } from './CoachCreator.js';
+import { CoachCreator, defaultCoachDraft, isCoachDraftReady } from './CoachCreator.js';
 import type { CoachCreatorDraft } from './types.js';
 
 function CreatorHarness() {
@@ -48,5 +48,43 @@ describe('CoachCreator', () => {
     expect(screen.getByText(/SVG e arquivos remotos não são aceitos/u)).toBeInstanceOf(
       HTMLParagraphElement,
     );
+  });
+
+  it('shows an optional local photo immediately in the coach preview', async () => {
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: () => 'blob:coach-photo',
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: () => undefined });
+    const user = userEvent.setup();
+    render(<CreatorHarness />);
+    await user.type(screen.getByRole('textbox', { name: 'Nome' }), 'Lia');
+    await user.type(screen.getByRole('textbox', { name: 'Sobrenome' }), 'Torres');
+    await user.type(screen.getByRole('textbox', { name: 'Nome conhecido' }), 'Lia Torres');
+    await user.click(screen.getByRole('button', { name: 'Próximo' }));
+
+    await user.upload(
+      screen.getByLabelText('Importar retrato local'),
+      new File(['portrait'], 'lia.webp', { type: 'image/webp' }),
+    );
+    expect(screen.getByRole('button', { name: 'Trocar foto' })).toBeInstanceOf(HTMLButtonElement);
+    await waitFor(() => {
+      expect(
+        screen.getByRole('img', { name: 'Retrato de Lia Torres' }).querySelector('img'),
+      ).toBeInstanceOf(HTMLImageElement);
+    });
+  });
+
+  it('reserves elite ratings for career evolution instead of the initial creator', () => {
+    const draft = defaultCoachDraft();
+    expect(
+      isCoachDraftReady({
+        ...draft,
+        firstName: 'Lia',
+        lastName: 'Torres',
+        knownName: 'Lia Torres',
+        attributes: { ...draft.attributes, tactical: 71 },
+      }),
+    ).toBe(false);
   });
 });

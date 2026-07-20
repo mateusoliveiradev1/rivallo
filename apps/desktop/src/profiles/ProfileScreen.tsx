@@ -98,6 +98,9 @@ const nationTabs: readonly { readonly id: NationTab; readonly label: string }[] 
 ];
 
 const formatDate = (value: string | number) => {
+  if (value === 0 || value === '' || value === 'career-start' || value === 'indefinido') {
+    return 'Não informado';
+  }
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? 'Não informado' : date.toLocaleDateString('pt-BR');
 };
@@ -198,7 +201,7 @@ function ContractCard({
       </div>
       <div>
         <dt>Vencimento</dt>
-        <dd>{formatDate(contract.expiresAt)}</dd>
+        <dd>{contract.expiresAt ? formatDate(contract.expiresAt) : 'Sem prazo definido'}</dd>
       </div>
       <div>
         <dt>Status</dt>
@@ -940,6 +943,18 @@ function ClubPanel({
   return (
     <div className="profile-content-grid">
       <div className="profile-content-stack">
+        {profile.historySummary?.trim() ? (
+          <ProfileSection title="História e identidade">
+            <p className="club-history-summary">{profile.historySummary}</p>
+            <EntityFactStrip
+              facts={[
+                { label: 'Cidade', value: profile.city || 'Não informada' },
+                { label: 'Nação', value: profile.countryCode ?? 'Não informada' },
+                { label: 'Estádio', value: profile.stadiumName ?? 'Não informado' },
+              ]}
+            />
+          </ProfileSection>
+        ) : null}
         <ProfileSection title="Contexto do clube">
           <EntityFactStrip
             facts={[
