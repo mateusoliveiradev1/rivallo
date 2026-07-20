@@ -395,6 +395,7 @@ impl FileWorldPackageRepository {
         } else {
             validate_asset_files(package_root, manifest.assets.iter())?;
         }
+        validate_sidecar_files(package_root, &manifest)?;
         Ok(ContentPackage {
             manifest,
             world,
@@ -1894,6 +1895,42 @@ fn validate_asset_files<'a>(
                 Some(format!(
                     "Atualize o checksum para {actual} após revisar o arquivo."
                 )),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_sidecar_files(
+    package_root: &Path,
+    manifest: &PackageManifest,
+) -> Result<(), PackageValidationReport> {
+    for sidecar in &manifest.sidecars {
+        let path = resolve_entrypoint(package_root, &sidecar.relative_path)?;
+        let bytes = read_bounded(package_root, &path, MAX_WORLD_BYTES)?;
+        if bytes.len() as u64 != sidecar.byte_length {
+            return Err(PackageValidationReport::blocking(
+                manifest.package_id.clone(),
+                "package.sidecar_byte_length_mismatch",
+                Some(manifest.package_id.clone()),
+                Some("sidecars.byteLength".to_owned()),
+                None,
+                Some(bytes.len().to_string()),
+                "O tamanho declarado do sidecar precisa corresponder aos bytes instalados.",
+                Some("Atualize o manifesto ou restaure o sidecar correto.".to_owned()),
+            ));
+        }
+        let digest = format!("{:x}", Sha256::digest(&bytes));
+        if digest != sidecar.sha256 {
+            return Err(PackageValidationReport::blocking(
+                manifest.package_id.clone(),
+                "package.sidecar_checksum_mismatch",
+                Some(manifest.package_id.clone()),
+                Some("sidecars.sha256".to_owned()),
+                None,
+                Some(digest),
+                "O SHA-256 do sidecar precisa corresponder ao conteúdo instalado.",
+                Some("Reinstale o sidecar íntegro e valide o pacote novamente.".to_owned()),
             ));
         }
     }
