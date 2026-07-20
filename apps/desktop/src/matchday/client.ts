@@ -12,8 +12,10 @@ import {
 } from '../table-view/table-view-engine.js';
 import { SQUAD_TABLE_SCHEMA } from './squad-table-schema.js';
 import type {
+  ClubProfileProjection,
   CoachProfileProjection,
   GlobalProfileSearchResult,
+  NationProfileProjection,
   PlayerProfileProjection,
 } from '../profiles/types.js';
 import type {
@@ -66,6 +68,12 @@ export const loadPlayerProfile = (playerId: string, variationId?: string | null)
 
 export const loadCoachProfile = (coachId: string) =>
   invoke<CoachProfileProjection>('coach_profile', { coachId });
+
+export const loadClubProfile = (clubId: string) =>
+  invoke<ClubProfileProjection>('club_profile', { clubId });
+
+export const loadNationProfile = (nationId: string) =>
+  invoke<NationProfileProjection>('nation_profile', { nationId });
 
 export const searchProfiles = (query: string) =>
   invoke<readonly GlobalProfileSearchResult[]>('search_profiles', { query });

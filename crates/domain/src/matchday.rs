@@ -142,6 +142,12 @@ pub struct Club {
     pub short_name: String,
     pub city: String,
     pub primary_color: String,
+    #[serde(default)]
+    pub country_code: Option<String>,
+    #[serde(default)]
+    pub competition_name: Option<String>,
+    #[serde(default)]
+    pub stadium_name: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -751,6 +757,9 @@ impl Default for MatchdayState {
                 short_name: "AUR".to_owned(),
                 city: "Porto Claro".to_owned(),
                 primary_color: "#35c88a".to_owned(),
+                country_code: Some("BRA".to_owned()),
+                competition_name: Some("Liga Horizonte".to_owned()),
+                stadium_name: None,
             },
             opponent: Club {
                 id: "ferroviario-do-vale".to_owned(),
@@ -758,6 +767,9 @@ impl Default for MatchdayState {
                 short_name: "FDV".to_owned(),
                 city: "Vale do Norte".to_owned(),
                 primary_color: "#d18a42".to_owned(),
+                country_code: Some("BRA".to_owned()),
+                competition_name: Some("Liga Horizonte".to_owned()),
+                stadium_name: None,
             },
             round: 1,
             players: vec![

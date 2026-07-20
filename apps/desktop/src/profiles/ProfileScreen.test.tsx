@@ -10,6 +10,8 @@ import { ProfileScreen } from './ProfileScreen.js';
 const clientMock = vi.hoisted(() => ({
   loadPlayerProfile: vi.fn(),
   loadCoachProfile: vi.fn(),
+  loadClubProfile: vi.fn(),
+  loadNationProfile: vi.fn(),
   searchProfiles: vi.fn(),
 }));
 
@@ -19,6 +21,51 @@ describe('ProfileScreen', () => {
   beforeEach(() => {
     clientMock.loadPlayerProfile.mockReset().mockResolvedValue(playerProfileFixture());
     clientMock.loadCoachProfile.mockReset().mockResolvedValue(coachProfileFixture());
+    clientMock.loadClubProfile.mockReset().mockResolvedValue({
+      schemaVersion: 1,
+      revision: 4,
+      entityId: 'aurora-fc',
+      name: 'Aurora Futebol Clube',
+      shortName: 'AUR',
+      city: 'Porto Claro',
+      primaryColor: '#35c88a',
+      countryCode: 'BRA',
+      competitionName: 'Liga Horizonte',
+      stadiumName: null,
+      currentPosition: null,
+      nextFixture: null,
+      form: [],
+      headCoach: {
+        entityId: 'coach.aurora.head',
+        entityType: 'coach',
+        name: 'Helena Sampaio',
+        secondaryLabel: 'Treinadora principal',
+        route: '/coaches/coach.aurora.head',
+        nationality: 'BRA',
+        clubId: 'aurora-fc',
+        visualCode: 'TEC',
+        perceivedRating: null,
+        confidence: 100,
+        knowledgeLevel: 'ownClub',
+      },
+      players: [],
+      staff: [],
+      tactics: null,
+      knowledge: playerProfileFixture().knowledge,
+    });
+    clientMock.loadNationProfile.mockReset().mockResolvedValue({
+      schemaVersion: 1,
+      revision: 4,
+      entityId: 'bra',
+      name: 'Brasil',
+      code: 'BRA',
+      confederation: 'CONMEBOL',
+      clubs: [],
+      players: [],
+      coaches: [],
+      competitions: ['Liga Horizonte'],
+      knowledge: playerProfileFixture().knowledge,
+    });
     clientMock.searchProfiles.mockReset().mockResolvedValue([]);
   });
 
@@ -110,6 +157,46 @@ describe('ProfileScreen', () => {
     );
     expect(within(capabilities!).getByText('Aprendizagem de função')).toBeInstanceOf(HTMLElement);
     expect(within(capabilities!).getByText('Precisão de avaliação')).toBeInstanceOf(HTMLElement);
+  });
+
+  it('renders a global club profile and discovers its head coach through Commission', async () => {
+    const user = userEvent.setup();
+    const onNavigate = vi.fn();
+    render(
+      <ProfileScreen
+        onBack={vi.fn()}
+        onNavigate={onNavigate}
+        route={{ kind: 'club', entityId: 'aurora-fc' }}
+      />,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Aurora Futebol Clube' })).toBeInstanceOf(
+      HTMLElement,
+    );
+    expect(clientMock.loadClubProfile).toHaveBeenCalledWith('aurora-fc');
+    await user.click(screen.getByRole('tab', { name: 'Comissão' }));
+    expect(screen.getByText('Comissão não informada')).toBeInstanceOf(HTMLElement);
+    await user.click(screen.getByRole('tab', { name: 'Visão geral' }));
+    await user.click(screen.getByRole('link', { name: 'Abrir perfil de Helena Sampaio' }));
+    expect(onNavigate).toHaveBeenCalledWith({ kind: 'coach', entityId: 'coach.aurora.head' });
+  });
+
+  it('renders a data-driven nation profile without inventing absent entities', async () => {
+    const user = userEvent.setup();
+    render(
+      <ProfileScreen
+        onBack={vi.fn()}
+        onNavigate={vi.fn()}
+        route={{ kind: 'nation', entityId: 'bra' }}
+      />,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Brasil' })).toBeInstanceOf(HTMLElement);
+    expect(screen.getByText('CONMEBOL')).toBeInstanceOf(HTMLElement);
+    await user.click(screen.getByRole('tab', { name: 'Clubes' }));
+    expect(screen.getByText('Nenhum clube conhecido')).toBeInstanceOf(HTMLElement);
+    await user.click(screen.getByRole('tab', { name: 'Competições' }));
+    expect(screen.getByText('Liga Horizonte')).toBeInstanceOf(HTMLElement);
   });
 
   it('compares profiles through the same projection and can navigate to the selected entity', async () => {

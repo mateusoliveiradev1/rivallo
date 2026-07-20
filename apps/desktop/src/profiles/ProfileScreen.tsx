@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
-import { loadCoachProfile, loadPlayerProfile, searchProfiles } from '../matchday/client.js';
+import {
+  loadClubProfile,
+  loadCoachProfile,
+  loadNationProfile,
+  loadPlayerProfile,
+  searchProfiles,
+} from '../matchday/client.js';
 import { positionLongLabels } from '../matchday/matchday-ui.js';
 import { PlayerFace } from '../matchday/PlayerFace.js';
 import { NationalityDisplay } from '../ui/Nationality/index.js';
@@ -17,26 +23,44 @@ import {
   RatingHistory,
   StrengthWeaknessSummary,
 } from './components.js';
+import { CoachFace } from './CoachFace.js';
+import {
+  EntityFactStrip,
+  EntityLink,
+  EntityReferenceList,
+  NationalityEntityLink,
+} from './EntityProfileSystem.js';
 import type {
+  ClubProfileProjection,
   CoachProfileProjection,
   GlobalProfileSearchResult,
+  NationProfileProjection,
   PlayerProfileProjection,
   ProfileRoute,
 } from './types.js';
 
 import './profiles.css';
 
-type ProfileProjection = PlayerProfileProjection | CoachProfileProjection;
+type ProfileProjection =
+  | PlayerProfileProjection
+  | CoachProfileProjection
+  | ClubProfileProjection
+  | NationProfileProjection;
+type PersonProfileProjection = PlayerProfileProjection | CoachProfileProjection;
 type PlayerTab =
   'overview' | 'attributes' | 'roles' | 'performance' | 'history' | 'knowledge' | 'development';
 type CoachTab = 'overview' | 'attributes' | 'style' | 'career' | 'development' | 'history';
-type ProfileTab = PlayerTab | CoachTab;
+type ClubTab = 'overview' | 'squad' | 'staff' | 'tactics';
+type NationTab = 'overview' | 'clubs' | 'players' | 'coaches' | 'competitions';
+type ProfileTab = PlayerTab | CoachTab | ClubTab | NationTab;
 
 interface ProfileScreenProps {
   readonly route: ProfileRoute;
+  readonly activeTabHint?: string;
   readonly variationId?: string | null;
   readonly onBack: () => void;
   readonly onNavigate: (route: ProfileRoute) => void;
+  readonly onTabChange?: (tab: string) => void;
 }
 
 const playerTabs: readonly { readonly id: PlayerTab; readonly label: string }[] = [
@@ -58,6 +82,21 @@ const coachTabs: readonly { readonly id: CoachTab; readonly label: string }[] = 
   { id: 'history', label: 'Histórico' },
 ];
 
+const clubTabs: readonly { readonly id: ClubTab; readonly label: string }[] = [
+  { id: 'overview', label: 'Visão geral' },
+  { id: 'squad', label: 'Elenco' },
+  { id: 'staff', label: 'Comissão' },
+  { id: 'tactics', label: 'Identidade tática' },
+];
+
+const nationTabs: readonly { readonly id: NationTab; readonly label: string }[] = [
+  { id: 'overview', label: 'Visão geral' },
+  { id: 'clubs', label: 'Clubes' },
+  { id: 'players', label: 'Jogadores' },
+  { id: 'coaches', label: 'Treinadores' },
+  { id: 'competitions', label: 'Competições' },
+];
+
 const formatDate = (value: string | number) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? 'Não informado' : date.toLocaleDateString('pt-BR');
@@ -71,7 +110,13 @@ const entityIndex = (entityId: string) => {
 const isPlayerProfile = (profile: ProfileProjection): profile is PlayerProfileProjection =>
   'naturalPosition' in profile;
 
-const profileRating = (profile: ProfileProjection) => profile.contextualRating;
+const isCoachProfile = (profile: ProfileProjection): profile is CoachProfileProjection =>
+  'role' in profile && 'identity' in profile;
+
+const isClubProfile = (profile: ProfileProjection): profile is ClubProfileProjection =>
+  'shortName' in profile && 'players' in profile;
+
+const profileRating = (profile: PersonProfileProjection) => profile.contextualRating;
 
 const ProfileSection = ({
   title,
@@ -173,14 +218,14 @@ function ComparisonPanel({
   currentType,
   onNavigate,
 }: {
-  readonly current: ProfileProjection;
-  readonly currentType: ProfileRoute['kind'];
+  readonly current: PersonProfileProjection;
+  readonly currentType: 'player' | 'coach';
   readonly onNavigate: (route: ProfileRoute) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<readonly GlobalProfileSearchResult[]>([]);
-  const [comparison, setComparison] = useState<ProfileProjection | null>(null);
+  const [comparison, setComparison] = useState<PersonProfileProjection | null>(null);
   const [error, setError] = useState('');
   const operationRef = useRef(0);
 
@@ -754,7 +799,278 @@ function CoachPanel({
   return <CoachOverview profile={profile} />;
 }
 
-function ProfileHero({ profile }: { readonly profile: ProfileProjection }) {
+function ClubPanel({
+  profile,
+  tab,
+  onNavigate,
+}: {
+  readonly profile: ClubProfileProjection;
+  readonly tab: ClubTab;
+  readonly onNavigate: (route: ProfileRoute) => void;
+}) {
+  if (tab === 'squad') {
+    return (
+      <ProfileSection title="Elenco conhecido">
+        <EntityReferenceList
+          emptyBody="Nenhum vínculo de jogador está disponível no universo carregado."
+          emptyTitle="Elenco ainda desconhecido"
+          onNavigate={onNavigate}
+          references={profile.players}
+        />
+      </ProfileSection>
+    );
+  }
+  if (tab === 'staff') {
+    return (
+      <ProfileSection title="Comissão técnica">
+        <EntityReferenceList
+          emptyBody="Não há profissionais confirmados para este clube."
+          emptyTitle="Comissão não informada"
+          onNavigate={onNavigate}
+          references={profile.staff}
+        />
+      </ProfileSection>
+    );
+  }
+  if (tab === 'tactics') {
+    if (!profile.tactics) {
+      return (
+        <HonestEmptyState title="Identidade tática não observada">
+          <p>Nenhuma leitura tática confiável está disponível para este clube no contexto atual.</p>
+        </HonestEmptyState>
+      );
+    }
+    return (
+      <ProfileSection title="Identidade tática">
+        <EntityFactStrip
+          facts={[
+            { label: 'Formação', value: profile.tactics.formation ?? 'Não informada' },
+            { label: 'Mentalidade', value: profile.tactics.mentality ?? 'Não observada' },
+            { label: 'Estilo', value: profile.tactics.style ?? 'Não observado' },
+            {
+              label: 'Pressão',
+              value: profile.tactics.pressure === null ? 'Não observada' : profile.tactics.pressure,
+            },
+            {
+              label: 'Linha',
+              value:
+                profile.tactics.defensiveLine === null
+                  ? 'Não observada'
+                  : profile.tactics.defensiveLine,
+            },
+            { label: 'Transição', value: profile.tactics.transition ?? 'Não observada' },
+          ]}
+        />
+        <p className="profile-source">
+          {profile.tactics.source} · {profile.tactics.confidence}% de confiança · atualizado em{' '}
+          {formatDate(profile.tactics.updatedAt)}
+        </p>
+      </ProfileSection>
+    );
+  }
+  return (
+    <div className="profile-content-grid">
+      <div className="profile-content-stack">
+        <ProfileSection title="Contexto do clube">
+          <EntityFactStrip
+            facts={[
+              { label: 'Cidade', value: profile.city || 'Não informada' },
+              { label: 'Competição', value: profile.competitionName ?? 'Não informada' },
+              {
+                label: 'Estádio',
+                value: profile.stadiumName ?? 'Não informado',
+                muted: !profile.stadiumName,
+              },
+              {
+                label: 'Posição atual',
+                value:
+                  profile.currentPosition === null
+                    ? 'Não disponível'
+                    : `${profile.currentPosition}º`,
+                muted: profile.currentPosition === null,
+              },
+            ]}
+          />
+        </ProfileSection>
+        <ProfileSection title="Jogadores relevantes conhecidos">
+          <EntityReferenceList
+            emptyBody="A observação atual não identificou jogadores vinculados."
+            emptyTitle="Sem jogadores conhecidos"
+            onNavigate={onNavigate}
+            references={profile.players.slice(0, 6)}
+          />
+        </ProfileSection>
+      </div>
+      <aside className="profile-side-stack">
+        <ProfileSection title="Liderança esportiva">
+          {profile.headCoach ? (
+            <EntityReferenceList
+              emptyBody=""
+              emptyTitle=""
+              onNavigate={onNavigate}
+              references={[profile.headCoach]}
+            />
+          ) : (
+            <HonestEmptyState title="Treinador não confirmado">
+              <p>Nenhum treinador principal está disponível nos dados atuais.</p>
+            </HonestEmptyState>
+          )}
+        </ProfileSection>
+        <ProfileSection title="Próximo contexto">
+          <p>{profile.nextFixture ?? 'O próximo compromisso ainda não está disponível.'}</p>
+          <p>
+            {profile.form.length > 0 ? profile.form.join(' · ') : 'Forma recente não disponível.'}
+          </p>
+        </ProfileSection>
+      </aside>
+    </div>
+  );
+}
+
+function NationPanel({
+  profile,
+  tab,
+  onNavigate,
+}: {
+  readonly profile: NationProfileProjection;
+  readonly tab: NationTab;
+  readonly onNavigate: (route: ProfileRoute) => void;
+}) {
+  const lists = {
+    clubs: profile.clubs,
+    players: profile.players,
+    coaches: profile.coaches,
+  } as const;
+  if (tab === 'clubs' || tab === 'players' || tab === 'coaches') {
+    const labels = {
+      clubs: [
+        'Clubes conhecidos',
+        'Nenhum clube conhecido',
+        'Nenhum clube desta nação está presente no universo carregado.',
+      ],
+      players: [
+        'Jogadores conhecidos',
+        'Nenhum jogador conhecido',
+        'Nenhum jogador desta nacionalidade está disponível com o conhecimento atual.',
+      ],
+      coaches: [
+        'Treinadores conhecidos',
+        'Nenhum treinador conhecido',
+        'Nenhum treinador desta nacionalidade está disponível com o conhecimento atual.',
+      ],
+    } as const;
+    const [title, emptyTitle, emptyBody] = labels[tab];
+    return (
+      <ProfileSection title={title}>
+        <EntityReferenceList
+          emptyBody={emptyBody}
+          emptyTitle={emptyTitle}
+          onNavigate={onNavigate}
+          references={lists[tab]}
+        />
+      </ProfileSection>
+    );
+  }
+  if (tab === 'competitions') {
+    return profile.competitions.length === 0 ? (
+      <HonestEmptyState title="Competições não disponíveis">
+        <p>Nenhuma competição vinculada existe no universo atualmente carregado.</p>
+      </HonestEmptyState>
+    ) : (
+      <ProfileSection title="Competições vinculadas">
+        <ul className="nation-competition-list">
+          {profile.competitions.map((competition) => (
+            <li key={competition}>{competition}</li>
+          ))}
+        </ul>
+      </ProfileSection>
+    );
+  }
+  return (
+    <div className="profile-content-grid profile-content-grid--nation">
+      <ProfileSection title="Presença no universo carregado">
+        <EntityFactStrip
+          facts={[
+            { label: 'Clubes', value: profile.clubs.length },
+            { label: 'Jogadores', value: profile.players.length },
+            { label: 'Treinadores', value: profile.coaches.length },
+            { label: 'Competições', value: profile.competitions.length },
+          ]}
+        />
+      </ProfileSection>
+      <ProfileSection title="Principais entidades conhecidas">
+        <EntityReferenceList
+          emptyBody="Nenhuma entidade vinculada está disponível no recorte atual."
+          emptyTitle="Presença ainda não observada"
+          onNavigate={onNavigate}
+          references={[...profile.clubs, ...profile.players, ...profile.coaches].slice(0, 8)}
+        />
+      </ProfileSection>
+    </div>
+  );
+}
+
+function ProfileHero({
+  profile,
+  onNavigate,
+}: {
+  readonly profile: ProfileProjection;
+  readonly onNavigate: (route: ProfileRoute) => void;
+}) {
+  if (isClubProfile(profile)) {
+    return (
+      <header
+        className="profile-hero profile-hero--club"
+        style={{ '--club-color': profile.primaryColor } as CSSProperties}
+      >
+        <div aria-label={`Escudo de ${profile.name}`} className="profile-hero__crest" role="img">
+          {profile.shortName}
+        </div>
+        <div className="profile-hero__identity">
+          <span>CLUBE</span>
+          <h1>{profile.name}</h1>
+          <p>{profile.shortName}</p>
+          <div>
+            <span>{profile.city}</span>
+            {profile.countryCode && (
+              <NationalityEntityLink code={profile.countryCode} onNavigate={onNavigate} />
+            )}
+            {profile.competitionName && <span>{profile.competitionName}</span>}
+          </div>
+        </div>
+        <div className="profile-hero__rating profile-hero__rating--context">
+          <strong>{profile.players.length}</strong>
+          <span>jogadores conhecidos</span>
+          <ConfidenceIndicator confidence={profile.knowledge.confidence} />
+        </div>
+      </header>
+    );
+  }
+  if (!('identity' in profile)) {
+    return (
+      <header className="profile-hero profile-hero--nation">
+        <div className="profile-hero__flag">
+          <NationalityDisplay codes={[profile.code]} />
+        </div>
+        <div className="profile-hero__identity">
+          <span>NAÇÃO</span>
+          <h1>{profile.name}</h1>
+          <p>{profile.code}</p>
+          <div>
+            <span>{profile.confederation ?? 'Confederação não informada'}</span>
+            <span>
+              {profile.clubs.length + profile.players.length + profile.coaches.length} entidades
+              conhecidas
+            </span>
+          </div>
+        </div>
+        <div className="profile-hero__rating profile-hero__rating--context">
+          <strong>{profile.players.length}</strong>
+          <span>jogadores no recorte</span>
+        </div>
+      </header>
+    );
+  }
   const player = isPlayerProfile(profile);
   return (
     <header
@@ -770,13 +1086,7 @@ function ProfileHero({ profile }: { readonly profile: ProfileProjection }) {
             size={96}
           />
         ) : (
-          <span aria-hidden="true" className="coach-avatar">
-            {profile.identity.knownName
-              .split(/\s/u)
-              .map((part) => part[0])
-              .join('')
-              .slice(0, 2)}
-          </span>
+          <CoachFace decorative name={profile.identity.fullName} size={96} />
         )}
       </div>
       <div className="profile-hero__identity">
@@ -784,9 +1094,19 @@ function ProfileHero({ profile }: { readonly profile: ProfileProjection }) {
         <h1>{profile.identity.knownName}</h1>
         <p>{profile.identity.fullName}</p>
         <div>
-          <NationalityDisplay codes={[profile.identity.nationality]} enableKeyboardTooltip />
+          <NationalityEntityLink
+            code={profile.identity.nationality}
+            enableKeyboardTooltip
+            onNavigate={onNavigate}
+          />
           <span>{profile.identity.age} anos</span>
-          <span>{profile.identity.clubName}</span>
+          <EntityLink
+            ariaLabel={`Abrir perfil de ${profile.identity.clubName}`}
+            onNavigate={onNavigate}
+            route={{ kind: 'club', entityId: profile.identity.clubId }}
+          >
+            {profile.identity.clubName}
+          </EntityLink>
           {player && <span>Camisa {profile.shirtNumber}</span>}
         </div>
       </div>
@@ -798,7 +1118,14 @@ function ProfileHero({ profile }: { readonly profile: ProfileProjection }) {
   );
 }
 
-export function ProfileScreen({ route, variationId, onBack, onNavigate }: ProfileScreenProps) {
+export function ProfileScreen({
+  route,
+  activeTabHint,
+  variationId,
+  onBack,
+  onNavigate,
+  onTabChange,
+}: ProfileScreenProps) {
   const [profile, setProfile] = useState<ProfileProjection | null>(null);
   const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
   const [error, setError] = useState('');
@@ -809,11 +1136,18 @@ export function ProfileScreen({ route, variationId, onBack, onNavigate }: Profil
     const operation = ++operationRef.current;
     setProfile(null);
     setError('');
-    setActiveTab('overview');
+    const restoredTab = window.history.state?.rivalloProfileTab;
+    const nextTab = typeof restoredTab === 'string' ? (restoredTab as ProfileTab) : 'overview';
+    setActiveTab(nextTab);
+    onTabChange?.(nextTab);
     const request =
       route.kind === 'player'
         ? loadPlayerProfile(route.entityId, variationId)
-        : loadCoachProfile(route.entityId);
+        : route.kind === 'coach'
+          ? loadCoachProfile(route.entityId)
+          : route.kind === 'club'
+            ? loadClubProfile(route.entityId)
+            : loadNationProfile(route.entityId);
     void request
       .then((next) => {
         if (operation === operationRef.current) setProfile(next);
@@ -825,16 +1159,32 @@ export function ProfileScreen({ route, variationId, onBack, onNavigate }: Profil
     return () => {
       operationRef.current += 1;
     };
-  }, [retryKey, route.entityId, route.kind, variationId]);
+  }, [onTabChange, retryKey, route.entityId, route.kind, variationId]);
 
-  const tabs = useMemo(
-    () =>
-      (route.kind === 'player' ? playerTabs : coachTabs) as readonly {
-        readonly id: ProfileTab;
-        readonly label: string;
-      }[],
-    [route.kind],
-  );
+  const tabs = useMemo(() => {
+    const selectedTabs =
+      route.kind === 'player'
+        ? playerTabs
+        : route.kind === 'coach'
+          ? coachTabs
+          : route.kind === 'club'
+            ? clubTabs
+            : nationTabs;
+    return selectedTabs as readonly {
+      readonly id: ProfileTab;
+      readonly label: string;
+    }[];
+  }, [route.kind]);
+
+  useEffect(() => {
+    if (activeTabHint && tabs.some((tab) => tab.id === activeTabHint)) {
+      setActiveTab(activeTabHint as ProfileTab);
+    }
+  }, [activeTabHint, tabs]);
+
+  useEffect(() => {
+    if (!tabs.some((tab) => tab.id === activeTab)) setActiveTab('overview');
+  }, [activeTab, tabs]);
 
   if (error) {
     const offline = typeof navigator !== 'undefined' && !navigator.onLine;
@@ -886,14 +1236,26 @@ export function ProfileScreen({ route, variationId, onBack, onNavigate }: Profil
         </Button>
         <span>Perfil global · revisão {profile.revision}</span>
       </div>
-      <ProfileHero profile={profile} />
+      <ProfileHero onNavigate={onNavigate} profile={profile} />
       <KnowledgeState
         confidence={profile.knowledge.confidence}
         level={profile.knowledge.knowledgeLevel}
         source={profile.knowledge.source}
         updatedAt={profile.knowledge.updatedAt}
       />
-      <ProfileTabs activeTab={activeTab} onChange={setActiveTab} tabs={tabs} />
+      <ProfileTabs
+        activeTab={activeTab}
+        onChange={(tab) => {
+          setActiveTab(tab);
+          onTabChange?.(tab);
+          window.history.replaceState(
+            { ...window.history.state, rivalloProfileTab: tab },
+            '',
+            window.location.href,
+          );
+        }}
+        tabs={tabs}
+      />
       <div
         aria-labelledby={`profile-tab-${activeTab}`}
         className="profile-panel"
@@ -903,11 +1265,21 @@ export function ProfileScreen({ route, variationId, onBack, onNavigate }: Profil
       >
         {isPlayerProfile(profile) ? (
           <PlayerPanel profile={profile} tab={activeTab as PlayerTab} />
-        ) : (
+        ) : isCoachProfile(profile) ? (
           <CoachPanel profile={profile} tab={activeTab as CoachTab} />
+        ) : isClubProfile(profile) ? (
+          <ClubPanel onNavigate={onNavigate} profile={profile} tab={activeTab as ClubTab} />
+        ) : (
+          <NationPanel onNavigate={onNavigate} profile={profile} tab={activeTab as NationTab} />
         )}
       </div>
-      <ComparisonPanel current={profile} currentType={route.kind} onNavigate={onNavigate} />
+      {(isPlayerProfile(profile) || isCoachProfile(profile)) && (
+        <ComparisonPanel
+          current={profile}
+          currentType={isPlayerProfile(profile) ? 'player' : 'coach'}
+          onNavigate={onNavigate}
+        />
+      )}
     </section>
   );
 }

@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react';
 
 import { TableViewStatus } from '../ui/DataTable/index.js';
 import { ProfileScreen } from '../profiles/ProfileScreen.js';
+import { EntityLink, entityPath } from '../profiles/EntityProfileSystem.js';
 import type { GlobalProfileSearchResult, ProfileRoute } from '../profiles/types.js';
 import { Button } from '../ui/primitives/actions.js';
 import { Tooltip } from '../ui/primitives/disclosure.js';
@@ -82,6 +83,8 @@ interface NavigationItem {
   readonly badge?: string;
   readonly available?: boolean;
 }
+
+type ProfileTabHint = 'overview' | 'staff';
 
 type SavedViewTransitionTarget =
   | {
@@ -217,16 +220,21 @@ const LEGACY_UI_PREFERENCES_KEYS = ['rivallo.squad-ui.v3', 'rivallo.squad-ui.v2'
 const TACTICS_LAYOUT_KEY = 'rivallo.tactics-layout.v1';
 
 export const parseProfileRoute = (pathname: string): ProfileRoute | null => {
-  const match = /^\/(players|coaches)\/([^/]+)\/?$/u.exec(pathname);
+  const match = /^\/(players|coaches|clubs|nations)\/([^/]+)\/?$/u.exec(pathname);
   if (!match?.[1] || !match[2]) return null;
+  const kind =
+    match[1] === 'players'
+      ? 'player'
+      : match[1] === 'coaches'
+        ? 'coach'
+        : match[1] === 'clubs'
+          ? 'club'
+          : 'nation';
   return {
-    kind: match[1] === 'players' ? 'player' : 'coach',
+    kind,
     entityId: decodeURIComponent(match[2]),
   };
 };
-
-const profilePath = (route: ProfileRoute) =>
-  `/${route.kind === 'player' ? 'players' : 'coaches'}/${encodeURIComponent(route.entityId)}`;
 
 const defaultPreferences = (): UiPreferences => ({
   sidebarCollapsed: typeof window !== 'undefined' && window.innerWidth < 1240,
@@ -297,8 +305,8 @@ const navigationGroups: readonly (readonly NavigationItem[])[] = [
     { id: 'transfers', label: 'Transferências', icon: 'transfers' },
   ],
   [
-    { id: 'club', label: 'Clube', icon: 'club' },
-    { id: 'staff', label: 'Comissão técnica', icon: 'staff' },
+    { id: 'club', label: 'Clube', icon: 'club', available: true },
+    { id: 'staff', label: 'Comissão técnica', icon: 'staff', available: true },
     { id: 'finances', label: 'Finanças', icon: 'finances' },
   ],
   [
@@ -312,6 +320,41 @@ const resultLabel = (result: MatchResult) => {
   if (result.homeGoals > result.awayGoals) return 'Vitória';
   if (result.homeGoals < result.awayGoals) return 'Derrota';
   return 'Empate';
+};
+
+const profileTypeMeta = {
+  player: { label: 'Jogador', icon: 'people' },
+  coach: { label: 'Treinador', icon: 'staff' },
+  club: { label: 'Clube', icon: 'club' },
+  nation: { label: 'Nação', icon: 'competitions' },
+} as const satisfies Record<ProfileRoute['kind'], { label: string; icon: GenericIconName }>;
+
+const routeFromSearchResult = (result: GlobalProfileSearchResult): ProfileRoute => {
+  switch (result.entityType) {
+    case 'player':
+      return { kind: 'player', entityId: result.entityId };
+    case 'coach':
+      return { kind: 'coach', entityId: result.entityId };
+    case 'club':
+      return { kind: 'club', entityId: result.entityId };
+    case 'nation':
+      return { kind: 'nation', entityId: result.entityId };
+  }
+};
+
+const interleaveSearchResults = (
+  results: readonly GlobalProfileSearchResult[],
+): readonly GlobalProfileSearchResult[] => {
+  const order = ['player', 'coach', 'club', 'nation'] as const;
+  const groups = order.map((kind) => results.filter((result) => result.entityType === kind));
+  const visible: GlobalProfileSearchResult[] = [];
+  for (let index = 0; index < 4; index += 1) {
+    for (const group of groups) {
+      const result = group[index];
+      if (result) visible.push(result);
+    }
+  }
+  return visible;
 };
 
 const readStoredLineup = (players: readonly Player[]): LineupSlots | null => {
@@ -342,6 +385,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
   const [profileRoute, setProfileRoute] = useState<ProfileRoute | null>(() =>
     typeof window === 'undefined' ? null : parseProfileRoute(window.location.pathname),
   );
+  const [activeProfileTab, setActiveProfileTab] = useState('overview');
   const [profileSearchResults, setProfileSearchResults] = useState<
     readonly GlobalProfileSearchResult[]
   >([]);
@@ -373,6 +417,10 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
   const profileSearchOperationRef = useRef(0);
 
   const selectedIds = useMemo(() => selectedIdsFromSlots(lineupSlots), [lineupSlots]);
+  const visibleProfileSearchResults = useMemo(
+    () => interleaveSearchResults(profileSearchResults),
+    [profileSearchResults],
+  );
   const durableFilters = useMemo(
     () => readSquadDurableFilter(tableView.proposal.filter),
     [tableView.proposal.filter],
@@ -393,7 +441,33 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
   const density = tableView.proposal.density as Density;
 
   useEffect(() => {
-    const handlePopState = () => setProfileRoute(parseProfileRoute(window.location.pathname));
+    const handlePopState = (event: PopStateEvent) => {
+      const nextRoute = parseProfileRoute(window.location.pathname);
+      setProfileRoute(nextRoute);
+      const context = event.state?.rivalloContext as
+        | {
+            activeScreen?: ActiveScreen;
+            focusedPlayerId?: string | null;
+            query?: string;
+            scrollTop?: number;
+          }
+        | undefined;
+      if (context && !nextRoute) {
+        setPreferences((current) => ({
+          ...current,
+          activeScreen: context.activeScreen ?? current.activeScreen,
+        }));
+        setFocusedPlayerId(context.focusedPlayerId ?? null);
+        setQuery(context.query ?? '');
+      }
+      const scrollTop = Number(event.state?.rivalloScrollTop ?? context?.scrollTop ?? 0);
+      window.requestAnimationFrame(() => {
+        const target = document.querySelector<HTMLElement>(
+          nextRoute ? '.profile-screen' : '.manager-main',
+        );
+        if (target) target.scrollTop = scrollTop;
+      });
+    };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
@@ -874,8 +948,30 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
     await continueAfterSavedView(target, continuationId);
   };
 
-  const openProfile = (route: ProfileRoute) => {
-    window.history.pushState({ rivalloProfile: true }, '', profilePath(route));
+  const openProfile = (route: ProfileRoute, initialTab: ProfileTabHint = 'overview') => {
+    const currentScroll =
+      document.querySelector<HTMLElement>(profileRoute ? '.profile-screen' : '.manager-main')
+        ?.scrollTop ?? 0;
+    const currentState = {
+      ...window.history.state,
+      rivalloProfileTab: window.history.state?.rivalloProfileTab ?? 'overview',
+      rivalloScrollTop: currentScroll,
+      ...(!profileRoute && {
+        rivalloContext: {
+          activeScreen: preferences.activeScreen,
+          focusedPlayerId,
+          query,
+          scrollTop: currentScroll,
+        },
+      }),
+    };
+    window.history.replaceState(currentState, '', window.location.href);
+    window.history.pushState(
+      { rivalloProfile: true, rivalloProfileTab: initialTab, rivalloScrollTop: 0 },
+      '',
+      entityPath(route),
+    );
+    setActiveProfileTab(initialTab);
     setProfileRoute(route);
     setProfileSearchOpen(false);
     setQuery('');
@@ -1424,7 +1520,11 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
           {navigationGroups.map((group, groupIndex) => (
             <div className="manager-navigation__group" key={groupIndex}>
               {group.map((item) => {
-                const active = !profileRoute && item.id === preferences.activeScreen;
+                const active = profileRoute
+                  ? profileRoute.kind === 'club' &&
+                    ((item.id === 'staff' && activeProfileTab === 'staff') ||
+                      (item.id === 'club' && activeProfileTab !== 'staff'))
+                  : item.id === preferences.activeScreen;
                 return (
                   <button
                     aria-current={active ? 'page' : undefined}
@@ -1434,7 +1534,13 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
                     disabled={!item.available || busyAction !== null}
                     key={item.id}
                     onClick={() => {
-                      if (item.id === 'squad' || item.id === 'tactics') setActiveScreen(item.id);
+                      if (item.id === 'squad' || item.id === 'tactics') {
+                        setActiveScreen(item.id);
+                      } else if (item.id === 'club') {
+                        openProfile({ kind: 'club', entityId: state.club.id });
+                      } else if (item.id === 'staff') {
+                        openProfile({ kind: 'club', entityId: state.club.id }, 'staff');
+                      }
                     }}
                     title={item.available ? item.label : `${item.label} — em breve`}
                     type="button"
@@ -1496,7 +1602,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
           >
             <label className="global-search">
               <Icon name="search" size={16} />
-              <span className="sr-only">Buscar jogadores e treinadores</span>
+              <span className="sr-only">Buscar jogadores, treinadores, clubes e nações</span>
               <input
                 aria-controls="global-profile-results"
                 aria-expanded={profileSearchOpen && query.trim().length >= 2}
@@ -1505,7 +1611,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
                   setProfileSearchOpen(true);
                 }}
                 onFocus={() => setProfileSearchOpen(true)}
-                placeholder="Buscar jogador ou treinador"
+                placeholder="Buscar jogador, treinador, clube ou nação"
                 type="search"
                 value={query}
               />
@@ -1521,26 +1627,21 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
                   <span>Nenhum perfil encontrado.</span>
                 ) : (
                   <ul>
-                    {profileSearchResults.map((result) => (
+                    {visibleProfileSearchResults.map((result) => (
                       <li key={result.entityId}>
                         <button
-                          onClick={() =>
-                            openProfile({
-                              kind: result.entityType,
-                              entityId: result.entityId,
-                            })
-                          }
+                          onClick={() => openProfile(routeFromSearchResult(result))}
                           type="button"
                         >
-                          <Icon
-                            name={result.entityType === 'player' ? 'people' : 'staff'}
-                            size={16}
-                          />
+                          <Icon name={profileTypeMeta[result.entityType].icon} size={16} />
                           <span>
                             <strong>{result.name}</strong>
-                            <small>{result.secondaryLabel}</small>
+                            <small>{result.context || result.secondaryLabel}</small>
                           </span>
-                          <em>{result.entityType === 'player' ? 'Jogador' : 'Treinador'}</em>
+                          <em>
+                            {profileTypeMeta[result.entityType].label}
+                            {result.confidence != null && ` · ${result.confidence}%`}
+                          </em>
                         </button>
                       </li>
                     ))}
@@ -1557,7 +1658,12 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
             <Icon name="weather" size={20} />
             <strong>18 °C</strong>
           </div>
-          <div className="manager-topbar__club">
+          <EntityLink
+            ariaLabel={`Abrir perfil de ${state.club.name}`}
+            className="manager-topbar__club"
+            onNavigate={openProfile}
+            route={{ kind: 'club', entityId: state.club.id }}
+          >
             <span
               className="club-crest"
               style={{ '--club-color': state.club.primaryColor } as CSSProperties}
@@ -1568,7 +1674,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
               <strong>{state.club.name}</strong>
               <small>Liga Horizonte · {state.record.points} pts</small>
             </span>
-          </div>
+          </EntityLink>
           <Button
             className="continue-button"
             disabled={!canPlay}
@@ -1589,8 +1695,10 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
         <main className="manager-main">
           {profileRoute ? (
             <ProfileScreen
+              activeTabHint={activeProfileTab}
               onBack={returnFromProfile}
               onNavigate={openProfile}
+              onTabChange={setActiveProfileTab}
               route={profileRoute}
               variationId={state.tacticalLibrary?.activeVariationId}
             />
@@ -1608,6 +1716,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
                 }
                 onFocusPlayer={setFocusedPlayerId}
                 onOpenProfile={(playerId) => openProfile({ kind: 'player', entityId: playerId })}
+                onOpenNation={(nationId) => openProfile({ kind: 'nation', entityId: nationId })}
                 onPositionFilterChange={setPositionFilter}
                 onPositionFilterVisibleChange={setPositionFilterVisible}
                 onRoleFilterChange={setRoleFilter}
@@ -1685,6 +1794,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
               }
               onFocusPlayer={setFocusedPlayerId}
               onOpenProfile={(playerId) => openProfile({ kind: 'player', entityId: playerId })}
+              onOpenClub={(clubId) => openProfile({ kind: 'club', entityId: clubId })}
               onPitchModeChange={(pitchMode) => updatePreference('pitchMode', pitchMode)}
               onRenameVariation={renameVariation}
               onSave={saveLineup}

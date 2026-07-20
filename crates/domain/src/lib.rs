@@ -14,15 +14,17 @@ pub use matchday::{
 };
 pub use profiles::{
     ASSESSMENT_VERSION, AttributeGroupProjection, AttributeProjection, AttributeSnapshot,
-    CoachAttributeSet, CoachDevelopmentProfile, CoachProfileProjection, CoachSportingProfile,
-    ContractSummary, ExplainableRating, ExternalPlayerState, GlobalProfileSearchResult,
-    KnowledgeLevel, KnowledgeValue, KnowledgeValueKind, PROFILE_PROJECTION_SCHEMA_VERSION,
-    PROFILE_WORLD_SCHEMA_VERSION, PersonIdentity, PlayerAttributeCategory, PlayerAttributeSet,
-    PlayerDevelopmentProjection, PlayerProfileProjection, PlayerSportingProfile,
-    PlayerStatisticsProjection, PlayerTrainingProfile, PositionRatingProjection, PotentialEstimate,
-    ProfileWorld, RATING_SCALE_VERSION, RatingFactor, RatingFactorImpact, RatingKind,
-    RatingSnapshot, RoleRatingProjection, ScoutingAssessment, project_coach_profile,
-    project_player_profile,
+    ClubProfileProjection, ClubTacticalIdentityProjection, CoachAttributeSet,
+    CoachDevelopmentProfile, CoachProfileProjection, CoachSportingProfile, ContractSummary,
+    EntityProfileReference, ExplainableRating, ExternalPlayerState, GlobalProfileSearchResult,
+    KnowledgeLevel, KnowledgeValue, KnowledgeValueKind, NationProfileProjection,
+    PROFILE_PROJECTION_SCHEMA_VERSION, PROFILE_WORLD_SCHEMA_VERSION, PersonIdentity,
+    PlayerAttributeCategory, PlayerAttributeSet, PlayerDevelopmentProjection,
+    PlayerProfileProjection, PlayerSportingProfile, PlayerStatisticsProjection,
+    PlayerTrainingProfile, PositionRatingProjection, PotentialEstimate, ProfileWorld,
+    RATING_SCALE_VERSION, RatingFactor, RatingFactorImpact, RatingKind, RatingSnapshot,
+    RoleRatingProjection, ScoutingAssessment, project_club_profile, project_coach_profile,
+    project_nation_profile, project_player_profile,
 };
 pub use tactics::{
     FamiliarityChange, FamiliarityDimension, GoalkeeperDistribution, InPossessionStrategy,

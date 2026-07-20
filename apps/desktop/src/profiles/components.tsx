@@ -16,6 +16,7 @@ import type {
   PlayerProfileProjection,
   RatingSnapshot,
 } from './types.js';
+import { CoachFace } from './CoachFace.js';
 
 const knowledgeLabels: Record<KnowledgeLevel, string> = {
   ownClub: 'Conhecimento do próprio clube',
@@ -434,17 +435,10 @@ export function CoachInspector({
       </aside>
     );
   }
-  const initials = profile.identity.knownName
-    .split(/\s/u)
-    .map((part) => part[0])
-    .join('')
-    .slice(0, 2);
   return (
     <aside className="coach-inspector" aria-label={`Resumo de ${profile.identity.fullName}`}>
       <header>
-        <span aria-hidden="true" className="coach-avatar coach-avatar--small">
-          {initials}
-        </span>
+        <CoachFace decorative name={profile.identity.fullName} size={56} />
         <div>
           <small>{profile.role}</small>
           <h2>{profile.identity.knownName}</h2>

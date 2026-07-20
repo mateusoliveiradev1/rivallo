@@ -831,9 +831,122 @@ test.beforeEach(async ({ page }) => {
             if (!profile) throw new Error('Treinador não encontrado.');
             return structuredClone(profile);
           }
+          const referenceFor = (
+            profile: (typeof playerProfiles)[number] | (typeof coachProfiles)[number],
+          ) => {
+            const player = 'naturalPosition' in profile;
+            return {
+              entityId: profile.identity.entityId,
+              entityType: player ? ('player' as const) : ('coach' as const),
+              name: profile.identity.fullName,
+              secondaryLabel: player ? profile.naturalPosition : profile.role,
+              route: `/${player ? 'players' : 'coaches'}/${profile.identity.entityId}`,
+              nationality: profile.identity.nationality,
+              clubId: profile.identity.clubId,
+              visualCode: player ? profile.naturalPosition : 'TEC',
+              perceivedRating: player ? profile.currentAbility.perceived : profile.reputation,
+              confidence: profile.knowledge.confidence,
+              knowledgeLevel: profile.knowledge.knowledgeLevel,
+            };
+          };
+          if (command === 'club_profile') {
+            const club = [state.club, state.opponent].find(({ id }) => id === args.clubId);
+            if (!club) throw new Error('Clube não encontrado.');
+            const players = playerProfiles
+              .filter(
+                ({ identity }) =>
+                  identity.clubId === club.id || identity.clubShortName === club.shortName,
+              )
+              .map(referenceFor);
+            const staff = coachProfiles
+              .filter(
+                ({ identity }) =>
+                  identity.clubId === club.id || identity.clubShortName === club.shortName,
+              )
+              .map(referenceFor);
+            const own = club.id === state.club.id;
+            return {
+              schemaVersion: 1,
+              revision: 1,
+              entityId: club.id,
+              name: club.name,
+              shortName: club.shortName,
+              city: club.city,
+              primaryColor: club.primaryColor,
+              countryCode: club.countryCode ?? 'BRA',
+              competitionName: club.competitionName ?? 'Liga Horizonte',
+              stadiumName: club.stadiumName ?? null,
+              currentPosition: null,
+              nextFixture: null,
+              form: [],
+              headCoach: staff[0] ?? null,
+              players,
+              staff,
+              tactics: own
+                ? {
+                    formation: state.formation,
+                    mentality: 'Equilibrada',
+                    style: 'Balanced',
+                    pressure: 50,
+                    defensiveLine: 50,
+                    transition: 'Balanced / Balanced',
+                    confidence: 100,
+                    source: 'Plano tático ativo do clube',
+                    updatedAt: Date.now(),
+                  }
+                : null,
+              knowledge: {
+                ...playerProfiles[0]!.knowledge,
+                entityId: `club:${club.id}`,
+                confidence: own ? 100 : 61,
+                knowledgeLevel: own ? 'ownClub' : 'partial',
+              },
+            };
+          }
+          if (command === 'nation_profile') {
+            const code = String(args.nationId ?? '').toLocaleUpperCase('pt-BR');
+            const canonical = code === 'BR' || code === 'BRA' ? 'BRA' : code;
+            if (canonical !== 'BRA') throw new Error('Nação não encontrada.');
+            const clubs = [state.club, state.opponent].map((club) => ({
+              entityId: club.id,
+              entityType: 'club' as const,
+              name: club.name,
+              secondaryLabel: club.city,
+              route: `/clubs/${club.id}`,
+              nationality: 'BRA',
+              clubId: club.id,
+              visualCode: club.shortName,
+              perceivedRating: null,
+              confidence: club.id === state.club.id ? 100 : 61,
+              knowledgeLevel:
+                club.id === state.club.id ? ('ownClub' as const) : ('partial' as const),
+            }));
+            return {
+              schemaVersion: 1,
+              revision: 1,
+              entityId: 'bra',
+              name: 'Brasil',
+              code: 'BRA',
+              confederation: 'CONMEBOL',
+              clubs,
+              players: playerProfiles
+                .filter(({ identity }) => identity.nationality === 'BRA')
+                .map(referenceFor),
+              coaches: coachProfiles
+                .filter(({ identity }) => identity.nationality === 'BRA')
+                .map(referenceFor),
+              competitions: ['Liga Horizonte'],
+              knowledge: {
+                ...playerProfiles[0]!.knowledge,
+                entityId: 'nation:bra',
+                confidence: 100,
+                knowledgeLevel: 'wellKnown',
+              },
+            };
+          }
           if (command === 'search_profiles') {
             const query = String(args.query ?? '').toLocaleLowerCase('pt-BR');
-            return [...playerProfiles, ...coachProfiles]
+            const people = [...playerProfiles, ...coachProfiles]
               .filter((profile) =>
                 [profile.identity.fullName, profile.identity.knownName, profile.identity.clubName]
                   .join(' ')
@@ -849,8 +962,45 @@ test.beforeEach(async ({ page }) => {
                   secondaryLabel: `${profile.identity.clubName} · ${player ? profile.naturalPosition : profile.role}`,
                   route: `/${player ? 'players' : 'coaches'}/${profile.identity.entityId}`,
                   knowledgeLevel: profile.knowledge.knowledgeLevel,
+                  context: `${profile.identity.clubName} · ${player ? profile.naturalPosition : profile.role}`,
+                  visualCode: player ? profile.naturalPosition : 'TEC',
+                  confidence: profile.knowledge.confidence,
                 };
               });
+            const clubs = [state.club, state.opponent]
+              .filter((club) =>
+                `${club.name} ${club.shortName} ${club.city}`
+                  .toLocaleLowerCase('pt-BR')
+                  .includes(query),
+              )
+              .map((club) => ({
+                entityId: club.id,
+                entityType: 'club' as const,
+                name: club.name,
+                secondaryLabel: club.competitionName ?? club.city,
+                route: `/clubs/${club.id}`,
+                knowledgeLevel:
+                  club.id === state.club.id ? ('ownClub' as const) : ('partial' as const),
+                context: `${club.city} · ${club.shortName}`,
+                visualCode: club.shortName,
+                confidence: club.id === state.club.id ? 100 : 61,
+              }));
+            const nations = 'brasil bra conmebol'.includes(query)
+              ? [
+                  {
+                    entityId: 'bra',
+                    entityType: 'nation' as const,
+                    name: 'Brasil',
+                    secondaryLabel: 'BRA · universo carregado',
+                    route: '/nations/bra',
+                    knowledgeLevel: 'wellKnown' as const,
+                    context: 'CONMEBOL',
+                    visualCode: 'BRA',
+                    confidence: null,
+                  },
+                ]
+              : [];
+            return [...people, ...clubs, ...nations];
           }
           if (command === 'tactical_strategy_catalog') return structuredClone(strategyCatalog);
           if (command === 'preview_tactical_plan') {
@@ -1157,7 +1307,9 @@ test('opens global player and coach profiles with partial knowledge and responsi
   );
 
   await page.goto(developmentUrl);
-  const search = page.getByRole('searchbox', { name: 'Buscar jogadores e treinadores' });
+  const search = page.getByRole('searchbox', {
+    name: 'Buscar jogadores, treinadores, clubes e nações',
+  });
   await search.fill('Martín');
   await page.getByRole('button', { name: /Martín Gouveia/u }).click();
   await expect(page).toHaveURL(/\/players\/rv-fdv-01$/u);
@@ -1192,6 +1344,7 @@ test('opens global player and coach profiles with partial knowledge and responsi
   await page.getByRole('button', { name: /Héctor Salvatierra/u }).click();
   await expect(page).toHaveURL(/\/coaches\/coach\.ferroviario\.head$/u);
   await expect(page.getByRole('heading', { name: 'H. Salvatierra' })).toBeVisible();
+  await expect(page.locator('.profile-hero .coach-face img')).toBeVisible();
   await page.getByRole('tab', { name: 'Capacidades' }).click();
   await expect(page.getByText('Desenvolvimento de jovens')).toBeVisible();
   await expect(page.getByText('Precisão de avaliação')).toBeVisible();
@@ -1206,6 +1359,92 @@ test('opens global player and coach profiles with partial knowledge and responsi
   await expect(page.getByRole('tab', { name: 'Capacidades' })).toBeVisible();
   await page.evaluate(() => {
     document.body.style.zoom = '';
+  });
+});
+
+test('discovers all entity types and preserves context across club, coach and nation profiles', async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== 'desktop-1366x768',
+    'The cross-entity product flow only needs one Chromium project.',
+  );
+
+  await page.goto(developmentUrl);
+  const search = page.getByRole('searchbox', {
+    name: 'Buscar jogadores, treinadores, clubes e nações',
+  });
+  await search.fill('ra');
+  const results = page.locator('.global-profile-results');
+  await expect(
+    results
+      .locator('em')
+      .filter({ hasText: /^Jogador/u })
+      .first(),
+  ).toBeVisible();
+  await expect(
+    results
+      .locator('em')
+      .filter({ hasText: /^Treinador/u })
+      .first(),
+  ).toBeVisible();
+  await expect(
+    results
+      .locator('em')
+      .filter({ hasText: /^Clube/u })
+      .first(),
+  ).toBeVisible();
+  await expect(
+    results
+      .locator('em')
+      .filter({ hasText: /^Nação/u })
+      .first(),
+  ).toBeVisible();
+  await page.screenshot({
+    path: '.planning/phases/06.4-sm-5-player-coach-profiles-and-explainable-ratings/screenshots/global-search-four-entities.png',
+    fullPage: true,
+  });
+
+  await results.getByRole('button', { name: /^Aurora Futebol Clube Porto Claro/u }).click();
+  await expect(page).toHaveURL(/\/clubs\/aurora-fc$/u);
+  await expect(page.getByRole('heading', { name: 'Aurora Futebol Clube' })).toBeVisible();
+  const clubNavigation = page.getByRole('button', { name: 'Clube' });
+  const staffNavigation = page.getByRole('button', { name: 'Comissão técnica' });
+  await expect(clubNavigation).toHaveAttribute('aria-current', 'page');
+  await expect(staffNavigation).not.toHaveAttribute('aria-current');
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.screenshot({
+    path: '.planning/phases/06.4-sm-5-player-coach-profiles-and-explainable-ratings/screenshots/club-own-1024x768.png',
+    fullPage: true,
+  });
+
+  await staffNavigation.click();
+  await expect(page.getByRole('tab', { name: 'Comissão' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await expect(staffNavigation).toHaveAttribute('aria-current', 'page');
+  await expect(clubNavigation).not.toHaveAttribute('aria-current');
+  await expect(page.locator('.entity-reference-list .coach-face img')).toBeVisible();
+  await page.getByRole('link', { name: /Abrir perfil de Marcelo Nunes/u }).click();
+  await expect(page).toHaveURL(/\/coaches\/coach\.aurora\.1$/u);
+  await page.goBack();
+  await expect(page.getByRole('tab', { name: 'Comissão' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await expect(staffNavigation).toHaveAttribute('aria-current', 'page');
+
+  await page.getByRole('tab', { name: 'Visão geral' }).click();
+  await expect(clubNavigation).toHaveAttribute('aria-current', 'page');
+  await page.getByRole('link', { name: 'Abrir perfil de BRA' }).click();
+  await expect(page).toHaveURL(/\/nations\/bra$/u);
+  await expect(page.getByRole('heading', { name: 'Brasil' })).toBeVisible();
+  await expect(page.locator('.profile-hero__flag img')).toBeVisible();
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.screenshot({
+    path: '.planning/phases/06.4-sm-5-player-coach-profiles-and-explainable-ratings/screenshots/nation-brazil-1920x1080.png',
+    fullPage: true,
   });
 });
 

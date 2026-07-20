@@ -43,6 +43,8 @@ const clientMock = vi.hoisted(() => ({
   importLegacyTablePreferences: vi.fn(),
   loadPlayerProfile: vi.fn(),
   loadCoachProfile: vi.fn(),
+  loadClubProfile: vi.fn(),
+  loadNationProfile: vi.fn(),
   searchProfiles: vi.fn(),
 }));
 
@@ -303,6 +305,39 @@ describe('MatchdayScreen', () => {
       });
     });
     clientMock.loadCoachProfile.mockReset().mockResolvedValue(coachProfileFixture());
+    clientMock.loadClubProfile.mockReset().mockResolvedValue({
+      schemaVersion: 1,
+      revision: 1,
+      entityId: state.club.id,
+      name: state.club.name,
+      shortName: state.club.shortName,
+      city: state.club.city,
+      primaryColor: state.club.primaryColor,
+      countryCode: 'BRA',
+      competitionName: 'Liga Horizonte',
+      stadiumName: null,
+      currentPosition: null,
+      nextFixture: null,
+      form: [],
+      headCoach: null,
+      players: [],
+      staff: [],
+      tactics: null,
+      knowledge: playerProfileFixture().knowledge,
+    });
+    clientMock.loadNationProfile.mockReset().mockResolvedValue({
+      schemaVersion: 1,
+      revision: 1,
+      entityId: 'bra',
+      name: 'Brasil',
+      code: 'BRA',
+      confederation: 'CONMEBOL',
+      clubs: [],
+      players: [],
+      coaches: [],
+      competitions: [],
+      knowledge: playerProfileFixture().knowledge,
+    });
     clientMock.searchProfiles.mockReset().mockResolvedValue([]);
     clientMock.saveMatchdayLineup.mockReset().mockResolvedValue(state);
     clientMock.saveTacticalPlan.mockReset().mockResolvedValue({
@@ -390,7 +425,7 @@ describe('MatchdayScreen', () => {
       });
   });
 
-  it('parses only stable global player and coach routes', () => {
+  it('parses the four stable global entity routes', () => {
     expect(parseProfileRoute('/players/rv-fdv-01')).toEqual({
       kind: 'player',
       entityId: 'rv-fdv-01',
@@ -399,6 +434,11 @@ describe('MatchdayScreen', () => {
       kind: 'coach',
       entityId: 'coach.aurora.1',
     });
+    expect(parseProfileRoute('/clubs/aurora-fc')).toEqual({
+      kind: 'club',
+      entityId: 'aurora-fc',
+    });
+    expect(parseProfileRoute('/nations/bra')).toEqual({ kind: 'nation', entityId: 'bra' });
     expect(parseProfileRoute('/tactics')).toBeNull();
   });
 
@@ -453,7 +493,7 @@ describe('MatchdayScreen', () => {
     render(<MatchdayScreen serviceOwnership="owned" />);
     await screen.findByRole('heading', { name: 'Visão geral do elenco' });
     await user.type(
-      screen.getByRole('searchbox', { name: 'Buscar jogadores e treinadores' }),
+      screen.getByRole('searchbox', { name: 'Buscar jogadores, treinadores, clubes e nações' }),
       'mart',
     );
     await user.click(await screen.findByRole('button', { name: /Martín Gouveia/u }));
@@ -487,7 +527,9 @@ describe('MatchdayScreen', () => {
 
     render(<MatchdayScreen serviceOwnership="owned" />);
     await screen.findByRole('heading', { name: 'Visão geral do elenco' });
-    const search = screen.getByRole('searchbox', { name: 'Buscar jogadores e treinadores' });
+    const search = screen.getByRole('searchbox', {
+      name: 'Buscar jogadores, treinadores, clubes e nações',
+    });
     await user.type(search, 'ca');
     await waitFor(() => expect(clientMock.searchProfiles).toHaveBeenCalledWith('ca'));
     await user.clear(search);
@@ -523,6 +565,23 @@ describe('MatchdayScreen', () => {
       HTMLHeadingElement,
     );
     expect(clientMock.loadCoachProfile).toHaveBeenCalledWith('coach.aurora.1');
+  });
+
+  it('opens club and nation profiles from direct native routes', async () => {
+    window.history.replaceState(null, '', '/clubs/aurora-fc');
+    const { unmount } = render(<MatchdayScreen serviceOwnership="owned" />);
+    expect(await screen.findByRole('heading', { name: state.club.name })).toBeInstanceOf(
+      HTMLHeadingElement,
+    );
+    expect(clientMock.loadClubProfile).toHaveBeenCalledWith('aurora-fc');
+
+    unmount();
+    window.history.replaceState(null, '', '/nations/bra');
+    render(<MatchdayScreen serviceOwnership="owned" />);
+    expect(await screen.findByRole('heading', { name: 'Brasil' })).toBeInstanceOf(
+      HTMLHeadingElement,
+    );
+    expect(clientMock.loadNationProfile).toHaveBeenCalledWith('bra');
   });
 
   it('renders durable table descriptors while keeping the player-name query transient', async () => {
@@ -568,9 +627,14 @@ describe('MatchdayScreen', () => {
     ).toBeInstanceOf(HTMLButtonElement);
     expect(screen.queryByRole('button', { name: /Ordenar por Idade/u })).toBeNull();
 
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Buscar jogadores e treinadores' }), {
-      target: { value: 'Luan' },
-    });
+    fireEvent.change(
+      screen.getByRole('searchbox', {
+        name: 'Buscar jogadores, treinadores, clubes e nações',
+      }),
+      {
+        target: { value: 'Luan' },
+      },
+    );
 
     expect(await screen.findByRole('heading', { name: '1 jogadores' })).toBeInstanceOf(
       HTMLHeadingElement,

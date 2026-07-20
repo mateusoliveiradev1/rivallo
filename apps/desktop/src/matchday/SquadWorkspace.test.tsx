@@ -214,6 +214,7 @@ function WorkspaceHarness({
         onDensityChange={(density) => dispatch({ type: 'density.set', density })}
         onFocusPlayer={setFocusedPlayerId}
         onOpenProfile={vi.fn()}
+        onOpenNation={vi.fn()}
         onPositionFilterChange={vi.fn()}
         onPositionFilterVisibleChange={vi.fn()}
         onRoleFilterChange={vi.fn()}

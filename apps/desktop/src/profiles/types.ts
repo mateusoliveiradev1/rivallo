@@ -236,15 +236,84 @@ export interface CoachProfileProjection {
   readonly development: CoachDevelopmentProfile;
 }
 
+export type EntityType = 'player' | 'coach' | 'club' | 'nation';
+
+export interface EntityProfileReference {
+  readonly entityId: string;
+  readonly entityType: EntityType;
+  readonly name: string;
+  readonly secondaryLabel: string;
+  readonly route: string;
+  readonly nationality: string | null;
+  readonly clubId: string | null;
+  readonly visualCode: string;
+  readonly perceivedRating: KnowledgeValue | null;
+  readonly contract: ContractSummary | null;
+  readonly confidence: number | null;
+  readonly knowledgeLevel: KnowledgeLevel;
+}
+
+export interface ClubTacticalIdentityProjection {
+  readonly formation: string | null;
+  readonly mentality: string | null;
+  readonly style: string | null;
+  readonly pressure: number | null;
+  readonly defensiveLine: number | null;
+  readonly transition: string | null;
+  readonly confidence: number;
+  readonly source: string;
+  readonly updatedAt: number;
+}
+
+export interface ClubProfileProjection {
+  readonly schemaVersion: number;
+  readonly revision: number;
+  readonly entityId: string;
+  readonly name: string;
+  readonly shortName: string;
+  readonly city: string;
+  readonly primaryColor: string;
+  readonly countryCode: string | null;
+  readonly competitionName: string | null;
+  readonly stadiumName: string | null;
+  readonly currentPosition: number | null;
+  readonly nextFixture: string | null;
+  readonly form: readonly string[];
+  readonly headCoach: EntityProfileReference | null;
+  readonly players: readonly EntityProfileReference[];
+  readonly staff: readonly EntityProfileReference[];
+  readonly tactics: ClubTacticalIdentityProjection | null;
+  readonly knowledge: ScoutingAssessment;
+}
+
+export interface NationProfileProjection {
+  readonly schemaVersion: number;
+  readonly revision: number;
+  readonly entityId: string;
+  readonly name: string;
+  readonly code: string;
+  readonly confederation: string | null;
+  readonly clubs: readonly EntityProfileReference[];
+  readonly players: readonly EntityProfileReference[];
+  readonly coaches: readonly EntityProfileReference[];
+  readonly competitions: readonly string[];
+  readonly knowledge: ScoutingAssessment;
+}
+
 export interface GlobalProfileSearchResult {
   readonly entityId: string;
-  readonly entityType: 'player' | 'coach';
+  readonly entityType: EntityType;
   readonly name: string;
   readonly secondaryLabel: string;
   readonly route: string;
   readonly knowledgeLevel: KnowledgeLevel;
+  readonly context: string;
+  readonly visualCode: string;
+  readonly confidence: number | null;
 }
 
 export type ProfileRoute =
   | { readonly kind: 'player'; readonly entityId: string }
-  | { readonly kind: 'coach'; readonly entityId: string };
+  | { readonly kind: 'coach'; readonly entityId: string }
+  | { readonly kind: 'club'; readonly entityId: string }
+  | { readonly kind: 'nation'; readonly entityId: string };

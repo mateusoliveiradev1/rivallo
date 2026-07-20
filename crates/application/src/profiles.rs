@@ -1,6 +1,7 @@
 use rivallo_domain::{
-    CoachProfileProjection, GlobalProfileSearchResult, MatchdayState, PlayerProfileProjection,
-    ProfileWorld, project_coach_profile, project_player_profile,
+    ClubProfileProjection, CoachProfileProjection, GlobalProfileSearchResult, MatchdayState,
+    NationProfileProjection, PlayerProfileProjection, ProfileWorld, project_club_profile,
+    project_coach_profile, project_nation_profile, project_player_profile,
 };
 
 pub trait ProfileRepository {
@@ -72,6 +73,28 @@ impl<R: ProfileRepository> ProfileService<R> {
         Ok(projection)
     }
 
+    pub fn club_profile(
+        &self,
+        matchday: &MatchdayState,
+        club_id: &str,
+        observer_club_id: &str,
+        now: u64,
+    ) -> Result<ClubProfileProjection, String> {
+        let world = self.world(matchday, now)?;
+        project_club_profile(&world, matchday, club_id, observer_club_id, now)
+    }
+
+    pub fn nation_profile(
+        &self,
+        matchday: &MatchdayState,
+        nation_id: &str,
+        observer_club_id: &str,
+        now: u64,
+    ) -> Result<NationProfileProjection, String> {
+        let world = self.world(matchday, now)?;
+        project_nation_profile(&world, matchday, nation_id, observer_club_id, now)
+    }
+
     pub fn search(
         &self,
         matchday: &MatchdayState,
@@ -79,7 +102,9 @@ impl<R: ProfileRepository> ProfileService<R> {
         query: &str,
         now: u64,
     ) -> Result<Vec<GlobalProfileSearchResult>, String> {
-        Ok(self.world(matchday, now)?.search(observer_club_id, query))
+        Ok(self
+            .world(matchday, now)?
+            .search(matchday, observer_club_id, query))
     }
 }
 

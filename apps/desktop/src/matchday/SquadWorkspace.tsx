@@ -8,6 +8,7 @@ import {
   type TableViewState,
 } from '../table-view/table-view-engine.js';
 import { PlayerInspector } from '../profiles/components.js';
+import { EntityLink, NationalityEntityLink } from '../profiles/EntityProfileSystem.js';
 
 import {
   DataTableHeader,
@@ -156,6 +157,7 @@ interface SquadWorkspaceProps {
   readonly saving: boolean;
   readonly onFocusPlayer: (playerId: string) => void;
   readonly onOpenProfile: (playerId: string) => void;
+  readonly onOpenNation: (nationId: string) => void;
   readonly onTogglePlayer: (player: Player) => void;
   readonly onSave: () => void;
   readonly onClearFilters: () => void;
@@ -198,6 +200,7 @@ export function SquadWorkspace({
   saving,
   onFocusPlayer,
   onOpenProfile,
+  onOpenNation,
   onTogglePlayer,
   onSave,
   onClearFilters,
@@ -532,18 +535,18 @@ export function SquadWorkspace({
                             if (columnId === 'name') {
                               return (
                                 <th {...cellProps} key={columnId} scope="row">
-                                  <span className="squad-player-cell">
-                                    <PlayerFace
-                                      decorative
-                                      index={playerIndex}
-                                      name={player.name}
-                                      size={36}
-                                    />
+                                  <EntityLink
+                                    ariaLabel={`Abrir perfil de ${player.name}`}
+                                    className="squad-player-cell"
+                                    onNavigate={() => onOpenProfile(player.id)}
+                                    route={{ kind: 'player', entityId: player.id }}
+                                  >
+                                    <PlayerFace index={playerIndex} name={player.name} size={36} />
                                     <span className="player-identity">
                                       <strong>{player.name}</strong>
                                       <small>{positionLongLabels[player.position]}</small>
                                     </span>
-                                  </span>
+                                  </EntityLink>
                                 </th>
                               );
                             }
@@ -553,6 +556,16 @@ export function SquadWorkspace({
                                   <span className="position-badge">
                                     {positionLabels[player.position]}
                                   </span>
+                                </td>
+                              );
+                            }
+                            if (columnId === 'nationality') {
+                              return (
+                                <td {...cellProps} key={columnId}>
+                                  <NationalityEntityLink
+                                    code={player.nationality}
+                                    onNavigate={({ entityId }) => onOpenNation(entityId)}
+                                  />
                                 </td>
                               );
                             }

@@ -57,6 +57,7 @@ interface TacticsWorkspaceProps {
   readonly onActiveToolChange: (tool: TacticalTool) => void;
   readonly onFocusPlayer: (playerId: string) => void;
   readonly onOpenProfile: (playerId: string) => void;
+  readonly onOpenClub: (clubId: string) => void;
   readonly onUndo: () => void;
   readonly onDiscard: () => void;
   readonly onSave: () => Promise<TacticalPlanSnapshot | null>;
@@ -648,6 +649,7 @@ export function TacticsWorkspace({
   onActiveToolChange,
   onFocusPlayer,
   onOpenProfile,
+  onOpenClub,
   onUndo,
   onDiscard,
   onSave,
@@ -3451,6 +3453,9 @@ export function TacticsWorkspace({
                     <strong>{state.opponent.name}</strong>
                     <p>Competição nacional · preparação do plano atual</p>
                   </div>
+                  <Button onClick={() => onOpenClub(state.opponent.id)} variant="secondary">
+                    Abrir perfil do clube
+                  </Button>
                 </section>
                 {model.opposition.knowledge ? (
                   <section className="opposition-knowledge">

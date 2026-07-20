@@ -4,7 +4,9 @@ import type { TableViewState } from '../table-view/table-view-engine.js';
 import { SQUAD_SYSTEM_VIEW } from './squad-table-schema.js';
 import {
   importLegacyTablePreferences,
+  loadClubProfile,
   loadCoachProfile,
+  loadNationProfile,
   loadPlayerProfile,
   loadTacticalMatchSnapshot,
   loadTacticalStrategyCatalog,
@@ -192,11 +194,15 @@ describe('existing matchday client commands', () => {
 
     await loadPlayerProfile('player.7', 'tactical-variation.primary');
     await loadCoachProfile('coach.aurora.1');
+    await loadClubProfile('aurora-fc');
+    await loadNationProfile('bra');
     await searchProfiles('martín');
 
     expect(invoke.mock.calls).toEqual([
       ['player_profile', { playerId: 'player.7', variationId: 'tactical-variation.primary' }],
       ['coach_profile', { coachId: 'coach.aurora.1' }],
+      ['club_profile', { clubId: 'aurora-fc' }],
+      ['nation_profile', { nationId: 'bra' }],
       ['search_profiles', { query: 'martín' }],
     ]);
   });

@@ -5,19 +5,20 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use rivallo_platform::{
-    CoachProfileProjection, ColumnId, ColumnPinning, ColumnPinningSide, FilterGroupId,
-    FilterGroupLogic, FilterId, FilterOperator, FilterValue, Formation, GlobalProfileSearchResult,
-    LOCAL_API_ADDRESS, LegacyImportOutcome, LegacyImportReceipt, LegacyTableViewImport,
-    LineupSelection, MatchdayCoordinator, MatchdayState, NullOrder, OwnerScope,
-    PlayerProfileProjection, ProfileCoordinator, READINESS_POLL_INTERVAL, READINESS_TIMEOUT,
-    ReadinessDiagnostic, SHUTDOWN_CONTROL_MESSAGE, SavedTableView, SortDirection, TableColumnState,
-    TableDataWindow, TableDensity, TableFilterClause, TableFilterGroup, TableFilterNode, TableId,
-    TableSort, TableViewCoordinator, TableViewEnvelopeMetadata, TableViewLoadOutcome,
-    TableViewPolicyError, TableViewRecoveryReason, TableViewRepositoryState, TableViewServiceError,
-    TableViewState, TableViewValidationError, TacticalApproach, TacticalLibraryCommand,
-    TacticalMatchSnapshot, TacticalPlanPreview, TacticalPlanProposal, TacticalPlanUpdate,
-    TacticalStrategyPresetSummary, ViewId, ViewMutability, ViewProvenance, WindowId,
-    squad_system_default_repository_state, validate_readiness_response,
+    ClubProfileProjection, CoachProfileProjection, ColumnId, ColumnPinning, ColumnPinningSide,
+    FilterGroupId, FilterGroupLogic, FilterId, FilterOperator, FilterValue, Formation,
+    GlobalProfileSearchResult, LOCAL_API_ADDRESS, LegacyImportOutcome, LegacyImportReceipt,
+    LegacyTableViewImport, LineupSelection, MatchdayCoordinator, MatchdayState,
+    NationProfileProjection, NullOrder, OwnerScope, PlayerProfileProjection, ProfileCoordinator,
+    READINESS_POLL_INTERVAL, READINESS_TIMEOUT, ReadinessDiagnostic, SHUTDOWN_CONTROL_MESSAGE,
+    SavedTableView, SortDirection, TableColumnState, TableDataWindow, TableDensity,
+    TableFilterClause, TableFilterGroup, TableFilterNode, TableId, TableSort, TableViewCoordinator,
+    TableViewEnvelopeMetadata, TableViewLoadOutcome, TableViewPolicyError, TableViewRecoveryReason,
+    TableViewRepositoryState, TableViewServiceError, TableViewState, TableViewValidationError,
+    TacticalApproach, TacticalLibraryCommand, TacticalMatchSnapshot, TacticalPlanPreview,
+    TacticalPlanProposal, TacticalPlanUpdate, TacticalStrategyPresetSummary, ViewId,
+    ViewMutability, ViewProvenance, WindowId, squad_system_default_repository_state,
+    validate_readiness_response,
 };
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, RunEvent, State};
@@ -1468,6 +1469,26 @@ fn coach_profile(
 }
 
 #[tauri::command]
+fn club_profile(
+    club_id: String,
+    gameplay: State<'_, Arc<MatchdayCoordinator>>,
+    profiles: State<'_, Arc<ProfileCoordinator>>,
+) -> Result<ClubProfileProjection, String> {
+    let matchday = gameplay.state()?;
+    profiles.club_profile(&matchday, &club_id, &matchday.club.id)
+}
+
+#[tauri::command]
+fn nation_profile(
+    nation_id: String,
+    gameplay: State<'_, Arc<MatchdayCoordinator>>,
+    profiles: State<'_, Arc<ProfileCoordinator>>,
+) -> Result<NationProfileProjection, String> {
+    let matchday = gameplay.state()?;
+    profiles.nation_profile(&matchday, &nation_id, &matchday.club.id)
+}
+
+#[tauri::command]
 fn search_profiles(
     query: String,
     gameplay: State<'_, Arc<MatchdayCoordinator>>,
@@ -1534,6 +1555,8 @@ fn main() {
             play_next_match,
             player_profile,
             coach_profile,
+            club_profile,
+            nation_profile,
             search_profiles,
             load_table_views,
             save_table_views,

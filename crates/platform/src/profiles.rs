@@ -4,8 +4,9 @@ use std::sync::{Mutex, MutexGuard};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use rivallo_application::{
-    CoachProfileProjection, GlobalProfileSearchResult, MatchdayState, PlayerProfileProjection,
-    ProfileRepository, ProfileService, ProfileWorld,
+    ClubProfileProjection, CoachProfileProjection, GlobalProfileSearchResult, MatchdayState,
+    NationProfileProjection, PlayerProfileProjection, ProfileRepository, ProfileService,
+    ProfileWorld,
 };
 
 pub struct FileProfileRepository {
@@ -155,6 +156,26 @@ impl ProfileCoordinator {
     ) -> Result<CoachProfileProjection, String> {
         self.service()?
             .coach_profile(matchday, coach_id, observer_club_id, now_ms())
+    }
+
+    pub fn club_profile(
+        &self,
+        matchday: &MatchdayState,
+        club_id: &str,
+        observer_club_id: &str,
+    ) -> Result<ClubProfileProjection, String> {
+        self.service()?
+            .club_profile(matchday, club_id, observer_club_id, now_ms())
+    }
+
+    pub fn nation_profile(
+        &self,
+        matchday: &MatchdayState,
+        nation_id: &str,
+        observer_club_id: &str,
+    ) -> Result<NationProfileProjection, String> {
+        self.service()?
+            .nation_profile(matchday, nation_id, observer_club_id, now_ms())
     }
 
     pub fn search(

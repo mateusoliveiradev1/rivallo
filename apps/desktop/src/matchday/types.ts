@@ -30,6 +30,9 @@ export interface Club {
   readonly shortName: string;
   readonly city: string;
   readonly primaryColor: string;
+  readonly countryCode?: string | null;
+  readonly competitionName?: string | null;
+  readonly stadiumName?: string | null;
 }
 
 export interface Player {

@@ -484,6 +484,76 @@ pub struct CoachProfileProjection {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct EntityProfileReference {
+    pub entity_id: String,
+    pub entity_type: String,
+    pub name: String,
+    pub secondary_label: String,
+    pub route: String,
+    pub nationality: Option<String>,
+    pub club_id: Option<String>,
+    pub visual_code: String,
+    pub perceived_rating: Option<KnowledgeValue>,
+    pub contract: Option<ContractSummary>,
+    pub confidence: Option<u8>,
+    pub knowledge_level: KnowledgeLevel,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClubTacticalIdentityProjection {
+    pub formation: Option<String>,
+    pub mentality: Option<String>,
+    pub style: Option<String>,
+    pub pressure: Option<u8>,
+    pub defensive_line: Option<u8>,
+    pub transition: Option<String>,
+    pub confidence: u8,
+    pub source: String,
+    pub updated_at: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClubProfileProjection {
+    pub schema_version: u16,
+    pub revision: u64,
+    pub entity_id: String,
+    pub name: String,
+    pub short_name: String,
+    pub city: String,
+    pub primary_color: String,
+    pub country_code: Option<String>,
+    pub competition_name: Option<String>,
+    pub stadium_name: Option<String>,
+    pub current_position: Option<u16>,
+    pub next_fixture: Option<String>,
+    pub form: Vec<String>,
+    pub head_coach: Option<EntityProfileReference>,
+    pub players: Vec<EntityProfileReference>,
+    pub staff: Vec<EntityProfileReference>,
+    pub tactics: Option<ClubTacticalIdentityProjection>,
+    pub knowledge: ScoutingAssessment,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NationProfileProjection {
+    pub schema_version: u16,
+    pub revision: u64,
+    pub entity_id: String,
+    pub name: String,
+    pub code: String,
+    pub confederation: Option<String>,
+    pub clubs: Vec<EntityProfileReference>,
+    pub players: Vec<EntityProfileReference>,
+    pub coaches: Vec<EntityProfileReference>,
+    pub competitions: Vec<String>,
+    pub knowledge: ScoutingAssessment,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GlobalProfileSearchResult {
     pub entity_id: String,
     pub entity_type: String,
@@ -491,6 +561,9 @@ pub struct GlobalProfileSearchResult {
     pub secondary_label: String,
     pub route: String,
     pub knowledge_level: KnowledgeLevel,
+    pub context: String,
+    pub visual_code: String,
+    pub confidence: Option<u8>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -1002,7 +1075,12 @@ impl ProfileWorld {
             })
     }
 
-    pub fn search(&self, observer_club_id: &str, query: &str) -> Vec<GlobalProfileSearchResult> {
+    pub fn search(
+        &self,
+        state: &MatchdayState,
+        observer_club_id: &str,
+        query: &str,
+    ) -> Vec<GlobalProfileSearchResult> {
         let query = query.trim().to_lowercase();
         let matches = |identity: &PersonIdentity| {
             query.is_empty()
@@ -1015,38 +1093,395 @@ impl ProfileWorld {
             .iter()
             .chain(self.external_players.iter().map(|player| &player.profile))
             .filter(|profile| matches(&profile.identity))
-            .map(|profile| GlobalProfileSearchResult {
-                entity_id: profile.identity.entity_id.clone(),
-                entity_type: "player".to_owned(),
-                name: profile.identity.full_name.clone(),
-                secondary_label: format!(
-                    "{} · {:?}",
-                    profile.identity.club_name, profile.natural_position
-                ),
-                route: format!("/players/{}", profile.identity.entity_id),
-                knowledge_level: self
-                    .assessment_for(&profile.identity.entity_id, observer_club_id)
-                    .knowledge_level,
+            .map(|profile| {
+                let knowledge = self.assessment_for(&profile.identity.entity_id, observer_club_id);
+                GlobalProfileSearchResult {
+                    entity_id: profile.identity.entity_id.clone(),
+                    entity_type: "player".to_owned(),
+                    name: profile.identity.full_name.clone(),
+                    secondary_label: format!(
+                        "{} · {:?}",
+                        profile.identity.club_name, profile.natural_position
+                    ),
+                    route: format!("/players/{}", profile.identity.entity_id),
+                    knowledge_level: knowledge.knowledge_level,
+                    context: format!(
+                        "{} · {:?}",
+                        profile.identity.club_name, profile.natural_position
+                    ),
+                    visual_code: format!("{:?}", profile.natural_position),
+                    confidence: Some(knowledge.confidence),
+                }
             })
             .collect();
         results.extend(
             self.coaches
                 .iter()
                 .filter(|coach| matches(&coach.identity))
-                .map(|coach| GlobalProfileSearchResult {
-                    entity_id: coach.identity.entity_id.clone(),
-                    entity_type: "coach".to_owned(),
-                    name: coach.identity.full_name.clone(),
-                    secondary_label: format!("{} · {}", coach.identity.club_name, coach.role),
-                    route: format!("/coaches/{}", coach.identity.entity_id),
-                    knowledge_level: self
-                        .assessment_for(&coach.identity.entity_id, observer_club_id)
-                        .knowledge_level,
+                .map(|coach| {
+                    let knowledge =
+                        self.assessment_for(&coach.identity.entity_id, observer_club_id);
+                    GlobalProfileSearchResult {
+                        entity_id: coach.identity.entity_id.clone(),
+                        entity_type: "coach".to_owned(),
+                        name: coach.identity.full_name.clone(),
+                        secondary_label: format!("{} · {}", coach.identity.club_name, coach.role),
+                        route: format!("/coaches/{}", coach.identity.entity_id),
+                        knowledge_level: knowledge.knowledge_level,
+                        context: format!("{} · {}", coach.identity.club_name, coach.role),
+                        visual_code: "TEC".to_owned(),
+                        confidence: Some(knowledge.confidence),
+                    }
                 }),
         );
+        for club in [&state.club, &state.opponent] {
+            if query.is_empty()
+                || club.name.to_lowercase().contains(&query)
+                || club.short_name.to_lowercase().contains(&query)
+                || club.city.to_lowercase().contains(&query)
+            {
+                let own = club.id == observer_club_id;
+                let (_, competition_name, _) = club_metadata(club);
+                results.push(GlobalProfileSearchResult {
+                    entity_id: club.id.clone(),
+                    entity_type: "club".to_owned(),
+                    name: club.name.clone(),
+                    secondary_label: competition_name.unwrap_or_else(|| club.city.clone()),
+                    route: format!("/clubs/{}", club.id),
+                    knowledge_level: if own {
+                        KnowledgeLevel::OwnClub
+                    } else {
+                        KnowledgeLevel::Partial
+                    },
+                    context: format!("{} · {}", club.city, club.short_name),
+                    visual_code: club.short_name.clone(),
+                    confidence: Some(if own { 100 } else { 61 }),
+                });
+            }
+        }
+        for (code, name, confederation) in nation_catalog() {
+            if query.is_empty()
+                || code.to_lowercase().contains(&query)
+                || name.to_lowercase().contains(&query)
+                || confederation.to_lowercase().contains(&query)
+            {
+                let known_count = self
+                    .players
+                    .iter()
+                    .chain(self.external_players.iter().map(|player| &player.profile))
+                    .filter(|profile| {
+                        canonical_nation_code(&profile.identity.nationality) == Some(*code)
+                    })
+                    .count()
+                    + self
+                        .coaches
+                        .iter()
+                        .filter(|coach| {
+                            canonical_nation_code(&coach.identity.nationality) == Some(*code)
+                        })
+                        .count();
+                results.push(GlobalProfileSearchResult {
+                    entity_id: code.to_lowercase(),
+                    entity_type: "nation".to_owned(),
+                    name: (*name).to_owned(),
+                    secondary_label: format!("{code} · {known_count} entidades conhecidas"),
+                    route: format!("/nations/{}", code.to_lowercase()),
+                    knowledge_level: KnowledgeLevel::WellKnown,
+                    context: (*confederation).to_owned(),
+                    visual_code: (*code).to_owned(),
+                    confidence: None,
+                });
+            }
+        }
         results.sort_by(|left, right| left.name.cmp(&right.name));
         results
     }
+}
+
+fn nation_catalog() -> &'static [(&'static str, &'static str, &'static str)] {
+    &[
+        ("ARG", "Argentina", "CONMEBOL"),
+        ("BRA", "Brasil", "CONMEBOL"),
+        ("PRT", "Portugal", "UEFA"),
+        ("URY", "Uruguai", "CONMEBOL"),
+    ]
+}
+
+fn canonical_nation_code(value: &str) -> Option<&'static str> {
+    match value.trim().to_uppercase().as_str() {
+        "AR" | "ARG" => Some("ARG"),
+        "BR" | "BRA" => Some("BRA"),
+        "PT" | "POR" | "PRT" => Some("PRT"),
+        "UY" | "URU" | "URY" => Some("URY"),
+        _ => None,
+    }
+}
+
+fn profile_ability(profile: &PlayerSportingProfile) -> u8 {
+    weighted(&[
+        (profile.attributes.technical, 1),
+        (profile.attributes.physical, 1),
+        (profile.attributes.mental, 1),
+        (profile.attributes.attacking, 1),
+        (profile.attributes.defensive, 1),
+        (profile.attributes.goalkeeping, 1),
+    ])
+}
+
+fn player_reference(
+    world: &ProfileWorld,
+    profile: &PlayerSportingProfile,
+    observer_club_id: &str,
+) -> EntityProfileReference {
+    let knowledge = world.assessment_for(&profile.identity.entity_id, observer_club_id);
+    EntityProfileReference {
+        entity_id: profile.identity.entity_id.clone(),
+        entity_type: "player".to_owned(),
+        name: profile.identity.full_name.clone(),
+        secondary_label: format!("{} · {:?}", profile.identity.age, profile.natural_position),
+        route: format!("/players/{}", profile.identity.entity_id),
+        nationality: Some(profile.identity.nationality.clone()),
+        club_id: Some(profile.identity.club_id.clone()),
+        visual_code: format!("{:?}", profile.natural_position),
+        perceived_rating: Some(perceived(profile_ability(profile), &knowledge, true)),
+        contract: profile.contract.clone(),
+        confidence: Some(knowledge.confidence),
+        knowledge_level: knowledge.knowledge_level,
+    }
+}
+
+fn coach_reference(
+    world: &ProfileWorld,
+    coach: &CoachSportingProfile,
+    observer_club_id: &str,
+) -> EntityProfileReference {
+    let knowledge = world.assessment_for(&coach.identity.entity_id, observer_club_id);
+    EntityProfileReference {
+        entity_id: coach.identity.entity_id.clone(),
+        entity_type: "coach".to_owned(),
+        name: coach.identity.full_name.clone(),
+        secondary_label: coach.role.clone(),
+        route: format!("/coaches/{}", coach.identity.entity_id),
+        nationality: Some(coach.identity.nationality.clone()),
+        club_id: Some(coach.identity.club_id.clone()),
+        visual_code: "TEC".to_owned(),
+        perceived_rating: Some(perceived(coach.reputation, &knowledge, true)),
+        contract: coach.contract.clone(),
+        confidence: Some(knowledge.confidence),
+        knowledge_level: knowledge.knowledge_level,
+    }
+}
+
+fn club_reference(club: &Club, observer_club_id: &str) -> EntityProfileReference {
+    let own = club.id == observer_club_id;
+    let (country_code, _, _) = club_metadata(club);
+    EntityProfileReference {
+        entity_id: club.id.clone(),
+        entity_type: "club".to_owned(),
+        name: club.name.clone(),
+        secondary_label: club.city.clone(),
+        route: format!("/clubs/{}", club.id),
+        nationality: country_code,
+        club_id: Some(club.id.clone()),
+        visual_code: club.short_name.clone(),
+        perceived_rating: None,
+        contract: None,
+        confidence: Some(if own { 100 } else { 61 }),
+        knowledge_level: if own {
+            KnowledgeLevel::OwnClub
+        } else {
+            KnowledgeLevel::Partial
+        },
+    }
+}
+
+fn club_metadata(club: &Club) -> (Option<String>, Option<String>, Option<String>) {
+    let defaults = MatchdayState::default();
+    let canonical = [&defaults.club, &defaults.opponent]
+        .into_iter()
+        .find(|candidate| candidate.id == club.id);
+    (
+        club.country_code
+            .clone()
+            .or_else(|| canonical.and_then(|candidate| candidate.country_code.clone())),
+        club.competition_name
+            .clone()
+            .or_else(|| canonical.and_then(|candidate| candidate.competition_name.clone())),
+        club.stadium_name
+            .clone()
+            .or_else(|| canonical.and_then(|candidate| candidate.stadium_name.clone())),
+    )
+}
+
+pub fn project_club_profile(
+    world: &ProfileWorld,
+    state: &MatchdayState,
+    club_id: &str,
+    observer_club_id: &str,
+    now: u64,
+) -> Result<ClubProfileProjection, String> {
+    let club = [&state.club, &state.opponent]
+        .into_iter()
+        .find(|club| club.id == club_id)
+        .ok_or_else(|| "Clube não encontrado.".to_owned())?;
+    let (country_code, competition_name, stadium_name) = club_metadata(club);
+    let own = club.id == observer_club_id;
+    let players = world
+        .players
+        .iter()
+        .chain(world.external_players.iter().map(|player| &player.profile))
+        .filter(|profile| profile.identity.club_id == club.id)
+        .map(|profile| player_reference(world, profile, observer_club_id))
+        .collect();
+    let staff: Vec<_> = world
+        .coaches
+        .iter()
+        .filter(|coach| coach.identity.club_id == club.id)
+        .map(|coach| coach_reference(world, coach, observer_club_id))
+        .collect();
+    let head_coach = staff.first().cloned();
+    let tactics = own
+        .then(|| {
+            state
+                .tactical_library
+                .as_ref()
+                .and_then(|library| {
+                    library
+                        .variations
+                        .iter()
+                        .find(|plan| plan.variation_id == library.active_variation_id)
+                })
+                .or(state.tactical_plan.as_ref())
+        })
+        .flatten()
+        .map(|plan| {
+            let model = plan.tactical_model.as_ref();
+            ClubTacticalIdentityProjection {
+                formation: Some(format!("{:?}", plan.formation)),
+                mentality: model.map(|value| value.resolved_strategy.mentality.clone()),
+                style: model.map(|value| format!("{:?}", value.config.strategy.preset_id)),
+                pressure: model.map(|value| value.config.strategy.out_of_possession.pressure),
+                defensive_line: model
+                    .map(|value| value.config.strategy.out_of_possession.defensive_line),
+                transition: model.map(|value| {
+                    format!(
+                        "{:?} / {:?}",
+                        value.config.strategy.transitions.loss_reaction,
+                        value.config.strategy.transitions.regain_reaction
+                    )
+                }),
+                confidence: 100,
+                source: "Plano tático ativo do clube".to_owned(),
+                updated_at: plan.updated_at,
+            }
+        });
+    Ok(ClubProfileProjection {
+        schema_version: PROFILE_PROJECTION_SCHEMA_VERSION,
+        revision: world.revision,
+        entity_id: club.id.clone(),
+        name: club.name.clone(),
+        short_name: club.short_name.clone(),
+        city: club.city.clone(),
+        primary_color: club.primary_color.clone(),
+        country_code,
+        competition_name,
+        stadium_name,
+        current_position: None,
+        next_fixture: None,
+        form: Vec::new(),
+        head_coach,
+        players,
+        staff,
+        tactics,
+        knowledge: assessment(
+            &format!("club:{}", club.id),
+            observer_club_id,
+            if own {
+                KnowledgeLevel::OwnClub
+            } else {
+                KnowledgeLevel::Partial
+            },
+            if own { 100 } else { 61 },
+            if own {
+                "Cadastro e rotina do clube"
+            } else {
+                "Próximo adversário e observação disponível"
+            },
+            now,
+        ),
+    })
+}
+
+pub fn project_nation_profile(
+    world: &ProfileWorld,
+    state: &MatchdayState,
+    nation_id: &str,
+    observer_club_id: &str,
+    now: u64,
+) -> Result<NationProfileProjection, String> {
+    let code =
+        canonical_nation_code(nation_id).ok_or_else(|| "Nação não encontrada.".to_owned())?;
+    let (_, name, confederation) = nation_catalog()
+        .iter()
+        .find(|(candidate, _, _)| *candidate == code)
+        .ok_or_else(|| "Nação não encontrada.".to_owned())?;
+    let clubs: Vec<_> = [&state.club, &state.opponent]
+        .into_iter()
+        .filter(|club| {
+            club_metadata(club)
+                .0
+                .as_deref()
+                .and_then(canonical_nation_code)
+                == Some(code)
+        })
+        .map(|club| club_reference(club, observer_club_id))
+        .collect();
+    let players = world
+        .players
+        .iter()
+        .chain(world.external_players.iter().map(|player| &player.profile))
+        .filter(|profile| canonical_nation_code(&profile.identity.nationality) == Some(code))
+        .map(|profile| player_reference(world, profile, observer_club_id))
+        .collect();
+    let coaches = world
+        .coaches
+        .iter()
+        .filter(|coach| canonical_nation_code(&coach.identity.nationality) == Some(code))
+        .map(|coach| coach_reference(world, coach, observer_club_id))
+        .collect();
+    let mut competitions: Vec<_> = [&state.club, &state.opponent]
+        .into_iter()
+        .filter(|club| {
+            club_metadata(club)
+                .0
+                .as_deref()
+                .and_then(canonical_nation_code)
+                == Some(code)
+        })
+        .filter_map(|club| club_metadata(club).1)
+        .collect();
+    competitions.sort();
+    competitions.dedup();
+    Ok(NationProfileProjection {
+        schema_version: PROFILE_PROJECTION_SCHEMA_VERSION,
+        revision: world.revision,
+        entity_id: code.to_lowercase(),
+        name: (*name).to_owned(),
+        code: code.to_owned(),
+        confederation: Some((*confederation).to_owned()),
+        clubs,
+        players,
+        coaches,
+        competitions,
+        knowledge: assessment(
+            &format!("nation:{}", code.to_lowercase()),
+            observer_club_id,
+            KnowledgeLevel::WellKnown,
+            100,
+            "Identidade pública e universo atualmente carregado",
+            now,
+        ),
+    })
 }
 
 fn position_weights(position: Position) -> [(PlayerAttributeCategory, u8); 6] {
@@ -2083,10 +2518,10 @@ mod tests {
     }
 
     #[test]
-    fn search_uses_global_ids_and_routes_for_players_and_coaches() {
+    fn search_uses_global_ids_and_routes_for_all_entity_types() {
         let state = MatchdayState::default();
         let world = ProfileWorld::seed(&state, NOW);
-        let results = world.search(&state.club.id, "ferroviário");
+        let results = world.search(&state, &state.club.id, "");
         assert!(
             results
                 .iter()
@@ -2097,6 +2532,78 @@ mod tests {
                 .iter()
                 .any(|result| result.route.starts_with("/coaches/"))
         );
+        assert!(
+            results
+                .iter()
+                .any(|result| result.route.starts_with("/clubs/"))
+        );
+        assert!(
+            results
+                .iter()
+                .any(|result| result.route.starts_with("/nations/"))
+        );
         assert!(results.iter().all(|result| !result.entity_id.is_empty()));
+    }
+
+    #[test]
+    fn club_profile_reuses_existing_people_and_protects_external_knowledge() {
+        let state = MatchdayState::default();
+        let world = ProfileWorld::seed(&state, NOW);
+        let own = project_club_profile(&world, &state, &state.club.id, &state.club.id, NOW)
+            .expect("own club");
+        assert_eq!(own.players.len(), state.players.len());
+        assert_eq!(own.staff.len(), 1);
+        assert!(own.tactics.is_some());
+        assert_eq!(own.knowledge.knowledge_level, KnowledgeLevel::OwnClub);
+
+        let external =
+            project_club_profile(&world, &state, &state.opponent.id, &state.club.id, NOW)
+                .expect("external club");
+        assert_eq!(external.players.len(), 3);
+        assert!(external.tactics.is_none());
+        assert_eq!(external.knowledge.knowledge_level, KnowledgeLevel::Partial);
+        assert!(external.players.iter().all(|player| {
+            player
+                .perceived_rating
+                .as_ref()
+                .is_none_or(|rating| rating.kind != KnowledgeValueKind::Exact)
+        }));
+    }
+
+    #[test]
+    fn nation_profile_aggregates_only_loaded_entities_and_competitions() {
+        let state = MatchdayState::default();
+        let world = ProfileWorld::seed(&state, NOW);
+        let nation = project_nation_profile(&world, &state, "bra", &state.club.id, NOW)
+            .expect("nation profile");
+        assert_eq!(nation.code, "BRA");
+        assert_eq!(nation.clubs.len(), 2);
+        assert!(!nation.players.is_empty());
+        assert_eq!(nation.competitions, vec!["Liga Horizonte"]);
+        assert_eq!(
+            project_nation_profile(&world, &state, "missing", &state.club.id, NOW)
+                .expect_err("missing nation"),
+            "Nação não encontrada."
+        );
+    }
+
+    #[test]
+    fn canonical_club_metadata_keeps_legacy_saves_navigable() {
+        let mut state = MatchdayState::default();
+        state.club.country_code = None;
+        state.club.competition_name = None;
+        state.opponent.country_code = None;
+        state.opponent.competition_name = None;
+        let world = ProfileWorld::seed(&state, NOW);
+
+        let club = project_club_profile(&world, &state, &state.club.id, &state.club.id, NOW)
+            .expect("legacy own club");
+        assert_eq!(club.country_code.as_deref(), Some("BRA"));
+        assert_eq!(club.competition_name.as_deref(), Some("Liga Horizonte"));
+
+        let nation = project_nation_profile(&world, &state, "bra", &state.club.id, NOW)
+            .expect("legacy nation profile");
+        assert_eq!(nation.clubs.len(), 2);
+        assert_eq!(nation.competitions, vec!["Liga Horizonte"]);
     }
 }
