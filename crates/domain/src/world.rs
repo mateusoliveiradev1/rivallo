@@ -10,6 +10,7 @@ use crate::{
 
 pub const WORLD_DATABASE_SCHEMA_VERSION: u16 = 2;
 pub const MINIMUM_WORLD_DATABASE_SCHEMA_VERSION: u16 = 1;
+pub const PACKAGE_MANIFEST_SCHEMA_VERSION: u16 = 3;
 
 static BUNDLED_OFFICIAL_WORLD: OnceLock<WorldPackageData> = OnceLock::new();
 
@@ -97,6 +98,84 @@ pub struct PackageManifest {
     pub provenance: PackageProvenance,
     pub visibility: PackageVisibility,
     pub checksum: String,
+    #[serde(default)]
+    pub composition_mode: PackageCompositionMode,
+    #[serde(default)]
+    pub target_base_fingerprint: Option<String>,
+    #[serde(default)]
+    pub authoritative_scopes: Vec<AuthoritativeScope>,
+    #[serde(default)]
+    pub sidecars: Vec<VerifiedSidecar>,
+    #[serde(default)]
+    pub compatibility: PackageCompatibility,
+    #[serde(default)]
+    pub changelog: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PackageCompositionMode {
+    #[default]
+    Additive,
+    Authoritative,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AuthoritativeScope {
+    Clubs,
+    Competitions,
+    CompetitionParticipants,
+    SportingPeople,
+    Registrations,
+    Contracts,
+    PlayerProfiles,
+    CoachProfiles,
+    ExternalPlayers,
+    Assessments,
+    AttributeHistory,
+    MatchdayState,
+    Stadiums,
+    Assets,
+    Translations,
+    Positions,
+    Roles,
+    Attributes,
+    Traits,
+    Projections,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct VerifiedSidecar {
+    pub kind: SidecarKind,
+    pub version: u16,
+    pub relative_path: String,
+    pub byte_length: u64,
+    pub sha256: String,
+    #[serde(default)]
+    pub required: bool,
+    #[serde(default)]
+    pub compatibility: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SidecarKind {
+    #[default]
+    EvaluationLayer,
+    AssetLayer,
+    Provenance,
+    Extension,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PackageCompatibility {
+    #[serde(default)]
+    pub runtime_profile: Option<String>,
+    #[serde(default)]
+    pub minimum_game_version: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -1336,7 +1415,7 @@ pub fn validate_package(package: &ContentPackage) -> PackageValidationReport {
             Some("Ajuste o intervalo após validar o pacote com Rivallo 0.1.0."),
         );
     }
-    if !(MINIMUM_WORLD_DATABASE_SCHEMA_VERSION..=WORLD_DATABASE_SCHEMA_VERSION)
+    if !(MINIMUM_WORLD_DATABASE_SCHEMA_VERSION..=PACKAGE_MANIFEST_SCHEMA_VERSION)
         .contains(&manifest.schema_version)
     {
         report.error(
@@ -1347,8 +1426,46 @@ pub fn validate_package(package: &ContentPackage) -> PackageValidationReport {
             None,
             Some(&manifest.schema_version.to_string()),
             "A versão do schema precisa ser suportada pelo jogo.",
-            Some("Migre o pacote para schemaVersion 2; a versão 1 continua legível."),
+            Some("Migre o pacote para schemaVersion 3; as versões 1 e 2 continuam legíveis."),
         );
+    }
+    if manifest.composition_mode == PackageCompositionMode::Authoritative {
+        if manifest.schema_version < PACKAGE_MANIFEST_SCHEMA_VERSION {
+            report.error(
+                package,
+                "package.authoritative_requires_manifest_v3",
+                Some(&manifest.package_id),
+                Some("compositionMode"),
+                None,
+                Some("authoritative"),
+                "Somente o manifesto v3 pode declarar composição autoritativa.",
+                Some("Atualize schemaVersion para 3 e declare os escopos autoritativos."),
+            );
+        }
+        if manifest.target_base_fingerprint.is_none() {
+            report.error(
+                package,
+                "package.authoritative_fingerprint_required",
+                Some(&manifest.package_id),
+                Some("targetBaseFingerprint"),
+                None,
+                None,
+                "Pacotes autoritativos precisam fixar a fingerprint exata da base-alvo.",
+                Some("Informe targetBaseFingerprint antes de planejar ou aplicar remoções."),
+            );
+        }
+        if manifest.authoritative_scopes.is_empty() {
+            report.error(
+                package,
+                "package.authoritative_scopes_required",
+                Some(&manifest.package_id),
+                Some("authoritativeScopes"),
+                None,
+                None,
+                "Pacotes autoritativos precisam declarar ao menos um escopo.",
+                Some("Escolha escopos da taxonomia canônica."),
+            );
+        }
     }
     for (field, path) in [
         ("entrypoints.world", manifest.entrypoints.world.as_str()),
@@ -2556,6 +2673,12 @@ fn empty_package() -> ContentPackage {
             },
             visibility: PackageVisibility::Public,
             checksum: "invalid".to_owned(),
+            composition_mode: PackageCompositionMode::Additive,
+            target_base_fingerprint: None,
+            authoritative_scopes: Vec::new(),
+            sidecars: Vec::new(),
+            compatibility: PackageCompatibility::default(),
+            changelog: Vec::new(),
         },
         world: None,
         patches: Vec::new(),
@@ -2906,6 +3029,12 @@ mod tests {
                 visibility: PackageVisibility::Public,
                 checksum: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
                     .to_owned(),
+                composition_mode: PackageCompositionMode::Additive,
+                target_base_fingerprint: None,
+                authoritative_scopes: Vec::new(),
+                sidecars: Vec::new(),
+                compatibility: PackageCompatibility::default(),
+                changelog: Vec::new(),
             },
             world: None,
             patches: vec![PackagePatch {

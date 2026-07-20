@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://rivallo.local/schemas/package-manifest.v2.json",
-  "title": "Rivallo package manifest v2 (reads v1)",
+  "$id": "https://rivallo.local/schemas/package-manifest.v3.json",
+  "title": "Rivallo package manifest v3 (reads v1 and v2)",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -26,7 +26,17 @@
     "packageId": { "$ref": "#/$defs/stableId" },
     "name": { "type": "string", "minLength": 1, "maxLength": 120 },
     "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$" },
-    "schemaVersion": { "enum": [1, 2] },
+    "schemaVersion": { "enum": [1, 2, 3] },
+    "compositionMode": { "enum": ["additive", "authoritative"], "default": "additive" },
+    "targetBaseFingerprint": { "oneOf": [{ "type": "string", "pattern": "^[a-f0-9]{16}$" }, { "type": "null" }] },
+    "authoritativeScopes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "enum": ["clubs", "competitions", "competitionParticipants", "sportingPeople", "registrations", "contracts", "playerProfiles", "coachProfiles", "externalPlayers", "assessments", "attributeHistory", "matchdayState", "stadiums", "assets", "translations", "positions", "roles", "attributes", "traits", "projections"] }
+    },
+    "sidecars": { "type": "array", "items": { "$ref": "#/$defs/sidecar" } },
+    "compatibility": { "$ref": "#/$defs/compatibility" },
+    "changelog": { "type": "array", "items": { "type": "string", "minLength": 1 } },
     "gameVersionCompatibility": { "type": "string", "minLength": 1, "maxLength": 80 },
     "author": { "type": "string", "minLength": 1, "maxLength": 120 },
     "description": { "type": "string", "minLength": 1, "maxLength": 1000 },
@@ -89,6 +99,28 @@
       "minLength": 1,
       "maxLength": 260,
       "pattern": "^(?![\\\\/])(?!.*\\.\\.)(?!.*:).+$"
+    },
+    "sidecar": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "version", "relativePath", "byteLength", "sha256", "required"],
+      "properties": {
+        "kind": { "enum": ["evaluationLayer", "assetLayer", "provenance", "extension"] },
+        "version": { "type": "integer", "minimum": 1 },
+        "relativePath": { "$ref": "#/$defs/relativePath" },
+        "byteLength": { "type": "integer", "minimum": 0 },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "required": { "type": "boolean" },
+        "compatibility": { "type": ["string", "null"] }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "runtimeProfile": { "type": ["string", "null"] },
+        "minimumGameVersion": { "type": ["string", "null"] }
+      }
     }
   }
 }
