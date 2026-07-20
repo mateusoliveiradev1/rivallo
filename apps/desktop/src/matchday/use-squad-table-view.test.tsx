@@ -623,6 +623,37 @@ describe('useSquadTableView', () => {
     },
   );
 
+  it('reports an incompatible Tauri response as invalid instead of a false connection failure', async () => {
+    const load = vi
+      .fn<SquadTableViewControllerDependencies['load']>()
+      .mockRejectedValue(
+        new TypeError('Invalid table-view response at $.state.views.0.state.columns.9.width'),
+      );
+    const { result } = renderHook(() =>
+      useSquadTableView({ dependencies: dependencies({ load }) }),
+    );
+
+    await waitFor(() => expect(result.current.repositoryStatus.status).toBe('invalid'));
+    expect(result.current.repositoryStatus).toMatchObject({
+      status: 'invalid',
+      heading: 'Não foi possível carregar suas visualizações',
+    });
+  });
+
+  it('keeps genuine Tauri invocation failures classified as unavailable', async () => {
+    const load = vi
+      .fn<SquadTableViewControllerDependencies['load']>()
+      .mockRejectedValue(new Error('failed to invoke load_table_views'));
+    const { result } = renderHook(() =>
+      useSquadTableView({ dependencies: dependencies({ load }) }),
+    );
+
+    await waitFor(() => expect(result.current.repositoryStatus.status).toBe('unavailable'));
+    expect(result.current.repositoryStatus.heading).toBe(
+      'Visualizações personalizadas indisponíveis',
+    );
+  });
+
   it('ignores an older load completion after an explicit reload wins', async () => {
     const first = deferred<LoadTableViewsOutcome>();
     const second = deferred<LoadTableViewsOutcome>();

@@ -5,9 +5,13 @@ import type { CSSProperties, KeyboardEvent, PointerEvent as ReactPointerEvent } 
 
 import { Button } from '../ui/primitives/actions.js';
 import { Popover } from '../ui/primitives/disclosure.js';
-import { loadTacticalStrategyCatalog, previewTacticalPlan } from './client.js';
+import {
+  loadTacticalStrategyCatalog,
+  previewPlayerProfile,
+  previewTacticalPlan,
+} from './client.js';
 import { positionLabels, type PitchMode, type TacticalTool } from './matchday-ui.js';
-import { PlayerFace } from './PlayerFace.js';
+import { TacticalPlayerCardContent, tacticalPrimaryMetric } from './TacticalPlayerCard.js';
 import {
   applyPresetToPlan,
   findNearestStarter,
@@ -692,6 +696,7 @@ export function TacticsWorkspace({
   const [ignoredRecommendationIds, setIgnoredRecommendationIds] = useState<readonly string[]>([]);
   const [staleRecommendation, setStaleRecommendation] = useState(false);
   const [recommendationBusy, setRecommendationBusy] = useState(false);
+  const [contextualRatings, setContextualRatings] = useState<Readonly<Record<string, string>>>({});
   const semanticOperationRef = useRef(0);
   const tacticalConfigRef = useRef<TacticalModelConfig | null>(null);
   const sliderPreviewTimerRef = useRef<number | null>(null);
@@ -714,10 +719,16 @@ export function TacticsWorkspace({
   const pointerSessionRef = useRef<PointerDragSession | null>(null);
   const pointerCleanupRef = useRef<() => void>(() => undefined);
   const suppressClickRef = useRef<string | null>(null);
+  const pendingContextualRatingsRef = useRef<Readonly<Record<string, string>> | null>(null);
 
   const playerById = useMemo(
     () => new Map(state.players.map((player) => [player.id, player] as const)),
     [state.players],
+  );
+  const tacticalPlayerIds = useMemo(
+    () =>
+      Array.from(new Set([...draft.placements.map(({ playerId }) => playerId), ...draft.bench])),
+    [draft.bench, draft.placements],
   );
   const validation = useMemo(() => {
     recordDragMetric('authoritativeValidations');
@@ -749,6 +760,18 @@ export function TacticsWorkspace({
   if (!baseModel)
     throw new Error('O plano tático não possui a projeção autoritativa da Fase 06.3.');
   const model = recommendationPreview?.model ?? baseModel;
+  const focusedPlayerFamiliarity = focusedPlayer
+    ? (model.familiarity.individuals.find(({ playerId }) => playerId === focusedPlayer.id)
+        ?.contextual ?? 0)
+    : 0;
+  const focusedPlayerMetric = focusedPlayer
+    ? tacticalPrimaryMetric({
+        mode: pitchMode,
+        player: focusedPlayer,
+        familiarity: focusedPlayerFamiliarity,
+        contextualRating: contextualRatings[focusedPlayer.id],
+      })
+    : null;
   const savedVariation = library.variations.find(
     ({ variationId }) => variationId === draft.variationId,
   );
@@ -829,6 +852,26 @@ export function TacticsWorkspace({
         .slice(0, 3)
         .join(', ')
     : '';
+
+  useEffect(() => {
+    let active = true;
+    void Promise.allSettled(
+      tacticalPlayerIds.map(async (playerId) => {
+        const profile = await previewPlayerProfile(playerId, draft.variationId);
+        return [playerId, profile.contextualRating.perceived.label] as const;
+      }),
+    ).then((results) => {
+      if (!active) return;
+      const nextRatings = Object.fromEntries(
+        results.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : [])),
+      );
+      if (pointerSessionRef.current) pendingContextualRatingsRef.current = nextRatings;
+      else setContextualRatings(nextRatings);
+    });
+    return () => {
+      active = false;
+    };
+  }, [draft.variationId, tacticalPlayerIds]);
 
   useEffect(() => {
     let active = true;
@@ -1352,6 +1395,11 @@ export function TacticsWorkspace({
     pointerCleanupRef.current();
     pointerCleanupRef.current = () => undefined;
     pointerSessionRef.current = null;
+    const pendingContextualRatings = pendingContextualRatingsRef.current;
+    if (pendingContextualRatings) {
+      pendingContextualRatingsRef.current = null;
+      setContextualRatings(pendingContextualRatings);
+    }
   };
 
   const containsClientPoint = (rect: DOMRect | null, clientX: number, clientY: number) =>
@@ -2178,9 +2226,10 @@ export function TacticsWorkspace({
             onChange={(event) => onPitchModeChange(event.target.value as PitchMode)}
             value={pitchMode}
           >
-            <option value="roles">Posição nominal</option>
-            <option value="condition">Condição</option>
+            <option value="roles">Capacidade atual</option>
+            <option value="context">Avaliação no contexto</option>
             <option value="familiarity">Familiaridade</option>
+            <option value="condition">Condição</option>
           </select>
         </label>
         <div className="tactics-readiness" aria-label={`Prontidão tática ${readiness}%`}>
@@ -2698,16 +2747,12 @@ export function TacticsWorkspace({
                   '--slot-x': `${(phasePoint?.normalizedX ?? placement.normalizedX) * 100}%`,
                   '--slot-y': `${(phasePoint?.normalizedY ?? placement.normalizedY) * 100}%`,
                 } as CSSProperties;
-                const secondary =
-                  pitchMode === 'condition'
-                    ? `Físico ${player.condition}%`
-                    : pitchMode === 'familiarity'
-                      ? `${playerFamiliarity?.contextual ?? 0}% plano`
-                      : positionLabels[player.position];
-                const meterValue =
-                  pitchMode === 'condition'
-                    ? player.condition
-                    : (playerFamiliarity?.contextual ?? 0);
+                const metric = tacticalPrimaryMetric({
+                  mode: pitchMode,
+                  player,
+                  familiarity: playerFamiliarity?.contextual ?? 0,
+                  contextualRating: contextualRatings[player.id],
+                });
                 return (
                   <li
                     className="pitch-slot"
@@ -2721,9 +2766,11 @@ export function TacticsWorkspace({
                       {positionLabels[placement.positionId]}
                     </span>
                     <button
-                      aria-label={`${positionLabels[placement.positionId]}: ${player.name}, OVR ${player.rating}, condição ${player.condition}%, familiaridade ${playerFamiliarity?.contextual ?? 0}%. ${selectedPhase === 'base' ? 'Selecione para mover.' : 'Projeção derivada, somente leitura.'}`}
+                      aria-label={`${positionLabels[placement.positionId]}: ${player.name}, camisa ${player.shirtNumber}, ${metric.accessibleLabel}, condição física ${player.condition}%. ${selectedPhase === 'base' ? 'Selecione para mover.' : 'Projeção derivada, somente leitura.'}`}
                       aria-pressed={selectedPlayerId === player.id}
                       className="pitch-player-card"
+                      data-card-variant="field"
+                      data-primary-metric={metric.kind}
                       data-tactical-player-id={player.id}
                       data-tactical-player-origin="field"
                       disabled={saving || semanticBusy}
@@ -2736,24 +2783,13 @@ export function TacticsWorkspace({
                       onPointerDown={(event) => beginPointerDrag(event, player.id, 'field')}
                       type="button"
                     >
-                      <span className="pitch-player-card__face">
-                        <PlayerFace decorative index={playerIndex} name={player.name} size={44} />
-                        <b>{player.shirtNumber}</b>
-                      </span>
-                      <span className="pitch-player-card__copy">
-                        <strong>{pitchPlayerName(player)}</strong>
-                        <small>{secondary}</small>
-                      </span>
-                      <span
-                        aria-label={`OVR ${player.rating}`}
-                        className="pitch-player-card__rating"
-                      >
-                        <small>OVR</small>
-                        <b>{player.rating}</b>
-                      </span>
-                      <i aria-hidden="true">
-                        <b style={{ '--fit': `${meterValue}%` } as CSSProperties} />
-                      </i>
+                      <TacticalPlayerCardContent
+                        displayName={pitchPlayerName(player)}
+                        metric={metric}
+                        player={player}
+                        playerIndex={playerIndex}
+                        positionLabel={positionLabels[placement.positionId]}
+                      />
                     </button>
                   </li>
                 );
@@ -2783,12 +2819,25 @@ export function TacticsWorkspace({
                   const player = playerById.get(playerId);
                   if (!player) return null;
                   const playerIndex = state.players.findIndex(({ id }) => id === player.id);
+                  const familiarity =
+                    model.familiarity.individuals.find(
+                      ({ playerId: candidateId }) => candidateId === player.id,
+                    )?.contextual ?? 0;
+                  const metric = tacticalPrimaryMetric({
+                    mode: pitchMode,
+                    player,
+                    familiarity,
+                    contextualRating: contextualRatings[player.id],
+                  });
                   return (
                     <li key={player.id}>
                       <button
+                        aria-description={`Camisa ${player.shirtNumber}, ${positionLabels[player.position]}, ${metric.accessibleLabel}, condição física ${player.condition}%`}
                         aria-label={`Selecionar reserva ${player.name}`}
                         aria-pressed={selectedPlayerId === player.id}
                         className="bench-player"
+                        data-card-variant="bench"
+                        data-primary-metric={metric.kind}
                         data-tactical-player-id={player.id}
                         data-tactical-player-origin="bench"
                         disabled={saving}
@@ -2799,14 +2848,13 @@ export function TacticsWorkspace({
                         onPointerDown={(event) => beginPointerDrag(event, player.id, 'bench')}
                         type="button"
                       >
-                        <PlayerFace decorative index={playerIndex} name={player.name} size={44} />
-                        <span>
-                          <strong>{player.shortName}</strong>
-                          <small>
-                            {positionLabels[player.position]} · {player.condition}% · Disponível
-                          </small>
-                        </span>
-                        <b aria-label={`OVR ${player.rating}`}>{player.rating}</b>
+                        <TacticalPlayerCardContent
+                          displayName={player.shortName}
+                          metric={metric}
+                          player={player}
+                          playerIndex={playerIndex}
+                          positionLabel={positionLabels[player.position]}
+                        />
                       </button>
                     </li>
                   );
@@ -3584,23 +3632,28 @@ export function TacticsWorkspace({
             </section>
           )}
           <footer className="tactics-focus-player">
-            {focusedPlayer ? (
+            {focusedPlayer && focusedPlayerMetric ? (
               <>
-                <PlayerFace
-                  decorative
-                  index={state.players.findIndex(({ id }) => id === focusedPlayer.id)}
-                  name={focusedPlayer.name}
-                  size={48}
-                />
-                <span>
+                <div
+                  aria-label={`${focusedPlayer.name}, ${focusedPlayerMetric.accessibleLabel}`}
+                  className="tactical-player-card tactical-player-card--focus"
+                  data-card-variant="focus"
+                  data-primary-metric={focusedPlayerMetric.kind}
+                >
+                  <TacticalPlayerCardContent
+                    displayName={focusedPlayer.shortName}
+                    metric={focusedPlayerMetric}
+                    player={focusedPlayer}
+                    playerIndex={state.players.findIndex(({ id }) => id === focusedPlayer.id)}
+                    positionLabel={positionLabels[focusedPlayer.position]}
+                  />
+                </div>
+                <span className="tactics-focus-player__detail">
                   <small>Jogador em foco</small>
-                  <strong>
-                    {focusedPlayer.name} · {positionLabels[focusedPlayer.position]} · OVR{' '}
-                    {focusedPlayer.rating}
-                  </strong>
+                  <strong>{focusedPlayerMetric.accessibleLabel}</strong>
                   <b>
                     {activeTool === 'analysis' &&
-                      `${positionLabels[focusedPlayer.position]} · familiaridade ${model.familiarity.individuals.find(({ playerId }) => playerId === focusedPlayer.id)?.contextual ?? 0}%`}
+                      `${positionLabels[focusedPlayer.position]} · familiaridade com o plano ${focusedPlayerFamiliarity}%`}
                     {activeTool === 'tactics' &&
                       `${activeComparison?.affectedPlayers.includes(focusedPlayer.id) ? 'Afetado pela proposta' : 'Sem impacto individual relevante'} · condição ${focusedPlayer.condition}%`}
                     {activeTool === 'instructions' &&

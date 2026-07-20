@@ -22,6 +22,7 @@
     "@rivallo/design-tokens": "workspace:*",
     "@rivallo/icons": "workspace:*",
     "@tauri-apps/api": "2.11.1",
+    "@tanstack/react-table": "8.21.3",
     "react": "19.2.7",
     "react-dom": "19.2.7"
   }

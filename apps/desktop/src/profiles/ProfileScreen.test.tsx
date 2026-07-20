@@ -4,7 +4,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { coachProfileFixture, playerProfileFixture } from './test-fixtures.js';
+import { coachProfileFixture, exactValue, playerProfileFixture } from './test-fixtures.js';
 import { ProfileScreen } from './ProfileScreen.js';
 
 const clientMock = vi.hoisted(() => ({
@@ -19,6 +19,7 @@ vi.mock('../matchday/client.js', () => clientMock);
 
 describe('ProfileScreen', () => {
   beforeEach(() => {
+    window.history.replaceState(null, '', '/');
     clientMock.loadPlayerProfile.mockReset().mockResolvedValue(playerProfileFixture());
     clientMock.loadCoachProfile.mockReset().mockResolvedValue(coachProfileFixture());
     clientMock.loadClubProfile.mockReset().mockResolvedValue({
@@ -44,7 +45,7 @@ describe('ProfileScreen', () => {
         nationality: 'BRA',
         clubId: 'aurora-fc',
         visualCode: 'TEC',
-        perceivedRating: null,
+        perceivedRating: exactValue(76),
         confidence: 100,
         knowledgeLevel: 'ownClub',
       },
@@ -88,12 +89,33 @@ describe('ProfileScreen', () => {
       screen.getByText('Condição, forma e potencial não alteram a capacidade estrutural.'),
     ).toBeInstanceOf(HTMLElement);
     expect(screen.getByText('Por que este rating?')).toBeInstanceOf(HTMLElement);
+    expect(screen.getAllByLabelText(/OVR atual: 77/u).length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText(/No plano atual: 78/u).length).toBeGreaterThan(0);
+    expect(screen.getByText('Potencial estimado')).toBeInstanceOf(HTMLElement);
+    expect(screen.getByLabelText('Confiança da projeção: 72%')).toBeInstanceOf(HTMLElement);
+
+    await user.click(screen.getByText('Por que este rating?'));
+    expect(screen.getByText('Posição e função avaliadas')).toBeInstanceOf(HTMLElement);
+    expect(screen.getByText('Rating calculado')).toBeInstanceOf(HTMLElement);
+    expect(screen.getByText('Versão da fórmula')).toBeInstanceOf(HTMLElement);
+    expect(screen.getByText('Fatores mais relevantes')).toBeInstanceOf(HTMLElement);
+    expect(screen.getByText('Pontos fortes')).toBeInstanceOf(HTMLElement);
+    expect(screen.getAllByText('Limitações').length).toBeGreaterThan(0);
 
     await user.click(screen.getByRole('tab', { name: 'Posições e funções' }));
     expect(screen.getByRole('heading', { name: 'Encaixe no plano' })).toBeInstanceOf(HTMLElement);
     expect(screen.getByText(/Encaixe mede compatibilidade/u)).toBeInstanceOf(HTMLElement);
     expect(screen.getByRole('heading', { name: 'Funções e responsabilidades' })).toBeInstanceOf(
       HTMLElement,
+    );
+
+    await user.click(screen.getByRole('tab', { name: 'Atributos' }));
+    const passingDefinition = screen.getByRole('button', {
+      name: 'Passe. Abrir definição e origem da avaliação',
+    });
+    await user.hover(passingDefinition);
+    expect((await screen.findByRole('tooltip')).textContent).toMatch(
+      /Qualidade e precisão.*Valor conhecido: 76.*Confiança: 94%.*Fonte: Comissão técnica/su,
     );
 
     await user.click(screen.getByRole('tab', { name: 'Desenvolvimento' }));
@@ -146,6 +168,12 @@ describe('ProfileScreen', () => {
     expect(screen.getByText('RATING POR FUNÇÃO')).toBeInstanceOf(HTMLElement);
     expect(screen.getByText('Tática')).toBeInstanceOf(HTMLElement);
     expect(screen.getByText('Gestão humana')).toBeInstanceOf(HTMLElement);
+    expect(
+      screen.getAllByLabelText(/Avaliação como treinador principal: 79/u).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText('Reputação percebida')).toBeInstanceOf(HTMLElement);
+    expect(screen.getByText('76')).toBeInstanceOf(HTMLElement);
+    expect(screen.getByLabelText('Confiança cadastral: 95%')).toBeInstanceOf(HTMLElement);
 
     await user.click(screen.getByRole('tab', { name: 'Capacidades' }));
     const capabilities = screen
@@ -174,6 +202,20 @@ describe('ProfileScreen', () => {
       HTMLElement,
     );
     expect(clientMock.loadClubProfile).toHaveBeenCalledWith('aurora-fc');
+    expect(screen.getByText(/jogadores no elenco · plantel principal/u)).toBeInstanceOf(
+      HTMLElement,
+    );
+    expect(screen.getByText('Dados internos do clube')).toBeInstanceOf(HTMLElement);
+    expect(screen.getByText('Reputação 76')).toBeInstanceOf(HTMLElement);
+    expect(
+      within(screen.getByRole('link', { name: 'Abrir perfil de Helena Sampaio' })).queryByText(
+        /OVR/u,
+      ),
+    ).toBeNull();
+    expect(await screen.findByText('Avaliação como treinador principal')).toBeInstanceOf(
+      HTMLElement,
+    );
+    expect(screen.getByText('Reputação percebida')).toBeInstanceOf(HTMLElement);
     await user.click(screen.getByRole('tab', { name: 'Comissão' }));
     expect(screen.getByText('Comissão não informada')).toBeInstanceOf(HTMLElement);
     await user.click(screen.getByRole('tab', { name: 'Visão geral' }));
@@ -235,8 +277,75 @@ describe('ProfileScreen', () => {
     await user.click(await screen.findByRole('button', { name: /Martín Gouveia/u }));
 
     expect(await screen.findByRole('heading', { name: 'M. Gouveia' })).toBeInstanceOf(HTMLElement);
+    expect(screen.getAllByText('OVR atual').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('Potencial estimado')).toHaveLength(3);
+    expect(screen.getAllByText(/Confiança da projeção:/u).length).toBeGreaterThanOrEqual(2);
     await user.click(screen.getByRole('button', { name: 'Abrir perfil' }));
     expect(onNavigate).toHaveBeenCalledWith({ kind: 'player', entityId: 'rv-fdv-01' });
+  });
+
+  it('returns focus when comparison closes and never leaves a scroll lock behind', async () => {
+    const user = userEvent.setup();
+    render(
+      <ProfileScreen
+        onBack={vi.fn()}
+        onNavigate={vi.fn()}
+        route={{ kind: 'coach', entityId: 'coach.aurora.1' }}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: 'Marcelo Nunes' });
+    const trigger = screen.getByRole('button', { name: 'Comparar' });
+    await user.click(trigger);
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    await user.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Comparar' })),
+    );
+    expect(document.body.style.overflow).toBe('');
+  });
+
+  it('changes only the contextual rating when the tactical variation changes', async () => {
+    const primary = playerProfileFixture();
+    const secondary = {
+      ...primary,
+      contextualRating: {
+        ...primary.contextualRating,
+        contextId: 'p1.context.secondary',
+        perceived: exactValue(72),
+      },
+    };
+    clientMock.loadPlayerProfile.mockResolvedValueOnce(primary).mockResolvedValueOnce(secondary);
+    const view = render(
+      <ProfileScreen
+        onBack={vi.fn()}
+        onNavigate={vi.fn()}
+        route={{ kind: 'player', entityId: 'p1' }}
+        variationId="tactical-variation.primary"
+      />,
+    );
+
+    expect((await screen.findAllByLabelText(/No plano atual: 78/u)).length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText(/OVR atual: 77/u).length).toBeGreaterThan(0);
+    expect(screen.getByText('80–85')).toBeInstanceOf(HTMLElement);
+    const profileRegion = screen.getByRole('region', { name: 'Perfil global' });
+    profileRegion.scrollTop = 320;
+
+    view.rerender(
+      <ProfileScreen
+        onBack={vi.fn()}
+        onNavigate={vi.fn()}
+        route={{ kind: 'player', entityId: 'p1' }}
+        variationId="tactical-variation.secondary"
+      />,
+    );
+
+    expect((await screen.findAllByLabelText(/No plano atual: 72/u)).length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText(/OVR atual: 77/u).length).toBeGreaterThan(0);
+    expect(screen.getByText('80–85')).toBeInstanceOf(HTMLElement);
+    await waitFor(() =>
+      expect(screen.getByRole('region', { name: 'Perfil global' }).scrollTop).toBe(320),
+    );
   });
 
   it('exposes a recoverable not-found state', async () => {

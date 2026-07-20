@@ -5,8 +5,27 @@ export type KnowledgeValueKind = 'exact' | 'range' | 'qualitative' | 'unknown';
 export type RatingKind =
   'currentAbility' | 'position' | 'role' | 'tacticalFit' | 'contextual' | 'coachRole';
 export type RatingFactorImpact = 'positive' | 'neutral' | 'negative' | 'contextOnly';
-export type PlayerAttributeCategory =
-  'technical' | 'physical' | 'mental' | 'attacking' | 'defensive' | 'goalkeeping';
+export type PlayerAttributeCategory = 'outfield' | 'goalkeeper';
+
+export type PlayerAttributeSet =
+  | {
+      readonly model: 'outfield';
+      readonly finishing: number;
+      readonly technique: number;
+      readonly passing: number;
+      readonly tackling: number;
+      readonly physical: number;
+      readonly pace: number;
+    }
+  | {
+      readonly model: 'goalkeeper';
+      readonly reaction: number;
+      readonly positioning: number;
+      readonly handling: number;
+      readonly mobility: number;
+      readonly rushingOut: number;
+      readonly distribution: number;
+    };
 
 export interface KnowledgeValue {
   readonly kind: KnowledgeValueKind;
@@ -79,6 +98,7 @@ export interface ContractSummary {
 export interface AttributeProjection {
   readonly attributeId: string;
   readonly label: string;
+  readonly description: string;
   readonly category: PlayerAttributeCategory;
   readonly perceived: KnowledgeValue;
   readonly confidence: number;
@@ -132,7 +152,7 @@ export interface RatingSnapshot {
 export interface AttributeSnapshot {
   readonly snapshotId: string;
   readonly playerId: string;
-  readonly attributes: Record<PlayerAttributeCategory, number>;
+  readonly attributes: PlayerAttributeSet;
   readonly source: string;
   readonly recordedAt: number;
 }

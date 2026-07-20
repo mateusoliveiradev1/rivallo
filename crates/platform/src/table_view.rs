@@ -13,7 +13,7 @@ use rivallo_application::{
 };
 use serde_json::{Value, json};
 
-const CURRENT_STORAGE_ENVELOPE_VERSION: u32 = 3;
+const CURRENT_STORAGE_ENVELOPE_VERSION: u32 = 4;
 pub(crate) const MAX_REPOSITORY_BYTES: usize = 512 * 1024;
 const MAX_QUARANTINE_BYTES: usize = 1024 * 1024;
 
@@ -82,7 +82,7 @@ struct MigrationStep {
     migrate: fn(&mut Value) -> Result<(), ()>,
 }
 
-const STORAGE_MIGRATIONS: [MigrationStep; 2] = [
+const STORAGE_MIGRATIONS: [MigrationStep; 3] = [
     MigrationStep {
         from: 1,
         to: 2,
@@ -92,6 +92,11 @@ const STORAGE_MIGRATIONS: [MigrationStep; 2] = [
         from: 2,
         to: 3,
         migrate: migrate_storage_v2_to_v3,
+    },
+    MigrationStep {
+        from: 3,
+        to: 4,
+        migrate: migrate_storage_v3_to_v4,
     },
 ];
 
@@ -952,6 +957,30 @@ fn migrate_storage_v2_to_v3(envelope: &mut Value) -> Result<(), ()> {
     Ok(())
 }
 
+fn migrate_storage_v3_to_v4(envelope: &mut Value) -> Result<(), ()> {
+    let views = envelope
+        .pointer_mut("/payload/views")
+        .and_then(Value::as_array_mut)
+        .ok_or(())?;
+    for view in views {
+        let columns = view
+            .pointer_mut("/state/columns")
+            .and_then(Value::as_array_mut)
+            .ok_or(())?;
+        for column in columns {
+            let column_id = column.get("columnId").and_then(Value::as_str).ok_or(())?;
+            let width = column.get("width").and_then(Value::as_f64).ok_or(())?;
+            let migrated_width = match column_id {
+                "rating" if width <= 80.0 => (width + 24.0).clamp(80.0, 112.0),
+                "potentialRating" if width <= 80.0 => (width + 72.0).clamp(128.0, 168.0),
+                _ => continue,
+            };
+            column["width"] = json!(migrated_width);
+        }
+    }
+    Ok(())
+}
+
 fn value_u32(value: &Value, path: &[&str]) -> Option<u32> {
     let mut value = value;
     for segment in path {
@@ -1487,6 +1516,47 @@ mod tests {
                 TableViewRepositoryLoad::Loaded(expected)
             );
         }
+    }
+
+    #[test]
+    fn v3_rating_widths_migrate_without_losing_saved_view_intent() {
+        let directory = TestDirectory::new("migration-v3-rating-widths");
+        let repository = FileTableViewRepository::new(directory.join("table-views.json"));
+        let expected = valid_state_with_user_intent();
+        let mut fixture = envelope_value(3, &expected);
+        for view in fixture["payload"]["views"]
+            .as_array_mut()
+            .expect("views array")
+        {
+            for column in view["state"]["columns"]
+                .as_array_mut()
+                .expect("columns array")
+            {
+                if matches!(
+                    column["columnId"].as_str(),
+                    Some("rating" | "potentialRating")
+                ) {
+                    column["width"] = json!(64.0);
+                }
+            }
+        }
+        write_envelope(repository.path(), &fixture);
+
+        let migrated =
+            state_from_load(repository.load().expect("migrate v3 widths")).expect("migrated state");
+        assert_eq!(migrated, expected);
+        assert_eq!(
+            repository.load().expect("reload persisted v4 widths"),
+            TableViewRepositoryLoad::Loaded(expected)
+        );
+        let persisted: Value = serde_json::from_slice(
+            &fs::read(repository.path()).expect("read persisted v4 envelope"),
+        )
+        .expect("decode persisted v4 envelope");
+        assert_eq!(
+            persisted["envelopeVersion"],
+            json!(CURRENT_STORAGE_ENVELOPE_VERSION)
+        );
     }
 
     #[test]

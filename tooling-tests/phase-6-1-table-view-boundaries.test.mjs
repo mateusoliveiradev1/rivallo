@@ -435,14 +435,16 @@ describe('Phase 06.1 Table View Engine production boundaries', () => {
     expectTerms(platform, 'platform migration and recovery authority', [
       /pub struct FileTableViewRepository/u,
       /impl TableViewRepository for FileTableViewRepository/u,
-      /const STORAGE_MIGRATIONS:\s*\[MigrationStep;\s*2\]/u,
+      /const STORAGE_MIGRATIONS:\s*\[MigrationStep;\s*3\]/u,
       /migrate_storage_v1_to_v2/u,
       /migrate_storage_v2_to_v3/u,
+      /migrate_storage_v3_to_v4/u,
       /\.quarantine\.payload/u,
       /\.quarantine\.json/u,
       /save_atomic/u,
       /every_replacement_interruption_recovers_previous_or_new_complete_generation/u,
       /added_column_comes_from_owning_default_and_preserves_every_known_intent/u,
+      /v3_rating_widths_migrate_without_losing_saved_view_intent/u,
       /averageRating/u,
       /MAX_REPOSITORY_BYTES:\s*usize\s*=\s*512\s*\*\s*1024/u,
       /MAX_QUARANTINE_BYTES:\s*usize\s*=\s*1024\s*\*\s*1024/u,
@@ -452,7 +454,7 @@ describe('Phase 06.1 Table View Engine production boundaries', () => {
     const addedColumnMigration = sourceSection(
       platform,
       /fn migrate_storage_v2_to_v3\(envelope:\s*&mut Value\)\s*->\s*Result<\(\),\s*\(\)>\s*\{/u,
-      /\n\}\n\nfn value_u32/u,
+      /\n\}\n\nfn migrate_storage_v3_to_v4/u,
       'v2 to v3 added-column migration',
     );
     expectTerms(addedColumnMigration, 'v2 to v3 added-column migration', [
@@ -460,6 +462,18 @@ describe('Phase 06.1 Table View Engine production boundaries', () => {
       /column\.column_id\.as_str\(\)\s*==\s*"averageRating"/u,
       /column\.get\("columnId"\)\.and_then\(Value::as_str\)\s*==\s*Some\("averageRating"\)/u,
       /columns\.push\(average_rating\.clone\(\)\)/u,
+    ]);
+    const ratingWidthMigration = sourceSection(
+      platform,
+      /fn migrate_storage_v3_to_v4\(envelope:\s*&mut Value\)\s*->\s*Result<\(\),\s*\(\)>\s*\{/u,
+      /\n\}\n\nfn value_u32/u,
+      'v3 to v4 rating-width migration',
+    );
+    expectTerms(ratingWidthMigration, 'v3 to v4 rating-width migration', [
+      /"rating" if width <= 80\.0/u,
+      /\(width \+ 24\.0\)\.clamp\(80\.0, 112\.0\)/u,
+      /"potentialRating" if width <= 80\.0/u,
+      /\(width \+ 72\.0\)\.clamp\(128\.0, 168\.0\)/u,
     ]);
     const addedColumnFixture = sourceSection(
       platform,
@@ -642,7 +656,7 @@ describe('Phase 06.1 Table View Engine production boundaries', () => {
         lockfileText: pnpmLock,
       }),
     ).toEqual({
-      approvedCount: 16,
+      approvedCount: 17,
       workspaceLinkCount: 2,
       platformPeerCount: 1,
     });
@@ -656,18 +670,18 @@ describe('Phase 06.1 Table View Engine production boundaries', () => {
     )
       .flat()
       .sort();
-    expect(javascriptEdges, 'JavaScript direct manifest inventory changed').toHaveLength(36);
+    expect(javascriptEdges, 'JavaScript direct manifest inventory changed').toHaveLength(37);
     expect(
       createHash('sha256').update(javascriptEdges.join('\n')).digest('hex'),
       'JavaScript manifest edge inventory changed; review before accepting',
-    ).toBe('21ed5a3eae6bdbea6e092deb5004cc6131c8a4ebd7116f6c48bb8e521b49fc95');
+    ).toBe('137518d4a8ed0e65783588fd839b5d759e2b814d3fd53e6b99cf2ea95d43f751');
 
     const pnpmInventory = pnpmPackageInventory(pnpmLock);
-    expect(pnpmInventory, 'pnpm transitive package/version inventory changed').toHaveLength(465);
+    expect(pnpmInventory, 'pnpm transitive package/version inventory changed').toHaveLength(467);
     expect(
       createHash('sha256').update(pnpmInventory.join('\n')).digest('hex'),
       'pnpm package/version inventory changed; review before accepting',
-    ).toBe('99119878e1135bf7cb85a6cbfd4bfbe81babb83021d66596198f6bf848e05219');
+    ).toBe('ab38bdd7caf5cfd06f4d673d8c8f37cc363a35e1293b60d1690195643d6bc302');
 
     const [applicationManifest, platformManifest, cargoLock] = await Promise.all([
       readRootFile('crates/application/Cargo.toml'),

@@ -311,10 +311,9 @@ const nameDialogCopy = {
     action: 'Renomear visualização',
   },
   'save-as': {
-    title: 'Criar uma visualização editável',
-    description:
-      'A visualização de origem continuará protegida. Seus ajustes serão salvos em uma cópia própria.',
-    action: 'Duplicar para editar',
+    title: 'Salvar nova visualização',
+    description: 'A visualização de origem não será alterada. Dê um nome para salvar seus ajustes.',
+    action: 'Salvar e ativar',
   },
 } as const satisfies Record<
   SavedViewNameDialogMode,
@@ -333,6 +332,7 @@ const openNativeDialog = (dialog: HTMLDialogElement | null, initialFocus: HTMLEl
 export interface SavedViewNameDialogProps {
   readonly mode: SavedViewNameDialogMode;
   readonly initialValue: string;
+  readonly sourceName?: string;
   readonly busy: boolean;
   readonly onDismiss: () => void;
   readonly onSubmit: (name: string) => void;
@@ -341,11 +341,16 @@ export interface SavedViewNameDialogProps {
 export function SavedViewNameDialog({
   mode,
   initialValue,
+  sourceName,
   busy,
   onDismiss,
   onSubmit,
 }: SavedViewNameDialogProps) {
   const copy = nameDialogCopy[mode];
+  const description =
+    mode === 'save-as' && sourceName !== undefined
+      ? `A visualização “${sourceName}” não será alterada. Dê um nome para salvar estes ajustes.`
+      : copy.description;
   const titleId = `saved-view-name-${useId()}`;
   const descriptionId = `${titleId}-description`;
   const inputId = `${titleId}-input`;
@@ -391,7 +396,7 @@ export function SavedViewNameDialog({
       <header className="saved-view-dialog__header">
         <div>
           <h2 id={titleId}>{copy.title}</h2>
-          <p id={descriptionId}>{copy.description}</p>
+          <p id={descriptionId}>{description}</p>
         </div>
         <IconButton
           accessibleLabel="Fechar diálogo de visualização"

@@ -97,9 +97,9 @@ describe('Phase 5 package approval record', () => {
 
     expect(review.decision).toBe('APPROVED');
     expect(review.approvedBy).toBe('Mateus');
-    expect(review.inventory).toHaveLength(16);
+    expect(review.inventory).toHaveLength(17);
     expect(review.inventoryDigest).toBe(
-      'sha256:56d9bfb036d3b3d42acc09faa968911cfc5aa760def3c991288dfe2e8fcf8b7f',
+      'sha256:557f4d9a4e4c70efbc32a73e684c88767bb8d350870c8b3e25083c13660ab7f1',
     );
   });
 

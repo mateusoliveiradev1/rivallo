@@ -41,6 +41,7 @@ export interface TableViewCustomizerProps {
   readonly dirty: boolean;
   readonly busy?: boolean;
   readonly disabled?: boolean;
+  readonly saveMode?: 'update' | 'save-as';
   readonly dispatch: (command: TableViewCommand) => TableViewCommandResult;
   readonly onSave: () => boolean | void | Promise<boolean | void>;
 }
@@ -94,6 +95,7 @@ export function TableViewCustomizer({
   dirty,
   busy = false,
   disabled = false,
+  saveMode = 'update',
   dispatch,
   onSave,
 }: TableViewCustomizerProps) {
@@ -434,6 +436,10 @@ export function TableViewCustomizer({
   const saveView = async () => {
     setSaving(true);
     try {
+      if (saveMode === 'save-as') {
+        acceptedCloseRef.current = true;
+        openingSnapshotRef.current = stateRef.current;
+      }
       const saved = await onSave();
       if (saved === false) {
         announce('Não foi possível salvar a visualização. Os ajustes continuam disponíveis.');
@@ -450,6 +456,17 @@ export function TableViewCustomizer({
       setSaving(false);
     }
   };
+
+  const saveCopy =
+    saveMode === 'save-as'
+      ? {
+          label: 'Salvar como nova visualização',
+          loading: 'Abrindo nome da visualização…',
+        }
+      : {
+          label: 'Salvar alterações',
+          loading: 'Salvando alterações…',
+        };
 
   return (
     <Popover
@@ -665,11 +682,11 @@ export function TableViewCustomizer({
             disabled={busy || saving || !dirty}
             leadingIcon="save"
             loading={saving}
-            loadingLabel="Salvando visualização…"
+            loadingLabel={saveCopy.loading}
             onClick={() => void saveView()}
             variant="primary"
           >
-            Salvar visualização
+            {saveCopy.label}
           </Button>
         </div>
 

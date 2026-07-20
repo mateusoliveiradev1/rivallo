@@ -817,7 +817,7 @@ test.beforeEach(async ({ page }) => {
             };
           }
           if (command === 'matchday_state') return state;
-          if (command === 'player_profile') {
+          if (command === 'player_profile' || command === 'preview_player_profile') {
             const profile = playerProfiles.find(
               ({ identity }) => identity.entityId === args.playerId,
             );
@@ -1448,6 +1448,182 @@ test('discovers all entity types and preserves context across club, coach and na
   });
 });
 
+test('keeps every profile section reachable with one scroll viewport and explicit metric semantics', async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== 'desktop-1366x768',
+    'The complete profile scroll and semantics matrix only needs one Chromium project.',
+  );
+
+  await page.goto(developmentUrl);
+  const globalSearch = page.getByRole('searchbox', {
+    name: 'Buscar jogadores, treinadores, clubes e nações',
+  });
+  await globalSearch.fill('Héctor');
+  await page.getByRole('button', { name: /Héctor Salvatierra/u }).click();
+
+  const profile = page.getByRole('region', { name: 'Perfil global' });
+  await expect(profile).toBeVisible();
+  await page.getByRole('tab', { name: 'Capacidades' }).click();
+  await expect(page.getByRole('heading', { name: 'Especialidades' })).toBeVisible();
+
+  const scrollContract = await profile.evaluate((element) => {
+    const root = element as HTMLElement;
+    const nestedVerticalScrollers = [...root.querySelectorAll<HTMLElement>('*')].filter((child) => {
+      const style = getComputedStyle(child);
+      return (
+        child.scrollHeight > child.clientHeight + 1 &&
+        (style.overflowY === 'auto' || style.overflowY === 'scroll')
+      );
+    });
+    return {
+      clientHeight: root.clientHeight,
+      overflowY: getComputedStyle(root).overflowY,
+      scrollHeight: root.scrollHeight,
+      nestedVerticalScrollers: nestedVerticalScrollers.map((child) => child.className),
+    };
+  });
+  expect(scrollContract.overflowY).toBe('auto');
+  expect(scrollContract.scrollHeight).toBeGreaterThan(scrollContract.clientHeight);
+  expect(scrollContract.nestedVerticalScrollers).toEqual([]);
+
+  await profile.focus();
+  await page.keyboard.press('Home');
+  await page.screenshot({ path: testInfo.outputPath('coach-profile-top.png') });
+  const profileBox = await profile.boundingBox();
+  if (!profileBox) throw new Error('Profile scroll viewport is not measurable.');
+  await page.mouse.move(profileBox.x + profileBox.width / 2, profileBox.y + profileBox.height / 2);
+  await page.mouse.wheel(0, 480);
+  await expect.poll(() => profile.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  await page.screenshot({ path: testInfo.outputPath('coach-profile-middle.png') });
+
+  await profile.focus();
+  await page.keyboard.press('Home');
+  await page.keyboard.press('PageDown');
+  await expect.poll(() => profile.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  const pageDownTop = await profile.evaluate((element) => element.scrollTop);
+  await page.keyboard.press('PageUp');
+  await expect
+    .poll(() => profile.evaluate((element) => element.scrollTop))
+    .toBeLessThan(pageDownTop);
+  await page.keyboard.press('End');
+  await expect
+    .poll(() =>
+      profile.evaluate(
+        (element) => element.scrollHeight - element.clientHeight - element.scrollTop,
+      ),
+    )
+    .toBeLessThanOrEqual(2);
+  await expect(page.getByRole('button', { name: 'Comparar' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('coach-profile-end.png') });
+
+  const originalBodyOverflow = await page.evaluate(() => getComputedStyle(document.body).overflow);
+  const compareTrigger = page.getByRole('button', { name: 'Comparar' });
+  await compareTrigger.click();
+  const comparisonSearch = page.getByRole('searchbox', { name: 'Buscar treinador' });
+  await comparisonSearch.fill('Marcelo');
+  await page.getByRole('button', { name: /Marcelo Nunes/u }).click();
+  await expect(page.getByRole('heading', { name: 'Marcelo Nunes' })).toBeVisible();
+  await expect(page.getByText('Reputação percebida').last()).toBeVisible();
+  await profile.focus();
+  await page.keyboard.press('End');
+  await expect(page.getByRole('button', { name: 'Abrir perfil' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('coach-comparison-end.png') });
+  await comparisonSearch.focus();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Comparar' })).toBeFocused();
+  expect(await page.evaluate(() => getComputedStyle(document.body).overflow)).toBe(
+    originalBodyOverflow,
+  );
+
+  for (const viewport of screenshotViewports) {
+    await page.setViewportSize(viewport);
+    await profile.focus();
+    await page.keyboard.press('End');
+    await expect
+      .poll(() =>
+        profile.evaluate(
+          (element) => element.scrollHeight - element.clientHeight - element.scrollTop,
+        ),
+      )
+      .toBeLessThanOrEqual(2);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+  }
+
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.evaluate(() => {
+    document.body.style.zoom = '2';
+  });
+  await profile.focus();
+  await page.keyboard.press('End');
+  await expect
+    .poll(() =>
+      profile.evaluate(
+        (element) => element.scrollHeight - element.clientHeight - element.scrollTop,
+      ),
+    )
+    .toBeLessThanOrEqual(2);
+  await expect(page.getByRole('button', { name: 'Comparar' })).toBeVisible();
+  await page.evaluate(() => {
+    document.body.style.zoom = '';
+  });
+
+  await globalSearch.fill('Aurora');
+  await page.getByRole('button', { name: /^Aurora Futebol Clube/u }).click();
+  await expect(page.getByText(/jogadores no elenco · plantel principal/u)).toBeVisible();
+  await expect(page.getByText('Dados internos do clube')).toBeVisible();
+  await expect(page.getByText('Avaliação como treinador principal')).toBeVisible();
+  await expect(page.getByText('Reputação percebida')).toBeVisible();
+  await profile.evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  await page.screenshot({ path: testInfo.outputPath('club-profile-top.png') });
+  await profile.evaluate((element) => {
+    element.scrollTop = Math.max(0, (element.scrollHeight - element.clientHeight) / 2);
+  });
+  await page.screenshot({ path: testInfo.outputPath('club-profile-middle.png') });
+  await profile.focus();
+  await page.keyboard.press('End');
+  await page.screenshot({ path: testInfo.outputPath('club-profile-end.png') });
+  await page.getByRole('button', { name: 'Comissão técnica' }).click();
+  await expect(page.getByRole('tab', { name: 'Comissão' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await profile.focus();
+  await page.keyboard.press('End');
+  await expect(page.locator('.entity-reference-list li').last()).toBeVisible();
+  await expect(page.getByText(/Reputação \d+/u).last()).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('club-staff-end.png') });
+
+  await globalSearch.fill('Caio');
+  await page.getByRole('button', { name: /Caio Brandão/u }).click();
+  await expect(page.getByText('OVR atual').first()).toBeVisible();
+  await expect(page.getByText('No plano atual').first()).toBeVisible();
+  await expect(page.getByText('Potencial estimado')).toBeVisible();
+  await expect(page.getByText('Confiança da projeção: 72%')).toBeVisible();
+  await profile.evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  await page.screenshot({ path: testInfo.outputPath('player-profile-top.png') });
+  await profile.evaluate((element) => {
+    element.scrollTop = Math.max(0, (element.scrollHeight - element.clientHeight) / 2);
+  });
+  await page.screenshot({ path: testInfo.outputPath('player-profile-middle.png') });
+  await profile.focus();
+  await page.keyboard.press('End');
+  await expect(page.getByRole('button', { name: 'Comparar' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('player-profile-end.png') });
+  await page.goBack();
+  await expect(page.getByRole('tab', { name: 'Comissão' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+});
+
 test('changes the dedicated tactical plan, plays the match, and reveals the result feed', async ({
   page,
 }, testInfo) => {
@@ -1666,7 +1842,7 @@ test('personalizes the squad workspace and persists the choices', async ({ page 
   await page.getByRole('button', { name: 'Ocultar Idade' }).click();
   await expect(page.getByRole('dialog', { name: 'Configurar tabela' })).toBeVisible();
   await expect(page.locator('th[data-column-id="age"]')).toBeHidden();
-  await page.getByRole('button', { name: 'Salvar visualização' }).click();
+  await page.getByRole('button', { name: 'Salvar alterações' }).click();
   await expect(page.getByRole('dialog', { name: 'Configurar tabela' })).toBeHidden();
   await columnsTrigger.focus();
   await expect(columnsTrigger).toBeFocused();
@@ -1781,6 +1957,117 @@ test('substitutes through the accessible field flow and persists the saved plan'
   );
 });
 
+test('keeps tactical card anatomy disjoint and stable across readings, viewports and 200% zoom', async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== 'desktop-1366x768',
+    'The explicit tactical-card geometry matrix runs once and controls its own viewports.',
+  );
+
+  const viewports = screenshotViewports.filter(({ width }) => [1024, 1366, 1920].includes(width));
+  const assertDisjointAnatomy = async (card: Locator) => {
+    const result = await card.evaluate((element) => {
+      const region = (name: string) => {
+        const target = element.querySelector<HTMLElement>(`[data-card-region="${name}"]`);
+        if (!target) throw new Error(`Missing tactical card region: ${name}`);
+        return target.getBoundingClientRect();
+      };
+      const portrait = region('portrait');
+      const shirt = region('shirt-number');
+      const metric = region('primary-metric');
+      const intersects = (first: DOMRect, second: DOMRect) =>
+        first.left < second.right &&
+        first.right > second.left &&
+        first.top < second.bottom &&
+        first.bottom > second.top;
+      const clippedWithoutTooltip = Array.from(
+        element.querySelectorAll<HTMLElement>(
+          '.tactical-player-card__identity strong, .tactical-player-card__identity small, .tactical-player-card__metric, .tactical-player-card__condition',
+        ),
+      ).some(
+        (target) =>
+          (target.scrollWidth > target.clientWidth || target.scrollHeight > target.clientHeight) &&
+          !target.title,
+      );
+      return {
+        metricCount: element.querySelectorAll('[data-card-region="primary-metric"]').length,
+        portraitMetricOverlap: intersects(portrait, metric),
+        shirtMetricOverlap: intersects(shirt, metric),
+        clippedWithoutTooltip,
+      };
+    });
+    expect(result).toEqual({
+      metricCount: 1,
+      portraitMetricOverlap: false,
+      shirtMetricOverlap: false,
+      clippedWithoutTooltip: false,
+    });
+  };
+
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
+    await page.goto(developmentUrl);
+    await page.getByRole('button', { name: 'Táticas' }).click();
+    const reading = page.getByRole('combobox', { name: 'Leitura do campo' });
+    const fieldCard = page.locator('.pitch-player-card').first();
+    const benchCard = page.locator('.bench-player').first();
+    const baseline = await fieldCard.boundingBox();
+    if (!baseline) throw new Error(`Missing field-card geometry at ${viewport.width}px.`);
+
+    await expect(fieldCard).toHaveAttribute('data-primary-metric', 'ability');
+    await expect(fieldCard.locator('[data-card-region="primary-metric"]')).toHaveAttribute(
+      'aria-label',
+      /^OVR \d+/u,
+    );
+    await expect(fieldCard).not.toContainText('Potencial');
+    await expect(fieldCard.locator('.tactical-player-card__identity strong')).toHaveAttribute(
+      'title',
+      /.+/u,
+    );
+    await assertDisjointAnatomy(fieldCard);
+    await assertDisjointAnatomy(benchCard);
+
+    for (const [mode, kind, label] of [
+      ['context', 'context', /^No plano atual: \d/u],
+      ['familiarity', 'familiarity', /^Familiaridade com o plano: \d+%/u],
+      ['condition', 'condition', /^Condição física: \d+%/u],
+      ['roles', 'ability', /^OVR \d+/u],
+    ] as const) {
+      await reading.selectOption(mode);
+      await expect(fieldCard).toHaveAttribute('data-primary-metric', kind);
+      await expect(fieldCard.locator('[data-card-region="primary-metric"]')).toHaveAttribute(
+        'aria-label',
+        label,
+      );
+      const box = await fieldCard.boundingBox();
+      expect(box?.width).toBeCloseTo(baseline.width, 2);
+      expect(box?.height).toBeCloseTo(baseline.height, 2);
+      await assertDisjointAnatomy(fieldCard);
+    }
+
+    await fieldCard.hover();
+    await fieldCard.focus();
+    await fieldCard.click();
+    await expect(fieldCard).toHaveAttribute('aria-pressed', 'true');
+    await assertDisjointAnatomy(fieldCard);
+    await assertDisjointAnatomy(page.locator('.tactical-player-card--focus'));
+
+    await page.evaluate(() => {
+      document.body.style.zoom = '2';
+    });
+    await waitForStableFrame(page);
+    await assertDisjointAnatomy(fieldCard);
+    await assertDisjointAnatomy(benchCard);
+    const zoomBox = await fieldCard.boundingBox();
+    expect(zoomBox?.width).toBeGreaterThan(0);
+    expect(zoomBox?.height).toBeGreaterThan(0);
+    await page.evaluate(() => {
+      document.body.style.zoom = '';
+    });
+  }
+});
+
 test('keeps field and bench in one drag session and persists a custom formation', async ({
   page,
 }, testInfo) => {
@@ -1812,7 +2099,7 @@ test('keeps field and bench in one drag session and persists a custom formation'
   });
   await pointerDragTo(
     page,
-    goalkeeper.locator('.pitch-player-card__copy strong'),
+    goalkeeper.locator('.tactical-player-card__identity strong'),
     pitch,
     goalkeeperFreePosition,
   );
@@ -1933,18 +2220,20 @@ test('records the tactical drag hot path', async ({ page }, testInfo) => {
   await page.getByRole('button', { name: 'Táticas' }).click();
   const source = page.getByRole('button', { name: /Luan Seixas/u });
   const pitch = page.getByLabel('Escalação no 4-3-3');
-  await expect(source.locator('.pitch-player-card__rating')).toContainText('OVR77');
+  await expect(source.locator('.tactical-player-card__metric')).toContainText('OVR77');
   const reserve = page.getByRole('button', { name: 'Selecionar reserva Ícaro Reis' });
-  await expect(reserve.locator(':scope > b')).toHaveText('68');
+  const reserveMetric = reserve.locator('.tactical-player-card__metric b');
+  await expect(reserveMetric).toHaveText('68');
   expect(
     await reserve
-      .locator('small')
-      .evaluate((element) => element.scrollWidth <= element.clientWidth),
+      .locator('.tactical-player-card__identity strong')
+      .evaluate(
+        (element) =>
+          element.scrollWidth <= element.clientWidth || Boolean(element.getAttribute('title')),
+      ),
   ).toBe(true);
   expect(
-    await reserve
-      .locator(':scope > b')
-      .evaluate((element) => getComputedStyle(element).fontVariantNumeric),
+    await reserveMetric.evaluate((element) => getComputedStyle(element).fontVariantNumeric),
   ).toContain('tabular-nums');
   const sourceBox = await source.boundingBox();
   const pitchBox = await pitch.boundingBox();
@@ -1992,12 +2281,30 @@ test('records the tactical drag hot path', async ({ page }, testInfo) => {
   }
 
   await expect(page.locator('.tactical-drag-overlay')).toBeVisible();
-  const overlayBox = await page.locator('.tactical-drag-overlay').boundingBox();
+  const overlay = page.locator('.tactical-drag-overlay');
+  const overlayBox = await overlay.boundingBox();
   if (!overlayBox) throw new Error('Expected visible overlay geometry.');
   expect(overlayBox.width).toBeCloseTo(sourceBox.width, 1);
   expect(overlayBox.height).toBeCloseTo(sourceBox.height, 1);
   expect(overlayBox.x).toBeCloseTo(lastX - sourceBox.width * 0.2, 1);
   expect(overlayBox.y).toBeCloseTo(lastY - sourceBox.height * 0.35, 1);
+  expect(
+    await overlay.evaluate((element) => {
+      const portrait = element
+        .querySelector<HTMLElement>('[data-card-region="portrait"]')
+        ?.getBoundingClientRect();
+      const metric = element
+        .querySelector<HTMLElement>('[data-card-region="primary-metric"]')
+        ?.getBoundingClientRect();
+      if (!portrait || !metric) throw new Error('Overlay did not clone the shared card anatomy.');
+      return !(
+        portrait.left < metric.right &&
+        portrait.right > metric.left &&
+        portrait.top < metric.bottom &&
+        portrait.bottom > metric.top
+      );
+    }),
+  ).toBe(true);
   await expect(page.getByRole('tooltip')).toHaveCount(0);
   const result = await page.evaluate(() => {
     const stop = (
@@ -2574,6 +2881,35 @@ test('keeps slider, recommendation and instruction changes in the proposal until
   ).toBe(0);
 });
 
+test('saving protected column changes asks for a name and clears the navigation guard', async ({
+  page,
+}) => {
+  await page.goto(developmentUrl);
+
+  await page.getByRole('button', { name: 'Configurar tabela' }).click();
+  const customizer = page.getByRole('dialog', { name: 'Configurar tabela' });
+  await customizer.getByRole('searchbox', { name: 'Buscar colunas' }).fill('Idade');
+  await customizer.getByRole('button', { name: 'Ocultar Idade' }).click();
+  await customizer.getByRole('button', { name: 'Salvar como nova visualização' }).click();
+
+  const nameDialog = page.getByRole('dialog', { name: 'Salvar nova visualização' });
+  await expect(nameDialog).toContainText('não será alterada');
+  await nameDialog.getByRole('textbox', { name: 'Nome da visualização' }).fill('Elenco sem idade');
+  await nameDialog.getByRole('button', { name: 'Salvar e ativar' }).click();
+
+  await expect(
+    page.getByRole('button', { name: 'Visualização da tabela: Elenco sem idade' }),
+  ).toBeVisible();
+  await expect(page.locator('th[data-column-id="age"]')).toBeHidden();
+  await expect(
+    page.locator('.rv-table-view-status').getByText('Alterações não salvas'),
+  ).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Táticas', exact: true }).click();
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Plano de jogo' })).toBeVisible();
+});
+
 test('durable lifecycle persists an ordinary Mostrar somente gols view across restart', async ({
   page,
 }) => {
@@ -2585,7 +2921,7 @@ test('durable lifecycle persists an ordinary Mostrar somente gols view across re
   await customizer.getByRole('searchbox', { name: 'Buscar colunas' }).fill('Idade');
   await customizer.getByRole('button', { name: 'Ocultar Idade' }).click();
   await setTableViewBridgeControl(page, { failNextSave: true });
-  await customizer.getByRole('button', { name: 'Salvar visualização' }).click();
+  await customizer.getByRole('button', { name: 'Salvar alterações' }).click();
   await expect(
     page.getByRole('heading', { name: 'Não foi possível salvar a visualização' }),
   ).toBeFocused();
@@ -3127,7 +3463,7 @@ test('computed WCAG contrast matrix covers operational and truthful table-view s
     customizer.getByRole('button', { name: 'Descartar ajustes' }),
   );
   const disabledCustomizerSave = customizer.getByRole('button', {
-    name: 'Salvar visualização',
+    name: 'Salvar como nova visualização',
   });
   await expect(disabledCustomizerSave).toBeDisabled();
   await sample('disabled.customizer.save-action-boundary', disabledCustomizerSave);
@@ -3148,7 +3484,7 @@ test('computed WCAG contrast matrix covers operational and truthful table-view s
   await sample('dirty.customizer-state.text', customizer.getByText('Alterações não salvas'));
   await sample(
     'dirty.customizer.save-action-boundary',
-    customizer.getByRole('button', { name: 'Salvar visualização' }),
+    customizer.getByRole('button', { name: 'Salvar como nova visualização' }),
   );
   await customizer.getByRole('button', { name: 'Descartar ajustes' }).click();
 
@@ -3229,6 +3565,24 @@ test('computed WCAG contrast matrix covers operational and truthful table-view s
         ? page.getByRole('status', { name: productState.heading })
         : page.getByRole('heading', { name: productState.heading });
     await sample(productState.id, stateLocator);
+
+    if (productState.mode === 'unavailable') {
+      await waitForStableFrame(page);
+      const header = page.locator('.rv-data-table-workspace-header');
+      const feedback = page.locator('.rv-data-table-workspace-header__feedback');
+      const table = page.getByRole('table', { name: 'Elenco principal' });
+      const [headerBox, feedbackBox, tableBox] = await Promise.all([
+        header.boundingBox(),
+        feedback.boundingBox(),
+        table.boundingBox(),
+      ]);
+      if (!headerBox || !feedbackBox || !tableBox) {
+        throw new Error('Repository fallback geometry must remain measurable.');
+      }
+      expect(feedbackBox.width).toBeGreaterThan(headerBox.width * 0.85);
+      expect(headerBox.height).toBeLessThanOrEqual(148);
+      expect(tableBox.y).toBeGreaterThanOrEqual(headerBox.y + headerBox.height - 1);
+    }
   }
 
   await setTableViewBridgeControl(page, { nextLoad: 'loaded' });
@@ -3239,7 +3593,7 @@ test('computed WCAG contrast matrix covers operational and truthful table-view s
   await failureCustomizer.getByRole('searchbox', { name: 'Buscar colunas' }).fill('Idade');
   await failureCustomizer.getByRole('button', { name: 'Ocultar Idade' }).click();
   await setTableViewBridgeControl(page, { failNextSave: true });
-  await failureCustomizer.getByRole('button', { name: 'Salvar visualização' }).click();
+  await failureCustomizer.getByRole('button', { name: 'Salvar alterações' }).click();
   await sample(
     'save-failure.dialog-heading.text',
     page.getByRole('heading', { name: 'Não foi possível salvar a visualização' }),
@@ -3344,7 +3698,7 @@ test('200% zoom reflow proves long Portuguese controls have no clipping or overl
     },
     {
       label: 'save action',
-      locator: customizer.getByRole('button', { name: 'Salvar visualização' }),
+      locator: customizer.getByRole('button', { name: 'Salvar alterações' }),
     },
   ] as const;
   for (const target of clippingTargets) {
@@ -3399,7 +3753,7 @@ test('200% zoom reflow proves long Portuguese controls have no clipping or overl
     const heading = rect(required('.rv-overlay__header h3'));
     const close = rect(required('.rv-overlay__header button'));
     const discard = rect(buttonByName('Descartar ajustes'));
-    const save = rect(buttonByName('Salvar visualização'));
+    const save = rect(buttonByName('Salvar alterações'));
     return {
       actionsContained: containedHorizontally(outer, discard) && containedHorizontally(outer, save),
       actionsOverlap: overlaps(discard, save),
@@ -3435,7 +3789,7 @@ test('200% zoom reflow proves long Portuguese controls have no clipping or overl
     return { localOverflow: maximum > 0, reachedEnd };
   });
   expect(tableOverflow).toEqual({ localOverflow: true, reachedEnd: true });
-  await expect(customizer.getByRole('button', { name: 'Salvar visualização' })).toBeVisible();
+  await expect(customizer.getByRole('button', { name: 'Salvar alterações' })).toBeVisible();
   await expect(customizer.getByRole('button', { name: 'Descartar ajustes' })).toBeVisible();
 });
 

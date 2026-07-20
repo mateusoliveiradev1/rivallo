@@ -1459,6 +1459,22 @@ fn player_profile(
 }
 
 #[tauri::command]
+fn preview_player_profile(
+    player_id: String,
+    variation_id: Option<String>,
+    gameplay: State<'_, Arc<MatchdayCoordinator>>,
+    profiles: State<'_, Arc<ProfileCoordinator>>,
+) -> Result<PlayerProfileProjection, String> {
+    let matchday = gameplay.state()?;
+    profiles.preview_player_profile(
+        &matchday,
+        &player_id,
+        &matchday.club.id,
+        variation_id.as_deref(),
+    )
+}
+
+#[tauri::command]
 fn coach_profile(
     coach_id: String,
     gameplay: State<'_, Arc<MatchdayCoordinator>>,
@@ -1554,6 +1570,7 @@ fn main() {
             update_tactical_library,
             play_next_match,
             player_profile,
+            preview_player_profile,
             coach_profile,
             club_profile,
             nation_profile,

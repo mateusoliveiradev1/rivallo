@@ -21,7 +21,12 @@ impl<R: ProfileRepository> ProfileService<R> {
     fn world(&self, matchday: &MatchdayState, now: u64) -> Result<ProfileWorld, String> {
         match self.repository.load()? {
             Some(world) => {
+                let mut world = world.migrate()?;
+                let changed = world.reconcile_matchday(matchday);
                 world.validate()?;
+                if changed {
+                    self.repository.save(&world)?;
+                }
                 Ok(world)
             }
             None => {
@@ -31,6 +36,17 @@ impl<R: ProfileRepository> ProfileService<R> {
                 Ok(world)
             }
         }
+    }
+
+    fn read_only_world(&self, matchday: &MatchdayState, now: u64) -> Result<ProfileWorld, String> {
+        let mut world = self
+            .repository
+            .load()?
+            .unwrap_or_else(|| ProfileWorld::seed(matchday, now));
+        world = world.migrate()?;
+        world.reconcile_matchday(matchday);
+        world.validate()?;
+        Ok(world)
     }
 
     pub fn player_profile(
@@ -55,6 +71,25 @@ impl<R: ProfileRepository> ProfileService<R> {
             self.repository.save(&world)?;
         }
         Ok(projection)
+    }
+
+    pub fn preview_player_profile(
+        &self,
+        matchday: &MatchdayState,
+        player_id: &str,
+        observer_club_id: &str,
+        variation_id: Option<&str>,
+        now: u64,
+    ) -> Result<PlayerProfileProjection, String> {
+        let mut world = self.read_only_world(matchday, now)?;
+        project_player_profile(
+            &mut world,
+            matchday,
+            player_id,
+            observer_club_id,
+            variation_id,
+            now,
+        )
     }
 
     pub fn coach_profile(
@@ -179,5 +214,24 @@ mod tests {
                 .expect_err("missing coach"),
             "Treinador não encontrado."
         );
+    }
+
+    #[test]
+    fn previews_player_ratings_without_initializing_or_saving_profile_history() {
+        let matchday = MatchdayState::default();
+        let service = ProfileService::new(MemoryProfileRepository::default());
+
+        let preview = service
+            .preview_player_profile(
+                &matchday,
+                "rv-01",
+                &matchday.club.id,
+                None,
+                1_784_102_400_000,
+            )
+            .expect("read-only profile preview");
+
+        assert_eq!(preview.identity.entity_id, "rv-01");
+        assert!(service.repository.world.borrow().is_none());
     }
 }

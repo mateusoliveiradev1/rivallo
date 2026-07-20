@@ -2,9 +2,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Club, MatchdayState, Player, Position, TacticalModelSnapshot};
 
-pub const PROFILE_WORLD_SCHEMA_VERSION: u16 = 1;
-pub const PROFILE_PROJECTION_SCHEMA_VERSION: u16 = 1;
-pub const RATING_SCALE_VERSION: &str = "rivallo.rating.0-100.v1";
+pub const PROFILE_WORLD_SCHEMA_VERSION: u16 = 2;
+pub const PROFILE_PROJECTION_SCHEMA_VERSION: u16 = 2;
+pub const RATING_SCALE_VERSION: &str = "rivallo.rating.0-100.v2";
 pub const ASSESSMENT_VERSION: u16 = 1;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -107,57 +107,330 @@ pub struct ScoutingAssessment {
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum PlayerAttributeCategory {
-    Technical,
-    Physical,
-    Mental,
-    Attacking,
-    Defensive,
-    Goalkeeping,
+    Outfield,
+    Goalkeeper,
 }
 
 impl PlayerAttributeCategory {
-    const ALL: [Self; 6] = [
-        Self::Technical,
-        Self::Physical,
-        Self::Mental,
-        Self::Attacking,
-        Self::Defensive,
-        Self::Goalkeeping,
-    ];
-
     const fn label(self) -> &'static str {
         match self {
-            Self::Technical => "Técnicos",
-            Self::Physical => "Físicos",
-            Self::Mental => "Mentais",
-            Self::Attacking => "Ofensivos",
-            Self::Defensive => "Defensivos",
-            Self::Goalkeeping => "Goleiro",
+            Self::Outfield => "Atributos de jogador de linha",
+            Self::Goalkeeper => "Atributos de goleiro",
         }
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+enum PlayerAttributeId {
+    Finishing,
+    Technique,
+    Passing,
+    Tackling,
+    Physical,
+    Pace,
+    Reaction,
+    Positioning,
+    Handling,
+    Mobility,
+    RushingOut,
+    Distribution,
+}
+
+impl PlayerAttributeId {
+    const fn id(self) -> &'static str {
+        match self {
+            Self::Finishing => "finishing",
+            Self::Technique => "technique",
+            Self::Passing => "passing",
+            Self::Tackling => "tackling",
+            Self::Physical => "physical",
+            Self::Pace => "pace",
+            Self::Reaction => "reaction",
+            Self::Positioning => "positioning",
+            Self::Handling => "handling",
+            Self::Mobility => "mobility",
+            Self::RushingOut => "rushingOut",
+            Self::Distribution => "distribution",
+        }
+    }
+
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Finishing => "Finalização",
+            Self::Technique => "Técnica",
+            Self::Passing => "Passe",
+            Self::Tackling => "Desarme",
+            Self::Physical => "Físico",
+            Self::Pace => "Velocidade",
+            Self::Reaction => "Reação",
+            Self::Positioning => "Posicionamento",
+            Self::Handling => "Manejo",
+            Self::Mobility => "Mobilidade",
+            Self::RushingOut => "Saídas",
+            Self::Distribution => "Distribuição",
+        }
+    }
+
+    const fn description(self) -> &'static str {
+        match self {
+            Self::Finishing => {
+                "Capacidade de converter oportunidades em gol com precisão e controle."
+            }
+            Self::Technique => "Qualidade no domínio, condução e execução de ações com a bola.",
+            Self::Passing => {
+                "Qualidade e precisão ao executar passes curtos, longos e sob pressão."
+            }
+            Self::Tackling => {
+                "Capacidade de recuperar a bola em disputas e desarmes sem perder o controle."
+            }
+            Self::Physical => {
+                "Força, resistência e capacidade de sustentar disputas durante a partida."
+            }
+            Self::Pace => {
+                "Capacidade de acelerar, alcançar velocidade e responder em deslocamentos."
+            }
+            Self::Reaction => {
+                "Capacidade de responder rapidamente a chutes, desvios, rebotes e situações inesperadas."
+            }
+            Self::Positioning => {
+                "Capacidade de se colocar no lugar certo para fechar ângulos e antecipar jogadas."
+            }
+            Self::Handling => {
+                "Capacidade de controlar a bola com segurança ao encaixar, segurar ou espalmar."
+            }
+            Self::Mobility => {
+                "Capacidade de se mover na área, saltar, cair, levantar e alcançar bolas difíceis."
+            }
+            Self::RushingOut => {
+                "Capacidade de sair do gol no momento certo em cruzamentos, lançamentos e duelos."
+            }
+            Self::Distribution => {
+                "Capacidade de repor a bola com qualidade usando os pés ou as mãos."
+            }
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(tag = "model", rename_all = "camelCase")]
+pub enum PlayerAttributeSet {
+    Outfield {
+        finishing: u8,
+        technique: u8,
+        passing: u8,
+        tackling: u8,
+        physical: u8,
+        pace: u8,
+    },
+    Goalkeeper {
+        reaction: u8,
+        positioning: u8,
+        handling: u8,
+        mobility: u8,
+        #[serde(rename = "rushingOut")]
+        rushing_out: u8,
+        distribution: u8,
+    },
+    Legacy {
+        technical: u8,
+        physical: u8,
+        mental: u8,
+        attacking: u8,
+        defensive: u8,
+        goalkeeping: u8,
+    },
+}
+
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PlayerAttributeSet {
-    pub technical: u8,
-    pub physical: u8,
-    pub mental: u8,
-    pub attacking: u8,
-    pub defensive: u8,
-    pub goalkeeping: u8,
+struct PlayerAttributeSetWire {
+    model: Option<String>,
+    finishing: Option<u8>,
+    technique: Option<u8>,
+    passing: Option<u8>,
+    tackling: Option<u8>,
+    physical: Option<u8>,
+    pace: Option<u8>,
+    reaction: Option<u8>,
+    positioning: Option<u8>,
+    handling: Option<u8>,
+    mobility: Option<u8>,
+    rushing_out: Option<u8>,
+    distribution: Option<u8>,
+    technical: Option<u8>,
+    mental: Option<u8>,
+    attacking: Option<u8>,
+    defensive: Option<u8>,
+    goalkeeping: Option<u8>,
+}
+
+impl<'de> Deserialize<'de> for PlayerAttributeSet {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::Error;
+        let wire = PlayerAttributeSetWire::deserialize(deserializer)?;
+        let required = |value: Option<u8>, field: &'static str| {
+            value.ok_or_else(|| D::Error::missing_field(field))
+        };
+        match wire.model.as_deref() {
+            Some("outfield") => Ok(Self::Outfield {
+                finishing: required(wire.finishing, "finishing")?,
+                technique: required(wire.technique, "technique")?,
+                passing: required(wire.passing, "passing")?,
+                tackling: required(wire.tackling, "tackling")?,
+                physical: required(wire.physical, "physical")?,
+                pace: required(wire.pace, "pace")?,
+            }),
+            Some("goalkeeper") => Ok(Self::Goalkeeper {
+                reaction: required(wire.reaction, "reaction")?,
+                positioning: required(wire.positioning, "positioning")?,
+                handling: required(wire.handling, "handling")?,
+                mobility: required(wire.mobility, "mobility")?,
+                rushing_out: required(wire.rushing_out, "rushingOut")?,
+                distribution: required(wire.distribution, "distribution")?,
+            }),
+            Some(other) => Err(D::Error::custom(format!(
+                "modelo de atributos desconhecido: {other}"
+            ))),
+            None => Ok(Self::Legacy {
+                technical: required(wire.technical, "technical")?,
+                physical: required(wire.physical, "physical")?,
+                mental: required(wire.mental, "mental")?,
+                attacking: required(wire.attacking, "attacking")?,
+                defensive: required(wire.defensive, "defensive")?,
+                goalkeeping: required(wire.goalkeeping, "goalkeeping")?,
+            }),
+        }
+    }
 }
 
 impl PlayerAttributeSet {
-    fn value(&self, category: PlayerAttributeCategory) -> u8 {
-        match category {
-            PlayerAttributeCategory::Technical => self.technical,
-            PlayerAttributeCategory::Physical => self.physical,
-            PlayerAttributeCategory::Mental => self.mental,
-            PlayerAttributeCategory::Attacking => self.attacking,
-            PlayerAttributeCategory::Defensive => self.defensive,
-            PlayerAttributeCategory::Goalkeeping => self.goalkeeping,
+    fn category(&self) -> PlayerAttributeCategory {
+        match self {
+            Self::Goalkeeper { .. } => PlayerAttributeCategory::Goalkeeper,
+            Self::Outfield { .. } | Self::Legacy { .. } => PlayerAttributeCategory::Outfield,
         }
+    }
+
+    fn ids(&self) -> &'static [PlayerAttributeId; 6] {
+        const OUTFIELD: [PlayerAttributeId; 6] = [
+            PlayerAttributeId::Finishing,
+            PlayerAttributeId::Technique,
+            PlayerAttributeId::Passing,
+            PlayerAttributeId::Tackling,
+            PlayerAttributeId::Physical,
+            PlayerAttributeId::Pace,
+        ];
+        const GOALKEEPER: [PlayerAttributeId; 6] = [
+            PlayerAttributeId::Reaction,
+            PlayerAttributeId::Positioning,
+            PlayerAttributeId::Handling,
+            PlayerAttributeId::Mobility,
+            PlayerAttributeId::RushingOut,
+            PlayerAttributeId::Distribution,
+        ];
+        match self {
+            Self::Goalkeeper { .. } => &GOALKEEPER,
+            Self::Outfield { .. } | Self::Legacy { .. } => &OUTFIELD,
+        }
+    }
+
+    fn value(&self, attribute: PlayerAttributeId) -> Option<u8> {
+        match (self, attribute) {
+            (Self::Outfield { finishing, .. }, PlayerAttributeId::Finishing) => Some(*finishing),
+            (Self::Outfield { technique, .. }, PlayerAttributeId::Technique) => Some(*technique),
+            (Self::Outfield { passing, .. }, PlayerAttributeId::Passing) => Some(*passing),
+            (Self::Outfield { tackling, .. }, PlayerAttributeId::Tackling) => Some(*tackling),
+            (Self::Outfield { physical, .. }, PlayerAttributeId::Physical) => Some(*physical),
+            (Self::Outfield { pace, .. }, PlayerAttributeId::Pace) => Some(*pace),
+            (Self::Goalkeeper { reaction, .. }, PlayerAttributeId::Reaction) => Some(*reaction),
+            (Self::Goalkeeper { positioning, .. }, PlayerAttributeId::Positioning) => {
+                Some(*positioning)
+            }
+            (Self::Goalkeeper { handling, .. }, PlayerAttributeId::Handling) => Some(*handling),
+            (Self::Goalkeeper { mobility, .. }, PlayerAttributeId::Mobility) => Some(*mobility),
+            (Self::Goalkeeper { rushing_out, .. }, PlayerAttributeId::RushingOut) => {
+                Some(*rushing_out)
+            }
+            (Self::Goalkeeper { distribution, .. }, PlayerAttributeId::Distribution) => {
+                Some(*distribution)
+            }
+            _ => None,
+        }
+    }
+
+    fn migrate(self, position: Position) -> Self {
+        let Self::Legacy {
+            technical,
+            physical,
+            mental,
+            attacking,
+            defensive,
+            goalkeeping,
+        } = self
+        else {
+            return self;
+        };
+        if position == Position::Gk {
+            Self::Goalkeeper {
+                reaction: weighted(&[(goalkeeping, 3), (mental, 1)]),
+                positioning: weighted(&[(goalkeeping, 2), (mental, 1), (defensive, 1)]),
+                handling: weighted(&[(goalkeeping, 3), (technical, 1)]),
+                mobility: weighted(&[(physical, 3), (goalkeeping, 1)]),
+                rushing_out: weighted(&[(goalkeeping, 2), (physical, 1), (mental, 1)]),
+                distribution: weighted(&[(technical, 3), (goalkeeping, 1)]),
+            }
+        } else {
+            Self::Outfield {
+                finishing: weighted(&[(attacking, 3), (technical, 1)]),
+                technique: technical,
+                passing: weighted(&[(technical, 3), (mental, 1)]),
+                tackling: defensive,
+                physical,
+                pace: weighted(&[(physical, 3), (attacking, 1)]),
+            }
+        }
+    }
+
+    fn physical_profile(&self) -> u8 {
+        match self {
+            Self::Outfield { physical, pace, .. } => weighted(&[(*physical, 70), (*pace, 30)]),
+            Self::Goalkeeper {
+                mobility,
+                rushing_out,
+                ..
+            } => weighted(&[(*mobility, 70), (*rushing_out, 30)]),
+            Self::Legacy { physical, .. } => *physical,
+        }
+    }
+
+    fn tactical_reading(&self) -> u8 {
+        match self {
+            Self::Outfield {
+                technique,
+                passing,
+                tackling,
+                ..
+            } => weighted(&[(*technique, 35), (*passing, 40), (*tackling, 25)]),
+            Self::Goalkeeper {
+                positioning,
+                handling,
+                distribution,
+                ..
+            } => weighted(&[(*positioning, 45), (*handling, 20), (*distribution, 35)]),
+            Self::Legacy {
+                technical,
+                mental,
+                defensive,
+                ..
+            } => weighted(&[(*technical, 30), (*mental, 50), (*defensive, 20)]),
+        }
+    }
+
+    fn is_legacy(&self) -> bool {
+        matches!(self, Self::Legacy { .. })
     }
 }
 
@@ -166,6 +439,7 @@ impl PlayerAttributeSet {
 pub struct AttributeProjection {
     pub attribute_id: String,
     pub label: String,
+    pub description: String,
     pub category: PlayerAttributeCategory,
     pub perceived: KnowledgeValue,
     pub confidence: u8,
@@ -595,25 +869,91 @@ fn weighted(parts: &[(u8, u8)]) -> u8 {
     ((total + weight / 2) / weight).min(100) as u8
 }
 
+fn normalize_attribute_values(
+    mut values: [u8; 6],
+    weights: &[(PlayerAttributeId, u8); 6],
+    target: u8,
+) -> [u8; 6] {
+    let score = |candidate: &[u8; 6]| {
+        weighted(
+            &candidate
+                .iter()
+                .zip(weights.iter())
+                .map(|(value, (_, weight))| (*value, *weight))
+                .collect::<Vec<_>>(),
+        )
+    };
+    let offset = i16::from(target) - i16::from(score(&values));
+    for value in &mut values {
+        *value = clamp_score(i16::from(*value) + offset);
+    }
+    for _ in 0..1_200 {
+        let current = score(&values);
+        if current == target {
+            break;
+        }
+        let increase = current < target;
+        let mut changed = false;
+        for (index, _) in weights.iter().enumerate() {
+            let value = &mut values[index];
+            if increase && *value < 100 {
+                *value += 1;
+                changed = true;
+            } else if !increase && *value > 0 {
+                *value -= 1;
+                changed = true;
+            }
+            if score(&values) == target {
+                return values;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    values
+}
+
 fn attribute_seed(player: &Player) -> PlayerAttributeSet {
     let base = i16::from(player.rating);
-    let (technical, physical, mental, attacking, defensive, goalkeeping) = match player.position {
-        Position::Gk => (base - 12, base + 2, base + 1, base - 24, base - 4, base + 4),
-        Position::Rb | Position::Lb => (base + 1, base + 4, base, base - 1, base + 2, base - 28),
-        Position::Cb => (base - 3, base + 3, base + 2, base - 8, base + 5, base - 26),
-        Position::Dm => (base + 1, base + 1, base + 4, base - 4, base + 4, base - 28),
-        Position::Cm => (base + 4, base, base + 3, base + 1, base - 1, base - 30),
-        Position::Am => (base + 5, base - 1, base + 2, base + 4, base - 8, base - 30),
-        Position::Rw | Position::Lw => (base + 4, base + 3, base, base + 5, base - 10, base - 30),
-        Position::St => (base + 2, base + 3, base + 1, base + 6, base - 11, base - 28),
-    };
-    PlayerAttributeSet {
-        technical: clamp_score(technical),
-        physical: clamp_score(physical),
-        mental: clamp_score(mental),
-        attacking: clamp_score(attacking),
-        defensive: clamp_score(defensive),
-        goalkeeping: clamp_score(goalkeeping),
+    if player.position == Position::Gk {
+        let values = normalize_attribute_values(
+            [base + 4, base + 3, base + 2, base, base - 1, base - 3].map(clamp_score),
+            &position_weights(Position::Gk),
+            player.rating,
+        );
+        PlayerAttributeSet::Goalkeeper {
+            reaction: values[0],
+            positioning: values[1],
+            handling: values[2],
+            mobility: values[3],
+            rushing_out: values[4],
+            distribution: values[5],
+        }
+    } else {
+        let offsets = match player.position {
+            Position::Rb | Position::Lb => [-7, 1, 2, 4, 3, 5],
+            Position::Cb => [-12, -2, 1, 6, 5, -1],
+            Position::Dm => [-8, 2, 5, 5, 3, -1],
+            Position::Cm => [-2, 5, 6, -1, 1, 1],
+            Position::Am => [4, 6, 5, -7, -2, 3],
+            Position::Rw | Position::Lw => [4, 6, 1, -9, -2, 7],
+            Position::St => [7, 3, -3, -12, 4, 4],
+            Position::Gk => unreachable!("goleiro tratado acima"),
+        };
+        let values = normalize_attribute_values(
+            offsets.map(|offset| clamp_score(base + offset)),
+            &position_weights(player.position),
+            player.rating,
+        );
+        PlayerAttributeSet::Outfield {
+            finishing: values[0],
+            technique: values[1],
+            passing: values[2],
+            tackling: values[3],
+            physical: values[4],
+            pace: values[5],
+        }
     }
 }
 
@@ -884,6 +1224,66 @@ fn coach(
 }
 
 impl ProfileWorld {
+    pub fn migrate(mut self) -> Result<Self, String> {
+        if self.schema_version == PROFILE_WORLD_SCHEMA_VERSION {
+            return Ok(self);
+        }
+        if self.schema_version != 1 {
+            return Err("A versão do catálogo de perfis é incompatível.".to_owned());
+        }
+        let positions: std::collections::HashMap<_, _> = self
+            .players
+            .iter()
+            .chain(self.external_players.iter().map(|player| &player.profile))
+            .map(|profile| (profile.identity.entity_id.clone(), profile.natural_position))
+            .collect();
+        for profile in &mut self.players {
+            profile.attributes = profile.attributes.clone().migrate(profile.natural_position);
+        }
+        for player in &mut self.external_players {
+            player.profile.attributes = player
+                .profile
+                .attributes
+                .clone()
+                .migrate(player.profile.natural_position);
+        }
+        for snapshot in &mut self.attribute_history {
+            let position = positions
+                .get(&snapshot.player_id)
+                .copied()
+                .unwrap_or(Position::Cm);
+            snapshot.attributes = snapshot.attributes.clone().migrate(position);
+        }
+        self.schema_version = PROFILE_WORLD_SCHEMA_VERSION;
+        Ok(self)
+    }
+
+    pub fn reconcile_matchday(&mut self, state: &MatchdayState) -> bool {
+        let mut changed = false;
+        for player in &state.players {
+            let Some(profile) = self
+                .players
+                .iter_mut()
+                .find(|profile| profile.identity.entity_id == player.id)
+            else {
+                continue;
+            };
+            let current = position_rating(&profile.attributes, profile.natural_position).0;
+            if profile.natural_position != player.position
+                || profile.attributes.is_legacy()
+                || current != player.rating
+            {
+                profile.natural_position = player.position;
+                profile.attributes = attribute_seed(player);
+                changed = true;
+            }
+        }
+        if changed {
+            self.revision = self.revision.saturating_add(1);
+        }
+        changed
+    }
+
     pub fn seed(state: &MatchdayState, now: u64) -> Self {
         let players: Vec<_> = state
             .players
@@ -1053,6 +1453,28 @@ impl ProfileWorld {
         }) {
             return Err("A avaliação de conhecimento é inválida.".to_owned());
         }
+        if self
+            .players
+            .iter()
+            .chain(self.external_players.iter().map(|player| &player.profile))
+            .any(|profile| {
+                profile.attributes.is_legacy()
+                    || profile
+                        .attributes
+                        .ids()
+                        .iter()
+                        .filter_map(|attribute| profile.attributes.value(*attribute))
+                        .any(|value| value > 100)
+            })
+            || self
+                .attribute_history
+                .iter()
+                .any(|snapshot| snapshot.attributes.is_legacy())
+        {
+            return Err(
+                "Os atributos do perfil precisam usar o modelo esportivo atual.".to_owned(),
+            );
+        }
         Ok(())
     }
 
@@ -1218,14 +1640,7 @@ fn canonical_nation_code(value: &str) -> Option<&'static str> {
 }
 
 fn profile_ability(profile: &PlayerSportingProfile) -> u8 {
-    weighted(&[
-        (profile.attributes.technical, 1),
-        (profile.attributes.physical, 1),
-        (profile.attributes.mental, 1),
-        (profile.attributes.attacking, 1),
-        (profile.attributes.defensive, 1),
-        (profile.attributes.goalkeeping, 1),
-    ])
+    position_rating(&profile.attributes, profile.natural_position).0
 }
 
 fn player_reference(
@@ -1484,72 +1899,72 @@ pub fn project_nation_profile(
     })
 }
 
-fn position_weights(position: Position) -> [(PlayerAttributeCategory, u8); 6] {
-    use PlayerAttributeCategory as Category;
+fn position_weights(position: Position) -> [(PlayerAttributeId, u8); 6] {
+    use PlayerAttributeId as Attribute;
     match position {
         Position::Gk => [
-            (Category::Goalkeeping, 65),
-            (Category::Mental, 15),
-            (Category::Physical, 10),
-            (Category::Technical, 5),
-            (Category::Defensive, 5),
-            (Category::Attacking, 0),
+            (Attribute::Reaction, 25),
+            (Attribute::Positioning, 20),
+            (Attribute::Handling, 20),
+            (Attribute::Mobility, 15),
+            (Attribute::RushingOut, 10),
+            (Attribute::Distribution, 10),
         ],
         Position::Rb | Position::Lb => [
-            (Category::Defensive, 30),
-            (Category::Physical, 25),
-            (Category::Technical, 20),
-            (Category::Mental, 15),
-            (Category::Attacking, 10),
-            (Category::Goalkeeping, 0),
+            (Attribute::Finishing, 5),
+            (Attribute::Technique, 15),
+            (Attribute::Passing, 15),
+            (Attribute::Tackling, 25),
+            (Attribute::Physical, 20),
+            (Attribute::Pace, 20),
         ],
         Position::Cb => [
-            (Category::Defensive, 45),
-            (Category::Mental, 25),
-            (Category::Physical, 20),
-            (Category::Technical, 10),
-            (Category::Attacking, 0),
-            (Category::Goalkeeping, 0),
+            (Attribute::Finishing, 0),
+            (Attribute::Technique, 10),
+            (Attribute::Passing, 15),
+            (Attribute::Tackling, 35),
+            (Attribute::Physical, 25),
+            (Attribute::Pace, 15),
         ],
         Position::Dm => [
-            (Category::Defensive, 30),
-            (Category::Mental, 25),
-            (Category::Technical, 25),
-            (Category::Physical, 15),
-            (Category::Attacking, 5),
-            (Category::Goalkeeping, 0),
+            (Attribute::Finishing, 5),
+            (Attribute::Technique, 15),
+            (Attribute::Passing, 25),
+            (Attribute::Tackling, 25),
+            (Attribute::Physical, 20),
+            (Attribute::Pace, 10),
         ],
         Position::Cm => [
-            (Category::Technical, 35),
-            (Category::Mental, 25),
-            (Category::Physical, 15),
-            (Category::Attacking, 15),
-            (Category::Defensive, 10),
-            (Category::Goalkeeping, 0),
+            (Attribute::Finishing, 10),
+            (Attribute::Technique, 25),
+            (Attribute::Passing, 30),
+            (Attribute::Tackling, 10),
+            (Attribute::Physical, 15),
+            (Attribute::Pace, 10),
         ],
         Position::Am => [
-            (Category::Technical, 35),
-            (Category::Attacking, 30),
-            (Category::Mental, 20),
-            (Category::Physical, 10),
-            (Category::Defensive, 5),
-            (Category::Goalkeeping, 0),
+            (Attribute::Finishing, 20),
+            (Attribute::Technique, 25),
+            (Attribute::Passing, 25),
+            (Attribute::Tackling, 5),
+            (Attribute::Physical, 10),
+            (Attribute::Pace, 15),
         ],
         Position::Rw | Position::Lw => [
-            (Category::Attacking, 35),
-            (Category::Technical, 30),
-            (Category::Physical, 20),
-            (Category::Mental, 10),
-            (Category::Defensive, 5),
-            (Category::Goalkeeping, 0),
+            (Attribute::Finishing, 20),
+            (Attribute::Technique, 25),
+            (Attribute::Passing, 15),
+            (Attribute::Tackling, 5),
+            (Attribute::Physical, 10),
+            (Attribute::Pace, 25),
         ],
         Position::St => [
-            (Category::Attacking, 45),
-            (Category::Technical, 25),
-            (Category::Physical, 15),
-            (Category::Mental, 15),
-            (Category::Defensive, 0),
-            (Category::Goalkeeping, 0),
+            (Attribute::Finishing, 35),
+            (Attribute::Technique, 20),
+            (Attribute::Passing, 10),
+            (Attribute::Tackling, 0),
+            (Attribute::Physical, 20),
+            (Attribute::Pace, 15),
         ],
     }
 }
@@ -1559,17 +1974,19 @@ fn position_rating(attributes: &PlayerAttributeSet, position: Position) -> (u8, 
     let value = weighted(
         &weights
             .iter()
-            .map(|(category, weight)| (attributes.value(*category), *weight))
+            .filter_map(|(attribute, weight)| {
+                attributes.value(*attribute).map(|value| (value, *weight))
+            })
             .collect::<Vec<_>>(),
     );
     let factors = weights
         .into_iter()
         .filter(|(_, weight)| *weight > 0)
-        .map(|(category, weight)| {
-            let factor_value = attributes.value(category);
+        .filter_map(|(attribute, weight)| {
+            let factor_value = attributes.value(attribute)?;
             RatingFactor {
-                factor_id: format!("attribute.{category:?}").to_lowercase(),
-                label: category.label().to_owned(),
+                factor_id: format!("attribute.{}", attribute.id()),
+                label: attribute.label().to_owned(),
                 value: factor_value,
                 weight,
                 contribution: i16::from(factor_value) * i16::from(weight) / 100,
@@ -1582,10 +1999,11 @@ fn position_rating(attributes: &PlayerAttributeSet, position: Position) -> (u8, 
                 },
                 explanation: format!(
                     "{} responde por {weight}% da avaliação desta posição.",
-                    category.label()
+                    attribute.label()
                 ),
                 source: "Atributos autoritativos do perfil".to_owned(),
             }
+            .into()
         })
         .collect();
     (value, factors)
@@ -1694,25 +2112,28 @@ fn attribute_groups(
     attributes: &PlayerAttributeSet,
     knowledge: &ScoutingAssessment,
 ) -> Vec<AttributeGroupProjection> {
-    PlayerAttributeCategory::ALL
-        .into_iter()
-        .map(|category| {
-            let value = attributes.value(category);
-            AttributeGroupProjection {
-                category,
-                label: category.label().to_owned(),
-                attributes: vec![AttributeProjection {
-                    attribute_id: format!("attribute.{category:?}").to_lowercase(),
-                    label: format!("Capacidade {}", category.label().to_lowercase()),
+    let category = attributes.category();
+    vec![AttributeGroupProjection {
+        category,
+        label: category.label().to_owned(),
+        attributes: attributes
+            .ids()
+            .iter()
+            .filter_map(|attribute| {
+                let value = attributes.value(*attribute)?;
+                Some(AttributeProjection {
+                    attribute_id: format!("attribute.{}", attribute.id()),
+                    label: attribute.label().to_owned(),
+                    description: attribute.description().to_owned(),
                     category,
                     perceived: perceived(value, knowledge, true),
                     confidence: knowledge.confidence,
                     source: knowledge.source.clone(),
                     updated_at: knowledge.updated_at,
-                }],
-            }
-        })
-        .collect()
+                })
+            })
+            .collect(),
+    }]
 }
 
 fn contextual_player_rating(
@@ -1757,17 +2178,15 @@ fn contextual_player_rating(
             .find(|candidate| candidate.player_id == profile.identity.entity_id)
             .map(|candidate| candidate.contextual)
     });
+    let physical_profile = profile.attributes.physical_profile();
+    let tactical_reading = profile.attributes.tactical_reading();
     let tactical_fit_value = model.map_or(65, |model| {
         let demand_match = 100_u8.abs_diff(model.resolved_strategy.physical_demand);
-        let physical_fit = 100_u8.saturating_sub(
-            profile
-                .attributes
-                .physical
-                .abs_diff(model.resolved_strategy.physical_demand),
-        );
+        let physical_fit = 100_u8
+            .saturating_sub(physical_profile.abs_diff(model.resolved_strategy.physical_demand));
         weighted(&[
             (physical_fit, 45),
-            (profile.attributes.mental, 35),
+            (tactical_reading, 35),
             (100 - demand_match / 2, 20),
         ])
     });
@@ -1775,9 +2194,9 @@ fn contextual_player_rating(
         RatingFactor {
             factor_id: "tactical.physicalDemand".to_owned(),
             label: "Exigência física".to_owned(),
-            value: profile.attributes.physical,
+            value: physical_profile,
             weight: 45,
-            contribution: i16::from(profile.attributes.physical) * 45 / 100,
+            contribution: i16::from(physical_profile) * 45 / 100,
             impact: RatingFactorImpact::Neutral,
             explanation:
                 "Compara o físico estrutural à exigência da variação, sem usar condição momentânea."
@@ -1787,9 +2206,9 @@ fn contextual_player_rating(
         RatingFactor {
             factor_id: "tactical.mental".to_owned(),
             label: "Leitura do plano".to_owned(),
-            value: profile.attributes.mental,
+            value: tactical_reading,
             weight: 35,
-            contribution: i16::from(profile.attributes.mental) * 35 / 100,
+            contribution: i16::from(tactical_reading) * 35 / 100,
             impact: RatingFactorImpact::Neutral,
             explanation:
                 "Representa capacidade mental para executar responsabilidades desta estrutura."
@@ -1958,6 +2377,10 @@ pub fn project_player_profile(
     ];
     let mut position_ratings: Vec<_> = positions
         .into_iter()
+        .filter(|position| match profile.attributes.category() {
+            PlayerAttributeCategory::Goalkeeper => *position == Position::Gk,
+            PlayerAttributeCategory::Outfield => *position != Position::Gk,
+        })
         .map(|position| {
             let (value, factors) = position_rating(&profile.attributes, position);
             let suitability = if position == profile.natural_position {
@@ -2103,13 +2526,15 @@ pub fn project_player_profile(
         .filter(|snapshot| snapshot.player_id == player_id)
         .cloned()
         .collect();
-    let mut ranked: Vec<_> = PlayerAttributeCategory::ALL
-        .into_iter()
-        .map(|category| {
-            (
-                category.label().to_owned(),
-                profile.attributes.value(category),
-            )
+    let mut ranked: Vec<_> = profile
+        .attributes
+        .ids()
+        .iter()
+        .filter_map(|attribute| {
+            profile
+                .attributes
+                .value(*attribute)
+                .map(|value| (attribute.label().to_owned(), value))
         })
         .collect();
     ranked.sort_by_key(|(_, value)| *value);
@@ -2449,6 +2874,54 @@ mod tests {
         }));
         assert_eq!(first.condition, Some(98));
         assert!(!first.potential.dynamic);
+    }
+
+    #[test]
+    fn natural_position_ovr_matches_the_matchday_canonical_rating() {
+        let state = MatchdayState::default();
+        let mut world = ProfileWorld::seed(&state, NOW);
+        for player in &state.players {
+            let profile =
+                project_player_profile(&mut world, &state, &player.id, &state.club.id, None, NOW)
+                    .expect("canonical player profile");
+            assert_eq!(
+                profile.current_ability.real_value,
+                Some(player.rating),
+                "OVR divergente para {}",
+                player.name
+            );
+            assert_eq!(profile.attribute_groups.len(), 1);
+            assert_eq!(profile.attribute_groups[0].attributes.len(), 6);
+            assert!(
+                profile.attribute_groups[0]
+                    .attributes
+                    .iter()
+                    .all(|attribute| !attribute.description.is_empty())
+            );
+        }
+    }
+
+    #[test]
+    fn legacy_attribute_world_migrates_without_leaving_generic_categories() {
+        let state = MatchdayState::default();
+        let mut world = ProfileWorld::seed(&state, NOW);
+        world.schema_version = 1;
+        world.players[0].attributes = PlayerAttributeSet::Legacy {
+            technical: 74,
+            physical: 72,
+            mental: 75,
+            attacking: 70,
+            defensive: 76,
+            goalkeeping: 30,
+        };
+        world.attribute_history[0].attributes = world.players[0].attributes.clone();
+
+        let migrated = world.migrate().expect("legacy migration");
+
+        assert_eq!(migrated.schema_version, PROFILE_WORLD_SCHEMA_VERSION);
+        assert!(!migrated.players[0].attributes.is_legacy());
+        assert!(!migrated.attribute_history[0].attributes.is_legacy());
+        migrated.validate().expect("valid migrated world");
     }
 
     #[test]

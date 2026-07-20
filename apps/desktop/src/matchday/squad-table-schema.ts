@@ -191,16 +191,16 @@ export const SQUAD_TABLE_SCHEMA: TableViewSchema = {
     }),
     column({
       columnId: 'rating',
-      label: 'CA',
+      label: 'OVR atual',
       required: false,
-      width: { default: 64, min: 56, max: 80 },
+      width: { default: 88, min: 80, max: 112 },
       filterOperators: numericFilterOperators,
     }),
     column({
       columnId: 'potentialRating',
-      label: 'PA',
+      label: 'Potencial estimado',
       required: false,
-      width: { default: 64, min: 56, max: 80 },
+      width: { default: 136, min: 128, max: 168 },
       filterOperators: numericFilterOperators,
     }),
     column({

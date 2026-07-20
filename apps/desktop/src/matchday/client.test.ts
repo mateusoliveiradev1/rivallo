@@ -13,6 +13,7 @@ import {
   loadMatchday,
   loadTableViews,
   playNextMatch,
+  previewPlayerProfile,
   previewTacticalPlan,
   saveMatchdayLineup,
   saveTacticalPlan,
@@ -193,6 +194,7 @@ describe('existing matchday client commands', () => {
     invoke.mockResolvedValue({});
 
     await loadPlayerProfile('player.7', 'tactical-variation.primary');
+    await previewPlayerProfile('player.7', 'tactical-variation.primary');
     await loadCoachProfile('coach.aurora.1');
     await loadClubProfile('aurora-fc');
     await loadNationProfile('bra');
@@ -200,6 +202,10 @@ describe('existing matchday client commands', () => {
 
     expect(invoke.mock.calls).toEqual([
       ['player_profile', { playerId: 'player.7', variationId: 'tactical-variation.primary' }],
+      [
+        'preview_player_profile',
+        { playerId: 'player.7', variationId: 'tactical-variation.primary' },
+      ],
       ['coach_profile', { coachId: 'coach.aurora.1' }],
       ['club_profile', { clubId: 'aurora-fc' }],
       ['nation_profile', { nationId: 'bra' }],

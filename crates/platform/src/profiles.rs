@@ -39,6 +39,7 @@ impl FileProfileRepository {
             .map_err(|error| format!("Não foi possível ler os perfis locais: {error}"))?;
         let world: ProfileWorld = serde_json::from_slice(&bytes)
             .map_err(|error| format!("Os perfis locais contêm dados inválidos: {error}"))?;
+        let world = world.migrate()?;
         world.validate()?;
         Ok(world)
     }
@@ -140,6 +141,22 @@ impl ProfileCoordinator {
         variation_id: Option<&str>,
     ) -> Result<PlayerProfileProjection, String> {
         self.service()?.player_profile(
+            matchday,
+            player_id,
+            observer_club_id,
+            variation_id,
+            now_ms(),
+        )
+    }
+
+    pub fn preview_player_profile(
+        &self,
+        matchday: &MatchdayState,
+        player_id: &str,
+        observer_club_id: &str,
+        variation_id: Option<&str>,
+    ) -> Result<PlayerProfileProjection, String> {
+        self.service()?.preview_player_profile(
             matchday,
             player_id,
             observer_club_id,

@@ -243,6 +243,7 @@ function WorkspaceHarness({
         squadFilter={durable.lineup as SquadFilter}
         state={matchdayState}
         statusFilter={durable.status as StatusFilter}
+        tableFeedback={null}
         tableHeader={<span>Visualização controlada</span>}
         tableViewStatus={<span>Visualização padrão</span>}
         tableViewBaseline={SQUAD_SYSTEM_VIEW}

@@ -605,6 +605,8 @@
 }
 
 .manager-main {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -766,7 +768,76 @@
 /* Squad */
 
 .squad-view {
-  grid-template-rows: 76px 44px 56px minmax(0, 1fr);
+  grid-template-rows: 76px 44px auto minmax(0, 1fr);
+}
+
+.squad-controls {
+  min-width: 0;
+  display: grid;
+  gap: var(--rv-space-2);
+  padding: var(--rv-space-2) 0;
+  border-bottom: var(--rv-stroke-border) solid var(--rv-color-border-subtle);
+}
+
+.squad-view-presets {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--rv-space-1);
+}
+
+.squad-view-presets > span {
+  margin-right: var(--rv-space-1);
+  color: var(--rv-color-text-muted);
+  font-size: var(--rv-type-12-size);
+}
+
+.squad-view-presets button,
+.squad-filter-chips button {
+  min-height: 28px;
+  padding: 0 var(--rv-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--rv-radius-control);
+  color: var(--rv-color-text-muted);
+  background: transparent;
+  font: inherit;
+  font-size: var(--rv-type-12-size);
+  cursor: pointer;
+}
+
+.squad-view-presets button:hover,
+.squad-view-presets button:focus-visible,
+.squad-filter-chips button:hover,
+.squad-filter-chips button:focus-visible {
+  color: var(--rv-color-text-strong);
+  background: var(--rv-color-surface-raised);
+}
+
+.squad-view-presets button:focus-visible,
+.squad-filter-chips button:focus-visible {
+  outline: var(--rv-stroke-focus) solid var(--rv-color-focus);
+  outline-offset: 1px;
+}
+
+.squad-view-presets button[data-active] {
+  border-color: color-mix(in oklch, var(--rv-color-action-primary) 48%, var(--rv-color-border));
+  color: var(--rv-color-text-strong);
+  background: color-mix(in oklch, var(--rv-color-action-primary) 10%, var(--rv-color-surface));
+}
+
+.squad-view-presets .squad-view-presets__future {
+  cursor: help;
+  opacity: 0.58;
+}
+
+.squad-view-presets > small {
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--rv-color-text-muted);
+  font-size: var(--rv-type-12-size);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .squad-toolbar {
@@ -775,7 +846,31 @@
   align-items: center;
   gap: var(--rv-space-2);
   overflow: visible;
-  border-bottom: var(--rv-stroke-border) solid var(--rv-color-border-subtle);
+  border-bottom: 0;
+}
+
+.squad-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--rv-space-1);
+}
+
+.squad-filter-chips > span {
+  color: var(--rv-color-text-muted);
+  font-size: var(--rv-type-12-size);
+}
+
+.squad-filter-chips button {
+  border-color: var(--rv-color-border-subtle);
+  color: var(--rv-color-text);
+  background: var(--rv-color-canvas);
+}
+
+.squad-filter-chips button::after {
+  margin-left: var(--rv-space-1);
+  content: '×';
+  color: var(--rv-color-text-muted);
 }
 
 .toolbar-field,
@@ -1133,7 +1228,8 @@
   border-top: var(--rv-stroke-border) solid var(--rv-color-border-subtle);
 }
 
-.saved-view-lifecycle-host > .rv-status,
+.saved-view-feedback,
+.saved-view-feedback > .rv-status,
 .saved-view-failure {
   min-width: 0;
 }
@@ -1146,23 +1242,48 @@
   gap: var(--rv-space-2);
 }
 
-.saved-view-lifecycle-host > .rv-status {
+.saved-view-feedback > .rv-status {
+  align-items: center;
   padding: var(--rv-space-2);
 }
 
-.saved-view-lifecycle-host > .rv-status .rv-status__message {
+.saved-view-feedback > .rv-status .rv-status__content {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  gap: var(--rv-space-1) var(--rv-space-3);
+}
+
+.saved-view-feedback > .rv-status .rv-status__label {
+  flex: 0 0 auto;
+}
+
+.saved-view-feedback > .rv-status .rv-status__message {
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--rv-space-2);
 }
 
-.saved-view-lifecycle-host > .rv-status p,
+.saved-view-feedback > .rv-status p,
 .saved-view-failure p,
 .saved-view-failure h3 {
   margin: 0;
   font-size: var(--rv-type-12-size);
   line-height: var(--rv-type-12-line-height);
+}
+
+.saved-view-feedback > .rv-status p {
+  min-width: 0;
+  flex: 1 1 20rem;
+  text-wrap: pretty;
+}
+
+.saved-view-feedback > .rv-status .rv-button {
+  flex: 0 0 auto;
 }
 
 .saved-view-failure {
@@ -2959,25 +3080,33 @@
   background: oklch(0.25 0.075 155 / 0.78);
 }
 
-.pitch-player-card {
+.pitch-player-card,
+.bench-player,
+.tactical-player-card {
   position: relative;
   width: 128px;
-  min-height: 72px;
+  height: 68px;
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
-  grid-template-rows: 1fr 4px;
+  grid-template-columns: 40px minmax(0, 1fr) 36px;
+  grid-template-rows: 20px 20px 14px;
   gap: 0 var(--rv-space-1);
   align-items: center;
-  padding: var(--rv-space-1);
+  padding: 7px var(--rv-space-1);
   overflow: hidden;
   border: var(--rv-stroke-border) solid oklch(0.54 0.04 180);
   border-radius: var(--rv-radius-control);
+  color: var(--rv-color-text);
+  background: oklch(0.16 0.025 190 / 0.94);
+  text-align: left;
+  contain: layout paint;
+  font-variant-numeric: tabular-nums;
+}
+
+.pitch-player-card,
+.bench-player {
   cursor: grab;
   touch-action: none;
   user-select: none;
-  color: var(--rv-color-text);
-  background: oklch(0.16 0.025 190 / 0.94);
-  box-shadow: 0 4px 8px oklch(0.08 0.01 190 / 0.42);
   transition:
     transform var(--rv-motion-feedback) var(--rv-motion-ease-out),
     border-color var(--rv-motion-control) var(--rv-motion-ease-out),
@@ -3013,120 +3142,154 @@
   border-color: var(--rv-color-info);
 }
 
-.pitch-player-card__face {
-  position: relative;
-  grid-row: 1;
-}
-
-.pitch-player-card__face .player-face {
+.tactical-player-card__portrait {
+  width: 40px;
+  height: 40px;
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  overflow: hidden;
   border-radius: var(--rv-radius-control);
 }
 
-.tactics-pitch[data-pitch-mode='roles'] .pitch-player-card > i {
-  visibility: hidden;
+.tactical-player-card__portrait .player-face {
+  width: 40px !important;
+  height: 40px !important;
+  display: block;
+  border-radius: var(--rv-radius-control);
 }
 
 .pitch-slot[data-condition-attention] .pitch-player-card {
   border-color: var(--rv-color-warning);
 }
 
-.pitch-slot[data-condition-attention] .pitch-player-card > i > b {
-  background: var(--rv-color-warning);
-}
-
-.pitch-player-card__face > b {
-  position: absolute;
-  right: -2px;
-  bottom: -2px;
-  min-width: 20px;
-  height: 20px;
-  display: grid;
-  place-items: center;
-  border: 2px solid oklch(0.16 0.025 190);
-  border-radius: 50%;
+.tactical-player-card__shirt {
+  min-width: 0;
+  height: 14px;
+  display: flex;
+  grid-column: 1;
+  grid-row: 3;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  overflow: hidden;
+  border-radius: 3px;
   color: var(--rv-color-text-strong);
   background: var(--rv-color-surface-raised);
-  font-size: var(--rv-type-12-size);
-  line-height: var(--rv-type-12-line-height);
-  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  font-weight: var(--rv-font-weight-semibold);
+  line-height: 12px;
 }
 
-.pitch-player-card__copy {
+.tactical-player-card__identity {
+  display: contents;
+}
+
+.tactical-player-card__identity strong,
+.tactical-player-card__identity small {
   min-width: 0;
-  display: grid;
-  gap: 2px;
-  grid-row: 1;
-}
-
-.pitch-player-card__rating {
-  position: absolute;
-  top: 2px;
-  left: 18px;
-  min-width: 26px;
-  display: grid;
-  place-items: center;
-  padding: 2px 3px;
-  border-radius: var(--rv-radius-1);
-  color: var(--rv-color-text-strong);
-  background: oklch(0.25 0.055 160 / 0.96);
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-
-.pitch-player-card__rating small {
-  color: var(--rv-color-text-muted);
-  font-size: 8px;
-  line-height: 9px;
-}
-
-.pitch-player-card__rating b {
-  font-size: var(--rv-type-12-size);
-  line-height: var(--rv-type-12-line-height);
-}
-
-.pitch-player-card__copy strong,
-.pitch-player-card__copy small {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.pitch-player-card__copy strong {
+.tactical-player-card__identity strong {
+  grid-column: 2 / 4;
+  grid-row: 1;
   color: var(--rv-color-text-strong);
   font-size: var(--rv-type-12-size);
   font-weight: var(--rv-font-weight-semibold);
   line-height: var(--rv-type-12-line-height);
 }
 
-.pitch-player-card__copy small {
-  color: var(--rv-color-text-muted);
-  font-size: var(--rv-type-12-size);
-  line-height: var(--rv-type-12-line-height);
-}
-
-.pitch-player-card > i {
-  height: 4px;
-  overflow: hidden;
-  grid-column: 1 / -1;
+.tactical-player-card__identity small {
+  grid-column: 2;
   grid-row: 2;
-  border-radius: 999px;
-  background: var(--rv-color-border-subtle);
+  color: var(--rv-color-text-muted);
+  font-size: 10px;
+  line-height: 12px;
 }
 
-.pitch-player-card > i > b {
-  width: var(--fit);
-  height: 100%;
-  display: block;
-  border-radius: inherit;
+.tactical-player-card__metric {
+  width: 36px;
+  height: 32px;
+  display: grid;
+  grid-column: 3;
+  grid-row: 2 / span 2;
+  place-content: center;
+  place-items: center;
+  align-self: end;
+  border-radius: var(--rv-radius-1);
+  color: var(--rv-color-text-strong);
+  background: color-mix(
+    in oklch,
+    var(--rv-color-action-primary) 14%,
+    var(--rv-color-surface-raised)
+  );
+  line-height: 1;
+}
+
+.tactical-player-card__metric[data-metric-kind='context'] {
+  background: color-mix(in oklch, var(--rv-color-info) 18%, var(--rv-color-surface-raised));
+}
+
+.tactical-player-card__metric[data-metric-kind='familiarity'] {
+  background: color-mix(in oklch, var(--rv-color-premium) 16%, var(--rv-color-surface-raised));
+}
+
+.tactical-player-card__metric[data-metric-kind='condition'] {
+  background: color-mix(in oklch, var(--rv-color-warning) 18%, var(--rv-color-surface-raised));
+}
+
+.tactical-player-card__metric small {
+  color: var(--rv-color-text-muted);
+  font-size: 8px;
+  line-height: 9px;
+}
+
+.tactical-player-card__metric b {
+  max-width: 34px;
+  overflow: hidden;
+  font-size: var(--rv-type-12-size);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--rv-type-14-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tactical-player-card__condition {
+  min-width: 0;
+  display: flex;
+  grid-column: 2;
+  grid-row: 3;
+  align-items: center;
+  gap: 3px;
+  overflow: hidden;
+}
+
+.tactical-player-card__condition > i {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
   background: var(--rv-color-action-primary);
 }
 
-.pitch-slot[data-fit='familiar'] .pitch-player-card > i > b {
-  background: var(--rv-color-info);
+.tactical-player-card__condition[data-condition-level='attention'] > i {
+  background: var(--rv-color-warning);
 }
 
-.pitch-slot[data-fit='adapting'] .pitch-player-card > i > b {
-  background: var(--rv-color-warning);
+.tactical-player-card__condition[data-condition-level='limited'] > i {
+  background: var(--rv-color-danger);
+}
+
+.tactical-player-card__condition small {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--rv-color-text-muted);
+  font-size: 9px;
+  line-height: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pitch-empty-slot {
@@ -3216,24 +3379,8 @@
 
 .bench-player {
   width: 100%;
-  height: 68px;
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--rv-space-2);
-  padding: var(--rv-space-2);
   border: var(--rv-stroke-border) solid var(--rv-color-border-subtle);
-  border-radius: var(--rv-radius-control);
-  cursor: grab;
-  touch-action: none;
-  user-select: none;
-  color: var(--rv-color-text);
   background: var(--rv-color-surface);
-  text-align: left;
-  transition:
-    transform var(--rv-motion-feedback) var(--rv-motion-ease-out),
-    border-color var(--rv-motion-control) var(--rv-motion-ease-out),
-    background-color var(--rv-motion-control) var(--rv-motion-ease-out);
 }
 
 .bench-player:active {
@@ -3308,40 +3455,6 @@
 .bench-player[aria-pressed='true'] {
   border-color: var(--rv-color-action-primary);
   background: var(--rv-color-surface-raised);
-}
-
-.bench-player > span {
-  min-width: 0;
-  display: grid;
-}
-
-.bench-player strong,
-.bench-player small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.bench-player strong {
-  color: var(--rv-color-text-strong);
-  font-size: var(--rv-type-12-size);
-  font-weight: var(--rv-font-weight-semibold);
-  line-height: var(--rv-type-12-line-height);
-}
-
-.bench-player small {
-  color: var(--rv-color-text-muted);
-  font-size: 10px;
-  line-height: 13px;
-}
-
-.bench-player > b {
-  min-width: 28px;
-  text-align: center;
-  color: var(--rv-color-premium);
-  font-size: var(--rv-type-14-size);
-  line-height: var(--rv-type-14-line-height);
-  font-variant-numeric: tabular-nums;
 }
 
 /* Tactics inspector */
@@ -3487,7 +3600,7 @@
 .tactics-focus-player {
   min-width: 0;
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) auto;
+  grid-template-columns: 128px minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--rv-space-3);
   padding: var(--rv-space-3);
@@ -3495,19 +3608,25 @@
   background: oklch(0.18 0.018 190);
 }
 
+.tactical-player-card--focus {
+  width: 128px;
+  border-color: var(--rv-color-border-subtle);
+  background: var(--rv-color-surface);
+}
+
 .tactics-focus-player__profile {
   white-space: nowrap;
 }
 
-.tactics-focus-player > span {
+.tactics-focus-player__detail {
   min-width: 0;
   display: grid;
   gap: 2px;
 }
 
-.tactics-focus-player small,
-.tactics-focus-player strong,
-.tactics-focus-player b {
+.tactics-focus-player__detail small,
+.tactics-focus-player__detail strong,
+.tactics-focus-player__detail b {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3515,13 +3634,13 @@
   line-height: var(--rv-type-12-line-height);
 }
 
-.tactics-focus-player small,
-.tactics-focus-player b {
+.tactics-focus-player__detail small,
+.tactics-focus-player__detail b {
   color: var(--rv-color-text-muted);
   font-weight: var(--rv-font-weight-regular);
 }
 
-.tactics-focus-player strong {
+.tactics-focus-player__detail strong {
   color: var(--rv-color-text-strong);
 }
 
@@ -4683,6 +4802,12 @@
   gap: 2px;
 }
 
+.opposition-overview > .rv-button {
+  grid-column: 1 / -1;
+  width: 100%;
+  justify-content: center;
+}
+
 .opposition-overview small,
 .opposition-overview p {
   margin: 0;
@@ -5618,12 +5743,13 @@
   }
 
   .pitch-player-card {
-    grid-template-columns: 40px minmax(0, 1fr);
+    grid-template-columns: 36px minmax(0, 1fr) 34px;
   }
 
-  .pitch-player-card__face .player-face {
-    width: 40px !important;
-    height: 40px !important;
+  .pitch-player-card .tactical-player-card__portrait,
+  .pitch-player-card .tactical-player-card__portrait .player-face {
+    width: 36px !important;
+    height: 36px !important;
   }
 }
 
@@ -5639,6 +5765,18 @@
 
   .toolbar-field {
     min-width: 112px;
+  }
+
+  .squad-view-presets > small {
+    display: none;
+  }
+
+  .squad-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .squad-toolbar__spacer {
+    display: none;
   }
 
   .squad-panel__header {
@@ -5697,12 +5835,17 @@
   }
 
   .pitch-player-card {
-    grid-template-columns: 36px minmax(0, 1fr);
+    grid-template-columns: 34px minmax(0, 1fr) 32px;
   }
 
-  .pitch-player-card__face .player-face {
-    width: 36px !important;
-    height: 36px !important;
+  .pitch-player-card .tactical-player-card__portrait,
+  .pitch-player-card .tactical-player-card__portrait .player-face {
+    width: 34px !important;
+    height: 34px !important;
+  }
+
+  .pitch-player-card .tactical-player-card__metric {
+    width: 32px;
   }
 }
 
@@ -5807,7 +5950,7 @@
   }
 
   .squad-view {
-    grid-template-rows: 64px 40px 52px minmax(0, 1fr);
+    grid-template-rows: 64px 40px auto minmax(0, 1fr);
   }
 
   .tactics-view {
@@ -5824,7 +5967,7 @@
   }
 
   .bench-player {
-    height: 58px;
+    height: 68px;
   }
 
   .pitch-stage {
@@ -5836,16 +5979,21 @@
   }
 
   .tactics-focus-player {
-    min-height: 44px;
-    grid-template-columns: minmax(0, 1fr);
+    min-height: 68px;
+    grid-template-columns: 112px minmax(0, 1fr);
     padding: var(--rv-space-2) var(--rv-space-3);
   }
 
   .tactics-focus-player__profile {
+    grid-column: 1 / -1;
     width: 100%;
   }
 
-  .tactics-focus-player > .player-face {
+  .tactical-player-card--focus {
+    width: 112px;
+  }
+
+  .tactics-focus-player__detail b {
     display: none;
   }
 
@@ -5871,41 +6019,42 @@
 @media (max-width: 1480px) and (max-height: 800px) {
   .pitch-slot,
   .pitch-player-card {
-    width: 92px;
+    width: 104px;
   }
 
   .pitch-slot {
-    --pitch-card-half-width: 46px;
+    --pitch-card-half-width: 52px;
     --pitch-card-half-height: 30px;
 
     min-height: 60px;
   }
 
   .pitch-player-card {
-    min-height: 56px;
-    grid-template-columns: 32px minmax(0, 1fr);
+    height: 58px;
+    grid-template-columns: 32px minmax(0, 1fr) 30px;
+    grid-template-rows: 16px 16px 12px;
+    padding-block: 7px;
   }
 
-  .pitch-player-card__face .player-face {
+  .pitch-player-card .tactical-player-card__portrait,
+  .pitch-player-card .tactical-player-card__portrait .player-face {
     width: 32px !important;
     height: 32px !important;
   }
 
-  .pitch-player-card__face > b {
-    min-width: 17px;
-    height: 17px;
+  .pitch-player-card .tactical-player-card__shirt {
+    height: 12px;
     font-size: 10px;
     line-height: 12px;
   }
 
-  .pitch-player-card__rating {
-    left: 12px;
-    min-width: 22px;
-    padding: 1px 2px;
+  .pitch-player-card .tactical-player-card__metric {
+    width: 30px;
+    height: 28px;
   }
 
-  .pitch-player-card__copy strong,
-  .pitch-player-card__copy small {
+  .pitch-player-card .tactical-player-card__identity strong,
+  .pitch-player-card .tactical-player-card__identity small {
     font-size: 10px;
     line-height: 12px;
   }

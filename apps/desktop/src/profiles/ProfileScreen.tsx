@@ -228,6 +228,12 @@ function ComparisonPanel({
   const [comparison, setComparison] = useState<PersonProfileProjection | null>(null);
   const [error, setError] = useState('');
   const operationRef = useRef(0);
+  const closeComparison = () => {
+    setOpen(false);
+    window.requestAnimationFrame(() =>
+      document.getElementById('profile-comparison-trigger')?.focus(),
+    );
+  };
 
   useEffect(() => {
     if (!open || query.trim().length < 2) {
@@ -273,22 +279,33 @@ function ComparisonPanel({
   };
 
   return (
-    <section className="comparison-panel" aria-label="Comparação de perfis">
+    <section
+      className="comparison-panel"
+      aria-label="Comparação de perfis"
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape' || !open) return;
+        event.preventDefault();
+        closeComparison();
+      }}
+    >
       <header>
         <div>
           <span>DECISÃO ASSISTIDA</span>
           <h2>Comparar perfis</h2>
         </div>
         <Button
+          aria-controls="profile-comparison-content"
+          aria-expanded={open}
+          id="profile-comparison-trigger"
           leadingIcon={open ? 'close' : 'analysis'}
-          onClick={() => setOpen((value) => !value)}
+          onClick={() => (open ? closeComparison() : setOpen(true))}
           variant="secondary"
         >
           {open ? 'Fechar' : 'Comparar'}
         </Button>
       </header>
       {open && (
-        <div className="comparison-panel__body">
+        <div className="comparison-panel__body" id="profile-comparison-content">
           <label>
             <span>Buscar {currentType === 'player' ? 'jogador' : 'treinador'}</span>
             <input
@@ -321,13 +338,54 @@ function ComparisonPanel({
                 <article key={profile.identity.entityId}>
                   <span>{profile.identity.clubName}</span>
                   <h3>{profile.identity.knownName}</h3>
-                  <RatingBadge rating={profileRating(profile)} />
-                  <ConfidenceIndicator confidence={profile.knowledge.confidence} />
+                  <RatingBadge
+                    displayLabel={
+                      'naturalPosition' in profile
+                        ? 'No plano atual'
+                        : `Avaliação como ${profile.role.toLocaleLowerCase('pt-BR')}`
+                    }
+                    rating={profileRating(profile)}
+                  />
+                  <ConfidenceIndicator
+                    confidence={profileRating(profile).confidence}
+                    label="Confiança do rating"
+                  />
                   <dl>
                     <div>
-                      <dt>Contexto</dt>
-                      <dd>{profileRating(profile).contextLabel}</dd>
+                      <dt>Referência da avaliação</dt>
+                      <dd>
+                        {'naturalPosition' in profile
+                          ? `Plano atual · ${profileRating(profile).contextLabel}`
+                          : `Cargo · ${profile.role}`}
+                      </dd>
                     </div>
+                    {'naturalPosition' in profile ? (
+                      <>
+                        <div>
+                          <dt>OVR atual</dt>
+                          <dd>
+                            <EstimatedRange value={profile.currentAbility.perceived} />
+                          </dd>
+                        </div>
+                        <div className="comparison-grid__potential">
+                          <dt>Potencial estimado</dt>
+                          <dd>
+                            <EstimatedRange
+                              qualifier="projeção futura"
+                              value={profile.potential.perceived}
+                            />
+                          </dd>
+                          <small>Confiança da projeção: {profile.potential.confidence}%</small>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="comparison-grid__reputation">
+                        <dt>Reputação percebida</dt>
+                        <dd>
+                          <EstimatedRange value={profile.reputation} />
+                        </dd>
+                      </div>
+                    )}
                     <div>
                       <dt>Qualidades</dt>
                       <dd>{profile.strengths.slice(0, 2).join(' · ')}</dd>
@@ -363,8 +421,8 @@ function PlayerOverview({ profile }: { readonly profile: PlayerProfileProjection
       <div className="profile-content-stack">
         <ProfileSection eyebrow="LEITURA CONTEXTUAL" title="Avaliação atual">
           <div className="rating-feature-grid">
-            <RatingBadge rating={profile.contextualRating} />
-            <RatingBadge rating={profile.currentAbility} />
+            <RatingBadge displayLabel="OVR atual" rating={profile.currentAbility} />
+            <RatingBadge displayLabel="No plano atual" rating={profile.contextualRating} />
             <RatingBadge rating={profile.tacticalFit} />
           </div>
           <RatingBreakdown rating={profile.contextualRating} />
@@ -405,13 +463,18 @@ function PlayerOverview({ profile }: { readonly profile: PlayerProfileProjection
                   : `${profile.tacticalFamiliarity}%`}
               </dd>
             </div>
-            <div>
-              <dt>Potencial percebido</dt>
-              <dd>
-                <EstimatedRange value={profile.potential.perceived} />
-              </dd>
-            </div>
           </dl>
+          <div className="potential-estimate" aria-label="Projeção de potencial">
+            <span>Potencial estimado</span>
+            <strong>
+              <EstimatedRange qualifier="faixa futura" value={profile.potential.perceived} />
+            </strong>
+            <ConfidenceIndicator
+              confidence={profile.potential.confidence}
+              label="Confiança da projeção"
+            />
+            <p>Projeção futura incerta; não altera o OVR atual.</p>
+          </div>
           <p className="profile-separation-note">
             Condição, forma e potencial não alteram a capacidade estrutural.
           </p>
@@ -570,9 +633,12 @@ function PlayerKnowledge({ profile }: { readonly profile: PlayerProfileProjectio
           </div>
         </dl>
       </ProfileSection>
-      <ProfileSection title="Potencial percebido">
-        <EstimatedRange value={profile.potential.perceived} />
-        <ConfidenceIndicator confidence={profile.potential.confidence} />
+      <ProfileSection title="Potencial estimado">
+        <EstimatedRange qualifier="projeção futura" value={profile.potential.perceived} />
+        <ConfidenceIndicator
+          confidence={profile.potential.confidence}
+          label="Confiança da projeção"
+        />
         <p>{profile.potential.explanation}</p>
         <small className="profile-source">
           Fonte: {profile.potential.source} · {formatDate(profile.potential.updatedAt)}
@@ -656,7 +722,11 @@ function CoachOverview({ profile }: { readonly profile: CoachProfileProjection }
           <RatingBreakdown rating={profile.contextualRating} />
           <div className="coach-rating-grid">
             {profile.categoryRatings.map((rating) => (
-              <RatingBadge key={rating.contextId} rating={rating} />
+              <RatingBadge
+                displayLabel={rating.contextLabel}
+                key={rating.contextId}
+                rating={rating}
+              />
             ))}
           </div>
         </ProfileSection>
@@ -810,7 +880,11 @@ function ClubPanel({
 }) {
   if (tab === 'squad') {
     return (
-      <ProfileSection title="Elenco conhecido">
+      <ProfileSection
+        title={
+          profile.knowledge.knowledgeLevel === 'ownClub' ? 'Plantel principal' : 'Elenco conhecido'
+        }
+      >
         <EntityReferenceList
           emptyBody="Nenhum vínculo de jogador está disponível no universo carregado."
           emptyTitle="Elenco ainda desconhecido"
@@ -892,7 +966,13 @@ function ClubPanel({
             ]}
           />
         </ProfileSection>
-        <ProfileSection title="Jogadores relevantes conhecidos">
+        <ProfileSection
+          title={
+            profile.knowledge.knowledgeLevel === 'ownClub'
+              ? 'Destaques do plantel principal'
+              : 'Jogadores relevantes conhecidos'
+          }
+        >
           <EntityReferenceList
             emptyBody="A observação atual não identificou jogadores vinculados."
             emptyTitle="Sem jogadores conhecidos"
@@ -904,12 +984,7 @@ function ClubPanel({
       <aside className="profile-side-stack">
         <ProfileSection title="Liderança esportiva">
           {profile.headCoach ? (
-            <EntityReferenceList
-              emptyBody=""
-              emptyTitle=""
-              onNavigate={onNavigate}
-              references={[profile.headCoach]}
-            />
+            <ClubLeadership onNavigate={onNavigate} reference={profile.headCoach} />
           ) : (
             <HonestEmptyState title="Treinador não confirmado">
               <p>Nenhum treinador principal está disponível nos dados atuais.</p>
@@ -923,6 +998,59 @@ function ClubPanel({
           </p>
         </ProfileSection>
       </aside>
+    </div>
+  );
+}
+
+function ClubLeadership({
+  reference,
+  onNavigate,
+}: {
+  readonly reference: NonNullable<ClubProfileProjection['headCoach']>;
+  readonly onNavigate: (route: ProfileRoute) => void;
+}) {
+  const [coach, setCoach] = useState<CoachProfileProjection | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void loadCoachProfile(reference.entityId)
+      .then((profile) => {
+        if (active) setCoach(profile);
+      })
+      .catch(() => {
+        if (active) setCoach(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [reference.entityId]);
+
+  return (
+    <div className="club-leadership">
+      <EntityReferenceList
+        emptyBody=""
+        emptyTitle=""
+        onNavigate={onNavigate}
+        references={[reference]}
+      />
+      {coach && (
+        <dl className="club-leadership__metrics">
+          <div>
+            <dt>Avaliação como treinador principal</dt>
+            <dd>{coach.contextualRating.perceived.label}</dd>
+          </div>
+          <div>
+            <dt>Reputação percebida</dt>
+            <dd>
+              <EstimatedRange value={coach.reputation} />
+            </dd>
+          </div>
+          <div>
+            <dt>Confiança do rating</dt>
+            <dd>{coach.contextualRating.confidence}%</dd>
+          </div>
+        </dl>
+      )}
     </div>
   );
 }
@@ -1018,6 +1146,7 @@ function ProfileHero({
   readonly onNavigate: (route: ProfileRoute) => void;
 }) {
   if (isClubProfile(profile)) {
+    const ownClub = profile.knowledge.knowledgeLevel === 'ownClub';
     return (
       <header
         className="profile-hero profile-hero--club"
@@ -1040,8 +1169,13 @@ function ProfileHero({
         </div>
         <div className="profile-hero__rating profile-hero__rating--context">
           <strong>{profile.players.length}</strong>
-          <span>jogadores conhecidos</span>
-          <ConfidenceIndicator confidence={profile.knowledge.confidence} />
+          <span>
+            {ownClub ? 'jogadores no elenco · plantel principal' : 'jogadores conhecidos'}
+          </span>
+          <ConfidenceIndicator
+            confidence={profile.knowledge.confidence}
+            label="Confiança cadastral"
+          />
         </div>
       </header>
     );
@@ -1111,8 +1245,20 @@ function ProfileHero({
         </div>
       </div>
       <div className="profile-hero__rating">
-        <RatingBadge rating={profile.contextualRating} />
-        <ConfidenceIndicator confidence={profile.knowledge.confidence} />
+        <RatingBadge
+          displayLabel={
+            player ? 'OVR atual' : `Avaliação como ${profile.role.toLocaleLowerCase('pt-BR')}`
+          }
+          rating={player ? profile.currentAbility : profile.contextualRating}
+        />
+        <ConfidenceIndicator
+          confidence={
+            player ? profile.currentAbility.confidence : profile.contextualRating.confidence
+          }
+          label={
+            player ? 'Confiança do OVR atual' : 'Confiança da avaliação como treinador principal'
+          }
+        />
       </div>
     </header>
   );
@@ -1131,9 +1277,18 @@ export function ProfileScreen({
   const [error, setError] = useState('');
   const [retryKey, setRetryKey] = useState(0);
   const operationRef = useRef(0);
+  const screenRef = useRef<HTMLElement>(null);
+  const routeKeyRef = useRef('');
+  const pendingScrollTopRef = useRef(0);
 
   useEffect(() => {
     const operation = ++operationRef.current;
+    const routeKey = `${route.kind}:${route.entityId}`;
+    pendingScrollTopRef.current =
+      routeKeyRef.current === routeKey
+        ? (screenRef.current?.scrollTop ?? Number(window.history.state?.rivalloScrollTop ?? 0))
+        : Number(window.history.state?.rivalloScrollTop ?? 0);
+    routeKeyRef.current = routeKey;
     setProfile(null);
     setError('');
     const restoredTab = window.history.state?.rivalloProfileTab;
@@ -1186,6 +1341,17 @@ export function ProfileScreen({
     if (!tabs.some((tab) => tab.id === activeTab)) setActiveTab('overview');
   }, [activeTab, tabs]);
 
+  useEffect(() => {
+    if (!profile) return;
+    const frame = window.requestAnimationFrame(() => {
+      const screen = screenRef.current;
+      if (!screen) return;
+      screen.scrollTop = pendingScrollTopRef.current;
+      screen.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [profile]);
+
   if (error) {
     const offline = typeof navigator !== 'undefined' && !navigator.onLine;
     const missing = /not found|não encontr|inexist/iu.test(error);
@@ -1229,7 +1395,25 @@ export function ProfileScreen({
   }
 
   return (
-    <section className="profile-screen" data-profile-kind={route.kind}>
+    <section
+      aria-label="Perfil global"
+      className="profile-screen"
+      data-profile-kind={route.kind}
+      onKeyDown={(event) => {
+        if (event.currentTarget !== event.target) return;
+        const screen = event.currentTarget;
+        if (event.key === 'End') screen.scrollTo({ top: screen.scrollHeight });
+        else if (event.key === 'Home') screen.scrollTo({ top: 0 });
+        else if (event.key === 'PageDown')
+          screen.scrollBy({ top: Math.max(1, screen.clientHeight * 0.85) });
+        else if (event.key === 'PageUp')
+          screen.scrollBy({ top: -Math.max(1, screen.clientHeight * 0.85) });
+        else return;
+        event.preventDefault();
+      }}
+      ref={screenRef}
+      tabIndex={-1}
+    >
       <div className="profile-command-bar">
         <Button leadingIcon="previous" onClick={onBack} variant="secondary">
           Voltar ao contexto

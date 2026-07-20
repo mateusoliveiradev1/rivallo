@@ -138,7 +138,7 @@ export function DataTableWorkspaceHeader({
         {densityControl}
         {configurationTrigger}
       </div>
-      {feedback}
+      {feedback ? <div className="rv-data-table-workspace-header__feedback">{feedback}</div> : null}
     </header>
   );
 }

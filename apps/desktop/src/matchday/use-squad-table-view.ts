@@ -613,7 +613,7 @@ export function useSquadTableView(
       });
       setRepositoryStatus(repositoryStatusFromOutcome(outcome));
       await inspectLegacyPreferences(nextRepository, requestId, writableLoadOutcome(outcome));
-    } catch {
+    } catch (reason) {
       if (!mountedRef.current || requestId !== loadRequestRef.current) return;
       const fallback = initialRepositoryState();
       writableRef.current = false;
@@ -624,10 +624,20 @@ export function useSquadTableView(
           baselineRef.current,
         ),
       });
-      setRepositoryStatus({
-        status: 'unavailable',
-        heading: 'Visualizações personalizadas indisponíveis',
-      });
+      const invalidResponse =
+        reason instanceof TypeError && reason.message.startsWith('Invalid table-view response at ');
+      setRepositoryStatus(
+        invalidResponse
+          ? {
+              status: 'invalid',
+              heading: 'Não foi possível carregar suas visualizações',
+              reason: reason.message,
+            }
+          : {
+              status: 'unavailable',
+              heading: 'Visualizações personalizadas indisponíveis',
+            },
+      );
       await inspectLegacyPreferences(fallback, requestId, false);
     }
   }, [applyRepositoryState, inspectLegacyPreferences]);

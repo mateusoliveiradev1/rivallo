@@ -160,9 +160,22 @@ export function EntityReferenceList({
               {reference.contract && <small>Contrato até {reference.contract.expiresAt}</small>}
             </span>
             {reference.nationality && <NationalityDisplay codes={[reference.nationality]} />}
-            <span className="entity-reference-list__knowledge">
-              {reference.perceivedRating?.label ?? 'Perfil'}
-              {reference.confidence !== null && <small>{reference.confidence}% confiança</small>}
+            <span
+              className="entity-reference-list__knowledge"
+              data-metric-kind={
+                reference.entityType === 'player'
+                  ? 'current-ability'
+                  : reference.entityType === 'coach'
+                    ? 'reputation'
+                    : undefined
+              }
+            >
+              {reference.perceivedRating
+                ? `${reference.entityType === 'player' ? 'OVR' : reference.entityType === 'coach' ? 'Reputação' : 'Avaliação'} ${reference.perceivedRating.label}`
+                : 'Perfil sem avaliação numérica'}
+              {reference.confidence !== null && (
+                <small>Confiança cadastral: {reference.confidence}%</small>
+              )}
             </span>
           </EntityLink>
         </li>

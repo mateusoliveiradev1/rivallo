@@ -28,7 +28,7 @@ key-files:
   modified: []
 
 key-decisions:
-  - "Mateus approved exactly 16 reviewed direct packages under digest sha256:56d9bfb036d3b3d42acc09faa968911cfc5aa760def3c991288dfe2e8fcf8b7f."
+  - "Mateus approved exactly 17 reviewed direct packages under digest sha256:557f4d9a4e4c70efbc32a73e684c88767bb8d350870c8b3e25083c13660ab7f1."
   - "Use seven narrow Radix behavior packages; keep native HTML for radios, tables, scrolling, fields, and other suitable primitives."
   - "Use colorjs.io 0.6.1 for deterministic OKLCH/gamut/contrast work instead of a local color-science implementation or the newly released 0.7.0."
   - "Use jsdom 27.0.1 because later releases would silently raise Rivallo's Node 22.0.0 minimum."

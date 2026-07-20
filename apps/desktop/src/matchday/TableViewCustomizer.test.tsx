@@ -15,9 +15,14 @@ import { TableViewCustomizer } from './TableViewCustomizer.js';
 interface HarnessProps {
   readonly initialState?: TableViewState;
   readonly onSave?: () => boolean | Promise<boolean>;
+  readonly saveMode?: 'update' | 'save-as';
 }
 
-function Harness({ initialState = SQUAD_SYSTEM_VIEW, onSave = () => true }: HarnessProps) {
+function Harness({
+  initialState = SQUAD_SYSTEM_VIEW,
+  onSave = () => true,
+  saveMode = 'update',
+}: HarnessProps) {
   const [state, setState] = useState(initialState);
 
   const dispatch = (command: TableViewCommand): TableViewCommandResult => {
@@ -34,6 +39,7 @@ function Harness({ initialState = SQUAD_SYSTEM_VIEW, onSave = () => true }: Harn
         dirty={state !== SQUAD_SYSTEM_VIEW}
         dispatch={dispatch}
         onSave={onSave}
+        saveMode={saveMode}
         schema={SQUAD_TABLE_SCHEMA}
         state={state}
       />
@@ -218,10 +224,20 @@ describe('TableViewCustomizer', () => {
     await user.click(screen.getByRole('button', { name: 'Restaurar visualização' }));
     expect(readState().sort).toEqual(SQUAD_SYSTEM_VIEW.sort);
 
-    await user.click(screen.getByRole('button', { name: 'Salvar visualização' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
     expect(onSave).toHaveBeenCalledTimes(1);
     await waitFor(() =>
       expect(screen.queryByRole('dialog', { name: 'Configurar tabela' })).toBeNull(),
+    );
+  });
+
+  it('names save-as explicitly when the active view cannot be overwritten', async () => {
+    render(<Harness saveMode="save-as" />);
+    const { user } = await openCustomizer();
+
+    await user.click(within(columnRow('Idade')).getByRole('button', { name: 'Ocultar Idade' }));
+    expect(screen.getByRole('button', { name: 'Salvar como nova visualização' })).toBeInstanceOf(
+      HTMLButtonElement,
     );
   });
 

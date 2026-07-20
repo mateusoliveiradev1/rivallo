@@ -138,28 +138,24 @@ export const playerProfileFixture = ({
     ],
     attributeGroups: [
       {
-        category: 'technical',
-        label: 'Técnicos',
+        category: 'outfield',
+        label: 'Atributos de jogador de linha',
         attributes: [
           {
             attributeId: 'passing',
             label: 'Passe',
-            category: 'technical',
+            description: 'Qualidade e precisão ao executar passes em diferentes distâncias.',
+            category: 'outfield',
             perceived: limited ? rangeValue(70, 78) : exactValue(76),
             confidence: limited ? 58 : 94,
             source: limited ? 'Observação parcial' : 'Comissão técnica',
             updatedAt: Date.UTC(2026, 6, 15),
           },
-        ],
-      },
-      {
-        category: 'mental',
-        label: 'Mentais',
-        attributes: [
           {
-            attributeId: 'decisions',
-            label: 'Decisões',
-            category: 'mental',
+            attributeId: 'technique',
+            label: 'Técnica',
+            description: 'Qualidade no domínio, condução e execução de ações com a bola.',
+            category: 'outfield',
             perceived: limited ? rangeValue(68, 78) : exactValue(79),
             confidence: limited ? 52 : 91,
             source: limited ? 'Observação parcial' : 'Comissão técnica',

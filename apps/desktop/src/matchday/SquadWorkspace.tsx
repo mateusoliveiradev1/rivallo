@@ -1,5 +1,6 @@
 import { Icon } from '@rivallo/icons';
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import { getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 
 import {
   type TableViewColumnState,
@@ -55,6 +56,72 @@ const descendingFirstColumns = new Set<SortKey>([
   'averageRating',
 ]);
 
+const squadViewPresets = [
+  {
+    id: 'management',
+    label: 'Gestão',
+    columns: [
+      'shirtNumber',
+      'info',
+      'name',
+      'position',
+      'age',
+      'squadRole',
+      'rating',
+      'condition',
+      'morale',
+    ],
+  },
+  {
+    id: 'lineup',
+    label: 'Escalação',
+    columns: [
+      'shirtNumber',
+      'info',
+      'name',
+      'position',
+      'rating',
+      'matchFitness',
+      'condition',
+      'morale',
+      'preferredFoot',
+    ],
+  },
+  {
+    id: 'attributes',
+    label: 'Atributos',
+    columns: [
+      'shirtNumber',
+      'info',
+      'name',
+      'position',
+      'age',
+      'heightCm',
+      'preferredFoot',
+      'rating',
+      'potentialRating',
+    ],
+  },
+  {
+    id: 'performance',
+    label: 'Desempenho',
+    columns: [
+      'shirtNumber',
+      'info',
+      'name',
+      'position',
+      'appearances',
+      'goals',
+      'assists',
+      'averageRating',
+    ],
+  },
+] as const satisfies readonly {
+  readonly id: string;
+  readonly label: string;
+  readonly columns: readonly SquadColumnId[];
+}[];
+
 const averageRatingFormatter = new Intl.NumberFormat('pt-BR', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
@@ -109,9 +176,23 @@ const renderOptionalPlayerValue = (player: Player, column: OptionalColumn): Reac
         </span>
       );
     case 'rating':
-      return <strong className="rating-value">{player.rating}</strong>;
+      return (
+        <strong aria-label={`OVR atual ${player.rating}`} className="rating-value">
+          {player.rating}
+        </strong>
+      );
     case 'potentialRating':
-      return <strong className="rating-value">{player.potentialRating}</strong>;
+      return (
+        <Tooltip content="Projeção estrutural; não é o OVR atual e pode mudar com novas avaliações.">
+          <strong
+            aria-label={`Potencial estimado ${player.potentialRating}`}
+            className="rating-value rating-value--potential"
+            tabIndex={0}
+          >
+            {player.potentialRating}
+          </strong>
+        </Tooltip>
+      );
     case 'matchFitness':
       return renderReadiness(player.matchFitness);
     case 'morale':
@@ -146,6 +227,7 @@ interface SquadWorkspaceProps {
   readonly tableViewRepositoryStatus: SquadTableViewRepositoryStatus;
   readonly tableViewPersistenceStatus: SquadTableViewPersistenceStatus;
   readonly tableHeader: ReactNode;
+  readonly tableFeedback: ReactNode;
   readonly tableViewStatus: ReactNode;
   readonly tableViewState: TableViewState;
   readonly tableViewBaseline: TableViewState;
@@ -169,6 +251,7 @@ interface SquadWorkspaceProps {
   readonly onPositionFilterVisibleChange: (visible: boolean) => void;
   readonly onDensityChange: (density: Density) => void;
   readonly onTableViewCommand: (command: TableViewCommand) => TableViewCommandResult;
+  readonly tableViewSaveMode?: 'update' | 'save-as';
   readonly onSaveTableView: () => boolean | void | Promise<boolean | void>;
 }
 
@@ -189,6 +272,7 @@ export function SquadWorkspace({
   tableViewRepositoryStatus,
   tableViewPersistenceStatus,
   tableHeader,
+  tableFeedback,
   tableViewStatus,
   tableViewState,
   tableViewBaseline,
@@ -212,6 +296,7 @@ export function SquadWorkspace({
   onPositionFilterVisibleChange,
   onDensityChange,
   onTableViewCommand,
+  tableViewSaveMode = 'update',
   onSaveTableView,
 }: SquadWorkspaceProps) {
   const focusedPlayer =
@@ -233,6 +318,28 @@ export function SquadWorkspace({
   const [tableAnnouncement, setTableAnnouncement] = useState('');
   const visibleColumnStates = tableViewState.columns.filter(({ visible }) => visible);
   const pinOffsets = calculatePinOffsets(visibleColumnStates);
+  const tableData = useMemo(() => [...players], [players]);
+  const tanstackColumns = useMemo<ColumnDef<Player>[]>(
+    () =>
+      visibleColumnStates.map((column) => ({
+        id: column.columnId,
+        accessorFn: (player) => player[column.columnId as keyof Player],
+      })),
+    [visibleColumnStates],
+  );
+  const squadTable = useReactTable({
+    data: tableData,
+    columns: tanstackColumns,
+    getCoreRowModel: getCoreRowModel(),
+    getRowId: (player) => player.id,
+  });
+  const activeViewPreset = squadViewPresets.find((preset) => {
+    const visible = new Set(visibleColumnStates.map(({ columnId }) => columnId));
+    return (
+      visible.size === preset.columns.length &&
+      preset.columns.every((columnId) => visible.has(columnId))
+    );
+  })?.id;
 
   const announceTable = (message: string) => {
     setTableAnnouncement((current) => (current === message ? current : message));
@@ -245,6 +352,21 @@ export function SquadWorkspace({
     state: tableViewState,
     baseline: tableViewBaseline,
     dispatch: dispatchTableView,
+  };
+
+  const applyViewPreset = (columns: readonly SquadColumnId[]) => {
+    const visible = new Set(columns);
+    for (const column of tableViewState.columns) {
+      const nextVisible = visible.has(column.columnId as SquadColumnId);
+      if (column.visible !== nextVisible) {
+        dispatchTableView({
+          type: 'column.visibility',
+          columnId: column.columnId,
+          visible: nextVisible,
+        });
+      }
+    }
+    announceTable(`Visualização atualizada para ${columns.length} colunas essenciais.`);
   };
 
   return (
@@ -288,104 +410,159 @@ export function SquadWorkspace({
         </button>
       </nav>
 
-      <section aria-label="Filtros do elenco" className="squad-toolbar">
-        <label className="toolbar-field toolbar-field--accent">
-          <Icon name="filter" size={16} />
-          <span>Visualização</span>
-          <select
-            aria-label="Filtro rápido"
-            onChange={(event) => onSquadFilterChange(event.target.value as SquadFilter)}
-            value={squadFilter}
-          >
-            <option value="all">Todos</option>
-            <option value="selected">Titulares</option>
-            <option value="reserve">Reservas</option>
-          </select>
-        </label>
-        <label className="toolbar-field">
-          <span>Ordenar</span>
-          <select
-            aria-label="Ordenar elenco"
-            onChange={(event) => {
-              const preset = squadSortPresets.find(({ id }) => id === event.target.value);
-              if (preset) onSortChange(preset.sort);
-            }}
-            value={activeSortPreset}
-          >
-            {activeSortPreset === 'custom' && <option value="custom">Personalizada</option>}
-            {squadSortPresets.map((preset) => (
-              <option key={preset.id} value={preset.id}>
-                {preset.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="toolbar-field">
-          <span>Setor</span>
-          <select
-            aria-label="Filtrar por setor"
-            onChange={(event) => onRoleFilterChange(event.target.value as RoleFilter)}
-            value={roleFilter}
-          >
-            <option value="all">Todos</option>
-            <option value="goalkeepers">Goleiros</option>
-            <option value="defenders">Defesa</option>
-            <option value="midfielders">Meio-campo</option>
-            <option value="attackers">Ataque</option>
-          </select>
-        </label>
-        <label className="toolbar-field">
-          <span>Status</span>
-          <select
-            aria-label="Filtrar por condição"
-            onChange={(event) => onStatusFilterChange(event.target.value as StatusFilter)}
-            value={statusFilter}
-          >
-            <option value="all">Todos</option>
-            <option value="ready">Prontos</option>
-            <option value="attention">Atenção</option>
-          </select>
-        </label>
-        {positionFilterVisible && (
-          <label className="toolbar-field toolbar-field--position">
-            <span>Posição</span>
-            <select
-              aria-label="Filtrar por posição"
-              onChange={(event) =>
-                onPositionFilterChange(event.target.value as 'all' | Player['position'])
-              }
-              value={positionFilter}
+      <section aria-label="Controles do elenco" className="squad-controls">
+        <nav aria-label="Modos de leitura do elenco" className="squad-view-presets">
+          <span>Mostrar</span>
+          {squadViewPresets.map((preset) => (
+            <button
+              aria-pressed={activeViewPreset === preset.id}
+              data-active={activeViewPreset === preset.id || undefined}
+              key={preset.id}
+              onClick={() => applyViewPreset(preset.columns)}
+              type="button"
             >
-              <option value="all">Todas</option>
-              {Object.entries(positionLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
+              {preset.label}
+            </button>
+          ))}
+          {(['Contratos', 'Mercado'] as const).map((label) => (
+            <Tooltip
+              content={`${label}: será ativado quando os dados autoritativos desta área estiverem disponíveis na tabela.`}
+              key={label}
+            >
+              <button aria-disabled="true" className="squad-view-presets__future" type="button">
+                {label}
+              </button>
+            </Tooltip>
+          ))}
+          <small>
+            Troca apenas a projeção da tabela; salve a visualização se quiser persistir.
+          </small>
+        </nav>
+
+        <section aria-label="Filtros do elenco" className="squad-toolbar">
+          <label className="toolbar-field toolbar-field--accent">
+            <Icon name="filter" size={16} />
+            <span>Visualização</span>
+            <select
+              aria-label="Filtro rápido"
+              onChange={(event) => onSquadFilterChange(event.target.value as SquadFilter)}
+              value={squadFilter}
+            >
+              <option value="all">Todos</option>
+              <option value="selected">Titulares</option>
+              <option value="reserve">Reservas</option>
+            </select>
+          </label>
+          <label className="toolbar-field">
+            <span>Ordenar</span>
+            <select
+              aria-label="Ordenar elenco"
+              onChange={(event) => {
+                const preset = squadSortPresets.find(({ id }) => id === event.target.value);
+                if (preset) onSortChange(preset.sort);
+              }}
+              value={activeSortPreset}
+            >
+              {activeSortPreset === 'custom' && <option value="custom">Personalizada</option>}
+              {squadSortPresets.map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.label}
                 </option>
               ))}
             </select>
           </label>
+          <label className="toolbar-field">
+            <span>Setor</span>
+            <select
+              aria-label="Filtrar por setor"
+              onChange={(event) => onRoleFilterChange(event.target.value as RoleFilter)}
+              value={roleFilter}
+            >
+              <option value="all">Todos</option>
+              <option value="goalkeepers">Goleiros</option>
+              <option value="defenders">Defesa</option>
+              <option value="midfielders">Meio-campo</option>
+              <option value="attackers">Ataque</option>
+            </select>
+          </label>
+          <label className="toolbar-field">
+            <span>Status</span>
+            <select
+              aria-label="Filtrar por condição"
+              onChange={(event) => onStatusFilterChange(event.target.value as StatusFilter)}
+              value={statusFilter}
+            >
+              <option value="all">Todos</option>
+              <option value="ready">Prontos</option>
+              <option value="attention">Atenção</option>
+            </select>
+          </label>
+          {positionFilterVisible && (
+            <label className="toolbar-field toolbar-field--position">
+              <span>Posição</span>
+              <select
+                aria-label="Filtrar por posição"
+                onChange={(event) =>
+                  onPositionFilterChange(event.target.value as 'all' | Player['position'])
+                }
+                value={positionFilter}
+              >
+                <option value="all">Todas</option>
+                {Object.entries(positionLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <span className="squad-toolbar__spacer" />
+          <button
+            className="toolbar-action"
+            disabled={!hasActiveFilters}
+            onClick={onClearFilters}
+            type="button"
+          >
+            <Icon name="close" size={16} />
+            Limpar filtros do elenco
+          </button>
+          <button
+            className="toolbar-action toolbar-action--accent"
+            onClick={() => {
+              if (positionFilterVisible) onPositionFilterChange('all');
+              onPositionFilterVisibleChange(!positionFilterVisible);
+            }}
+            type="button"
+          >
+            <Icon name={positionFilterVisible ? 'close' : 'add'} size={16} />
+            {positionFilterVisible ? 'Remover posição' : 'Adicionar filtro'}
+          </button>
+        </section>
+
+        {hasActiveFilters && (
+          <div aria-label="Filtros ativos" className="squad-filter-chips">
+            <span>Filtros ativos</span>
+            {query.length > 0 && <button onClick={onClearFilters}>Busca: “{query}”</button>}
+            {squadFilter !== 'all' && (
+              <button onClick={() => onSquadFilterChange('all')}>
+                {squadFilter === 'selected' ? 'Titulares' : 'Reservas'}
+              </button>
+            )}
+            {roleFilter !== 'all' && (
+              <button onClick={() => onRoleFilterChange('all')}>Setor selecionado</button>
+            )}
+            {statusFilter !== 'all' && (
+              <button onClick={() => onStatusFilterChange('all')}>
+                {statusFilter === 'ready' ? 'Prontos' : 'Atenção'}
+              </button>
+            )}
+            {positionFilterVisible && positionFilter !== 'all' && (
+              <button onClick={() => onPositionFilterChange('all')}>
+                Posição: {positionLabels[positionFilter]}
+              </button>
+            )}
+          </div>
         )}
-        <span className="squad-toolbar__spacer" />
-        <button
-          className="toolbar-action"
-          disabled={!hasActiveFilters}
-          onClick={onClearFilters}
-          type="button"
-        >
-          <Icon name="close" size={16} />
-          Limpar filtros do elenco
-        </button>
-        <button
-          className="toolbar-action toolbar-action--accent"
-          onClick={() => {
-            if (positionFilterVisible) onPositionFilterChange('all');
-            onPositionFilterVisibleChange(!positionFilterVisible);
-          }}
-          type="button"
-        >
-          <Icon name={positionFilterVisible ? 'close' : 'add'} size={16} />
-          {positionFilterVisible ? 'Remover posição' : 'Adicionar filtro'}
-        </button>
       </section>
 
       <div
@@ -402,11 +579,13 @@ export function SquadWorkspace({
                 dirty={tableViewDirty}
                 dispatch={dispatchTableView}
                 onSave={onSaveTableView}
+                saveMode={tableViewSaveMode}
                 schema={SQUAD_TABLE_SCHEMA}
                 state={tableViewState}
               />
             }
             contextLabel={`${state.club.name} · plantel principal`}
+            feedback={tableFeedback}
             densityControl={
               <TableDensityControl
                 densities={SQUAD_TABLE_SCHEMA.densities}
@@ -470,7 +649,7 @@ export function SquadWorkspace({
                         </td>
                       </tr>
                     ))
-                  : players.map((player) => {
+                  : squadTable.getRowModel().rows.map(({ original: player }) => {
                       const playerIndex = state.players.findIndex(
                         (candidate) => candidate.id === player.id,
                       );

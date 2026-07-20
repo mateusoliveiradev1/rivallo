@@ -4,9 +4,9 @@
 
 **Plan:** 05-01
 
-**Registry snapshot:** 2026-07-15
+**Registry snapshot:** 2026-07-15; TanStack extension rechecked 2026-07-17
 
-**Status:** Awaiting Mateus's explicit decision
+**Status:** Approved, including the later TanStack headless-table extension
 
 ## Purpose and boundary
 
@@ -42,6 +42,7 @@ Canonicalization is UTF-8, one row per direct package, JavaScript code-point sor
 @radix-ui/react-switch@1.3.3|desktop-runtime|sha512-1+mlB4/lxJfk5tgJ4g+R5mUCbRpPE1T9+UsEyeLYbGgMtwiMgmuTnfKz4Mw1nHALHjuwyxw4MLd4cSHn6pNSlQ==
 @radix-ui/react-tabs@1.1.17|desktop-runtime|sha512-nRyXnrAVCwjeXcHbvEbLS6ndbTeKHG1RqCP4A8Gw5L4cemDzPXdD8rAmr6wet0v57R69wGvuIIsFjHSVkZiMzQ==
 @radix-ui/react-tooltip@1.2.12|desktop-runtime|sha512-U3HoftgWnmla78vzQbLvKKb7bUYJxoiiqYFzp1wu/TBMyDqMZSuCl3aRICsD6EfVEwcJD2mumGDGUXLFVqQHKA==
+@tanstack/react-table@8.21.3|desktop-runtime|sha512-5nNMTSETP4ykGegmVkhjcS8tTLW6Vl4axfEGQN3v0zdHYbK4UfoqfPChclTrJ4EoK9QynqAu9oUf8VEmrpZ5Ww==
 @testing-library/dom@10.4.1|root-dev|sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==
 @testing-library/react@16.3.2|root-dev|sha512-XU5/SytQM+ykqMnAnvB2umaJNIOsLF3PVv//1Ew4CTcpz0/BRyy/af40qqrt7SjKpDdT1saBMc42CUok5gaw+g==
 @testing-library/user-event@14.6.1|root-dev|sha512-vq7fv0rnt+QTXgPxr5Hjc210p6YKq2kmdziLgnsZGgLJ9e6VAShx1pACLuRjd/AS/sr7phAR58OIIpf0LlmQNw==
@@ -94,6 +95,17 @@ Their common peers accept React and React DOM through 19 and declare `@types/rea
 | `@radix-ui/react-tooltip@1.2.12`       | 2026-07-06T22:06:31.377Z | [npm](https://www.npmjs.com/package/@radix-ui/react-tooltip/v/1.2.12) / [`tooltip`](https://github.com/radix-ui/primitives/tree/main/packages/react/tooltip)                   | Keyboard/hover supplemental descriptions, delay management, Escape, portal, and positioning | Radix primitive/context/compose-refs/dismissable-layer/id/popper/portal/presence/controllable-state/slot/visually-hidden/react-primitive                                                    |
 
 **Transitive risk assessment:** these packages share a pure-JavaScript Radix graph for portals, focus scopes/guards, dismissable layers, controllable state, roving focus, and Popper positioning. Dialog and Popover also lead to `aria-hidden` and the `react-remove-scroll` family; Popper leads to Floating UI. This is a wider graph than native controls, which is why native HTML remains the default everywhere else. The graph has no product styling, persistence, network client, database code, or native build requirement. Plan 05-02 must freeze and compare every resolved transitive in `pnpm-lock.yaml` before implementation.
+
+### Headless table extension
+
+#### `@tanstack/react-table@8.21.3` — `desktop-runtime`
+
+- **Approval context:** Mateus explicitly approved the incremental hybrid TanStack adoption on 2026-07-17. Rivallo retains ownership of durable views, migrations, validation, sizing, pinning and product semantics; TanStack is limited to headless row/table mechanics.
+- **Registry/repository:** [npm](https://www.npmjs.com/package/@tanstack/react-table/v/8.21.3); [TanStack Table, `packages/react-table`](https://github.com/TanStack/table/tree/main/packages/react-table).
+- **Published/license:** 2025-04-14T20:20:18.966Z; MIT.
+- **Integrity/scripts:** registry and lockfile agree on `sha512-5nNMTSETP4ykGegmVkhjcS8tTLW6Vl4axfEGQN3v0zdHYbK4UfoqfPChclTrJ4EoK9QynqAu9oUf8VEmrpZ5Ww==`; the published package declares no lifecycle scripts.
+- **Dependencies/peers:** one pure-JavaScript dependency, `@tanstack/table-core@8.21.3`; React and React DOM peers are `>=16.8`, compatible with the frozen React 19.2.7 runtime.
+- **Risk boundary:** no styling, persistence, network, native code or domain authority enters through this package. A wholesale table rewrite remains out of scope.
 
 ### Color resolution
 
@@ -181,5 +193,5 @@ To approve, change only the first three fields below to the exact approved value
 
 Decision: APPROVED
 Approved by: Mateus
-Approved at: 2026-07-15T12:04:13.5806508-03:00
-Inventory digest: sha256:56d9bfb036d3b3d42acc09faa968911cfc5aa760def3c991288dfe2e8fcf8b7f
+Approved at: 2026-07-17T18:55:00-03:00
+Inventory digest: sha256:557f4d9a4e4c70efbc32a73e684c88767bb8d350870c8b3e25083c13660ab7f1

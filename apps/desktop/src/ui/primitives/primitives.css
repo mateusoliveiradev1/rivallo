@@ -468,6 +468,7 @@
   font-size: var(--rv-type-12-size);
   line-height: var(--rv-type-12-line-height);
   pointer-events: auto;
+  white-space: pre-line;
 }
 
 .rv-popover,

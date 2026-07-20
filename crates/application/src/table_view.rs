@@ -1518,7 +1518,9 @@ fn column_width_policy(column_id: &str) -> (f64, f64, f64) {
         "shirtNumber" | "info" => (48.0, 72.0, 56.0),
         "name" => (200.0, 360.0, 240.0),
         "position" => (72.0, 104.0, 80.0),
-        "age" | "rating" | "potentialRating" => (56.0, 80.0, 64.0),
+        "age" => (56.0, 80.0, 64.0),
+        "rating" => (80.0, 112.0, 88.0),
+        "potentialRating" => (128.0, 168.0, 136.0),
         "nationality" => (80.0, 144.0, 96.0),
         "heightCm" => (72.0, 104.0, 80.0),
         "preferredFoot" => (72.0, 120.0, 88.0),
@@ -1870,6 +1872,17 @@ mod tests {
             "squad.view.system-default"
         );
         assert_eq!(state.views[0].state.columns.len(), 18);
+        let width = |column_id: &str| {
+            state.views[0]
+                .state
+                .columns
+                .iter()
+                .find(|column| column.column_id.as_str() == column_id)
+                .expect("system column")
+                .width
+        };
+        assert_eq!(width("rating"), 88.0);
+        assert_eq!(width("potentialRating"), 136.0);
         assert_eq!(
             state.views[0].state.data_window,
             TableDataWindow::ClientPagination {

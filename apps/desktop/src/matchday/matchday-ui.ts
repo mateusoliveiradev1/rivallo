@@ -18,13 +18,12 @@ export type SquadSortPreset =
 export type RoleFilter = 'all' | 'goalkeepers' | 'defenders' | 'midfielders' | 'attackers';
 export type StatusFilter = 'all' | 'ready' | 'attention';
 export type TacticalTool = 'analysis' | 'tactics' | 'instructions' | 'opposition';
-export type PitchMode = 'roles' | 'condition' | 'familiarity';
+export type PitchMode = 'roles' | 'context' | 'condition' | 'familiarity';
 
 export interface UiPreferences {
   readonly sidebarCollapsed: boolean;
   readonly activeScreen: ActiveScreen;
   readonly showPlayerDetails: boolean;
-  readonly pitchMode: PitchMode;
 }
 
 export const optionalColumns: readonly OptionalColumn[] = [

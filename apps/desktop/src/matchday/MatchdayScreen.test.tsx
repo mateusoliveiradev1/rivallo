@@ -42,6 +42,7 @@ const clientMock = vi.hoisted(() => ({
   saveTableViews: vi.fn(),
   importLegacyTablePreferences: vi.fn(),
   loadPlayerProfile: vi.fn(),
+  previewPlayerProfile: vi.fn(),
   loadCoachProfile: vi.fn(),
   loadClubProfile: vi.fn(),
   loadNationProfile: vi.fn(),
@@ -258,7 +259,6 @@ const expectOnlyNonTablePreferences = (storageKey: string): void => {
   const stored = JSON.parse(raw ?? '{}') as Record<string, unknown>;
   expect(stored).toMatchObject({
     activeScreen: 'squad',
-    pitchMode: 'roles',
     showPlayerDetails: true,
     sidebarCollapsed: false,
   });
@@ -295,6 +295,16 @@ describe('MatchdayScreen', () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1920 });
     clientMock.loadMatchday.mockReset().mockResolvedValue(state);
     clientMock.loadPlayerProfile.mockReset().mockImplementation(async (playerId: string) => {
+      const player = players.find(({ id }) => id === playerId) ?? players[0]!;
+      return playerProfileFixture({
+        entityId: player.id,
+        fullName: player.name,
+        knownName: player.name,
+        position: player.position,
+        nationality: player.nationality,
+      });
+    });
+    clientMock.previewPlayerProfile.mockReset().mockImplementation(async (playerId: string) => {
       const player = players.find(({ id }) => id === playerId) ?? players[0]!;
       return playerProfileFixture({
         entityId: player.id,
@@ -461,7 +471,9 @@ describe('MatchdayScreen', () => {
       12,
     );
     expect(
-      within(screen.getByLabelText('Resumo de Caio Brandão')).getByLabelText('Brasil, código BRA'),
+      within(await screen.findByLabelText('Resumo de Caio Brandão')).getByLabelText(
+        'Brasil, código BRA',
+      ),
     ).toBeInstanceOf(HTMLElement);
   });
 
@@ -642,6 +654,22 @@ describe('MatchdayScreen', () => {
     expect(clientMock.saveTableViews).not.toHaveBeenCalled();
   });
 
+  it('switches to a calm management preset without persisting or changing squad data', async () => {
+    const user = userEvent.setup();
+    render(<MatchdayScreen serviceOwnership="owned" />);
+    await screen.findByRole('heading', { name: 'Visão geral do elenco' });
+    const presetNavigation = screen.getByRole('navigation', { name: 'Modos de leitura do elenco' });
+    await user.click(within(presetNavigation).getByRole('button', { name: 'Gestão' }));
+
+    expect(screen.getByRole('button', { name: /Ordenar por OVR atual/u })).toBeInstanceOf(
+      HTMLButtonElement,
+    );
+    expect(screen.queryByRole('button', { name: /Ordenar por Potencial estimado/u })).toBeNull();
+    expect(screen.getAllByLabelText(/OVR atual \d+/u).length).toBeGreaterThan(0);
+    expect(clientMock.saveTableViews).not.toHaveBeenCalled();
+    expect(clientMock.saveMatchdayLineup).not.toHaveBeenCalled();
+  });
+
   it('keeps an unknown nationality readable in the real table and dossier', async () => {
     clientMock.loadMatchday.mockResolvedValue({
       ...state,
@@ -745,7 +773,7 @@ describe('MatchdayScreen', () => {
     expect(screen.getByRole('button', { name: /Ordenar por Idade/u })).toBeInstanceOf(
       HTMLButtonElement,
     );
-    expect(screen.queryByRole('button', { name: /Ordenar por PA/u })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Ordenar por Potencial estimado/u })).toBeNull();
     await waitFor(() => expect(clientMock.importLegacyTablePreferences).toHaveBeenCalledOnce());
     expect(window.localStorage.getItem('rivallo.squad-ui.v3')).toBeNull();
     expectOnlyNonTablePreferences('rivallo.squad-ui.v4');
@@ -763,7 +791,7 @@ describe('MatchdayScreen', () => {
     expect(screen.getByRole('button', { name: /Ordenar por Idade/u })).toBeInstanceOf(
       HTMLButtonElement,
     );
-    expect(screen.getByRole('button', { name: /Ordenar por PA/u })).toBeInstanceOf(
+    expect(screen.getByRole('button', { name: /Ordenar por Potencial estimado/u })).toBeInstanceOf(
       HTMLButtonElement,
     );
     await waitFor(() => expect(clientMock.loadTableViews).toHaveBeenCalledOnce());
@@ -857,6 +885,53 @@ describe('MatchdayScreen', () => {
     const selectedIds = proposal.placements.map(({ playerId }) => playerId);
     expect(selectedIds).toContain('p12');
     expect(selectedIds).not.toContain('p1');
+  });
+
+  it('changes only the transient card projection when the field reading changes', async () => {
+    render(<MatchdayScreen serviceOwnership="owned" />);
+    await screen.findByRole('heading', { name: 'Visão geral do elenco' });
+    fireEvent.click(screen.getByRole('button', { name: 'Táticas' }));
+
+    const playerIdsBefore = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-tactical-player-origin="field"]'),
+      (card) => card.dataset.tacticalPlayerId,
+    );
+    const reading = screen.getByRole('combobox', { name: 'Leitura do campo' });
+    const firstCard = document.querySelector<HTMLElement>('[data-tactical-player-id="p1"]');
+    expect(firstCard?.dataset.primaryMetric).toBe('ability');
+    expect(firstCard?.querySelectorAll('[data-card-region="primary-metric"]')).toHaveLength(1);
+    expect(firstCard?.textContent).not.toContain('Potencial');
+
+    await waitFor(() =>
+      expect(window.localStorage.getItem('rivallo.squad-ui.v4')).toContain(
+        '"activeScreen":"tactics"',
+      ),
+    );
+    const storedPreferences = window.localStorage.getItem('rivallo.squad-ui.v4');
+    expect(JSON.parse(storedPreferences ?? '{}')).not.toHaveProperty('pitchMode');
+
+    fireEvent.change(reading, { target: { value: 'context' } });
+    await waitFor(() => expect(firstCard?.dataset.primaryMetric).toBe('context'));
+    expect(within(firstCard!).getByLabelText('No plano atual: 78')).toBeInstanceOf(HTMLElement);
+    expect(firstCard?.querySelectorAll('[data-card-region="primary-metric"]')).toHaveLength(1);
+
+    fireEvent.change(reading, { target: { value: 'familiarity' } });
+    expect(firstCard?.dataset.primaryMetric).toBe('familiarity');
+    expect(within(firstCard!).getByLabelText(/Familiaridade com o plano:/u)).toBeInstanceOf(
+      HTMLElement,
+    );
+
+    fireEvent.change(reading, { target: { value: 'condition' } });
+    expect(firstCard?.dataset.primaryMetric).toBe('condition');
+    expect(within(firstCard!).getByLabelText('Condição física: 95%')).toBeInstanceOf(HTMLElement);
+    expect(
+      Array.from(
+        document.querySelectorAll<HTMLElement>('[data-tactical-player-origin="field"]'),
+        (card) => card.dataset.tacticalPlayerId,
+      ),
+    ).toEqual(playerIdsBefore);
+    expect(window.localStorage.getItem('rivallo.squad-ui.v4')).toBe(storedPreferences);
+    expect(clientMock.saveTacticalPlan).not.toHaveBeenCalled();
   });
 
   it('integrates phases, authoritative analysis, strategy, instructions and honest opposition', async () => {
@@ -2103,13 +2178,13 @@ describe('MatchdayScreen', () => {
     });
     await user.click(within(dirtyDialog).getByRole('button', { name: 'Salvar e abrir “Táticas”' }));
     const nameDialog = screen.getByRole('dialog', {
-      name: 'Criar uma visualização editável',
+      name: 'Salvar nova visualização',
     });
     await user.type(
       within(nameDialog).getByRole('textbox', { name: 'Nome da visualização' }),
       'Leitura cancelada',
     );
-    await user.click(within(nameDialog).getByRole('button', { name: 'Duplicar para editar' }));
+    await user.click(within(nameDialog).getByRole('button', { name: 'Salvar e ativar' }));
     await waitFor(() => expect(clientMock.saveTableViews).toHaveBeenCalledOnce());
 
     await user.click(
@@ -2148,13 +2223,13 @@ describe('MatchdayScreen', () => {
     });
     await user.click(within(dirtyDialog).getByRole('button', { name: 'Salvar e abrir “Táticas”' }));
     const nameDialog = screen.getByRole('dialog', {
-      name: 'Criar uma visualização editável',
+      name: 'Salvar nova visualização',
     });
     await user.type(
       within(nameDialog).getByRole('textbox', { name: 'Nome da visualização' }),
       'Retry protegido',
     );
-    await user.click(within(nameDialog).getByRole('button', { name: 'Duplicar para editar' }));
+    await user.click(within(nameDialog).getByRole('button', { name: 'Salvar e ativar' }));
     const retryButton = await screen.findByRole('button', {
       name: 'Tentar salvar visualização',
     });
@@ -2250,10 +2325,10 @@ describe('MatchdayScreen', () => {
       ),
     ).toBeInstanceOf(HTMLElement);
     await user.click(within(selector).getByRole('button', { name: 'Duplicar para editar' }));
-    let dialog = screen.getByRole('dialog', { name: 'Criar uma visualização editável' });
+    let dialog = screen.getByRole('dialog', { name: 'Salvar nova visualização' });
     const saveAsInput = within(dialog).getByRole('textbox', { name: 'Nome da visualização' });
     await user.type(saveAsInput, 'Leitura editável');
-    await user.click(within(dialog).getByRole('button', { name: 'Duplicar para editar' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Salvar e ativar' }));
     await waitFor(() =>
       expect(
         screen.getByRole('button', { name: 'Visualização da tabela: Leitura editável' }),
@@ -2295,6 +2370,59 @@ describe('MatchdayScreen', () => {
     selector = await openSavedViewSelector(user);
     expect(within(selector).queryByText('Alterações não salvas')).toBeNull();
     expect(screen.getByText('Visualização “Leitura editável” salva.')).toBeInstanceOf(HTMLElement);
+  });
+
+  it('asks for a name immediately when saving column changes from the protected system view', async () => {
+    const user = await renderMatchdayWithViews(lifecycleRepositoryState(SQUAD_SYSTEM_VIEW.viewId));
+
+    await user.click(screen.getByRole('button', { name: 'Configurar tabela' }));
+    const customizer = screen.getByRole('dialog', { name: 'Configurar tabela' });
+    await user.click(within(customizer).getByRole('button', { name: 'Ocultar Idade' }));
+
+    const saveAsButton = within(customizer).getByRole('button', {
+      name: 'Salvar como nova visualização',
+    });
+    expect(saveAsButton).toBeInstanceOf(HTMLButtonElement);
+    await user.click(saveAsButton);
+
+    const nameDialog = screen.getByRole('dialog', { name: 'Salvar nova visualização' });
+    expect(
+      within(nameDialog).getByText(
+        'A visualização “Padrão do elenco” não será alterada. Dê um nome para salvar estes ajustes.',
+      ),
+    ).toBeInstanceOf(HTMLElement);
+    expect(clientMock.saveTableViews).not.toHaveBeenCalled();
+
+    await user.type(
+      within(nameDialog).getByRole('textbox', { name: 'Nome da visualização' }),
+      'Elenco sem idade',
+    );
+    await user.click(within(nameDialog).getByRole('button', { name: 'Salvar e ativar' }));
+
+    await waitFor(() => expect(clientMock.saveTableViews).toHaveBeenCalledOnce());
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Visualização da tabela: Elenco sem idade' }),
+      ).toBeInstanceOf(HTMLButtonElement),
+    );
+    const savedCandidate = (clientMock.saveTableViews.mock.calls[0]?.[0] as SaveTableViewsRequest)
+      .state;
+    const savedView = savedCandidate.views.find(
+      ({ state: viewState }) => viewState.label === 'Elenco sem idade',
+    );
+    expect(savedView?.state.provenance).toBe('user-owned');
+    expect(savedView?.state.columns.find(({ columnId }) => columnId === 'age')?.visible).toBe(
+      false,
+    );
+    expect(screen.getByText('Visualização “Elenco sem idade” criada e ativada.')).toBeInstanceOf(
+      HTMLElement,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Táticas' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(await screen.findByRole('heading', { name: 'Plano de jogo' })).toBeInstanceOf(
+      HTMLElement,
+    );
   });
 
   it('supports continue and save branches when deleting the active dirty view', async () => {
@@ -2503,7 +2631,7 @@ describe('MatchdayScreen', () => {
         fallback: tableRepositoryState(),
       } satisfies LoadTableViewsOutcome,
       heading: 'Visualizações personalizadas indisponíveis',
-      body: /O elenco continua utilizável na visualização padrão/u,
+      body: /O Elenco segue na visualização Padrão/u,
       action: 'Tentar reconectar ao repositório',
     },
     {
@@ -2557,9 +2685,12 @@ describe('MatchdayScreen', () => {
       clientMock.loadTableViews.mockResolvedValueOnce(outcome);
       render(<MatchdayScreen serviceOwnership="owned" />);
 
-      expect(await screen.findByRole('heading', { name: heading })).toBeInstanceOf(
-        HTMLHeadingElement,
+      const recoveryHeading = await screen.findByRole('heading', { name: heading });
+      expect(recoveryHeading).toBeInstanceOf(HTMLHeadingElement);
+      expect(recoveryHeading.closest('.rv-data-table-workspace-header__feedback')).toBeInstanceOf(
+        HTMLElement,
       );
+      expect(recoveryHeading.closest('.saved-view-lifecycle-host')).toBeNull();
       expect(screen.getByText(body)).toBeInstanceOf(HTMLElement);
       expect(screen.getByRole('table')).toBeInstanceOf(HTMLTableElement);
       const recoveryAction = screen.getByRole('button', { name: action });

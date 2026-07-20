@@ -66,6 +66,12 @@ export const loadPlayerProfile = (playerId: string, variationId?: string | null)
     variationId: variationId ?? null,
   });
 
+export const previewPlayerProfile = (playerId: string, variationId?: string | null) =>
+  invoke<PlayerProfileProjection>('preview_player_profile', {
+    playerId,
+    variationId: variationId ?? null,
+  });
+
 export const loadCoachProfile = (coachId: string) =>
   invoke<CoachProfileProjection>('coach_profile', { coachId });
 

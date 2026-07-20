@@ -111,6 +111,7 @@ interface SavedViewNameDialogState {
   readonly previousName: string;
   readonly initialValue: string;
   readonly continuation?: SavedViewTransitionTarget;
+  readonly returnFocus?: 'saved-view-selector' | 'table-customizer';
 }
 
 interface SavedViewDeleteDialogState {
@@ -240,7 +241,6 @@ const defaultPreferences = (): UiPreferences => ({
   sidebarCollapsed: typeof window !== 'undefined' && window.innerWidth < 1240,
   activeScreen: 'squad',
   showPlayerDetails: true,
-  pitchMode: 'roles',
 });
 
 const readPreferences = (): UiPreferences => {
@@ -264,9 +264,6 @@ const readPreferences = (): UiPreferences => {
         typeof stored.showPlayerDetails === 'boolean'
           ? stored.showPlayerDetails
           : defaults.showPlayerDetails,
-      pitchMode: ['roles', 'condition', 'familiarity'].includes(String(stored.pitchMode))
-        ? (stored.pitchMode as PitchMode)
-        : defaults.pitchMode,
     };
   } catch {
     return defaults;
@@ -394,6 +391,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
   const [positionFilterControlVisible, setPositionFilterControlVisible] = useState(false);
   const [focusedPlayerId, setFocusedPlayerId] = useState<string | null>(null);
   const [activeTacticalTool, setActiveTacticalTool] = useState<TacticalTool>('tactics');
+  const [pitchMode, setPitchMode] = useState<PitchMode>('roles');
   const [preferences, setPreferences] = useState<UiPreferences>(readPreferences);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsDialogRef = useRef<HTMLDialogElement>(null);
@@ -747,7 +745,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
       successMessage = `Visualização “${dialog.previousName}” renomeada para “${name}”.`;
       action = tableView.rename(dialog.viewId, name);
     } else {
-      successMessage = `Visualização “${name}” criada para edição.`;
+      successMessage = `Visualização “${name}” criada e ativada.`;
       action = tableView.save(name);
     }
 
@@ -868,6 +866,20 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
   };
 
   const saveActiveView = async () => {
+    if (
+      activeSavedView.state.provenance !== 'user-owned' ||
+      activeSavedView.mutability !== 'mutable'
+    ) {
+      setSavedViewNameDialog({
+        mode: 'save-as',
+        viewId: activeSavedView.state.viewId,
+        previousName: activeSavedView.state.label,
+        initialValue: '',
+        returnFocus: 'table-customizer',
+      });
+      return true;
+    }
+
     const successMessage = `Visualização “${activeSavedView.state.label}” salva.`;
     savedViewRetryRef.current = { successMessage };
     const result = await tableView.save();
@@ -1341,12 +1353,14 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
           label="Visualizações personalizadas indisponíveis"
           variant="danger"
         >
-          <p>
-            O elenco continua utilizável na visualização padrão, mas novas alterações não podem ser
-            gravadas agora.
-          </p>
-          <Button leadingIcon="retry" onClick={() => void tableView.reload()} variant="secondary">
-            Tentar reconectar ao repositório
+          <p>O Elenco segue na visualização Padrão; alterações não serão salvas.</p>
+          <Button
+            aria-label="Tentar reconectar ao repositório"
+            leadingIcon="retry"
+            onClick={() => void tableView.reload()}
+            variant="secondary"
+          >
+            Reconectar
           </Button>
         </Status>
       );
@@ -1474,38 +1488,46 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
       <p aria-atomic="true" className="sr-only" role="status">
         {savedViewAnnouncement}
       </p>
-      {savedViewRepositoryFeedback}
-      {savedViewMigrationFeedback}
-      {savedViewFailureVisible && tableView.persistenceStatus.status === 'failed' && (
-        <section className="saved-view-failure">
-          <Status label="Falha ao gravar visualização" variant="danger">
-            <h3 ref={savedViewFailureHeadingRef} tabIndex={-1}>
-              Não foi possível salvar a visualização
-            </h3>
-            <p>Seus ajustes continuam nesta tela e ainda não foram gravados neste dispositivo.</p>
-          </Status>
-          <div className="saved-view-failure__actions">
-            <Button
-              leadingIcon="retry"
-              onClick={() => void retrySavedViewMutation()}
-              variant="secondary"
-            >
-              Tentar salvar visualização
-            </Button>
-            <Button
-              onClick={() => {
-                setSavedViewFailureVisible(false);
-                focusSavedViewSelector();
-              }}
-              variant="secondary"
-            >
-              Continuar sem salvar
-            </Button>
-          </div>
-        </section>
-      )}
     </div>
   );
+
+  const savedViewFeedback =
+    savedViewRepositoryFeedback !== null ||
+    savedViewMigrationFeedback !== null ||
+    (savedViewFailureVisible && tableView.persistenceStatus.status === 'failed') ? (
+      <div className="saved-view-feedback">
+        {savedViewRepositoryFeedback}
+        {savedViewMigrationFeedback}
+        {savedViewFailureVisible && tableView.persistenceStatus.status === 'failed' && (
+          <section className="saved-view-failure">
+            <Status label="Falha ao gravar visualização" variant="danger">
+              <h3 ref={savedViewFailureHeadingRef} tabIndex={-1}>
+                Não foi possível salvar a visualização
+              </h3>
+              <p>Seus ajustes continuam nesta tela e ainda não foram gravados neste dispositivo.</p>
+            </Status>
+            <div className="saved-view-failure__actions">
+              <Button
+                leadingIcon="retry"
+                onClick={() => void retrySavedViewMutation()}
+                variant="secondary"
+              >
+                Tentar salvar visualização
+              </Button>
+              <Button
+                onClick={() => {
+                  setSavedViewFailureVisible(false);
+                  focusSavedViewSelector();
+                }}
+                variant="secondary"
+              >
+                Continuar sem salvar
+              </Button>
+            </div>
+          </section>
+        )}
+      </div>
+    ) : null;
 
   return (
     <div
@@ -1640,7 +1662,8 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
                           </span>
                           <em>
                             {profileTypeMeta[result.entityType].label}
-                            {result.confidence != null && ` · ${result.confidence}%`}
+                            {result.confidence != null &&
+                              ` · Confiança cadastral ${result.confidence}%`}
                           </em>
                         </button>
                       </li>
@@ -1737,12 +1760,19 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
                 squadFilter={squadFilter}
                 state={state}
                 statusFilter={statusFilter}
+                tableFeedback={savedViewFeedback}
                 tableHeader={savedViewHeader}
                 tableViewBaseline={tableView.baseline}
                 tableViewDirty={tableView.dirty}
                 tableViewLoading={tableView.repositoryStatus.status === 'loading'}
                 tableViewPersistenceStatus={tableView.persistenceStatus}
                 tableViewRepositoryStatus={tableView.repositoryStatus}
+                tableViewSaveMode={
+                  activeSavedView.state.provenance === 'user-owned' &&
+                  activeSavedView.mutability === 'mutable'
+                    ? 'update'
+                    : 'save-as'
+                }
                 tableViewState={tableView.proposal}
                 tableViewStatus={
                   <TableViewStatus
@@ -1795,7 +1825,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
               onFocusPlayer={setFocusedPlayerId}
               onOpenProfile={(playerId) => openProfile({ kind: 'player', entityId: playerId })}
               onOpenClub={(clubId) => openProfile({ kind: 'club', entityId: clubId })}
-              onPitchModeChange={(pitchMode) => updatePreference('pitchMode', pitchMode)}
+              onPitchModeChange={setPitchMode}
               onRenameVariation={renameVariation}
               onSave={saveLineup}
               onSetPrimaryVariation={(variationId) =>
@@ -1822,7 +1852,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
                 setMessage('Última alteração desfeita.');
                 setError('');
               }}
-              pitchMode={preferences.pitchMode}
+              pitchMode={pitchMode}
               saving={busyAction !== null}
               state={state}
             />
@@ -1839,11 +1869,14 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
           key={`${savedViewNameDialog.mode}:${savedViewNameDialog.viewId}`}
           mode={savedViewNameDialog.mode}
           onDismiss={() => {
+            const returnFocus = savedViewNameDialog.returnFocus;
             cancelSavedViewContinuation();
             setSavedViewNameDialog(null);
-            focusSavedViewSelector();
+            if (returnFocus === 'table-customizer') focusTableConfiguration();
+            else focusSavedViewSelector();
           }}
           onSubmit={(name) => void submitSavedViewName(name)}
+          sourceName={savedViewNameDialog.previousName}
         />
       )}
 
@@ -1922,21 +1955,6 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
               >
                 Oculto
               </button>
-            </div>
-          </section>
-          <section>
-            <h3>Leitura do campo</h3>
-            <div className="preference-options">
-              {(['roles', 'condition', 'familiarity'] as const).map((mode) => (
-                <button
-                  aria-pressed={preferences.pitchMode === mode}
-                  key={mode}
-                  onClick={() => updatePreference('pitchMode', mode)}
-                  type="button"
-                >
-                  {mode === 'roles' ? 'Funções' : mode === 'condition' ? 'Condição' : 'Encaixe'}
-                </button>
-              ))}
             </div>
           </section>
           <footer>
