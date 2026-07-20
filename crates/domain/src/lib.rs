@@ -83,7 +83,8 @@ pub use world::{
     DataPackageType, DateWindow, ExternalIdentifier, FactualContract, FactualIdentityStatus,
     FactualProvenance, GameplayReadiness, MINIMUM_WORLD_DATABASE_SCHEMA_VERSION, Nation,
     PackageConflict, PackageCoverageReport, PackageDependency, PackageEntrypoints, PackageManifest,
-    AuthoritativeScope, PackageCompatibility, PackageCompositionMode, PackagePatch,
+    AuthoritativeScope, CompositionChange, CompositionPlan, PackageCompatibility,
+    PackageCompositionMode, PackagePatch,
     PackagePatchOperation, PackageProvenance, PackageValidationDiagnostic,
     PackageValidationReport, PackageVisibility, Person, PersonReadiness, PersonRoleAssignment,
     PersonRoleKind, PositionDefinition, ProvenanceVerificationStatus, Region,
@@ -93,7 +94,7 @@ pub use world::{
     StructuralValidity, TraitDefinition, ValidationSeverity, WORLD_DATABASE_SCHEMA_VERSION,
     PACKAGE_MANIFEST_SCHEMA_VERSION,
     WorldDatabaseFingerprint, WorldEntity, WorldEntityKind, WorldPackageData,
-    project_club_readiness, project_registration_readiness, resolve_world_packages,
+    plan_world_composition, project_club_readiness, project_registration_readiness, resolve_world_packages,
     validate_package,
 };
 

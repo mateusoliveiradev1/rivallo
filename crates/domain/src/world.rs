@@ -2574,6 +2574,60 @@ pub fn resolve_world_packages(
     })
 }
 
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompositionPlan {
+    pub mode: PackageCompositionMode,
+    pub authoritative_scopes: Vec<AuthoritativeScope>,
+    pub adds: Vec<CompositionChange>,
+    pub replaces: Vec<CompositionChange>,
+    pub removes: Vec<CompositionChange>,
+    pub warnings: Vec<String>,
+    pub blockers: Vec<String>,
+    pub references_affected: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompositionChange {
+    pub entity_kind: WorldEntityKind,
+    pub target_id: String,
+    pub reason: String,
+}
+
+pub fn plan_world_composition(package: &ContentPackage) -> CompositionPlan {
+    let mut plan = CompositionPlan {
+        mode: package.manifest.composition_mode,
+        authoritative_scopes: package.manifest.authoritative_scopes.clone(),
+        ..CompositionPlan::default()
+    };
+    for patch in &package.patches {
+        let change = CompositionChange {
+            entity_kind: patch.entity_kind,
+            target_id: patch.target_id.clone(),
+            reason: patch.reason.clone(),
+        };
+        match patch.operation {
+            PackagePatchOperation::Add => plan.adds.push(change),
+            PackagePatchOperation::Replace => plan.replaces.push(change),
+            PackagePatchOperation::Remove => {
+                plan.removes.push(change);
+                plan.references_affected.push(patch.target_id.clone());
+            }
+        }
+    }
+    if plan.mode == PackageCompositionMode::Authoritative {
+        if package.manifest.target_base_fingerprint.is_none() {
+            plan.blockers.push("package.authoritative_fingerprint_required".to_owned());
+        }
+        if plan.authoritative_scopes.is_empty() {
+            plan.blockers.push("package.authoritative_scopes_required".to_owned());
+        }
+        plan.warnings.push("Entidades fora dos escopos declarados serão preservadas.".to_owned());
+    }
+    plan
+}
+
 fn package_set_fingerprint(packages: &[ContentPackage]) -> String {
     let source = packages
         .iter()
