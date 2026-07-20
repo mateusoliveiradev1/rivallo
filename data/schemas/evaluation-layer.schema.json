@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rivallo.local/schemas/evaluation-layer.schema.json",
+  "title": "Rivallo Evaluation Layer Package",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "manifest",
+    "methodologies",
+    "evidence",
+    "entityAssessments",
+    "reviewHistory",
+    "provenance"
+  ],
+  "properties": {
+    "manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "packageId",
+        "version",
+        "schemaVersion",
+        "methodologyId",
+        "methodologyVersion",
+        "targetBaseFingerprint",
+        "author",
+        "createdAt",
+        "visibility",
+        "checksum"
+      ],
+      "properties": {
+        "packageId": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+" },
+        "schemaVersion": { "const": 1 },
+        "methodologyId": { "type": "string", "minLength": 1 },
+        "methodologyVersion": { "type": "string", "minLength": 1 },
+        "targetBaseFingerprint": { "type": "string", "minLength": 1 },
+        "author": { "type": "string", "minLength": 1 },
+        "createdAt": { "type": "string", "minLength": 1 },
+        "visibility": { "enum": ["public", "privateDevelopment"] },
+        "checksum": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+      }
+    },
+    "methodologies": { "type": "array", "minItems": 1, "items": { "type": "object" } },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["evidenceId", "entityId", "kind", "source", "quality", "confidence"],
+        "properties": {
+          "evidenceId": { "type": "string", "minLength": 1 },
+          "entityId": { "type": "string", "minLength": 1 },
+          "kind": {
+            "enum": [
+              "objectiveStatistic",
+              "manualObservation",
+              "technicalReport",
+              "performanceHistory",
+              "declaredPosition",
+              "minutes",
+              "availability",
+              "expertAssessment",
+              "datasetImport",
+              "structuredQualitative"
+            ]
+          },
+          "source": { "type": "object" },
+          "quality": { "type": "object" },
+          "confidence": { "type": "integer", "minimum": 0, "maximum": 100 }
+        }
+      }
+    },
+    "entityAssessments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "evaluationId",
+          "entityId",
+          "methodologyId",
+          "methodologyVersion",
+          "status",
+          "author",
+          "createdAt",
+          "overallConfidence",
+          "payload",
+          "explanation"
+        ],
+        "properties": {
+          "evaluationId": { "type": "string", "minLength": 1 },
+          "entityId": { "type": "string", "minLength": 1 },
+          "methodologyId": { "type": "string", "minLength": 1 },
+          "methodologyVersion": { "type": "string", "minLength": 1 },
+          "status": {
+            "enum": [
+              "notEvaluated",
+              "draft",
+              "insufficientEvidence",
+              "inReview",
+              "approved",
+              "rejected",
+              "stale",
+              "superseded"
+            ]
+          },
+          "author": { "type": "string", "minLength": 1 },
+          "reviewer": { "type": ["string", "null"] },
+          "createdAt": { "type": "string", "minLength": 1 },
+          "submittedAt": { "type": ["string", "null"] },
+          "reviewedAt": { "type": ["string", "null"] },
+          "validUntil": { "type": ["string", "null"] },
+          "overallConfidence": { "type": "object" },
+          "payload": { "type": "object" },
+          "explanation": { "type": "string" },
+          "staleReason": { "type": ["string", "null"] },
+          "supersedesEvaluationId": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "reviewHistory": { "type": "array", "items": { "type": "object" } },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "rights", "createdAt", "notes"],
+      "properties": {
+        "source": { "type": "string", "minLength": 1 },
+        "rights": { "type": "string", "minLength": 1 },
+        "createdAt": { "type": "string", "minLength": 1 },
+        "notes": { "type": "string" }
+      }
+    }
+  }
+}

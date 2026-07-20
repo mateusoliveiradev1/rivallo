@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "calibrationId": "rivallo.synthetic-calibration.v1",
+  "methodologyId": "rivallo.evaluation.foundation",
+  "methodologyVersion": "1.0.0",
+  "syntheticOnly": true,
+  "provenance": "Generated fictional calibration fixtures; no real people or private datasets.",
+  "samples": [
+    {
+      "entityId": "synthetic.player.outfield-youth-a",
+      "subject": "player",
+      "group": "outfield",
+      "ageBand": "youth",
+      "position": "cm",
+      "confidence": 58,
+      "values": { "technique": 64, "passing": 67, "physical": 54, "currentAbility": 62 }
+    },
+    {
+      "entityId": "synthetic.player.outfield-senior-b",
+      "subject": "player",
+      "group": "outfield",
+      "ageBand": "senior",
+      "position": "st",
+      "confidence": 82,
+      "values": { "finishing": 78, "technique": 73, "physical": 69, "currentAbility": 74 }
+    },
+    {
+      "entityId": "synthetic.player.outfield-veteran-c",
+      "subject": "player",
+      "group": "outfield",
+      "ageBand": "veteran",
+      "position": "cb",
+      "confidence": 88,
+      "values": { "tackling": 81, "passing": 71, "physical": 66, "currentAbility": 75 }
+    },
+    {
+      "entityId": "synthetic.player.goalkeeper-youth-d",
+      "subject": "player",
+      "group": "goalkeeper",
+      "ageBand": "youth",
+      "position": "gk",
+      "confidence": 49,
+      "values": { "reaction": 69, "handling": 61, "distribution": 65, "currentAbility": 64 }
+    },
+    {
+      "entityId": "synthetic.player.goalkeeper-senior-e",
+      "subject": "player",
+      "group": "goalkeeper",
+      "ageBand": "senior",
+      "position": "gk",
+      "confidence": 84,
+      "values": { "reaction": 82, "handling": 79, "distribution": 72, "currentAbility": 78 }
+    },
+    {
+      "entityId": "synthetic.coach-balanced-f",
+      "subject": "coach",
+      "group": "coach",
+      "ageBand": "adult",
+      "role": "headCoach",
+      "confidence": 76,
+      "values": { "tactical": 70, "preparation": 74, "peopleManagement": 72, "contextual": 72 }
+    },
+    {
+      "entityId": "synthetic.staff-goalkeeper-g",
+      "subject": "staffMember",
+      "group": "staff",
+      "ageBand": "adult",
+      "role": "goalkeeperCoach",
+      "confidence": 71,
+      "values": { "technicalDevelopment": 77, "communication": 68, "roleSuitability": 73 }
+    },
+    {
+      "entityId": "synthetic.staff-analyst-h",
+      "subject": "staffMember",
+      "group": "staff",
+      "ageBand": "adult",
+      "role": "analyst",
+      "confidence": 79,
+      "values": { "tactical": 75, "abilityJudgement": 78, "roleSuitability": 77 }
+    }
+  ],
+  "invariants": [
+    "dominanceDoesNotReduceRating",
+    "conditionDoesNotChangeAbility",
+    "formDoesNotChangeAttribute",
+    "familiarityDoesNotChangePotential",
+    "scoutingDoesNotChangeInternalValue",
+    "wrongPositionChangesContextNotAbility",
+    "confidenceDoesNotChangeQuality"
+  ]
+}

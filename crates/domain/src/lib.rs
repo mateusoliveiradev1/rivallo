@@ -1,6 +1,7 @@
 //! Framework-independent primitives shared by the modular-monolith core.
 
 mod career;
+mod evaluations;
 mod matchday;
 mod portrait;
 mod profiles;
@@ -12,6 +13,30 @@ pub use career::{
     CareerRouteContext, CareerSaveState, CareerSlot, CareerWorldSnapshot, CoachAppearance,
     CoachArchetype, CoachAttributeBudgetLine, CoachBackground, CoachCreationEvaluation,
     CoachCreatorDraft, PortraitUpload, evaluate_coach_creation, validate_portrait,
+};
+pub use evaluations::{
+    ApprovedCoachRatingInputs, ApprovedPlayerRatingInputs, AssessmentStatus,
+    CalibrationDistribution, CalibrationSample, ClubEvaluationReadinessProjection, CoachEvaluation,
+    ConfidenceBreakdown, DimensionAssessment, EVALUATION_LAYER_SCHEMA_VERSION,
+    EVALUATION_SCHEMA_VERSION, EntityEvaluation, EvaluationCalibrationProfile,
+    EvaluationComposition, EvaluationDiagnostic, EvaluationDiagnosticSeverity, EvaluationDimension,
+    EvaluationEvidence, EvaluationHistoryEntry, EvaluationImportChange, EvaluationImportChangeKind,
+    EvaluationImportPlan, EvaluationImportReceipt, EvaluationImportRow, EvaluationLayerManifest,
+    EvaluationLayerPackage, EvaluationLayerProvenance, EvaluationLayerValidation,
+    EvaluationMethodologyVersion, EvaluationPayload, EvaluationReadinessPolicy,
+    EvaluationReadinessProjection, EvaluationReadinessRequirement, EvaluationReviewAction,
+    EvaluationRule, EvaluationScale, EvaluationSubject, EvaluationThreshold, EvaluationValue,
+    EvaluationValueKind, EvaluationWeight, EvidenceConflict, EvidenceKind, EvidenceMetric,
+    EvidenceObservation, EvidencePeriod, EvidenceQuality, EvidenceSource, MethodologyStatus,
+    OFFICIAL_METHODOLOGY_ID, OFFICIAL_METHODOLOGY_VERSION, PlayerEvaluation, PositionAssessment,
+    PotentialAssessment, ReviewActionKind, RoleAssessment, SpecialtyAssessment, StaffEvaluation,
+    apply_evaluation_import, apply_review_action, approved_coach_rating_inputs,
+    approved_player_rating_inputs, calculate_confidence, calibration_distribution,
+    compose_evaluation_layer, detect_evidence_conflicts, dry_run_evaluation_import,
+    evaluation_layer_canonical_bytes, official_evaluation_methodology,
+    official_evaluation_readiness_policy, project_club_evaluation_readiness,
+    project_evaluation_readiness, rollback_evaluation_import, validate_evaluation_layer,
+    weighted_score,
 };
 pub use matchday::{
     Club, CustomFormationIdentity, Formation, LineupSelection, MatchEvent, MatchResult,

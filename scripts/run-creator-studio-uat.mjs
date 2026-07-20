@@ -268,7 +268,12 @@ const definitions = [
     '09',
     'Pessoas e CSV',
     '09 Pessoas — treinador, auxiliar, goleiro e dois jogadores por CRUD visual',
-    ['09-comissao-e-pessoas.png', '09-importacao-elenco-csv.png'],
+    [
+      '09-comissao-e-pessoas.png',
+      '09a-avaliacoes-revisao.png',
+      '09a-avaliacoes-zoom-200.png',
+      '09-importacao-elenco-csv.png',
+    ],
     [],
   ],
   [

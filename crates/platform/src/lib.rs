@@ -1,6 +1,7 @@
 //! Outer composition for contract-pipeline inputs and the local loopback runtime.
 
 mod career;
+mod evaluations;
 mod matchday;
 pub mod persistence;
 mod profiles;
@@ -8,6 +9,10 @@ mod runtime;
 mod table_view;
 mod world;
 
+pub use evaluations::{
+    apply_evaluation_import_and_seal, compose_verified_evaluation_layer, evaluation_layer_checksum,
+    rollback_evaluation_import_and_seal, seal_evaluation_layer, validate_evaluation_layer_package,
+};
 pub use matchday::{FileMatchdayRepository, MatchdayCoordinator};
 pub use persistence::{LocalDataDirectoryResolver, SqlitePersistenceAdapter};
 pub use profiles::{FileProfileRepository, ProfileCoordinator};

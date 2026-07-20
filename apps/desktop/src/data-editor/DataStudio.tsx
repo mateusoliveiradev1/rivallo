@@ -14,6 +14,7 @@ import {
   type StudioSeasonRecordValue,
 } from './authoring-graph.js';
 import { CsvImport } from './CsvImport.js';
+import { EvaluationWorkbench } from './EvaluationWorkbench.js';
 import { PackageValidationSummary } from './PackageValidationSummary.js';
 import { StudioEntityEditor } from './StudioEntityEditor.js';
 import type {
@@ -35,6 +36,7 @@ const modules = [
   ['players', 'Jogadores'],
   ['coaches', 'Treinadores'],
   ['staff', 'Comissão'],
+  ['evaluations', 'Avaliações'],
   ['competitions', 'Competições'],
   ['seasons', 'Temporadas'],
   ['contracts', 'Contratos'],
@@ -576,6 +578,20 @@ export function DataStudio({
           </section>
         )}
 
+        <EvaluationWorkbench
+          isActive={module === 'evaluations'}
+          onOpenFactual={(recordSubject, entityId) =>
+            navigate(
+              recordSubject === 'player'
+                ? 'players'
+                : recordSubject === 'coach'
+                  ? 'coaches'
+                  : 'staff',
+              entityId,
+            )
+          }
+          world={draftWorld}
+        />
         {module === 'assets' && (
           <AssetManager assets={assets} author={author} onUpsert={onUpsert} world={draftWorld} />
         )}

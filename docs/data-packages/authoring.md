@@ -95,3 +95,11 @@ Tauri asset URL. React components never concatenate package roots or interpret p
 New careers pin base/mod IDs, versions, hashes, schema, load order, seed and the resolved world
 snapshot. Package updates do not mutate an existing save. Migration remains explicit, backed up,
 validated and atomic.
+
+## Evaluation layers
+
+Sporting assessments use a separate, versioned layer that references factual entities by internal
+ID. It does not duplicate identity or silently convert factual imports into runtime profiles. Drafts,
+evidence, review, confidence, fingerprint compatibility and rollback are documented in
+[`evaluation-layers.md`](evaluation-layers.md). Existing explainable ratings remain the runtime
+consumer; the layer is not a parallel rating engine.

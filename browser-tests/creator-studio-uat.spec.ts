@@ -773,6 +773,58 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
     await screenshot(page, testInfo, '09-comissao-e-pessoas');
   });
 
+  await test.step('09a Avaliações — faixa, evidência, revisão, stale e reavaliação', async () => {
+    await page.getByRole('button', { name: 'Avaliações', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Avaliações' })).toBeVisible();
+    const row = page.locator('.evaluation-list tbody tr').filter({ hasText: 'Rafael' });
+    await row.getByRole('button').click();
+    await expect(
+      page.getByText('Somente leitura. Avaliações nunca sobrescrevem estes campos.'),
+    ).toBeVisible();
+    await page.getByRole('combobox', { name: 'Representação' }).selectOption('range');
+    await page.getByRole('spinbutton', { name: 'Mínimo' }).fill('68');
+    await page.getByRole('spinbutton', { name: 'Máximo' }).fill('74');
+    await expect(
+      page.getByText(/O ponto central não será apresentado como valor exato/u),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Adicionar evidência' }).click();
+    await page.getByRole('button', { name: 'Enviar para revisão' }).click();
+    await expect(page.getByRole('button', { name: 'Aprovar' })).toBeVisible();
+    await page.getByRole('button', { name: 'Aprovar' }).click();
+    await expect(page.getByText('Avaliação mínima aprovada')).toBeVisible();
+    await page.getByRole('button', { name: 'Marcar como desatualizada' }).click();
+    await expect(page.getByRole('button', { name: 'Criar reavaliação' })).toBeVisible();
+    await page.getByRole('button', { name: 'Criar reavaliação' }).click();
+    await expect(page.getByText('Nova revisão criada sem sobrescrever o histórico.')).toBeVisible();
+    await page.getByRole('button', { name: 'Clubes', exact: true }).click();
+    await page.getByRole('button', { name: 'Avaliações', exact: true }).click();
+    await expect(page.getByText('Nova revisão criada sem sobrescrever o histórico.')).toBeVisible();
+    await screenshot(page, testInfo, '09a-avaliacoes-revisao');
+    if (testInfo.project.name === 'desktop-1366x768') {
+      for (const viewport of [
+        { width: 1024, height: 768 },
+        { width: 1366, height: 768 },
+        { width: 1440, height: 900 },
+        { width: 1920, height: 1080 },
+        { width: 2560, height: 1080 },
+      ]) {
+        await page.setViewportSize(viewport);
+        await expect(page.getByRole('heading', { name: 'Avaliações' })).toBeVisible();
+        expect(
+          await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+        ).toBe(true);
+      }
+      // 512×384 CSS pixels represent the required 1024×768 surface at 200% zoom.
+      await page.setViewportSize({ width: 512, height: 384 });
+      await expect(page.getByRole('heading', { name: 'Avaliações' })).toBeVisible();
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
+      await screenshot(page, testInfo, '09a-avaliacoes-zoom-200');
+      await page.setViewportSize({ width: 1366, height: 768 });
+    }
+  });
+
   await test.step('09b Elenco restante — fixture CSV revisada e importada', async () => {
     await page.getByRole('button', { name: 'Importar CSV', exact: true }).click();
     await page.getByRole('combobox', { name: 'Entidade' }).selectOption('player');
