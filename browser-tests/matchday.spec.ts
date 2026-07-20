@@ -24,7 +24,8 @@ import {
   type ContrastForeground,
 } from './helpers/wcag-contrast.js';
 
-const developmentUrl = 'http://127.0.0.1:4173/';
+const developmentUrl = 'http://127.0.0.1:4173/career/career.legacy.aurora';
+const mainMenuUrl = 'http://127.0.0.1:4173/main-menu';
 const bridgeStateKey = 'rivallo.browser-test.matchday-state';
 const tableViewBridgeStateKey = 'rivallo.browser-test.table-view-state';
 const tableViewBridgeControlKey = 'rivallo.browser-test.table-view-control';
@@ -772,6 +773,217 @@ test.beforeEach(async ({ page }) => {
         })),
       };
 
+      const fixtureCareerTime = Date.UTC(2026, 6, 18, 12, 0, 0);
+      let careerSummary = {
+        careerId: 'career.legacy.aurora',
+        displayName: 'Carreira Aurora',
+        managerId: coachProfiles[0]?.identity.entityId ?? 'coach.aurora.head',
+        managerName: coachProfiles[0]?.identity.knownName ?? 'Treinador Aurora',
+        clubId: state.club.id,
+        clubName: state.club.name,
+        clubShortName: state.club.shortName,
+        clubPrimaryColor: state.club.primaryColor,
+        currentDate: '2026-01-10',
+        seasonRef: 'season.2026',
+        baseName: 'Base oficial Rivallo',
+        basePackageId: 'official.rivallo.foundation',
+        basePackageVersion: '1.0.0',
+        modCount: 0,
+        worldFingerprint: 'browser-fixture',
+        createdAt: fixtureCareerTime,
+        updatedAt: fixtureCareerTime,
+        lastPlayedAt: fixtureCareerTime,
+        lastContext: {
+          route: '/career/career.legacy.aurora',
+          activeScreen: 'squad',
+          activeTab: null,
+          variationId: null,
+          scrollTop: 0,
+        },
+        saveRevision: 1,
+        integrity: 'valid',
+        saveState: 'saved',
+        sportingState: 'legacyMatchdayAvailable',
+        backupCount: 1,
+      };
+      let careerSlot = {
+        ...careerSummary,
+        schemaVersion: 1,
+        operationId: 'browser-fixture',
+        baseSnapshot: {
+          basePackageId: 'official.rivallo.foundation',
+          basePackageVersion: '1.0.0',
+          schemaVersion: 1,
+          activeMods: [],
+          modVersions: [],
+          loadOrder: ['official.rivallo.foundation'],
+          packageHashes: [],
+          worldFingerprint: 'browser-fixture',
+          fingerprintAlgorithm: 'sha256',
+          gameVersion: '0.1.0',
+          createdAt: 1,
+        },
+        assistance: 'balanced',
+        matchday: state,
+        portraitAsset: null,
+      };
+      const officialManifest = {
+        packageId: 'official.rivallo.foundation',
+        name: 'Base oficial Rivallo',
+        version: '1.0.0',
+        schemaVersion: 1,
+        gameVersionCompatibility: '>=0.1.0',
+        author: 'Rivallo',
+        description: 'Fundação fictícia oficial para uma carreira local segura.',
+        contentType: 'base',
+        loadOrderHint: 0,
+        visibility: 'public',
+        checksum: 'browser-fixture',
+      };
+      const scoutingModManifest = {
+        packageId: 'mod.rivallo.scouting-notes',
+        name: 'Notas de observação',
+        version: '1.2.0',
+        schemaVersion: 1,
+        gameVersionCompatibility: '>=0.1.0',
+        author: 'Rivallo Community',
+        description: 'Vocabulário adicional para relatórios e observações locais.',
+        contentType: 'mod',
+        loadOrderHint: 10,
+        visibility: 'public',
+        checksum: 'browser-mod-scouting',
+      };
+      const analysisModManifest = {
+        packageId: 'mod.rivallo.analysis-scenarios',
+        name: 'Cenários de análise',
+        version: '0.8.0',
+        schemaVersion: 1,
+        gameVersionCompatibility: '>=0.1.0',
+        author: 'Rivallo Labs',
+        description: 'Cenários alternativos que exigem revisão de ordem antes de uma carreira.',
+        contentType: 'mod',
+        loadOrderHint: 20,
+        visibility: 'public',
+        checksum: 'browser-mod-analysis',
+        dependencies: [
+          {
+            packageId: 'mod.rivallo.scouting-notes',
+            versionRequirement: '^1.2.0',
+            optional: false,
+          },
+        ],
+        conflicts: [
+          {
+            packageId: 'mod.rivallo.legacy-analysis',
+            reason: 'Ambos alteram o mesmo vocabulário de análise.',
+          },
+        ],
+      };
+      const catalog = [
+        {
+          manifest: officialManifest,
+          active: true,
+          validation: { valid: true, diagnostics: [] },
+        },
+        {
+          manifest: scoutingModManifest,
+          active: false,
+          validation: { valid: true, diagnostics: [] },
+        },
+        {
+          manifest: analysisModManifest,
+          active: false,
+          validation: { valid: true, diagnostics: [] },
+        },
+      ];
+      const composition = {
+        schemaVersion: 1,
+        packages: [officialManifest],
+        fingerprint: {
+          algorithm: 'sha256',
+          value: 'browser-fixture',
+          schemaVersion: 1,
+          packageOrder: ['official.rivallo.foundation'],
+        },
+        coverage: {
+          clubs: 1,
+          players: state.players.length,
+          coaches: 1,
+          nations: 1,
+          competitions: 1,
+          assets: 0,
+        },
+        validation: { valid: true, diagnostics: [] },
+        world: {
+          clubs: [state.club],
+          matchday: state,
+          nations: [{ id: 'bra', name: 'Brasil', iso2: 'BR' }],
+          competitions: [
+            {
+              id: 'competition.foundation',
+              name: 'Liga Fundação',
+              shortName: 'LFR',
+              nationId: 'bra',
+              seasons: [
+                {
+                  id: 'season.2026',
+                  label: 'Temporada 2026',
+                  startDate: '2026-01-10',
+                  endDate: '2026-12-20',
+                  participantClubIds: [state.club.id],
+                },
+              ],
+            },
+          ],
+          profiles: {
+            players: state.players.map((player) => ({
+              identity: { entityId: player.id, clubId: state.club.id },
+              naturalPosition: player.position,
+            })),
+            coaches: [
+              {
+                identity: {
+                  entityId: 'coach.aurora.head',
+                  fullName: 'Marcelo Nunes',
+                  knownName: 'Marcelo Nunes',
+                  nationality: 'Brasil',
+                  birthDate: '1978-04-20',
+                  age: 48,
+                  clubId: state.club.id,
+                  clubName: state.club.name,
+                  clubShortName: state.club.shortName,
+                  clubPrimaryColor: state.club.primaryColor,
+                },
+                role: 'Treinador principal',
+                reputation: 76,
+                qualification: 'Licença Continental Pro',
+                experienceYears: 16,
+                style: 'Controle territorial com pressão coordenada',
+                preferredFormations: ['4-3-3', '4-2-3-1'],
+                specialties: ['Preparação de partidas'],
+                attributes: {
+                  tactical: 79,
+                  preparation: 78,
+                  adaptability: 68,
+                  decisionMaking: 74,
+                  technicalDevelopment: 70,
+                  physicalDevelopment: 62,
+                  mentalDevelopment: 72,
+                  tacticalDevelopment: 76,
+                  youthDevelopment: 69,
+                  motivation: 75,
+                  communication: 73,
+                  discipline: 71,
+                  peopleManagement: 77,
+                  abilityJudgement: 74,
+                  potentialJudgement: 72,
+                },
+              },
+            ],
+          },
+        },
+      };
+
       const bridge = {
         invoke: async (command: string, args: Record<string, unknown> = {}) => {
           if (command === 'world_reference_catalog') {
@@ -780,6 +992,49 @@ test.beforeEach(async ({ page }) => {
           if (command === 'lifecycle_status' || command === 'retry_lifecycle') {
             return { state: 'ready', ownership: 'owned' };
           }
+          if (command === 'data_package_catalog') return structuredClone(catalog);
+          const emptyCareers = new URLSearchParams(window.location.search).has('empty-careers');
+          if (command === 'career_slots')
+            return emptyCareers ? [] : [structuredClone(careerSummary)];
+          if (command === 'last_valid_career')
+            return emptyCareers ? null : structuredClone(careerSummary);
+          if (command === 'load_career') {
+            return { ...structuredClone(careerSlot), matchday: structuredClone(state) };
+          }
+          if (command === 'preview_career_composition') return structuredClone(composition);
+          if (command === 'create_career') {
+            const request = args.request as {
+              displayName: string;
+              assistance: string;
+            };
+            await new Promise((resolve) => window.setTimeout(resolve, 200));
+            return {
+              ...structuredClone(careerSlot),
+              careerId: 'career.browser.created',
+              displayName: request.displayName,
+              assistance: request.assistance,
+              sportingState: 'awaitingCompetitionInitialization',
+              matchday: structuredClone(state),
+            };
+          }
+          if (command === 'save_career') {
+            const request = args.request as {
+              expectedRevision: number;
+              context: typeof careerSummary.lastContext;
+            };
+            careerSummary = {
+              ...careerSummary,
+              saveRevision: request.expectedRevision + 1,
+              lastContext: structuredClone(request.context),
+            };
+            careerSlot = {
+              ...careerSlot,
+              ...careerSummary,
+              matchday: structuredClone(state),
+            };
+            return structuredClone(careerSlot);
+          }
+          if (command === 'exit_application') return null;
           if (command === 'load_table_views') {
             const nextLoad = readTableControl().nextLoad;
             if (nextLoad === 'loading') {
@@ -1341,6 +1596,153 @@ test.beforeEach(async ({ page }) => {
       coachProfiles: browserCoachProfiles,
     },
   );
+});
+
+test('opens the Main Menu before a career and continues the indexed slot explicitly', async ({
+  page,
+}, testInfo) => {
+  await page.goto(mainMenuUrl);
+
+  await expect(page.getByRole('heading', { name: 'Sua carreira espera por você.' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continuar carreira' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('main-menu.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Continuar carreira' }).click();
+  await expect(page.getByRole('heading', { name: 'Visão geral do elenco' })).toBeVisible();
+  await page.getByRole('button', { name: 'Voltar ao Menu Principal' }).click();
+  await expect(page.getByRole('heading', { name: 'Sua carreira espera por você.' })).toBeVisible();
+});
+
+test('captures the empty Main Menu and the safe career return lifecycle', async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== 'desktop-1366x768',
+    'The phase evidence is captured once at the canonical desktop viewport.',
+  );
+
+  await page.goto(`${mainMenuUrl}?empty-careers=1`);
+  await expect(
+    page.getByRole('heading', { name: 'Comece uma história no futebol.' }),
+  ).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('main-menu-empty.png'), fullPage: true });
+
+  await page.goto(mainMenuUrl);
+  await expect(page.getByRole('heading', { name: 'Sua carreira espera por você.' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('main-menu.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Mods' }).click();
+  await expect(page.getByRole('heading', { name: 'Bases e mods instalados' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('mods-catalog.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Voltar ao Menu Principal' }).click();
+  await page.getByRole('button', { name: 'Carregar carreira' }).click();
+  await expect(page.getByRole('heading', { name: 'Carregar carreira' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('load-career.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Voltar ao Menu Principal' }).click();
+  await page.getByRole('button', { name: 'Continuar carreira' }).click();
+  await expect(page.getByRole('heading', { name: 'Visão geral do elenco' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('career-sidebar-footer.png'), fullPage: true });
+
+  await page.getByRole('button', { name: 'Táticas', exact: true }).click();
+  const inspector = page.getByLabel('Inspector tático');
+  await inspector.getByRole('tab', { name: 'Estratégia', exact: true }).click();
+  await inspector.getByRole('button', { name: 'Personalizar estratégia' }).click();
+  const amplitude = inspector.getByRole('slider', { name: 'Amplitude' });
+  await amplitude.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('button', { name: 'Salvar plano' })).toBeEnabled();
+
+  await page.getByRole('button', { name: 'Voltar ao Menu Principal' }).click();
+  const returnDialog = page.getByRole('dialog', { name: 'Voltar ao Menu Principal?' });
+  await expect(returnDialog).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('return-to-menu-dialog.png'), fullPage: true });
+  await returnDialog.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(page.getByRole('button', { name: 'Voltar ao Menu Principal' })).toBeFocused();
+
+  await page.getByRole('button', { name: 'Voltar ao Menu Principal' }).click();
+  await page
+    .getByRole('dialog', { name: 'Voltar ao Menu Principal?' })
+    .getByRole('button', { name: 'Salvar e voltar' })
+    .click();
+  await expect(page.getByRole('heading', { name: 'Sua carreira espera por você.' })).toBeVisible();
+  await page.getByRole('button', { name: 'Continuar carreira' }).click();
+  await expect(page.getByRole('button', { name: 'Táticas', exact: true })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  await page.screenshot({
+    path: testInfo.outputPath('restored-career-context.png'),
+    fullPage: true,
+  });
+});
+
+test('completes the New Career wizard with the official frozen composition', async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== 'desktop-1366x768',
+    'The full creation journey is covered once; responsive projects cover the shared shell.',
+  );
+  await page.goto(mainMenuUrl);
+  await page.getByRole('button', { name: 'Nova carreira' }).click();
+
+  await expect(
+    page.getByRole('heading', { name: 'Escolha os dados desta carreira' }),
+  ).toBeVisible();
+  await expect(page.getByRole('radio', { name: /Base oficial Rivallo/u })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  );
+  await expect(page.getByText(/sha256:browser-fixture/u)).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('new-career-base.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Avançar' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Defina o ponto de partida' })).toBeVisible();
+  await page.getByRole('button', { name: 'Avançar' }).click();
+  await expect(page.getByRole('heading', { name: 'Onde sua história começa?' })).toBeVisible();
+  await page.getByRole('option', { name: /Aurora Futebol Clube/u }).click();
+  await page.screenshot({ path: testInfo.outputPath('new-career-club.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Avançar' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Escolha quem assume o projeto' })).toBeVisible();
+  await page.getByRole('radio', { name: /Criar novo treinador/u }).click();
+  await page.getByLabel('Nome', { exact: true }).fill('Lívia');
+  await page.getByLabel('Sobrenome', { exact: true }).fill('Ferraz');
+  await page.getByLabel('Nome conhecido', { exact: true }).fill('Lívia Ferraz');
+  await page.screenshot({
+    path: testInfo.outputPath('coach-creator-identity.png'),
+    fullPage: true,
+  });
+  await page.getByRole('button', { name: 'Próximo' }).click();
+  await expect(page.getByRole('heading', { name: 'Aparência' })).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath('coach-creator-appearance.png'),
+    fullPage: true,
+  });
+  await page.getByRole('button', { name: 'Próximo' }).click();
+  await page.getByRole('button', { name: 'Próximo' }).click();
+  await expect(page.getByRole('heading', { name: 'Capacidades' })).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath('coach-creator-capabilities.png'),
+    fullPage: true,
+  });
+  await page.getByRole('button', { name: 'Próximo' }).click();
+  await page.getByRole('button', { name: 'Próximo' }).click();
+  await expect(page.getByRole('heading', { name: 'Revisão do treinador' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('coach-creator-review.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Avançar' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Quanto contexto você quer receber?' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Avançar' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Tudo pronto para criar a carreira' }),
+  ).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('new-career-review.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Criar carreira' }).click();
+  await expect(page.getByRole('heading', { name: 'Preparando sua carreira…' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('new-career-creation.png'), fullPage: true });
+
+  await expect(page.getByRole('heading', { name: 'Visão geral do elenco' })).toBeVisible();
+  await expect(page.getByText('Aguardando temporada')).toBeVisible();
 });
 
 test('opens Elenco as a dedicated table workspace without rendering the tactical field', async ({

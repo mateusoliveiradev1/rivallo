@@ -599,10 +599,23 @@ describe('Phase 06.1 Table View Engine production boundaries', () => {
     );
     expectAbsent(phaseSixProduction, 'deferred Phase 9 implementation surface', [
       /\b(?:sqlite|rusqlite|sqlx|plugin-sql)\b/iu,
-      /\b(?:careerId|career_id|userId|user_id|profileId|profile_id|accountId|account_id)\b/u,
       /\b(?:server-query|server-pagination|client-virtualization)\b/iu,
       /\bvirtualiz(?:e|ed|es|ing|ation)\b/iu,
       /\b(?:queryCache|syncQueue|remoteSync|offlineStore|cacheKey)\b/u,
+    ]);
+    const tableViewOwnershipSurface = (
+      await Promise.all(
+        phaseSixProductionFiles
+          .filter(
+            (path) =>
+              path !== 'apps/desktop/src/matchday/MatchdayScreen.tsx' &&
+              path !== 'apps/desktop/src-tauri/src/main.rs',
+          )
+          .map(readRootFile),
+      )
+    ).join('\n');
+    expectAbsent(tableViewOwnershipSurface, 'table-view persistence ownership surface', [
+      /\b(?:careerId|career_id|userId|user_id|profileId|profile_id|accountId|account_id)\b/u,
     ]);
 
     const rustProduction = (

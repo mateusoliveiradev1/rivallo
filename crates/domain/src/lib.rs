@@ -1,10 +1,16 @@
 //! Framework-independent primitives shared by the modular-monolith core.
 
+mod career;
 mod matchday;
 mod profiles;
 mod tactics;
 mod world;
 
+pub use career::{
+    AssistanceProfile, CAREER_SCHEMA_VERSION, COACH_CREATOR_SCHEMA_VERSION, CareerIntegrity,
+    CareerRouteContext, CareerSaveState, CareerSlot, CareerWorldSnapshot, CoachAppearance,
+    CoachBackground, CoachCreatorDraft, PortraitUpload, validate_portrait,
+};
 pub use matchday::{
     Club, CustomFormationIdentity, Formation, LineupSelection, MatchEvent, MatchResult,
     MatchdayError, MatchdayState, Player, Position, PreferredFoot, SeasonRecord, SquadRole,

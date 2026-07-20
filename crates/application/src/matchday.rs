@@ -116,6 +116,18 @@ impl<R: MatchdayRepository> MatchdayService<R> {
         }
     }
 
+    pub fn replace_state(
+        &self,
+        mut state: MatchdayState,
+    ) -> Result<MatchdayState, MatchdayServiceError> {
+        state.backfill_player_profiles();
+        state.backfill_tactical_plan()?;
+        self.repository
+            .save(&state)
+            .map_err(MatchdayServiceError::Persistence)?;
+        Ok(state)
+    }
+
     pub fn update_lineup(
         &self,
         selection: LineupSelection,

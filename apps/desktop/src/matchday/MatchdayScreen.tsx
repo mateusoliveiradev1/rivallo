@@ -1,7 +1,9 @@
 import { Icon, type GenericIconName } from '@rivallo/icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react';
 
+import { exitApplication, operationId, saveCareer } from '../career/client.js';
+import type { CareerFailure, CareerSlot } from '../career/types.js';
 import { TableViewStatus } from '../ui/DataTable/index.js';
 import { ProfileScreen } from '../profiles/ProfileScreen.js';
 import { EntityLink, entityPath } from '../profiles/EntityProfileSystem.js';
@@ -74,7 +76,56 @@ import './matchday.css';
 
 interface MatchdayScreenProps {
   readonly serviceOwnership: 'owned' | 'reused';
+  readonly career?: CareerSlot;
+  readonly exitRequestToken?: number;
+  readonly onCareerSaved?: (career: CareerSlot) => void;
+  readonly onReturnToMenu?: () => void;
 }
+
+const legacyCareerFixture: CareerSlot = {
+  schemaVersion: 1,
+  careerId: 'career.legacy.aurora',
+  operationId: 'legacy-desktop-session',
+  displayName: 'Carreira Aurora',
+  managerId: 'coach.aurora.head',
+  managerName: 'Treinador Aurora',
+  clubId: 'aurora',
+  clubName: 'Aurora Futebol Clube',
+  clubShortName: 'AUR',
+  clubPrimaryColor: '#1d8f63',
+  baseSnapshot: {
+    basePackageId: 'official.rivallo.foundation',
+    basePackageVersion: '1.0.0',
+    schemaVersion: 1,
+    activeMods: [],
+    modVersions: [],
+    loadOrder: ['official.rivallo.foundation'],
+    packageHashes: [],
+    worldFingerprint: 'legacy',
+    fingerprintAlgorithm: 'sha256',
+    gameVersion: '0.1.0',
+    createdAt: 0,
+  },
+  currentDate: '2026-01-10',
+  seasonRef: 'season.2026',
+  createdAt: 0,
+  updatedAt: 0,
+  lastPlayedAt: 0,
+  lastContext: {
+    route: '/career/career.legacy.aurora',
+    activeScreen: 'squad',
+    activeTab: null,
+    variationId: null,
+    scrollTop: 0,
+  },
+  saveRevision: 0,
+  assistance: 'balanced',
+  integrity: 'valid',
+  saveState: 'saved',
+  sportingState: 'legacyMatchdayAvailable',
+  matchday: {} as MatchdayState,
+  portraitAsset: null,
+};
 
 interface NavigationItem {
   readonly id: string;
@@ -365,7 +416,13 @@ const readStoredLineup = (players: readonly Player[]): LineupSlots | null => {
   }
 };
 
-export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
+export function MatchdayScreen({
+  serviceOwnership,
+  career = legacyCareerFixture,
+  exitRequestToken = 0,
+  onCareerSaved = () => undefined,
+  onReturnToMenu = () => undefined,
+}: MatchdayScreenProps) {
   const [state, setState] = useState<MatchdayState | null>(null);
   const [lineupSlots, setLineupSlots] = useState<LineupSlots>(() => Array(11).fill(null));
   const [savedLineupSlots, setSavedLineupSlots] = useState<LineupSlots>(() => Array(11).fill(null));
@@ -394,10 +451,16 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
   const [pitchMode, setPitchMode] = useState<PitchMode>('roles');
   const [preferences, setPreferences] = useState<UiPreferences>(readPreferences);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [returnDialogOpen, setReturnDialogOpen] = useState(false);
+  const [returnBusy, setReturnBusy] = useState(false);
+  const [returnFailure, setReturnFailure] = useState<CareerFailure | null>(null);
+  const [exitAfterReturn, setExitAfterReturn] = useState(false);
   const settingsDialogRef = useRef<HTMLDialogElement>(null);
   const settingsReturnFocusRef = useRef<HTMLButtonElement>(null);
   const resultDialogRef = useRef<HTMLDialogElement>(null);
   const resultReturnFocusRef = useRef<HTMLButtonElement>(null);
+  const returnDialogRef = useRef<HTMLElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
   const tableView = useSquadTableView();
   const [savedViewAnnouncement, setSavedViewAnnouncement] = useState('');
   const [savedViewNameDialog, setSavedViewNameDialog] = useState<SavedViewNameDialogState | null>(
@@ -413,6 +476,9 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
   const savedViewContinuationRef = useRef(0);
   const tacticalSaveOperationRef = useRef(0);
   const profileSearchOperationRef = useRef(0);
+  const handledExitRequestRef = useRef(exitRequestToken);
+  const returnOperationRef = useRef(0);
+  const exitAfterReturnRef = useRef(false);
 
   const selectedIds = useMemo(() => selectedIdsFromSlots(lineupSlots), [lineupSlots]);
   const visibleProfileSearchResults = useMemo(
@@ -524,6 +590,22 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
   useEffect(() => {
     if (savedViewFailureVisible) savedViewFailureHeadingRef.current?.focus();
   }, [savedViewFailureVisible]);
+
+  useEffect(() => {
+    if (exitRequestToken === handledExitRequestRef.current) return;
+    handledExitRequestRef.current = exitRequestToken;
+    returnFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    exitAfterReturnRef.current = true;
+    setExitAfterReturn(true);
+    setReturnFailure(null);
+    setReturnDialogOpen(true);
+  }, [exitRequestToken]);
+
+  useEffect(() => {
+    if (!returnDialogOpen) return;
+    returnDialogRef.current?.querySelector<HTMLElement>('button:not([disabled])')?.focus();
+  }, [returnDialogOpen]);
 
   const applyServerState = (nextState: MatchdayState, preferredSlots?: LineupSlots) => {
     const serverSlots = createLineupSlots(nextState.players);
@@ -1279,6 +1361,7 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
     tacticalDirty ||
     lineupSlots.join('|') !== savedLineupSlots.join('|');
   const canPlay =
+    career.sportingState === 'legacyMatchdayAvailable' &&
     selectedIds.length === 11 &&
     tacticalDraft !== null &&
     validateTacticalDraft(
@@ -1290,6 +1373,133 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
   const systemSavedView = tableView.views.find(
     ({ state: viewState }) => viewState.provenance === 'system-default',
   );
+
+  const careerContext = () => ({
+    route: `/career/${career.careerId}`,
+    activeScreen: preferences.activeScreen,
+    activeTab: profileRoute ? activeProfileTab : null,
+    variationId: state.tacticalLibrary?.activeVariationId ?? null,
+    scrollTop: Math.max(
+      0,
+      Math.round(document.querySelector<HTMLElement>('.manager-main')?.scrollTop ?? 0),
+    ),
+  });
+
+  const finishCareerReturn = () => {
+    setReturnDialogOpen(false);
+    if (exitAfterReturnRef.current) {
+      void exitApplication();
+      return;
+    }
+    onReturnToMenu();
+  };
+
+  const persistCareerBeforeReturn = async () => {
+    const saved = await saveCareer({
+      careerId: career.careerId,
+      expectedRevision: career.saveRevision,
+      context: careerContext(),
+      operationId: operationId('career-safe-exit'),
+      createBackup: true,
+    });
+    onCareerSaved(saved);
+    return saved;
+  };
+
+  const saveAndReturnToMenu = async () => {
+    const operation = ++returnOperationRef.current;
+    setReturnBusy(true);
+    setReturnFailure(null);
+    try {
+      if (tableView.dirty) {
+        const result =
+          activeSavedView.state.provenance === 'user-owned' &&
+          activeSavedView.mutability === 'mutable'
+            ? await tableView.save()
+            : await tableView.save(`Ajustes ${new Date().toLocaleDateString('pt-BR')}`);
+        if (result.status !== 'confirmed') {
+          throw {
+            code: 'career.table_view_save_failed',
+            message: 'A visualização do Elenco não pôde ser salva.',
+            details: ['Seus ajustes continuam abertos nesta carreira.'],
+          } satisfies CareerFailure;
+        }
+      }
+      if (dirty && !(await saveLineup())) {
+        throw {
+          code: 'career.tactics_save_failed',
+          message: 'As alterações de Elenco ou Táticas não puderam ser salvas.',
+          details: ['Revise a validação do plano e tente novamente.'],
+        } satisfies CareerFailure;
+      }
+      await persistCareerBeforeReturn();
+      if (operation === returnOperationRef.current) finishCareerReturn();
+    } catch (reason) {
+      if (operation === returnOperationRef.current) {
+        setReturnFailure(reason as CareerFailure);
+      }
+    } finally {
+      if (operation === returnOperationRef.current) setReturnBusy(false);
+    }
+  };
+
+  const discardAndReturnToMenu = () => {
+    returnOperationRef.current += 1;
+    tableView.discard();
+    setTacticalDraft(savedTacticalPlan);
+    setLineupSlots(savedLineupSlots);
+    setFormation(state.formation);
+    setApproach(state.approach);
+    setTacticalHistory([]);
+    finishCareerReturn();
+  };
+
+  const requestCareerReturn = (exitApplicationAfterwards = false) => {
+    returnFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    exitAfterReturnRef.current = exitApplicationAfterwards;
+    setExitAfterReturn(exitApplicationAfterwards);
+    setReturnFailure(null);
+    if (!dirty && !tableView.dirty && busyAction === null) {
+      setReturnDialogOpen(true);
+      void saveAndReturnToMenu();
+      return;
+    }
+    setReturnDialogOpen(true);
+  };
+
+  const cancelCareerReturn = () => {
+    returnOperationRef.current += 1;
+    setReturnDialogOpen(false);
+    exitAfterReturnRef.current = false;
+    setExitAfterReturn(false);
+    setReturnFailure(null);
+    window.setTimeout(() => returnFocusRef.current?.focus(), 0);
+  };
+
+  const containReturnDialogFocus = (event: ReactKeyboardEvent<HTMLElement>) => {
+    if (event.key === 'Escape' && !returnBusy) {
+      event.preventDefault();
+      cancelCareerReturn();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = [
+      ...(returnDialogRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ) ?? []),
+    ];
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    if (!first || !last) return;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
 
   const useSystemSavedView = () => {
     if (systemSavedView === undefined) return;
@@ -1533,6 +1743,11 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
     <div
       className="manager-shell"
       data-sidebar-collapsed={preferences.sidebarCollapsed || undefined}
+      title={
+        serviceOwnership === 'owned'
+          ? 'Serviço local iniciado pelo Rivallo'
+          : 'Serviço local reutilizado'
+      }
     >
       <aside className="manager-sidebar">
         <div className="manager-brand">
@@ -1577,12 +1792,44 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
           ))}
         </nav>
         <div
-          className="manager-sidebar__status"
-          title={`Serviço local ${serviceOwnership === 'owned' ? 'iniciado pelo Rivallo' : 'reutilizado'}`}
+          className="manager-sidebar__career"
+          title={`${career.displayName} · ${career.baseSnapshot.basePackageId}`}
         >
-          <i /> <span>Carreira local</span>
+          <span
+            aria-label={`Escudo de ${career.clubName}`}
+            className="manager-sidebar__career-crest"
+            style={{ '--club-color': career.clubPrimaryColor } as CSSProperties}
+          >
+            {career.clubShortName}
+          </span>
+          <span>
+            <strong>{career.clubName}</strong>
+            <small>{career.managerName}</small>
+            <em
+              data-save-state={
+                returnBusy ? 'saving' : dirty || tableView.dirty ? 'pending' : 'saved'
+              }
+            >
+              {returnBusy
+                ? 'Salvando…'
+                : dirty || tableView.dirty
+                  ? 'Alterações pendentes'
+                  : 'Salvo'}
+            </em>
+          </span>
         </div>
         <div className="manager-sidebar__footer">
+          <Tooltip content="Voltar ao Menu Principal">
+            <button
+              aria-label="Voltar ao Menu Principal"
+              className="manager-sidebar__return"
+              onClick={() => requestCareerReturn(false)}
+              type="button"
+            >
+              <Icon name="previous" size={20} />
+              <span>Voltar ao Menu Principal</span>
+            </button>
+          </Tooltip>
           <button
             aria-label="Personalizar"
             onClick={(event) => {
@@ -1674,12 +1921,8 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
             )}
           </div>
           <div className="manager-topbar__time">
-            <strong>TER 15 JUL 2026</strong>
-            <span>09:15</span>
-          </div>
-          <div className="manager-topbar__weather" title="Condições do próximo jogo">
-            <Icon name="weather" size={20} />
-            <strong>18 °C</strong>
+            <strong>{career.currentDate}</strong>
+            <span>{career.displayName}</span>
           </div>
           <EntityLink
             ariaLabel={`Abrir perfil de ${state.club.name}`}
@@ -1695,7 +1938,11 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
             </span>
             <span>
               <strong>{state.club.name}</strong>
-              <small>Liga Horizonte · {state.record.points} pts</small>
+              <small>
+                {career.sportingState === 'legacyMatchdayAvailable'
+                  ? `${state.club.competitionName ?? 'Competição atual'} · ${state.record.points} pts`
+                  : 'Temporada aguardando inicialização'}
+              </small>
             </span>
           </EntityLink>
           <Button
@@ -1703,14 +1950,16 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
             disabled={!canPlay}
             leadingIcon="next"
             loading={busyAction === 'play'}
-            loadingLabel="Simulando…"
+            loadingLabel="Preparando…"
             onClick={(event) => {
               resultReturnFocusRef.current = event.currentTarget;
               void playMatch();
             }}
             variant="primary"
           >
-            Continuar
+            {career.sportingState === 'legacyMatchdayAvailable'
+              ? 'Continuar'
+              : 'Aguardando temporada'}
           </Button>
           <WindowControls />
         </header>
@@ -1901,6 +2150,88 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
           onSave={() => void saveAndContinue()}
           targetName={savedViewDirtyTarget.name}
         />
+      )}
+
+      {returnDialogOpen && (
+        <div className="career-return-overlay" role="presentation">
+          <section
+            aria-labelledby="career-return-title"
+            aria-modal="true"
+            className="career-return-dialog"
+            onKeyDown={containReturnDialogFocus}
+            ref={returnDialogRef}
+            role="dialog"
+          >
+            <header>
+              <span>{exitAfterReturn ? 'Fechar Rivallo com segurança' : 'Ciclo da carreira'}</span>
+              <h2 id="career-return-title">
+                {exitAfterReturn ? 'Salvar antes de sair?' : 'Voltar ao Menu Principal?'}
+              </h2>
+              <p>
+                {dirty || tableView.dirty
+                  ? 'Revise o trabalho pendente. Nenhum draft será incluído silenciosamente no save.'
+                  : 'O contexto seguro será atualizado para que Continuar retome esta carreira.'}
+              </p>
+            </header>
+            {(dirty || tableView.dirty) && (
+              <ul className="career-return-dialog__dirty-list">
+                {dirty && (
+                  <li>
+                    <Icon name="tactics" size={20} />
+                    <span>
+                      <strong>Elenco e Táticas</strong>
+                      <small>Escalação, forma livre ou instruções ainda não confirmadas.</small>
+                    </span>
+                  </li>
+                )}
+                {tableView.dirty && (
+                  <li>
+                    <Icon name="columns" size={20} />
+                    <span>
+                      <strong>Visualização do Elenco</strong>
+                      <small>Filtros, ordenação ou colunas modificadas.</small>
+                    </span>
+                  </li>
+                )}
+              </ul>
+            )}
+            {returnFailure && (
+              <Status headingLevel={3} label="Falha ao salvar a carreira" variant="danger">
+                <p>{returnFailure.message}</p>
+                {returnFailure.details.length > 0 && (
+                  <small>{returnFailure.details.join(' · ')}</small>
+                )}
+              </Status>
+            )}
+            <footer>
+              <Button disabled={returnBusy} onClick={cancelCareerReturn} variant="secondary">
+                Cancelar
+              </Button>
+              {(dirty || tableView.dirty) && (
+                <Button
+                  disabled={returnBusy}
+                  onClick={discardAndReturnToMenu}
+                  variant="destructive-proof"
+                >
+                  Descartar e {exitAfterReturn ? 'sair' : 'voltar'}
+                </Button>
+              )}
+              <Button
+                leadingIcon="save"
+                loading={returnBusy}
+                loadingLabel="Salvando carreira…"
+                onClick={() => void saveAndReturnToMenu()}
+                variant="primary"
+              >
+                {dirty || tableView.dirty
+                  ? `Salvar e ${exitAfterReturn ? 'sair' : 'voltar'}`
+                  : exitAfterReturn
+                    ? 'Salvar contexto e sair'
+                    : 'Voltar ao Menu Principal'}
+              </Button>
+            </footer>
+          </section>
+        </div>
       )}
 
       {settingsOpen && (

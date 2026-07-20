@@ -143,6 +143,12 @@ impl MatchdayCoordinator {
         self.service()?.state().map_err(|error| error.to_string())
     }
 
+    pub fn replace_state(&self, state: MatchdayState) -> Result<MatchdayState, String> {
+        self.service()?
+            .replace_state(state)
+            .map_err(|error| error.to_string())
+    }
+
     pub fn update_lineup(&self, selection: LineupSelection) -> Result<MatchdayState, String> {
         self.service()?
             .update_lineup(selection)

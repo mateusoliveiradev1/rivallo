@@ -1,5 +1,6 @@
 //! Outer composition for contract-pipeline inputs and the local loopback runtime.
 
+mod career;
 mod matchday;
 pub mod persistence;
 mod profiles;
@@ -11,30 +12,33 @@ pub use matchday::{FileMatchdayRepository, MatchdayCoordinator};
 pub use persistence::{LocalDataDirectoryResolver, SqlitePersistenceAdapter};
 pub use profiles::{FileProfileRepository, ProfileCoordinator};
 pub use rivallo_application::{
-    AssetReference, AttributeGroupProjection, AttributeProjection, AttributeSnapshot,
-    ClubProfileProjection, ClubTacticalIdentityProjection, CoachAttributeSet,
-    CoachDevelopmentProfile, CoachProfileProjection, CoachSportingProfile, ColumnId, ColumnPinning,
-    ColumnPinningSide, ContentPackage, ContractSummary, CustomFormationIdentity,
-    DataPackageCatalogEntry, EntityProfileReference, ExplainableRating, ExternalPlayerState,
-    FilterGroupId, FilterGroupLogic, FilterId, FilterOperator, FilterValue, Formation,
-    GlobalProfileSearchResult, KnowledgeLevel, KnowledgeValue, KnowledgeValueKind,
+    AssetReference, AssistanceProfile, AttributeGroupProjection, AttributeProjection,
+    AttributeSnapshot, CAREER_SCHEMA_VERSION, COACH_CREATOR_SCHEMA_VERSION, CareerIntegrity,
+    CareerRouteContext, CareerSaveState, CareerSlot, CareerWorldSnapshot, ClubProfileProjection,
+    ClubTacticalIdentityProjection, CoachAppearance, CoachAttributeSet, CoachBackground,
+    CoachCreatorDraft, CoachDevelopmentProfile, CoachProfileProjection, CoachSportingProfile,
+    ColumnId, ColumnPinning, ColumnPinningSide, ContentPackage, ContractSummary,
+    CustomFormationIdentity, DataPackageCatalogEntry, EntityProfileReference, ExplainableRating,
+    ExternalPlayerState, FilterGroupId, FilterGroupLogic, FilterId, FilterOperator, FilterValue,
+    Formation, GlobalProfileSearchResult, KnowledgeLevel, KnowledgeValue, KnowledgeValueKind,
     LegacyImportOutcome, LegacyImportReceipt, LegacyTableViewImport, LineupSelection,
     MatchdayState, Nation, NationProfileProjection, NullOrder, OwnerScope, PackageCoverageReport,
     PackageManifest, PackagePatch, PackageValidationDiagnostic, PackageValidationReport,
     PersonIdentity, PlayerAttributeCategory, PlayerAttributeSet, PlayerDevelopmentProjection,
     PlayerProfileProjection, PlayerSportingProfile, PlayerStatisticsProjection,
-    PlayerTrainingProfile, PositionRatingProjection, PotentialEstimate, ProfileWorld,
-    RATING_SCALE_VERSION, RatingFactor, RatingFactorImpact, RatingKind, RatingSnapshot,
-    ResolvedWorldDatabase, RoleRatingProjection, SavedTableView, ScoutingAssessment, SortDirection,
-    TableColumnState, TableDataWindow, TableDensity, TableFilterClause, TableFilterGroup,
-    TableFilterNode, TableId, TableSort, TableViewEnvelopeMetadata, TableViewLoadOutcome,
-    TableViewPolicyError, TableViewRecoveryReason, TableViewRepositoryError,
-    TableViewRepositoryState, TableViewServiceError, TableViewState, TableViewValidationError,
-    TacticalApproach, TacticalLibraryCommand, TacticalLine, TacticalMatchSnapshot,
-    TacticalModelConfig, TacticalModelSnapshot, TacticalPlanEvent, TacticalPlanPreview,
-    TacticalPlanProposal, TacticalPlanSnapshot, TacticalPlanUpdate, TacticalPlayerPlacement,
-    TacticalSide, TacticalStrategyPresetSummary, TacticalVariationLibrarySnapshot, TacticalZone,
-    ViewId, ViewMutability, ViewProvenance, WindowId, squad_system_default_repository_state,
+    PlayerTrainingProfile, PortraitUpload, PositionRatingProjection, PotentialEstimate,
+    ProfileWorld, RATING_SCALE_VERSION, RatingFactor, RatingFactorImpact, RatingKind,
+    RatingSnapshot, ResolvedWorldDatabase, RoleRatingProjection, SavedTableView,
+    ScoutingAssessment, SortDirection, TableColumnState, TableDataWindow, TableDensity,
+    TableFilterClause, TableFilterGroup, TableFilterNode, TableId, TableSort,
+    TableViewEnvelopeMetadata, TableViewLoadOutcome, TableViewPolicyError, TableViewRecoveryReason,
+    TableViewRepositoryError, TableViewRepositoryState, TableViewServiceError, TableViewState,
+    TableViewValidationError, TacticalApproach, TacticalLibraryCommand, TacticalLine,
+    TacticalMatchSnapshot, TacticalModelConfig, TacticalModelSnapshot, TacticalPlanEvent,
+    TacticalPlanPreview, TacticalPlanProposal, TacticalPlanSnapshot, TacticalPlanUpdate,
+    TacticalPlayerPlacement, TacticalSide, TacticalStrategyPresetSummary,
+    TacticalVariationLibrarySnapshot, TacticalZone, ViewId, ViewMutability, ViewProvenance,
+    WindowId, squad_system_default_repository_state,
 };
 pub use table_view::{FileTableViewRepository, TableViewCoordinator};
 pub use world::{FileWorldPackageRepository, WorldDatabaseCoordinator};
@@ -110,6 +114,11 @@ pub fn prepare_contract_export<T>(prepared_input: T) -> ContractExportPreparatio
         metadata: ContractMetadata::current(),
     }
 }
+
+pub use career::{
+    CareerCoachChoice, CareerCoordinator, CareerFailure, CareerSlotSummary, CreateCareerRequest,
+    SaveCareerRequest,
+};
 
 #[cfg(test)]
 mod tests {

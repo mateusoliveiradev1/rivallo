@@ -5,20 +5,21 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use rivallo_platform::{
-    AssetReference, ClubProfileProjection, CoachProfileProjection, ColumnId, ColumnPinning,
-    ColumnPinningSide, ContentPackage, DataPackageCatalogEntry, FilterGroupId, FilterGroupLogic,
+    AssetReference, CareerCoordinator, CareerFailure, CareerSlot, CareerSlotSummary,
+    ClubProfileProjection, CoachProfileProjection, ColumnId, ColumnPinning, ColumnPinningSide,
+    ContentPackage, CreateCareerRequest, DataPackageCatalogEntry, FilterGroupId, FilterGroupLogic,
     FilterId, FilterOperator, FilterValue, Formation, GlobalProfileSearchResult, LOCAL_API_ADDRESS,
     LegacyImportOutcome, LegacyImportReceipt, LegacyTableViewImport, LineupSelection,
     MatchdayCoordinator, MatchdayState, Nation, NationProfileProjection, NullOrder, OwnerScope,
     PackageValidationReport, PlayerProfileProjection, ProfileCoordinator, READINESS_POLL_INTERVAL,
     READINESS_TIMEOUT, ReadinessDiagnostic, ResolvedWorldDatabase, SHUTDOWN_CONTROL_MESSAGE,
-    SavedTableView, SortDirection, TableColumnState, TableDataWindow, TableDensity,
-    TableFilterClause, TableFilterGroup, TableFilterNode, TableId, TableSort, TableViewCoordinator,
-    TableViewEnvelopeMetadata, TableViewLoadOutcome, TableViewPolicyError, TableViewRecoveryReason,
-    TableViewRepositoryState, TableViewServiceError, TableViewState, TableViewValidationError,
-    TacticalApproach, TacticalLibraryCommand, TacticalMatchSnapshot, TacticalPlanPreview,
-    TacticalPlanProposal, TacticalPlanUpdate, TacticalStrategyPresetSummary, ViewId,
-    ViewMutability, ViewProvenance, WindowId, WorldDatabaseCoordinator,
+    SaveCareerRequest, SavedTableView, SortDirection, TableColumnState, TableDataWindow,
+    TableDensity, TableFilterClause, TableFilterGroup, TableFilterNode, TableId, TableSort,
+    TableViewCoordinator, TableViewEnvelopeMetadata, TableViewLoadOutcome, TableViewPolicyError,
+    TableViewRecoveryReason, TableViewRepositoryState, TableViewServiceError, TableViewState,
+    TableViewValidationError, TacticalApproach, TacticalLibraryCommand, TacticalMatchSnapshot,
+    TacticalPlanPreview, TacticalPlanProposal, TacticalPlanUpdate, TacticalStrategyPresetSummary,
+    ViewId, ViewMutability, ViewProvenance, WindowId, WorldDatabaseCoordinator,
     squad_system_default_repository_state, validate_readiness_response,
 };
 use serde::{Deserialize, Serialize};
@@ -1616,6 +1617,176 @@ fn export_data_package_source(
 }
 
 #[tauri::command]
+fn preview_career_composition(
+    package_ids: Vec<String>,
+    world: State<'_, Arc<WorldDatabaseCoordinator>>,
+) -> Result<ResolvedWorldDatabase, PackageValidationReport> {
+    world.resolve_selection(&package_ids)
+}
+
+fn ensure_legacy_career(
+    careers: &CareerCoordinator,
+    world: &WorldDatabaseCoordinator,
+    gameplay: &MatchdayCoordinator,
+    profiles: &ProfileCoordinator,
+) -> Result<CareerSlotSummary, CareerFailure> {
+    let resolved = world.resolved().map_err(|report| CareerFailure {
+        code: "career.world_unavailable".to_owned(),
+        message: "A base ativa não pôde ser validada para migrar a carreira local.".to_owned(),
+        details: report
+            .diagnostics
+            .into_iter()
+            .map(|diagnostic| format!("{}: {}", diagnostic.code, diagnostic.rule))
+            .collect(),
+    })?;
+    let matchday = gameplay.state().map_err(|error| CareerFailure {
+        code: "career.legacy_matchday_unavailable".to_owned(),
+        message: error,
+        details: Vec::new(),
+    })?;
+    let profile_world = profiles
+        .snapshot(&matchday)
+        .map_err(|error| CareerFailure {
+            code: "career.legacy_profiles_unavailable".to_owned(),
+            message: error,
+            details: Vec::new(),
+        })?;
+    careers.migrate_legacy(&resolved, &matchday, &profile_world)
+}
+
+#[tauri::command]
+fn career_slots(
+    careers: State<'_, Arc<CareerCoordinator>>,
+    world: State<'_, Arc<WorldDatabaseCoordinator>>,
+    gameplay: State<'_, Arc<MatchdayCoordinator>>,
+    profiles: State<'_, Arc<ProfileCoordinator>>,
+) -> Result<Vec<CareerSlotSummary>, CareerFailure> {
+    ensure_legacy_career(&careers, &world, &gameplay, &profiles)?;
+    careers.list()
+}
+
+#[tauri::command]
+fn last_valid_career(
+    careers: State<'_, Arc<CareerCoordinator>>,
+    world: State<'_, Arc<WorldDatabaseCoordinator>>,
+    gameplay: State<'_, Arc<MatchdayCoordinator>>,
+    profiles: State<'_, Arc<ProfileCoordinator>>,
+) -> Result<Option<CareerSlotSummary>, CareerFailure> {
+    ensure_legacy_career(&careers, &world, &gameplay, &profiles)?;
+    careers.last_valid()
+}
+
+#[tauri::command]
+fn create_career(
+    request: CreateCareerRequest,
+    careers: State<'_, Arc<CareerCoordinator>>,
+    world: State<'_, Arc<WorldDatabaseCoordinator>>,
+    gameplay: State<'_, Arc<MatchdayCoordinator>>,
+    profiles: State<'_, Arc<ProfileCoordinator>>,
+) -> Result<CareerSlot, CareerFailure> {
+    let slot = careers.create(request, &world)?;
+    gameplay
+        .replace_state(slot.matchday.clone())
+        .map_err(|error| CareerFailure {
+            code: "career.activation_failed".to_owned(),
+            message: error,
+            details: Vec::new(),
+        })?;
+    profiles
+        .replace_world(&slot.profiles)
+        .map_err(|error| CareerFailure {
+            code: "career.activation_failed".to_owned(),
+            message: error,
+            details: Vec::new(),
+        })?;
+    Ok(slot)
+}
+
+#[tauri::command]
+fn load_career(
+    career_id: String,
+    careers: State<'_, Arc<CareerCoordinator>>,
+    gameplay: State<'_, Arc<MatchdayCoordinator>>,
+    profiles: State<'_, Arc<ProfileCoordinator>>,
+) -> Result<CareerSlot, CareerFailure> {
+    careers.load(&career_id, &gameplay, &profiles)
+}
+
+#[tauri::command]
+fn save_career(
+    request: SaveCareerRequest,
+    careers: State<'_, Arc<CareerCoordinator>>,
+    gameplay: State<'_, Arc<MatchdayCoordinator>>,
+    profiles: State<'_, Arc<ProfileCoordinator>>,
+) -> Result<CareerSlot, CareerFailure> {
+    careers.save(request, &gameplay, &profiles)
+}
+
+#[tauri::command]
+fn rename_career(
+    career_id: String,
+    display_name: String,
+    careers: State<'_, Arc<CareerCoordinator>>,
+) -> Result<CareerSlotSummary, CareerFailure> {
+    careers.rename(&career_id, &display_name)
+}
+
+#[tauri::command]
+fn create_career_backup(
+    career_id: String,
+    careers: State<'_, Arc<CareerCoordinator>>,
+) -> Result<CareerSlotSummary, CareerFailure> {
+    careers.create_backup(&career_id)
+}
+
+#[tauri::command]
+fn career_backups(
+    career_id: String,
+    careers: State<'_, Arc<CareerCoordinator>>,
+) -> Result<Vec<String>, CareerFailure> {
+    careers.backups(&career_id)
+}
+
+#[tauri::command]
+fn restore_career_backup(
+    career_id: String,
+    backup_name: String,
+    careers: State<'_, Arc<CareerCoordinator>>,
+    gameplay: State<'_, Arc<MatchdayCoordinator>>,
+    profiles: State<'_, Arc<ProfileCoordinator>>,
+) -> Result<CareerSlot, CareerFailure> {
+    let slot = careers.restore_backup(&career_id, &backup_name)?;
+    gameplay
+        .replace_state(slot.matchday.clone())
+        .map_err(|error| CareerFailure {
+            code: "career.restore_activation_failed".to_owned(),
+            message: error,
+            details: Vec::new(),
+        })?;
+    profiles
+        .replace_world(&slot.profiles)
+        .map_err(|error| CareerFailure {
+            code: "career.restore_activation_failed".to_owned(),
+            message: error,
+            details: Vec::new(),
+        })?;
+    Ok(slot)
+}
+
+#[tauri::command]
+fn delete_career(
+    career_id: String,
+    careers: State<'_, Arc<CareerCoordinator>>,
+) -> Result<(), CareerFailure> {
+    careers.delete(&career_id)
+}
+
+#[tauri::command]
+fn exit_application(app: AppHandle) {
+    app.exit(0);
+}
+
+#[tauri::command]
 fn load_table_views(table_views: State<'_, Arc<TableViewCoordinator>>) -> LoadTableViewsResponse {
     load_table_views_response(table_views.load())
 }
@@ -1683,6 +1854,18 @@ fn main() {
             export_data_package,
             validate_data_package_source,
             export_data_package_source,
+            preview_career_composition,
+            career_slots,
+            last_valid_career,
+            create_career,
+            load_career,
+            save_career,
+            rename_career,
+            create_career_backup,
+            career_backups,
+            restore_career_backup,
+            delete_career,
+            exit_application,
             load_table_views,
             save_table_views,
             import_legacy_table_preferences
@@ -1699,6 +1882,7 @@ fn main() {
                 .join("player-coach-profiles.json");
             let table_views_path = app.path().app_data_dir()?.join("table-views.json");
             let data_packages_path = app.path().app_data_dir()?.join("data-packages");
+            let careers_path = app.path().app_data_dir()?.join("careers");
             let world = Arc::new(WorldDatabaseCoordinator::new(data_packages_path));
             let bootstrap = world.resolved().map_err(|report| {
                 io::Error::other(format!(
@@ -1706,15 +1890,18 @@ fn main() {
                     report.diagnostics
                 ))
             })?;
-            app.manage(Arc::new(MatchdayCoordinator::with_initial_state(
+            let gameplay = Arc::new(MatchdayCoordinator::with_initial_state(
                 matchday_path,
                 bootstrap.world.matchday.clone(),
-            )));
-            app.manage(Arc::new(ProfileCoordinator::with_initial_world(
+            ));
+            let profiles = Arc::new(ProfileCoordinator::with_initial_world(
                 profiles_path,
                 bootstrap.world.profiles.clone(),
-            )));
+            ));
+            app.manage(gameplay);
+            app.manage(profiles);
             app.manage(Arc::new(TableViewCoordinator::new(table_views_path)));
+            app.manage(Arc::new(CareerCoordinator::new(careers_path)));
             app.manage(world);
             manager.begin(app.handle().clone());
             Ok(())

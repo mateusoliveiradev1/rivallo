@@ -32,6 +32,18 @@ export interface PackageManifestSummary {
   readonly loadOrderHint: number;
   readonly visibility: PackageVisibility;
   readonly checksum: string;
+  readonly dependencies?: readonly {
+    readonly packageId: string;
+    readonly versionRequirement: string;
+    readonly optional: boolean;
+  }[];
+  readonly conflicts?: readonly { readonly packageId: string; readonly reason: string }[];
+  readonly provenance?: {
+    readonly source: string;
+    readonly rights: string;
+    readonly createdAt: string;
+    readonly notes?: string | null;
+  };
 }
 
 export interface DataPackageCatalogEntry {

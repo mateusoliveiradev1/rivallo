@@ -44,7 +44,10 @@ export function WindowControls() {
         <button
           aria-label="Fechar Rivallo"
           className="window-controls__close"
-          onClick={() => runWindowAction(() => windowCommand('close'))}
+          onClick={() => {
+            const request = new Event('rivallo:window-close-requested', { cancelable: true });
+            if (window.dispatchEvent(request)) runWindowAction(() => windowCommand('close'));
+          }}
           type="button"
         >
           <Icon name="close" size={16} />

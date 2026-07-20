@@ -68,8 +68,9 @@ describe('Phase 4 desktop-owned local API lifecycle', () => {
 
 describe('Phase 4 operational lifecycle shell', () => {
   it('renders typed initializing, playable-ready, and recoverable failure states', async () => {
-    const [app, feedback] = await Promise.all([
+    const [app, careerApp, feedback] = await Promise.all([
       readRootFile('apps/desktop/src/App.tsx'),
+      readRootFile('apps/desktop/src/career/CareerApp.tsx'),
       readRootFile('apps/desktop/src/ui/primitives/feedback.tsx'),
     ]);
 
@@ -77,7 +78,7 @@ describe('Phase 4 operational lifecycle shell', () => {
       "state: 'initializing'",
       "state: 'ready'",
       "state: 'recoverableFailure'",
-      '<MatchdayScreen serviceOwnership={status.ownership} />',
+      '<CareerApp serviceOwnership={status.ownership} />',
       'Retry startup',
       'role="status"',
       'variant="loading"',
@@ -85,6 +86,7 @@ describe('Phase 4 operational lifecycle shell', () => {
     ]) {
       expect(app).toContain(required);
     }
+    expect(careerApp).toContain('serviceOwnership={serviceOwnership}');
     expect(feedback).toContain("role={assertive ? 'alert' : 'status'}");
     expect(app).toContain("invoke<LifecycleStatus>('lifecycle_status')");
     expect(app).toContain("invoke<LifecycleStatus>('retry_lifecycle')");

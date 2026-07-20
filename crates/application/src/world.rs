@@ -54,6 +54,37 @@ impl<R: WorldPackageRepository> WorldDatabaseService<R> {
         Ok(packages)
     }
 
+    pub fn resolve_selection(
+        &self,
+        package_ids: &[String],
+    ) -> Result<ResolvedWorldDatabase, PackageValidationReport> {
+        let available = self.repository.load_available_packages()?;
+        let selected = package_ids
+            .iter()
+            .filter_map(|package_id| {
+                available
+                    .iter()
+                    .find(|package| package.manifest.package_id == *package_id)
+                    .cloned()
+            })
+            .collect::<Vec<_>>();
+        if selected.len() != package_ids.len() {
+            return Err(PackageValidationReport::blocking(
+                "catalog".to_owned(),
+                "package.selection_missing",
+                None,
+                Some("packageIds".to_owned()),
+                None,
+                None,
+                "Um pacote selecionado não está mais disponível no catálogo.",
+                Some(
+                    "Atualize o catálogo e revise a seleção antes de criar a carreira.".to_owned(),
+                ),
+            ));
+        }
+        resolve_world_packages(selected)
+    }
+
     pub fn validate_candidate(&self, package: &ContentPackage) -> PackageValidationReport {
         let validation = validate_package(package);
         if !validation.valid {

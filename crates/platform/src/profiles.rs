@@ -213,6 +213,14 @@ impl ProfileCoordinator {
         self.service()?
             .search(matchday, observer_club_id, query, now_ms())
     }
+
+    pub fn snapshot(&self, matchday: &MatchdayState) -> Result<ProfileWorld, String> {
+        self.service()?.snapshot(matchday, now_ms())
+    }
+
+    pub fn replace_world(&self, world: &ProfileWorld) -> Result<(), String> {
+        self.service()?.replace_world(world)
+    }
 }
 
 fn now_ms() -> u64 {

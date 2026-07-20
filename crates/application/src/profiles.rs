@@ -69,6 +69,15 @@ impl<R: ProfileRepository> ProfileService<R> {
         Ok(world)
     }
 
+    pub fn snapshot(&self, matchday: &MatchdayState, now: u64) -> Result<ProfileWorld, String> {
+        self.world(matchday, now)
+    }
+
+    pub fn replace_world(&self, world: &ProfileWorld) -> Result<(), String> {
+        world.validate()?;
+        self.repository.save(world)
+    }
+
     pub fn player_profile(
         &self,
         matchday: &MatchdayState,

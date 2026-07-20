@@ -40,6 +40,70 @@ const firstPlayableState = {
   lastResult: null,
 };
 
+const careerSummary = {
+  careerId: 'career.legacy.aurora',
+  displayName: 'Carreira Aurora',
+  managerId: 'coach.aurora.head',
+  managerName: 'Treinador Aurora',
+  clubId: 'aurora',
+  clubName: 'Aurora Futebol Clube',
+  clubShortName: 'AUR',
+  clubPrimaryColor: '#35c88a',
+  currentDate: '2026-01-10',
+  seasonRef: 'season.2026',
+  baseName: 'Base oficial Rivallo',
+  basePackageId: 'official.rivallo.foundation',
+  basePackageVersion: '1.0.0',
+  modCount: 0,
+  worldFingerprint: 'legacy',
+  createdAt: 1,
+  updatedAt: 1,
+  lastPlayedAt: 1,
+  lastContext: {
+    route: '/career/career.legacy.aurora',
+    activeScreen: 'squad',
+    activeTab: null,
+    variationId: null,
+    scrollTop: 0,
+  },
+  saveRevision: 0,
+  integrity: 'valid',
+  saveState: 'saved',
+  sportingState: 'legacyMatchdayAvailable',
+  backupCount: 1,
+};
+
+const careerSlot = {
+  ...careerSummary,
+  schemaVersion: 1,
+  operationId: 'legacy-migration',
+  baseSnapshot: {
+    basePackageId: 'official.rivallo.foundation',
+    basePackageVersion: '1.0.0',
+    schemaVersion: 1,
+    activeMods: [],
+    modVersions: [],
+    loadOrder: ['official.rivallo.foundation'],
+    packageHashes: [],
+    worldFingerprint: 'legacy',
+    fingerprintAlgorithm: 'sha256',
+    gameVersion: '0.1.0',
+    createdAt: 1,
+  },
+  assistance: 'balanced',
+  matchday: firstPlayableState,
+  portraitAsset: null,
+};
+
+const readyCommand = (command: string, ownership: 'owned' | 'reused') => {
+  if (command === 'matchday_state') return firstPlayableState;
+  if (command === 'data_package_catalog') return [];
+  if (command === 'career_slots') return [careerSummary];
+  if (command === 'last_valid_career') return careerSummary;
+  if (command === 'load_career') return careerSlot;
+  return { state: 'ready', ownership };
+};
+
 import { App } from '../../App.js';
 import { Button, IconButton, type IconButtonProps } from './actions.js';
 import { EmptyState, ErrorState, Skeleton, Status } from './feedback.js';
@@ -355,6 +419,7 @@ describe('native layout primitives', () => {
 describe('desktop lifecycle shell regression', () => {
   beforeEach(() => {
     invokeMock.mockReset();
+    window.history.replaceState({}, '', '/main-menu');
   });
 
   it('keeps initialization explicit while the Tauri lifecycle authority is pending', () => {
@@ -372,12 +437,15 @@ describe('desktop lifecycle shell regression', () => {
 
   it('keeps owned readiness and its ownership explanation explicit', async () => {
     invokeMock.mockImplementation((command: string) =>
-      Promise.resolve(
-        command === 'matchday_state' ? firstPlayableState : { state: 'ready', ownership: 'owned' },
-      ),
+      Promise.resolve(readyCommand(command, 'owned')),
     );
+    const user = userEvent.setup();
     render(<App />);
 
+    expect(
+      await screen.findByRole('heading', { name: 'Sua carreira espera por você.' }),
+    ).toBeInstanceOf(HTMLHeadingElement);
+    await user.click(screen.getByRole('button', { name: 'Continuar carreira' }));
     expect(await screen.findByRole('heading', { name: 'Visão geral do elenco' })).toBeInstanceOf(
       HTMLHeadingElement,
     );
@@ -397,7 +465,15 @@ describe('desktop lifecycle shell regression', () => {
       if (command === 'retry_lifecycle') {
         return Promise.resolve({ state: 'ready', ownership: 'reused' });
       }
-      if (command === 'matchday_state') return Promise.resolve(firstPlayableState);
+      if (
+        command === 'matchday_state' ||
+        command === 'data_package_catalog' ||
+        command === 'career_slots' ||
+        command === 'last_valid_career' ||
+        command === 'load_career'
+      ) {
+        return Promise.resolve(readyCommand(command, 'reused'));
+      }
       return Promise.resolve(failure);
     });
     const user = userEvent.setup();
@@ -420,6 +496,10 @@ describe('desktop lifecycle shell regression', () => {
 
     await user.click(screen.getByRole('button', { name: 'Retry startup' }));
     expect(invokeMock).toHaveBeenCalledWith('retry_lifecycle');
+    expect(
+      await screen.findByRole('heading', { name: 'Sua carreira espera por você.' }),
+    ).toBeInstanceOf(HTMLHeadingElement);
+    await user.click(screen.getByRole('button', { name: 'Continuar carreira' }));
     expect(await screen.findByRole('heading', { name: 'Visão geral do elenco' })).toBeInstanceOf(
       HTMLHeadingElement,
     );

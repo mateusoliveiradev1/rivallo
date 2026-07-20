@@ -71,6 +71,10 @@ export function DataEditorApp() {
   const [busy, setBusy] = useState<'validate' | 'export' | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const dirty =
+    manifestJson !== manifestTemplate ||
+    worldJson.trim().length > 0 ||
+    patchesJson !== patchesTemplate;
 
   useEffect(() => {
     let active = true;
@@ -88,6 +92,13 @@ export function DataEditorApp() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const protectDraft = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', protectDraft);
+    return () => window.removeEventListener('beforeunload', protectDraft);
+  }, [dirty]);
 
   const source = useMemo<DataPackageAuthoringSource>(
     () => ({
@@ -152,7 +163,21 @@ export function DataEditorApp() {
             carreira.
           </span>
         </div>
-        <a href="/">Voltar ao produto</a>
+        <a
+          href="/main-menu"
+          onClick={(event) => {
+            if (
+              dirty &&
+              !window.confirm(
+                'O rascunho do Editor de Dados ainda não foi exportado. Descartar e voltar ao Menu Principal?',
+              )
+            ) {
+              event.preventDefault();
+            }
+          }}
+        >
+          Voltar ao Menu Principal
+        </a>
       </header>
 
       <div className="data-editor-layout">

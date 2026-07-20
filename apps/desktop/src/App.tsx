@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { useEffect, useState } from 'react';
 
-import { MatchdayScreen } from './matchday/MatchdayScreen.js';
+import { CareerApp } from './career/CareerApp.js';
 import { Button } from './ui/primitives/actions.js';
 import { Skeleton, Status } from './ui/primitives/feedback.js';
 
@@ -110,7 +110,7 @@ export function App() {
   };
 
   if (status.state === 'ready') {
-    return <MatchdayScreen serviceOwnership={status.ownership} />;
+    return <CareerApp serviceOwnership={status.ownership} />;
   }
 
   return (

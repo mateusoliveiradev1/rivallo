@@ -313,6 +313,13 @@ impl WorldDatabaseCoordinator {
         self.service.catalog()
     }
 
+    pub fn resolve_selection(
+        &self,
+        package_ids: &[String],
+    ) -> Result<ResolvedWorldDatabase, PackageValidationReport> {
+        self.service.resolve_selection(package_ids)
+    }
+
     pub fn validate_candidate(&self, package: &ContentPackage) -> PackageValidationReport {
         self.service.validate_candidate(package)
     }
