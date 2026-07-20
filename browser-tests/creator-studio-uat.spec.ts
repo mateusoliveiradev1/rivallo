@@ -558,7 +558,9 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
     await page.getByRole('textbox', { name: 'Sigla' }).fill('afc');
     await page.getByRole('combobox', { name: 'Cidade' }).selectOption({ label: 'São Paulo' });
     await page.getByRole('combobox', { name: 'País' }).selectOption({ label: 'Brasil' });
-    await page.getByRole('combobox', { name: 'Estádio' }).selectOption({ label: 'Estádio Horizonte' });
+    await page
+      .getByRole('combobox', { name: 'Estádio' })
+      .selectOption({ label: 'Estádio Horizonte' });
     await page.getByRole('button', { name: 'Adicionar clube ao mod' }).click();
     await expect(page.getByText('Aurora Futebol Clube', { exact: true }).first()).toBeVisible();
     await screenshot(page, testInfo, '04-clube-afc');

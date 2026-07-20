@@ -228,7 +228,13 @@ const definitions = [
     ['02-divisao-administrativa.png', '02-cidade.png'],
     [],
   ],
-  ['03', 'Estádio', '03 Estádio — Estádio Horizonte sem clube', ['03-estadio-Estádio Horizonte.png'], []],
+  [
+    '03',
+    'Estádio',
+    '03 Estádio — Estádio Horizonte sem clube',
+    ['03-estadio-Estádio Horizonte.png'],
+    [],
+  ],
   [
     '04',
     'Clube',
