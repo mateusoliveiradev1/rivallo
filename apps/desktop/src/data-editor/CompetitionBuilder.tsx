@@ -18,6 +18,8 @@ type Template =
   | 'multiStage'
   | 'empty';
 
+type SeasonAction = 'existing' | 'create' | 'later';
+
 const slug = (value: string) =>
   value
     .normalize('NFD')
@@ -103,7 +105,9 @@ export function CompetitionBuilder({
   readonly onUpsert: (change: CommunityChange) => void;
   readonly initialCompetition?: StudioCompetition | null;
 }) {
-  const initialSeason = initialCompetition?.seasons[0];
+  const initialSeason =
+    initialCompetition?.seasons.find((season) => season.id === initialCompetition.baseSeasonId) ??
+    initialCompetition?.seasons[0];
   const initialRules = initialSeason?.rules ?? {};
   const ruleNumber = (key: string, fallback: number) =>
     typeof initialRules[key] === 'number' ? Number(initialRules[key]) : fallback;
@@ -126,6 +130,10 @@ export function CompetitionBuilder({
   const [seasonLabel, setSeasonLabel] = useState(initialSeason?.label ?? '2026');
   const [startDate, setStartDate] = useState(initialSeason?.startDate ?? '2026-08-01');
   const [endDate, setEndDate] = useState(initialSeason?.endDate ?? '2027-05-31');
+  const [seasonAction, setSeasonAction] = useState<SeasonAction>(
+    initialSeason ? 'existing' : 'later',
+  );
+  const [selectedSeasonId, setSelectedSeasonId] = useState(initialSeason?.id ?? '');
   const [participantSearch, setParticipantSearch] = useState('');
   const [pointsForWin, setPointsForWin] = useState(ruleNumber('pointsForWin', 3));
   const [pointsForDraw, setPointsForDraw] = useState(ruleNumber('pointsForDraw', 1));
@@ -184,22 +192,18 @@ export function CompetitionBuilder({
   const save = () => {
     const id =
       initialCompetition?.id ?? `community.${slug(author || 'autor')}.competition.${slug(name)}`;
-    const seasonId = initialSeason?.id ?? `${id}.season.2026-27`;
-    const competition: StudioCompetition = {
-      id,
-      name: name.trim(),
-      shortName: shortName.trim(),
-      nationId,
-      category,
-      level,
-      description: description.trim() || null,
-      primaryColor: initialCompetition?.primaryColor ?? '#36d39a',
-      secondaryColor: initialCompetition?.secondaryColor ?? '#123b32',
-      logoAssetId: initialCompetition?.logoAssetId ?? null,
-      baseSeasonId: seasonId,
-      seasons: [
-        {
-          ...initialSeason,
+    const currentSeasons = [...(initialCompetition?.seasons ?? [])];
+    const selectedSeason = currentSeasons.find((season) => season.id === selectedSeasonId);
+    const seasonId =
+      seasonAction === 'create'
+        ? `${id}.season.${slug(seasonLabel)}`
+        : seasonAction === 'existing'
+          ? (selectedSeason?.id ?? null)
+          : null;
+    const previousSeason = currentSeasons.find((season) => season.id === seasonId);
+    const authoredSeason = seasonId
+      ? {
+          ...previousSeason,
           id: seasonId,
           competitionId: id,
           label: seasonLabel.trim(),
@@ -208,7 +212,7 @@ export function CompetitionBuilder({
           participantClubIds: participants,
           stages,
           rules: {
-            ...initialRules,
+            ...(previousSeason?.rules ?? initialRules),
             pointsForWin,
             pointsForDraw,
             pointsForLoss: 0,
@@ -228,20 +232,46 @@ export function CompetitionBuilder({
             promotionSlots,
             relegationSlots,
           },
-          registrationWindows: initialSeason?.registrationWindows.length
-            ? initialSeason.registrationWindows
+          registrationWindows: previousSeason?.registrationWindows.length
+            ? previousSeason.registrationWindows
             : [{ startDate, endDate }],
-          calendarConstraints: initialSeason?.calendarConstraints ?? {
+          calendarConstraints: previousSeason?.calendarConstraints ?? {
             preferredWeekdays: [3, 6, 7],
             kickoffTimes: ['16:00', '19:30'],
             minimumRestDays: 2,
             blockedDates: [],
             neutralVenue: false,
           },
-          playerRegistrations: initialSeason?.playerRegistrations ?? [],
-        },
-        ...(initialCompetition?.seasons.slice(1) ?? []),
-      ],
+          playerRegistrations: previousSeason?.playerRegistrations ?? [],
+        }
+      : null;
+    const supersededDraftSeasonId =
+      seasonAction === 'create' &&
+      initialSeason?.id.startsWith(`${id}.season.`) &&
+      initialSeason.id !== seasonId
+        ? initialSeason.id
+        : null;
+    const seasons = authoredSeason
+      ? [
+          ...currentSeasons.filter(
+            (season) => season.id !== authoredSeason.id && season.id !== supersededDraftSeasonId,
+          ),
+          authoredSeason,
+        ]
+      : currentSeasons;
+    const competition: StudioCompetition = {
+      id,
+      name: name.trim(),
+      shortName: shortName.trim(),
+      nationId,
+      category,
+      level,
+      description: description.trim() || null,
+      primaryColor: initialCompetition?.primaryColor ?? '#36d39a',
+      secondaryColor: initialCompetition?.secondaryColor ?? '#123b32',
+      logoAssetId: initialCompetition?.logoAssetId ?? null,
+      baseSeasonId: seasonId,
+      seasons,
     };
     onUpsert({
       id: `competition:${id}`,
@@ -272,7 +302,13 @@ export function CompetitionBuilder({
           <p>Defina identidade, participantes e regulamento. Nenhuma partida é agendada aqui.</p>
         </div>
         <Button
-          disabled={!name.trim() || !shortName.trim() || !nationId}
+          disabled={
+            !name.trim() ||
+            !shortName.trim() ||
+            !nationId ||
+            (seasonAction === 'existing' && !selectedSeasonId) ||
+            (seasonAction !== 'later' && (!seasonLabel.trim() || !startDate || !endDate))
+          }
           onClick={save}
           variant="primary"
         >
@@ -358,14 +394,6 @@ export function CompetitionBuilder({
                   value={level}
                 />
               </label>
-              <label>
-                Temporada
-                <input
-                  maxLength={32}
-                  onChange={(event) => setSeasonLabel(event.target.value)}
-                  value={seasonLabel}
-                />
-              </label>
               <label className="studio-form-grid__wide">
                 Descrição
                 <textarea
@@ -374,22 +402,115 @@ export function CompetitionBuilder({
                   value={description}
                 />
               </label>
-              <label>
-                Início
-                <input
-                  onChange={(event) => setStartDate(event.target.value)}
-                  type="date"
-                  value={startDate}
-                />
+            </div>
+            <fieldset className="competition-season-choice">
+              <legend>Vínculo da temporada</legend>
+              <div role="radiogroup" aria-label="Como vincular a temporada">
+                <button
+                  aria-checked={seasonAction === 'existing'}
+                  disabled={!initialCompetition?.seasons.length}
+                  onClick={() => setSeasonAction('existing')}
+                  role="radio"
+                  type="button"
+                >
+                  <strong>Usar temporada existente</strong>
+                  <span>Edite o vínculo atual sem criar uma cópia.</span>
+                </button>
+                <button
+                  aria-checked={seasonAction === 'create'}
+                  onClick={() => setSeasonAction('create')}
+                  role="radio"
+                  type="button"
+                >
+                  <strong>Criar nova temporada</strong>
+                  <span>Cria somente após salvar esta competição.</span>
+                </button>
+                <button
+                  aria-checked={seasonAction === 'later'}
+                  onClick={() => setSeasonAction('later')}
+                  role="radio"
+                  type="button"
+                >
+                  <strong>Vincular depois</strong>
+                  <span>Salva a competição como rascunho, sem temporada ativa.</span>
+                </button>
+              </div>
+            </fieldset>
+            {seasonAction === 'existing' && (
+              <label className="competition-season-select">
+                Temporada existente
+                <select
+                  onChange={(event) => {
+                    const next = initialCompetition?.seasons.find(
+                      (season) => season.id === event.target.value,
+                    );
+                    setSelectedSeasonId(event.target.value);
+                    if (next) {
+                      setSeasonLabel(next.label);
+                      setStartDate(next.startDate);
+                      setEndDate(next.endDate);
+                      setParticipants([...next.participantClubIds]);
+                      setStages([...next.stages]);
+                    }
+                  }}
+                  value={selectedSeasonId}
+                >
+                  {initialCompetition?.seasons.map((season) => (
+                    <option key={season.id} value={season.id}>
+                      {season.label} · {season.startDate} a {season.endDate}
+                    </option>
+                  ))}
+                </select>
               </label>
-              <label>
-                Fim
-                <input
-                  onChange={(event) => setEndDate(event.target.value)}
-                  type="date"
-                  value={endDate}
-                />
-              </label>
+            )}
+            {seasonAction !== 'later' && (
+              <div className="studio-form-grid competition-season-fields">
+                <label>
+                  Temporada
+                  <input
+                    maxLength={32}
+                    onChange={(event) => setSeasonLabel(event.target.value)}
+                    value={seasonLabel}
+                  />
+                </label>
+                <label>
+                  Início
+                  <input
+                    onChange={(event) => setStartDate(event.target.value)}
+                    type="date"
+                    value={startDate}
+                  />
+                </label>
+                <label>
+                  Fim
+                  <input
+                    onChange={(event) => setEndDate(event.target.value)}
+                    type="date"
+                    value={endDate}
+                  />
+                </label>
+              </div>
+            )}
+            <div className="competition-season-notice" data-action={seasonAction} role="status">
+              {seasonAction === 'create' ? (
+                <>
+                  <strong>
+                    A temporada {seasonLabel.trim() || 'sem nome'} será criada e vinculada a esta
+                    competição.
+                  </strong>
+                  <span>A criação só acontece ao salvar.</span>
+                </>
+              ) : seasonAction === 'existing' ? (
+                <>
+                  <strong>A temporada {seasonLabel} será atualizada</strong>
+                  <span>usando o mesmo ID, sem duplicação.</span>
+                </>
+              ) : (
+                <>
+                  <strong>Nenhuma temporada será criada</strong>
+                  <span>Você poderá fazer o vínculo depois, pelo módulo Temporadas.</span>
+                </>
+              )}
             </div>
           </section>
 

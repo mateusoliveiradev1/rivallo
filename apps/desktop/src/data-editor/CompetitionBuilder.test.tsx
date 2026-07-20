@@ -27,6 +27,7 @@ describe('CompetitionBuilder', () => {
   it('models a 20-team double round robin as 38 rounds and 380 expected matches', () => {
     const onUpsert = vi.fn();
     render(<CompetitionBuilder author="Lia" onUpsert={onUpsert} world={world} />);
+    fireEvent.click(screen.getByRole('radio', { name: /Criar nova temporada/u }));
     for (const checkbox of screen.getAllByRole('checkbox')) fireEvent.click(checkbox);
     expect(screen.getByText('380')).toBeInstanceOf(HTMLElement);
     expect(screen.getByText('38')).toBeInstanceOf(HTMLElement);
@@ -59,7 +60,7 @@ describe('CompetitionBuilder', () => {
     expect(change.patches[0]?.entity.value.shortName).toBe('Brasileirão');
   });
 
-  it('saves a competition draft without participants and exposes every supported template', () => {
+  it('saves a competition draft without a silently-created season and exposes every template', () => {
     const onUpsert = vi.fn();
     render(<CompetitionBuilder author="Lia" onUpsert={onUpsert} world={world} />);
 
@@ -79,10 +80,89 @@ describe('CompetitionBuilder', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Salvar competição' }));
     const change = onUpsert.mock.calls[0]?.[0] as {
       patches: Array<{
-        entity: { value: { seasons: Array<{ participantClubIds: string[]; rules: object }> } };
+        entity: { value: { baseSeasonId: string | null; seasons: unknown[] } };
       }>;
     };
-    expect(change.patches[0]?.entity.value.seasons[0]?.participantClubIds).toEqual([]);
-    expect(change.patches[0]?.entity.value.seasons[0]?.rules).not.toHaveProperty('fixtures');
+    expect(change.patches[0]?.entity.value).toMatchObject({ baseSeasonId: null, seasons: [] });
+  });
+
+  it('creates a season only after an explicit choice and remains idempotent on repeated save', () => {
+    const onUpsert = vi.fn();
+    render(<CompetitionBuilder author="Lia" onUpsert={onUpsert} world={world} />);
+
+    expect(screen.getByText('Nenhuma temporada será criada')).toBeInstanceOf(HTMLElement);
+    fireEvent.click(screen.getByRole('radio', { name: /Criar nova temporada/u }));
+    expect(
+      screen.getByText('A temporada 2026 será criada e vinculada a esta competição.'),
+    ).toBeInstanceOf(HTMLElement);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar competição' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar competição' }));
+
+    for (const call of onUpsert.mock.calls) {
+      const value = call[0].patches[0].entity.value as {
+        baseSeasonId: string;
+        seasons: Array<{ id: string; participantClubIds: string[]; rules: object }>;
+      };
+      expect(value.seasons).toHaveLength(1);
+      expect(value.seasons[0]?.id).toBe(value.baseSeasonId);
+      expect(value.seasons[0]?.participantClubIds).toEqual([]);
+      expect(value.seasons[0]?.rules).not.toHaveProperty('fixtures');
+    }
+  });
+
+  it('updates an existing season in place and replaces a renamed draft-owned season', () => {
+    const initialCompetition = {
+      id: 'community.lia.competition.liga-teste',
+      name: 'Liga Teste',
+      shortName: 'LT',
+      nationId: 'nation.brazil',
+      baseSeasonId: 'community.lia.competition.liga-teste.season.2026',
+      seasons: [
+        {
+          id: 'community.lia.competition.liga-teste.season.2026',
+          competitionId: 'community.lia.competition.liga-teste',
+          label: '2026',
+          startDate: '2026-01-01',
+          endDate: '2026-12-31',
+          participantClubIds: [],
+          stages: [],
+          rules: {},
+          registrationWindows: [],
+          calendarConstraints: {},
+          playerRegistrations: [],
+        },
+      ],
+    };
+    const onUpsert = vi.fn();
+    render(
+      <CompetitionBuilder
+        author="Lia"
+        initialCompetition={initialCompetition}
+        onUpsert={onUpsert}
+        world={{ ...world, competitions: [initialCompetition] }}
+      />,
+    );
+
+    expect(
+      screen.getByRole('radio', { name: /Usar temporada existente/u }).getAttribute('aria-checked'),
+    ).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar competição' }));
+    const updated = onUpsert.mock.calls[0]?.[0].patches[0].entity.value;
+    expect(updated.seasons).toHaveLength(1);
+    expect(updated.seasons[0].id).toBe(initialCompetition.baseSeasonId);
+
+    fireEvent.click(screen.getByRole('radio', { name: /Criar nova temporada/u }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Temporada' }), {
+      target: { value: '2027' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar competição' }));
+    const renamed = onUpsert.mock.calls[1]?.[0].patches[0].entity.value;
+    expect(renamed.seasons).toHaveLength(1);
+    expect(renamed.seasons[0]).toMatchObject({
+      id: 'community.lia.competition.liga-teste.season.2027',
+      label: '2027',
+    });
+    expect(renamed.baseSeasonId).toBe('community.lia.competition.liga-teste.season.2027');
   });
 });

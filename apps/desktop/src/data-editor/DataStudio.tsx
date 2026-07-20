@@ -68,6 +68,15 @@ const labelForModule = (module: StudioModule) =>
   modules.find(([id]) => id === module)?.[1] ??
   (module === 'import' ? 'Importação CSV' : 'Sandbox');
 
+const moduleCountCopy = (module: StudioModule, count: number) => {
+  if (module === 'regions') {
+    return `${count.toLocaleString('pt-BR')} ${
+      count === 1 ? 'divisão administrativa cadastrada' : 'divisões administrativas cadastradas'
+    }`;
+  }
+  return `${count.toLocaleString('pt-BR')} ${labelForModule(module).toLowerCase()} cadastrados`;
+};
+
 const csvEscape = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""')}"`;
 
 const exportRecords = (module: StudioModuleId, records: readonly StudioEntityRecord[]) => {
@@ -347,6 +356,10 @@ export function DataStudio({
   const [bulkConfirm, setBulkConfirm] = useState(false);
   const inspectorTriggerRef = useRef<HTMLButtonElement | null>(null);
   const draftWorld = useMemo(() => projectAuthoringWorld(world, changes), [changes, world]);
+  const assets = useMemo(
+    () => changes.flatMap((change) => (change.asset ? [change.asset] : [])),
+    [changes],
+  );
   const moduleRecords = useMemo(
     () =>
       editableModules.includes(module as StudioModuleId) || ['assets', 'patches'].includes(module)
@@ -376,6 +389,7 @@ export function DataStudio({
     setModule(next);
     setPage(0);
     setSearch('');
+    setOnlyPending(false);
     setSelected(id ? [id] : []);
     setActiveId(id ?? '');
     setEditorMode(id ? 'edit' : null);
@@ -563,12 +577,7 @@ export function DataStudio({
         )}
 
         {module === 'assets' && (
-          <AssetManager
-            assets={changes.flatMap((change) => (change.asset ? [change.asset] : []))}
-            author={author}
-            onUpsert={onUpsert}
-            world={draftWorld}
-          />
+          <AssetManager assets={assets} author={author} onUpsert={onUpsert} world={draftWorld} />
         )}
         {module === 'import' && (
           <CsvImport onImport={onBatch} onRollback={onRollback} world={draftWorld} />
@@ -682,8 +691,7 @@ export function DataStudio({
                 <span>{labelForModule(module)}</span>
                 <h2 id="studio-module-heading">Dados, relações e readiness</h2>
                 <p>
-                  {moduleRecords.length.toLocaleString('pt-BR')}{' '}
-                  {labelForModule(module).toLowerCase()} cadastrados
+                  {moduleCountCopy(module, moduleRecords.length)}
                   {moduleRecords.filter((item) => item.readiness?.issues.length).length
                     ? ` · ${moduleRecords.filter((item) => item.readiness?.issues.length).length} com pendências`
                     : ''}
@@ -745,7 +753,14 @@ export function DataStudio({
               >
                 Exportar CSV
               </Button>
-              <Button onClick={() => setOnlyPending((value) => !value)} variant="secondary">
+              <Button
+                aria-pressed={onlyPending}
+                onClick={() => {
+                  setOnlyPending((value) => !value);
+                  setPage(0);
+                }}
+                variant="secondary"
+              >
                 {onlyPending ? 'Todos os itens' : 'Filtros'}
               </Button>
               {isEntityModule && (
@@ -841,7 +856,11 @@ export function DataStudio({
                     placeholder="Buscar por nome ou detalhe"
                     value={search}
                   />
-                  <span>{filteredRows.length.toLocaleString('pt-BR')} itens</span>
+                  <span>
+                    {search.trim() || onlyPending
+                      ? `${filteredRows.length.toLocaleString('pt-BR')} exibidos de ${moduleRecords.length.toLocaleString('pt-BR')} cadastrados`
+                      : `${filteredRows.length.toLocaleString('pt-BR')} itens`}
+                  </span>
                 </div>
                 {visibleRows.length > 0 ? (
                   <div className="studio-table-list" role="table">
@@ -865,7 +884,7 @@ export function DataStudio({
                           onClick={(event) => {
                             inspectorTriggerRef.current = event.currentTarget;
                             setActiveId(item.id);
-                            setEditorMode('edit');
+                            setEditorMode(null);
                             setConfirmDelete(false);
                           }}
                           type="button"
@@ -880,6 +899,21 @@ export function DataStudio({
                         </button>
                       </div>
                     ))}
+                  </div>
+                ) : moduleRecords.length > 0 ? (
+                  <div className="studio-filter-empty" role="status">
+                    <strong>Nenhum resultado com os filtros atuais</strong>
+                    <p>Limpe a busca ou mostre todos os itens para voltar à lista completa.</p>
+                    <Button
+                      onClick={() => {
+                        setSearch('');
+                        setOnlyPending(false);
+                        setPage(0);
+                      }}
+                      variant="secondary"
+                    >
+                      Limpar filtros
+                    </Button>
                   </div>
                 ) : (
                   <ModuleEmptyState
@@ -964,7 +998,7 @@ export function DataStudio({
                   </div>
                 ) : editorMode && isEntityModule ? (
                   <StudioEntityEditor
-                    assets={changes.flatMap((change) => (change.asset ? [change.asset] : []))}
+                    assets={assets}
                     author={author}
                     key={`${module}:${editorMode}:${activeRecord?.id ?? 'new'}`}
                     mode={editorMode}
@@ -1003,6 +1037,7 @@ export function DataStudio({
                           <li key={issue.code}>
                             <strong>{issue.label}</strong>
                             <span>{issue.explanation}</span>
+                            <small>Campo: {issue.field ?? 'relação'}</small>
                             <button onClick={() => navigate(issue.module)} type="button">
                               Resolver
                             </button>

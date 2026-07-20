@@ -3,7 +3,7 @@ import { defineConfig } from '@playwright/test';
 const developmentServer = {
   command: 'pnpm --filter @rivallo/desktop exec vite --host 127.0.0.1 --port 4173 --strictPort',
   url: 'http://127.0.0.1:4173/__ui-lab',
-  reuseExistingServer: !process.env.CI,
+  reuseExistingServer: process.env.CREATOR_STUDIO_UAT_REUSE_SERVER === '1' || !process.env.CI,
   timeout: 60_000,
 };
 
@@ -11,7 +11,7 @@ const productionServer = {
   command:
     'pnpm --filter @rivallo/desktop build && pnpm --filter @rivallo/desktop exec vite preview --host 127.0.0.1 --port 4174 --strictPort',
   url: 'http://127.0.0.1:4174/',
-  reuseExistingServer: !process.env.CI,
+  reuseExistingServer: process.env.CREATOR_STUDIO_UAT_REUSE_SERVER === '1' || !process.env.CI,
   timeout: 60_000,
 };
 

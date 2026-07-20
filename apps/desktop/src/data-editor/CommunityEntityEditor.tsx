@@ -1,5 +1,5 @@
 import { Icon } from '@rivallo/icons';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { Club, Player, Position } from '../matchday/types.js';
 import { Button } from '../ui/primitives/actions.js';
@@ -365,6 +365,21 @@ export function CommunityEntityEditor({
   embedded = false,
   staffMode = false,
 }: CommunityEntityEditorProps) {
+  const initialClub =
+    initialMode === 'edit' && initialKind === 'club' && initialEntityId
+      ? world.clubs.find((candidate) => candidate.id === initialEntityId)
+      : undefined;
+  const initialPlayer =
+    initialMode === 'edit' && initialKind === 'player' && initialEntityId
+      ? world.players.find((candidate) => candidate.id === initialEntityId)
+      : undefined;
+  const initialPlayerProfile = initialPlayer
+    ? world.playerProfiles.find((candidate) => candidate.identity.entityId === initialPlayer.id)
+    : undefined;
+  const initialCoach =
+    initialMode === 'edit' && initialKind === 'coach' && initialEntityId
+      ? world.coaches.find((candidate) => candidate.identity.entityId === initialEntityId)
+      : undefined;
   const [kind, setKind] = useState<EntityKind>(initialKind);
   const [mode, setMode] = useState<EditorMode>(initialMode);
   const [selectedClubId, setSelectedClubId] = useState(
@@ -378,11 +393,24 @@ export function CommunityEntityEditor({
       ? initialEntityId
       : (world.coaches[0]?.identity.entityId ?? ''),
   );
-  const [club, setClub] = useState<Club>(defaultClub());
-  const [player, setPlayer] = useState<PlayerDraft>(defaultPlayer(world.activeClubId));
-  const [coach, setCoach] = useState<CoachDraft>(defaultCoach(world.activeClubId, staffMode));
-  const [includeContract, setIncludeContract] = useState(false);
-  const [asset, setAsset] = useState<AuthoringAssetUpload | null>(null);
+  const [club, setClub] = useState<Club>(() => initialClub ?? defaultClub());
+  const [player, setPlayer] = useState<PlayerDraft>(() =>
+    initialPlayer
+      ? playerDraftFrom(initialPlayer, world.activeClubId, initialPlayerProfile)
+      : defaultPlayer(world.activeClubId),
+  );
+  const [coach, setCoach] = useState<CoachDraft>(() =>
+    initialCoach ? coachDraftFrom(initialCoach) : defaultCoach(world.activeClubId, staffMode),
+  );
+  const [includeContract, setIncludeContract] = useState(
+    Boolean(initialPlayerProfile?.contract ?? initialCoach?.contract),
+  );
+  const [asset, setAsset] = useState<AuthoringAssetUpload | null>(() =>
+    initialEntityId
+      ? (assets.find((candidate) => candidate.entityId === initialEntityId) ?? null)
+      : null,
+  );
+  const hydratedSelection = useRef('');
   const canEditKind =
     kind === 'club'
       ? world.clubs.length > 0
@@ -404,6 +432,11 @@ export function CommunityEntityEditor({
   }, [canEditKind, mode]);
 
   useEffect(() => {
+    const selectionKey = `${mode}:${kind}:${
+      kind === 'club' ? selectedClubId : kind === 'player' ? selectedPlayerId : selectedCoachId
+    }`;
+    if (hydratedSelection.current === selectionKey) return;
+    hydratedSelection.current = selectionKey;
     if (mode === 'create') {
       setAsset(null);
       setClub(defaultClub());

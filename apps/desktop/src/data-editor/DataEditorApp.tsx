@@ -571,9 +571,11 @@ export function DataEditorApp() {
       setCleanSignature(currentSignature);
       setDraftSaveState('saved');
       setMessage(`Projeto salvo · revisão ${record.revision}.`);
+      return record;
     } catch {
       setDraftSaveState('failed');
       setError('Não foi possível salvar o projeto de autoria. Os dados continuam nesta sessão.');
+      return null;
     } finally {
       setBusy(null);
     }
@@ -699,12 +701,14 @@ export function DataEditorApp() {
   };
 
   const exportSharedBundle = async () => {
+    const persisted = dirty || !projectId ? await saveProject('dataStudio') : null;
+    if ((dirty || !projectId) && !persisted) return;
     setBusy('distribution');
     setError('');
     try {
       const path = await chooseRivmodSavePath();
       if (!path) return;
-      const receipt = await exportRivmod(source, path, projectId || null);
+      const receipt = await exportRivmod(source, path, persisted?.projectId ?? (projectId || null));
       setDistributionPath(receipt.path);
       setMessage(
         `${receipt.name} ${receipt.version} exportado · ${(receipt.size / 1024).toFixed(1)} KB · SHA-256 ${receipt.sha256.slice(0, 16)}…`,

@@ -28,7 +28,8 @@
     "data:public-guard": "node scripts/verify-public-data-packages.mjs",
     "toolchains": "node scripts/check-toolchains.mjs",
     "typecheck": "tsc --noEmit",
-    "ui-lab:test": "playwright test browser-tests/ui-lab.spec.ts"
+    "ui-lab:test": "playwright test browser-tests/ui-lab.spec.ts",
+    "uat:creator-studio": "node scripts/run-creator-studio-uat.mjs"
   },
   "engines": {
     "node": ">=22.0.0",

@@ -18,6 +18,40 @@ const world: ModAuthoringWorld = {
 };
 
 describe('DataStudio integrated authoring workspace', () => {
+  it('keeps administrative-division summary, filters and empty state on one authority', () => {
+    const regionsWorld: ModAuthoringWorld = {
+      ...world,
+      regions: [
+        { id: 'region.sp', nationId: 'nation.br', name: 'São Paulo' },
+        { id: 'region.rj', nationId: 'nation.br', name: 'Rio de Janeiro' },
+      ],
+    };
+    render(
+      <DataStudio
+        author="Lia"
+        changes={[]}
+        initialModule="regions"
+        onBatch={vi.fn()}
+        onRollback={vi.fn()}
+        onUpsert={vi.fn()}
+        onValidate={vi.fn().mockResolvedValue(undefined)}
+        report={null}
+        world={regionsWorld}
+      />,
+    );
+
+    expect(screen.getByText('2 divisões administrativas cadastradas')).toBeInstanceOf(HTMLElement);
+    expect(screen.getByText('2 itens')).toBeInstanceOf(HTMLElement);
+    fireEvent.click(screen.getByRole('button', { name: 'Filtros' }));
+    expect(screen.getByText('0 exibidos de 2 cadastrados')).toBeInstanceOf(HTMLElement);
+    expect(screen.getByText('Nenhum resultado com os filtros atuais')).toBeInstanceOf(HTMLElement);
+    expect(screen.queryByText(/Nenhum item em divisões administrativas/u)).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cidades' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Divisões administrativas' }));
+    expect(screen.getByText('2 itens')).toBeInstanceOf(HTMLElement);
+  });
+
   it('creates a city visually from an actionable empty state with the consistent toolbar', () => {
     const onUpsert = vi.fn();
     render(
@@ -176,6 +210,70 @@ describe('DataStudio integrated authoring workspace', () => {
                     ],
                   }),
                 ],
+              }),
+            }),
+          }),
+        ],
+      }),
+    );
+  });
+
+  it('preserves an in-progress club edit when the workspace rerenders during autosave', () => {
+    const onUpsert = vi.fn();
+    const changes: [] = [];
+    const clubWorld: ModAuthoringWorld = {
+      ...world,
+      clubs: [
+        {
+          id: 'club.one',
+          name: 'Clube Um',
+          shortName: 'CU',
+          city: 'Cidade Um',
+          primaryColor: '#237a57',
+          competitionId: null,
+          competitionName: null,
+        },
+      ],
+      competitions: [
+        {
+          id: 'competition.one',
+          name: 'Liga Um',
+          shortName: 'Liga',
+          nationId: 'nation.br',
+          baseSeasonId: 'season.one',
+          seasons: [],
+        },
+      ],
+    };
+    const props = {
+      author: 'Lia',
+      changes,
+      initialEntity: 'club.one',
+      initialModule: 'clubs',
+      onBatch: vi.fn(),
+      onRollback: vi.fn(),
+      onUpsert,
+      onValidate: vi.fn().mockResolvedValue(undefined),
+      report: null,
+      world: clubWorld,
+    } as const;
+    const view = render(<DataStudio {...props} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Competição' }), {
+      target: { value: 'competition.one' },
+    });
+    view.rerender(<DataStudio {...props} world={{ ...clubWorld }} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar edição do clube' }));
+
+    expect(onUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        patches: [
+          expect.objectContaining({
+            entity: expect.objectContaining({
+              value: expect.objectContaining({
+                competitionId: 'competition.one',
+                competitionName: 'Liga Um',
               }),
             }),
           }),

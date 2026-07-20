@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 
 import { Button } from '../ui/primitives/actions.js';
+import { projectAuthoringWorld } from './authoring-graph.js';
 import type { CommunityChange, ModAuthoringWorld } from './types.js';
 
 type CsvEntity =
@@ -437,7 +438,7 @@ const toChange = (
               ? {
                   ...season,
                   playerRegistrations: [
-                    ...season.playerRegistrations,
+                    ...season.playerRegistrations.filter((item) => item.playerId !== row.playerId),
                     {
                       playerId: row.playerId,
                       clubId: row.clubId,
@@ -588,7 +589,12 @@ export function CsvImport({
     URL.revokeObjectURL(link.href);
   };
   const commit = () => {
-    const changes = mappedRows.map((row, index) => toChange(entity, row, index, world));
+    let projectedWorld = world;
+    const changes = mappedRows.map((row, index) => {
+      const change = toChange(entity, row, index, projectedWorld);
+      projectedWorld = projectAuthoringWorld(projectedWorld, [change]);
+      return change;
+    });
     onImport(changes);
     setLastBatch(changes.map((change) => change.id));
   };
