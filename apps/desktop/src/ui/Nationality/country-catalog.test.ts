@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  countryCatalog,
+  getCountryCatalog,
   normalizeCountryCode,
   resolveCountryCode,
   resolveNationalityCodes,
@@ -60,8 +60,9 @@ describe('country catalog', () => {
   });
 
   it('uses only bundled local assets', () => {
+    const countryCatalog = getCountryCatalog();
     expect(countryCatalog).toHaveLength(4);
-    expect(countryCatalog.every(({ flagSrc }) => flagSrc.length > 0)).toBe(true);
-    expect(countryCatalog.every(({ flagSrc }) => !/^https?:/u.test(flagSrc))).toBe(true);
+    expect(countryCatalog.every(({ flagSrc }) => (flagSrc?.length ?? 0) > 0)).toBe(true);
+    expect(countryCatalog.every(({ flagSrc }) => !/^https?:/u.test(flagSrc ?? ''))).toBe(true);
   });
 });

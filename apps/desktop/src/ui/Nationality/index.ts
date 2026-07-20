@@ -1,7 +1,7 @@
 export { NationalityDisplay } from './NationalityDisplay.js';
 export type { NationalityDisplayProps } from './NationalityDisplay.js';
 export {
-  countryCatalog,
+  getCountryCatalog,
   normalizeCountryCode,
   resolveCountryCode,
   resolveNationalityCodes,

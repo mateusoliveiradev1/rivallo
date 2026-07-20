@@ -2737,7 +2737,6 @@ export function TacticsWorkspace({
                 if (pointerSessionRef.current?.playerId === player.id) {
                   recordDragMetric('draggedCardRenders');
                 }
-                const playerIndex = state.players.findIndex(({ id }) => id === player.id);
                 const playerFamiliarity = model.familiarity.individuals.find(
                   ({ playerId }) => playerId === player.id,
                 );
@@ -2787,7 +2786,6 @@ export function TacticsWorkspace({
                         displayName={pitchPlayerName(player)}
                         metric={metric}
                         player={player}
-                        playerIndex={playerIndex}
                         positionLabel={positionLabels[placement.positionId]}
                       />
                     </button>
@@ -2818,7 +2816,6 @@ export function TacticsWorkspace({
                 {draft.bench.map((playerId) => {
                   const player = playerById.get(playerId);
                   if (!player) return null;
-                  const playerIndex = state.players.findIndex(({ id }) => id === player.id);
                   const familiarity =
                     model.familiarity.individuals.find(
                       ({ playerId: candidateId }) => candidateId === player.id,
@@ -2852,7 +2849,6 @@ export function TacticsWorkspace({
                           displayName={player.shortName}
                           metric={metric}
                           player={player}
-                          playerIndex={playerIndex}
                           positionLabel={positionLabels[player.position]}
                         />
                       </button>
@@ -3644,7 +3640,6 @@ export function TacticsWorkspace({
                     displayName={focusedPlayer.shortName}
                     metric={focusedPlayerMetric}
                     player={focusedPlayer}
-                    playerIndex={state.players.findIndex(({ id }) => id === focusedPlayer.id)}
                     positionLabel={positionLabels[focusedPlayer.position]}
                   />
                 </div>

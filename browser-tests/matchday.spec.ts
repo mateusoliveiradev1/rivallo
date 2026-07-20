@@ -706,8 +706,77 @@ test.beforeEach(async ({ page }) => {
 
       persistTableState();
 
+      const asset = (id: string, entityId: string, kind: string, path: string) => ({
+        id,
+        entityId,
+        kind,
+        path,
+        mediaType: path.endsWith('.svg') ? 'image/svg+xml' : 'image/webp',
+        checksum: 'browser-fixture',
+        provenance: 'Rivallo browser fixture',
+        rights: 'test-only',
+        privateUse: false,
+      });
+      const worldReferenceCatalog = {
+        assets: [
+          ...Array.from({ length: 18 }, (_, index) => {
+            const suffix = String(index + 1).padStart(2, '0');
+            return asset(
+              `asset.player.rv-${suffix}.portrait`,
+              `rv-${suffix}`,
+              'playerPortrait',
+              `assets/player-faces/rv-${suffix}.webp`,
+            );
+          }),
+          asset(
+            'asset.coach.helena-sampaio.portrait',
+            'coach.aurora.head',
+            'coachPortrait',
+            'assets/coach-faces/helena-sampaio.webp',
+          ),
+          asset(
+            'asset.coach.browser-aurora.portrait',
+            'coach.aurora.1',
+            'coachPortrait',
+            'assets/coach-faces/helena-sampaio.webp',
+          ),
+          asset(
+            'asset.coach.raul-mendonza.portrait',
+            'coach.ferroviario.head',
+            'coachPortrait',
+            'assets/coach-faces/raul-mendonza.webp',
+          ),
+          ...[
+            ['br', 'bra'],
+            ['ar', 'arg'],
+            ['uy', 'ury'],
+            ['pt', 'prt'],
+          ].map(([iso2, entityId]) =>
+            asset(`asset.flag.${iso2}`, entityId, 'nationFlag', `assets/flags/${iso2}.svg`),
+          ),
+        ],
+        nations: [
+          ['bra', 'Brasil', 'BR', 'BRA', ['BR', 'BRA']],
+          ['arg', 'Argentina', 'AR', 'ARG', ['AR', 'ARG']],
+          ['ury', 'Uruguai', 'UY', 'URY', ['UY', 'URY', 'URU']],
+          ['prt', 'Portugal', 'PT', 'PRT', ['PT', 'PRT', 'POR']],
+        ].map(([id, name, iso2, iso3, aliases]) => ({
+          id,
+          name,
+          iso2,
+          iso3,
+          aliases,
+          confederationId: null,
+          flagAssetId: `asset.flag.${String(iso2).toLocaleLowerCase('en-US')}`,
+          externalIds: [],
+        })),
+      };
+
       const bridge = {
         invoke: async (command: string, args: Record<string, unknown> = {}) => {
+          if (command === 'world_reference_catalog') {
+            return structuredClone(worldReferenceCatalog);
+          }
           if (command === 'lifecycle_status' || command === 'retry_lifecycle') {
             return { state: 'ready', ownership: 'owned' };
           }

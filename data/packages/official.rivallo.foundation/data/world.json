@@ -1,0 +1,4680 @@
+{
+  "schemaVersion": 1,
+  "matchday": {
+    "club": {
+      "id": "aurora-fc",
+      "name": "Aurora Futebol Clube",
+      "shortName": "AUR",
+      "city": "Porto Claro",
+      "primaryColor": "#35c88a",
+      "countryCode": "BRA",
+      "competitionName": "Liga Horizonte",
+      "stadiumName": null
+    },
+    "opponent": {
+      "id": "ferroviario-do-vale",
+      "name": "Ferroviário do Vale",
+      "shortName": "FDV",
+      "city": "Vale do Norte",
+      "primaryColor": "#d18a42",
+      "countryCode": "BRA",
+      "competitionName": "Liga Horizonte",
+      "stadiumName": null
+    },
+    "round": 1,
+    "players": [
+      {
+        "id": "rv-01",
+        "name": "Caio Brandão",
+        "shortName": "C. Brandão",
+        "shirtNumber": 1,
+        "position": "GK",
+        "age": 27,
+        "nationality": "BRA",
+        "heightCm": 190,
+        "preferredFoot": "right",
+        "squadRole": "firstTeam",
+        "rating": 76,
+        "potentialRating": 76,
+        "matchFitness": 92,
+        "morale": 78,
+        "condition": 96,
+        "appearances": 16,
+        "goals": 0,
+        "assists": 0,
+        "averageRating": 7.18,
+        "selected": true
+      },
+      {
+        "id": "rv-02",
+        "name": "Davi Moura",
+        "shortName": "D. Moura",
+        "shirtNumber": 22,
+        "position": "RB",
+        "age": 24,
+        "nationality": "BRA",
+        "heightCm": 177,
+        "preferredFoot": "right",
+        "squadRole": "firstTeam",
+        "rating": 73,
+        "potentialRating": 76,
+        "matchFitness": 88,
+        "morale": 74,
+        "condition": 92,
+        "appearances": 14,
+        "goals": 0,
+        "assists": 3,
+        "averageRating": 6.91,
+        "selected": true
+      },
+      {
+        "id": "rv-03",
+        "name": "Iago Serpa",
+        "shortName": "I. Serpa",
+        "shirtNumber": 3,
+        "position": "CB",
+        "age": 29,
+        "nationality": "BRA",
+        "heightCm": 188,
+        "preferredFoot": "right",
+        "squadRole": "keyPlayer",
+        "rating": 78,
+        "potentialRating": 78,
+        "matchFitness": 91,
+        "morale": 82,
+        "condition": 89,
+        "appearances": 16,
+        "goals": 1,
+        "assists": 0,
+        "averageRating": 7.24,
+        "selected": true
+      },
+      {
+        "id": "rv-04",
+        "name": "Breno Vidal",
+        "shortName": "B. Vidal",
+        "shirtNumber": 4,
+        "position": "CB",
+        "age": 25,
+        "nationality": "BRA",
+        "heightCm": 186,
+        "preferredFoot": "right",
+        "squadRole": "firstTeam",
+        "rating": 75,
+        "potentialRating": 78,
+        "matchFitness": 94,
+        "morale": 79,
+        "condition": 94,
+        "appearances": 15,
+        "goals": 0,
+        "assists": 1,
+        "averageRating": 7.08,
+        "selected": true
+      },
+      {
+        "id": "rv-05",
+        "name": "Nilo Azevedo",
+        "shortName": "N. Azevedo",
+        "shirtNumber": 16,
+        "position": "LB",
+        "age": 22,
+        "nationality": "BRA",
+        "heightCm": 175,
+        "preferredFoot": "left",
+        "squadRole": "firstTeam",
+        "rating": 74,
+        "potentialRating": 82,
+        "matchFitness": 96,
+        "morale": 86,
+        "condition": 97,
+        "appearances": 15,
+        "goals": 1,
+        "assists": 4,
+        "averageRating": 7.32,
+        "selected": true
+      },
+      {
+        "id": "rv-06",
+        "name": "Tomás Paiva",
+        "shortName": "T. Paiva",
+        "shirtNumber": 5,
+        "position": "DM",
+        "age": 28,
+        "nationality": "URU",
+        "heightCm": 184,
+        "preferredFoot": "right",
+        "squadRole": "keyPlayer",
+        "rating": 79,
+        "potentialRating": 79,
+        "matchFitness": 90,
+        "morale": 84,
+        "condition": 91,
+        "appearances": 16,
+        "goals": 2,
+        "assists": 2,
+        "averageRating": 7.41,
+        "selected": true
+      },
+      {
+        "id": "rv-07",
+        "name": "Luan Seixas",
+        "shortName": "L. Seixas",
+        "shirtNumber": 8,
+        "position": "CM",
+        "age": 23,
+        "nationality": "BRA",
+        "heightCm": 181,
+        "preferredFoot": "right",
+        "squadRole": "firstTeam",
+        "rating": 77,
+        "potentialRating": 84,
+        "matchFitness": 95,
+        "morale": 88,
+        "condition": 95,
+        "appearances": 15,
+        "goals": 3,
+        "assists": 5,
+        "averageRating": 7.36,
+        "selected": true
+      },
+      {
+        "id": "rv-08",
+        "name": "Ravi Monteiro",
+        "shortName": "R. Monteiro",
+        "shirtNumber": 10,
+        "position": "CM",
+        "age": 26,
+        "nationality": "BRA",
+        "heightCm": 178,
+        "preferredFoot": "left",
+        "squadRole": "firstTeam",
+        "rating": 76,
+        "potentialRating": 79,
+        "matchFitness": 87,
+        "morale": 76,
+        "condition": 90,
+        "appearances": 13,
+        "goals": 2,
+        "assists": 6,
+        "averageRating": 7.12,
+        "selected": true
+      },
+      {
+        "id": "rv-09",
+        "name": "Enzo Falcão",
+        "shortName": "E. Falcão",
+        "shirtNumber": 7,
+        "position": "RW",
+        "age": 21,
+        "nationality": "BRA",
+        "heightCm": 174,
+        "preferredFoot": "left",
+        "squadRole": "keyPlayer",
+        "rating": 78,
+        "potentialRating": 86,
+        "matchFitness": 97,
+        "morale": 91,
+        "condition": 98,
+        "appearances": 16,
+        "goals": 6,
+        "assists": 7,
+        "averageRating": 7.62,
+        "selected": true
+      },
+      {
+        "id": "rv-10",
+        "name": "Murilo Braga",
+        "shortName": "M. Braga",
+        "shirtNumber": 9,
+        "position": "ST",
+        "age": 27,
+        "nationality": "BRA",
+        "heightCm": 187,
+        "preferredFoot": "right",
+        "squadRole": "keyPlayer",
+        "rating": 81,
+        "potentialRating": 82,
+        "matchFitness": 93,
+        "morale": 89,
+        "condition": 93,
+        "appearances": 16,
+        "goals": 11,
+        "assists": 2,
+        "averageRating": 7.71,
+        "selected": true
+      },
+      {
+        "id": "rv-11",
+        "name": "Noah Teles",
+        "shortName": "N. Teles",
+        "shirtNumber": 11,
+        "position": "LW",
+        "age": 24,
+        "nationality": "BRA",
+        "heightCm": 176,
+        "preferredFoot": "right",
+        "squadRole": "firstTeam",
+        "rating": 77,
+        "potentialRating": 82,
+        "matchFitness": 94,
+        "morale": 85,
+        "condition": 96,
+        "appearances": 15,
+        "goals": 5,
+        "assists": 5,
+        "averageRating": 7.38,
+        "selected": true
+      },
+      {
+        "id": "rv-12",
+        "name": "Ícaro Reis",
+        "shortName": "Í. Reis",
+        "shirtNumber": 12,
+        "position": "GK",
+        "age": 20,
+        "nationality": "BRA",
+        "heightCm": 193,
+        "preferredFoot": "right",
+        "squadRole": "prospect",
+        "rating": 68,
+        "potentialRating": 81,
+        "matchFitness": 83,
+        "morale": 72,
+        "condition": 100,
+        "appearances": 2,
+        "goals": 0,
+        "assists": 0,
+        "averageRating": 6.88,
+        "selected": false
+      },
+      {
+        "id": "rv-13",
+        "name": "Otávio Luz",
+        "shortName": "O. Luz",
+        "shirtNumber": 14,
+        "position": "CB",
+        "age": 31,
+        "nationality": "BRA",
+        "heightCm": 190,
+        "preferredFoot": "right",
+        "squadRole": "backup",
+        "rating": 72,
+        "potentialRating": 72,
+        "matchFitness": 78,
+        "morale": 68,
+        "condition": 87,
+        "appearances": 5,
+        "goals": 0,
+        "assists": 0,
+        "averageRating": 6.72,
+        "selected": false
+      },
+      {
+        "id": "rv-14",
+        "name": "Pietro Nunes",
+        "shortName": "P. Nunes",
+        "shirtNumber": 27,
+        "position": "CM",
+        "age": 19,
+        "nationality": "BRA",
+        "heightCm": 179,
+        "preferredFoot": "right",
+        "squadRole": "prospect",
+        "rating": 71,
+        "potentialRating": 86,
+        "matchFitness": 89,
+        "morale": 81,
+        "condition": 100,
+        "appearances": 7,
+        "goals": 1,
+        "assists": 2,
+        "averageRating": 7.03,
+        "selected": false
+      },
+      {
+        "id": "rv-15",
+        "name": "Gael Ramos",
+        "shortName": "G. Ramos",
+        "shirtNumber": 20,
+        "position": "AM",
+        "age": 22,
+        "nationality": "ARG",
+        "heightCm": 176,
+        "preferredFoot": "left",
+        "squadRole": "rotation",
+        "rating": 74,
+        "potentialRating": 83,
+        "matchFitness": 90,
+        "morale": 83,
+        "condition": 97,
+        "appearances": 10,
+        "goals": 3,
+        "assists": 3,
+        "averageRating": 7.15,
+        "selected": false
+      },
+      {
+        "id": "rv-16",
+        "name": "Theo Barros",
+        "shortName": "T. Barros",
+        "shirtNumber": 17,
+        "position": "RW",
+        "age": 25,
+        "nationality": "POR",
+        "heightCm": 172,
+        "preferredFoot": "right",
+        "squadRole": "rotation",
+        "rating": 73,
+        "potentialRating": 75,
+        "matchFitness": 86,
+        "morale": 73,
+        "condition": 94,
+        "appearances": 9,
+        "goals": 2,
+        "assists": 2,
+        "averageRating": 6.89,
+        "selected": false
+      },
+      {
+        "id": "rv-17",
+        "name": "Samuel Lins",
+        "shortName": "S. Lins",
+        "shirtNumber": 19,
+        "position": "ST",
+        "age": 30,
+        "nationality": "BRA",
+        "heightCm": 185,
+        "preferredFoot": "right",
+        "squadRole": "rotation",
+        "rating": 75,
+        "potentialRating": 75,
+        "matchFitness": 76,
+        "morale": 65,
+        "condition": 86,
+        "appearances": 8,
+        "goals": 4,
+        "assists": 1,
+        "averageRating": 6.96,
+        "selected": false
+      },
+      {
+        "id": "rv-18",
+        "name": "Vitor Amaral",
+        "shortName": "V. Amaral",
+        "shirtNumber": 25,
+        "position": "LB",
+        "age": 21,
+        "nationality": "BRA",
+        "heightCm": 178,
+        "preferredFoot": "left",
+        "squadRole": "prospect",
+        "rating": 70,
+        "potentialRating": 82,
+        "matchFitness": 91,
+        "morale": 80,
+        "condition": 99,
+        "appearances": 6,
+        "goals": 0,
+        "assists": 2,
+        "averageRating": 6.94,
+        "selected": false
+      }
+    ],
+    "formation": "4-3-3",
+    "approach": "balanced",
+    "tacticalLibrary": {
+      "schemaVersion": 1,
+      "revision": 0,
+      "activeVariationId": "tactical-variation.primary",
+      "primaryVariationId": "tactical-variation.primary",
+      "variations": [
+        {
+          "schemaVersion": 4,
+          "variationId": "tactical-variation.primary",
+          "name": "4-3-3",
+          "sourcePresetId": "4-3-3",
+          "formation": "4-3-3",
+          "placements": [
+            {
+              "playerId": "rv-01",
+              "normalizedX": 0.09,
+              "normalizedY": 0.5,
+              "positionId": "GK",
+              "roleId": null,
+              "side": "centre",
+              "line": "goal",
+              "zone": "goal",
+              "sourcePresetSlotId": "legacy.0",
+              "revision": 0
+            },
+            {
+              "playerId": "rv-02",
+              "normalizedX": 0.3,
+              "normalizedY": 0.84,
+              "positionId": "RB",
+              "roleId": null,
+              "side": "right",
+              "line": "defence",
+              "zone": "defensiveThird",
+              "sourcePresetSlotId": "legacy.1",
+              "revision": 0
+            },
+            {
+              "playerId": "rv-03",
+              "normalizedX": 0.24,
+              "normalizedY": 0.62,
+              "positionId": "CB",
+              "roleId": null,
+              "side": "right",
+              "line": "defence",
+              "zone": "defensiveThird",
+              "sourcePresetSlotId": "legacy.2",
+              "revision": 0
+            },
+            {
+              "playerId": "rv-04",
+              "normalizedX": 0.24,
+              "normalizedY": 0.38,
+              "positionId": "CB",
+              "roleId": null,
+              "side": "left",
+              "line": "defence",
+              "zone": "defensiveThird",
+              "sourcePresetSlotId": "legacy.3",
+              "revision": 0
+            },
+            {
+              "playerId": "rv-05",
+              "normalizedX": 0.3,
+              "normalizedY": 0.16,
+              "positionId": "LB",
+              "roleId": null,
+              "side": "left",
+              "line": "defence",
+              "zone": "defensiveThird",
+              "sourcePresetSlotId": "legacy.4",
+              "revision": 0
+            },
+            {
+              "playerId": "rv-06",
+              "normalizedX": 0.48,
+              "normalizedY": 0.5,
+              "positionId": "DM",
+              "roleId": null,
+              "side": "centre",
+              "line": "midfield",
+              "zone": "middleThird",
+              "sourcePresetSlotId": "legacy.5",
+              "revision": 0
+            },
+            {
+              "playerId": "rv-07",
+              "normalizedX": 0.59,
+              "normalizedY": 0.69,
+              "positionId": "CM",
+              "roleId": null,
+              "side": "right",
+              "line": "midfield",
+              "zone": "middleThird",
+              "sourcePresetSlotId": "legacy.6",
+              "revision": 0
+            },
+            {
+              "playerId": "rv-08",
+              "normalizedX": 0.59,
+              "normalizedY": 0.31,
+              "positionId": "CM",
+              "roleId": null,
+              "side": "left",
+              "line": "midfield",
+              "zone": "middleThird",
+              "sourcePresetSlotId": "legacy.7",
+              "revision": 0
+            },
+            {
+              "playerId": "rv-09",
+              "normalizedX": 0.8,
+              "normalizedY": 0.78,
+              "positionId": "RW",
+              "roleId": null,
+              "side": "right",
+              "line": "attack",
+              "zone": "finalThird",
+              "sourcePresetSlotId": "legacy.8",
+              "revision": 0
+            },
+            {
+              "playerId": "rv-10",
+              "normalizedX": 0.88,
+              "normalizedY": 0.5,
+              "positionId": "ST",
+              "roleId": null,
+              "side": "centre",
+              "line": "attack",
+              "zone": "finalThird",
+              "sourcePresetSlotId": "legacy.9",
+              "revision": 0
+            },
+            {
+              "playerId": "rv-11",
+              "normalizedX": 0.8,
+              "normalizedY": 0.22,
+              "positionId": "LW",
+              "roleId": null,
+              "side": "left",
+              "line": "attack",
+              "zone": "finalThird",
+              "sourcePresetSlotId": "legacy.10",
+              "revision": 0
+            }
+          ],
+          "bench": ["rv-12", "rv-13", "rv-14", "rv-15", "rv-16", "rv-17", "rv-18"],
+          "customFormation": {
+            "id": "formation.primary",
+            "name": "4-3-3",
+            "isCustom": false,
+            "origin": "legacy-migration",
+            "createdAtRevision": 0,
+            "updatedAtRevision": 0
+          },
+          "tacticalModel": {
+            "schemaVersion": 2,
+            "config": {
+              "schemaVersion": 2,
+              "strategy": {
+                "presetId": "balanced",
+                "customized": false,
+                "inPossession": {
+                  "width": 55,
+                  "tempo": 50,
+                  "passingRisk": 45,
+                  "playersForward": 50,
+                  "creativeFreedom": 50,
+                  "buildUp": "supported",
+                  "progression": "balanced"
+                },
+                "outOfPossession": {
+                  "blockHeight": 50,
+                  "defensiveLine": 50,
+                  "depth": 50,
+                  "pressure": 50,
+                  "horizontalCompactness": 60,
+                  "verticalCompactness": 60,
+                  "duelAggression": 50,
+                  "forceDirection": "neutral"
+                },
+                "transitions": {
+                  "speed": 50,
+                  "playersForward": 50,
+                  "defensiveSecurity": 60,
+                  "lossReaction": "balanced",
+                  "regainReaction": "balanced",
+                  "goalkeeperDistribution": "balanced"
+                }
+              },
+              "instructions": [
+                {
+                  "instructionId": "collective.build-up-supported",
+                  "category": "circulation",
+                  "scope": "collective",
+                  "target": "team",
+                  "value": "supported",
+                  "intensity": 55,
+                  "description": "Aproximar apoios durante a primeira fase de construção.",
+                  "expectedEffects": [
+                    "mais linhas de passe curtas",
+                    "progressão inicial menos direta"
+                  ],
+                  "requirements": ["estrutura de saída válida"],
+                  "incompatibilities": ["collective.build-up-direct"],
+                  "precedence": 10,
+                  "familiarityImpact": -2,
+                  "revision": 0,
+                  "enabled": true
+                },
+                {
+                  "instructionId": "collective.counter-press",
+                  "category": "pressure",
+                  "scope": "collective",
+                  "target": "team",
+                  "value": "counterPress",
+                  "intensity": 65,
+                  "description": "Reagir de imediato ao perder a bola antes de reorganizar o bloco.",
+                  "expectedEffects": [
+                    "recuperação mais próxima da perda",
+                    "maior exposição se a primeira pressão for superada"
+                  ],
+                  "requirements": ["segurança defensiva coordenada"],
+                  "incompatibilities": ["collective.regroup"],
+                  "precedence": 10,
+                  "familiarityImpact": -3,
+                  "revision": 0,
+                  "enabled": true
+                }
+              ],
+              "opposition": {
+                "opponentId": "ferroviario-do-vale",
+                "knowledge": null,
+                "instructions": []
+              }
+            },
+            "structures": [
+              {
+                "phase": "base",
+                "players": [
+                  {
+                    "playerId": "rv-01",
+                    "normalizedX": 0.09,
+                    "normalizedY": 0.5,
+                    "responsibilities": ["protectGoal", "holdBasePosition"]
+                  },
+                  {
+                    "playerId": "rv-02",
+                    "normalizedX": 0.3,
+                    "normalizedY": 0.84,
+                    "responsibilities": ["protectDepth", "holdBasePosition"]
+                  },
+                  {
+                    "playerId": "rv-03",
+                    "normalizedX": 0.24,
+                    "normalizedY": 0.62,
+                    "responsibilities": ["protectDepth", "holdBasePosition"]
+                  },
+                  {
+                    "playerId": "rv-04",
+                    "normalizedX": 0.24,
+                    "normalizedY": 0.38,
+                    "responsibilities": ["protectDepth", "holdBasePosition"]
+                  },
+                  {
+                    "playerId": "rv-05",
+                    "normalizedX": 0.3,
+                    "normalizedY": 0.16,
+                    "responsibilities": ["protectDepth", "holdBasePosition"]
+                  },
+                  {
+                    "playerId": "rv-06",
+                    "normalizedX": 0.48,
+                    "normalizedY": 0.5,
+                    "responsibilities": ["connectSectors", "holdBasePosition"]
+                  },
+                  {
+                    "playerId": "rv-07",
+                    "normalizedX": 0.59,
+                    "normalizedY": 0.69,
+                    "responsibilities": ["connectSectors", "holdBasePosition"]
+                  },
+                  {
+                    "playerId": "rv-08",
+                    "normalizedX": 0.59,
+                    "normalizedY": 0.31,
+                    "responsibilities": ["connectSectors", "holdBasePosition"]
+                  },
+                  {
+                    "playerId": "rv-09",
+                    "normalizedX": 0.8,
+                    "normalizedY": 0.78,
+                    "responsibilities": ["threatenLastLine", "holdBasePosition"]
+                  },
+                  {
+                    "playerId": "rv-10",
+                    "normalizedX": 0.88,
+                    "normalizedY": 0.5,
+                    "responsibilities": ["threatenLastLine", "holdBasePosition"]
+                  },
+                  {
+                    "playerId": "rv-11",
+                    "normalizedX": 0.8,
+                    "normalizedY": 0.22,
+                    "responsibilities": ["threatenLastLine", "holdBasePosition"]
+                  }
+                ],
+                "width": 68,
+                "depth": 79,
+                "compactness": 34
+              },
+              {
+                "phase": "inPossession",
+                "players": [
+                  {
+                    "playerId": "rv-01",
+                    "normalizedX": 0.09,
+                    "normalizedY": 0.5,
+                    "responsibilities": ["protectGoal", "offerPossessionSupport"]
+                  },
+                  {
+                    "playerId": "rv-02",
+                    "normalizedX": 0.3,
+                    "normalizedY": 0.84,
+                    "responsibilities": ["protectDepth", "offerPossessionSupport"]
+                  },
+                  {
+                    "playerId": "rv-03",
+                    "normalizedX": 0.24,
+                    "normalizedY": 0.62,
+                    "responsibilities": ["protectDepth", "offerPossessionSupport"]
+                  },
+                  {
+                    "playerId": "rv-04",
+                    "normalizedX": 0.24,
+                    "normalizedY": 0.38,
+                    "responsibilities": ["protectDepth", "offerPossessionSupport"]
+                  },
+                  {
+                    "playerId": "rv-05",
+                    "normalizedX": 0.3,
+                    "normalizedY": 0.16,
+                    "responsibilities": ["protectDepth", "offerPossessionSupport"]
+                  },
+                  {
+                    "playerId": "rv-06",
+                    "normalizedX": 0.48,
+                    "normalizedY": 0.5,
+                    "responsibilities": ["connectSectors", "offerPossessionSupport"]
+                  },
+                  {
+                    "playerId": "rv-07",
+                    "normalizedX": 0.59,
+                    "normalizedY": 0.69,
+                    "responsibilities": ["connectSectors", "offerPossessionSupport"]
+                  },
+                  {
+                    "playerId": "rv-08",
+                    "normalizedX": 0.59,
+                    "normalizedY": 0.31,
+                    "responsibilities": ["connectSectors", "offerPossessionSupport"]
+                  },
+                  {
+                    "playerId": "rv-09",
+                    "normalizedX": 0.8,
+                    "normalizedY": 0.78,
+                    "responsibilities": ["threatenLastLine", "offerPossessionSupport"]
+                  },
+                  {
+                    "playerId": "rv-10",
+                    "normalizedX": 0.88,
+                    "normalizedY": 0.5,
+                    "responsibilities": ["threatenLastLine", "offerPossessionSupport"]
+                  },
+                  {
+                    "playerId": "rv-11",
+                    "normalizedX": 0.8,
+                    "normalizedY": 0.22,
+                    "responsibilities": ["threatenLastLine", "offerPossessionSupport"]
+                  }
+                ],
+                "width": 68,
+                "depth": 79,
+                "compactness": 34
+              },
+              {
+                "phase": "outOfPossession",
+                "players": [
+                  {
+                    "playerId": "rv-01",
+                    "normalizedX": 0.1064,
+                    "normalizedY": 0.5,
+                    "responsibilities": ["protectGoal", "protectAssignedZone"]
+                  },
+                  {
+                    "playerId": "rv-02",
+                    "normalizedX": 0.308,
+                    "normalizedY": 0.8264,
+                    "responsibilities": ["protectDepth", "protectAssignedZone"]
+                  },
+                  {
+                    "playerId": "rv-03",
+                    "normalizedX": 0.2504,
+                    "normalizedY": 0.6152,
+                    "responsibilities": ["protectDepth", "protectAssignedZone"]
+                  },
+                  {
+                    "playerId": "rv-04",
+                    "normalizedX": 0.2504,
+                    "normalizedY": 0.3848,
+                    "responsibilities": ["protectDepth", "protectAssignedZone"]
+                  },
+                  {
+                    "playerId": "rv-05",
+                    "normalizedX": 0.308,
+                    "normalizedY": 0.1736,
+                    "responsibilities": ["protectDepth", "protectAssignedZone"]
+                  },
+                  {
+                    "playerId": "rv-06",
+                    "normalizedX": 0.4808,
+                    "normalizedY": 0.5,
+                    "responsibilities": ["connectSectors", "protectAssignedZone"]
+                  },
+                  {
+                    "playerId": "rv-07",
+                    "normalizedX": 0.5864,
+                    "normalizedY": 0.6824,
+                    "responsibilities": ["connectSectors", "protectAssignedZone"]
+                  },
+                  {
+                    "playerId": "rv-08",
+                    "normalizedX": 0.5864,
+                    "normalizedY": 0.3176,
+                    "responsibilities": ["connectSectors", "protectAssignedZone"]
+                  },
+                  {
+                    "playerId": "rv-09",
+                    "normalizedX": 0.788,
+                    "normalizedY": 0.7688,
+                    "responsibilities": ["threatenLastLine", "protectAssignedZone"]
+                  },
+                  {
+                    "playerId": "rv-10",
+                    "normalizedX": 0.8648,
+                    "normalizedY": 0.5,
+                    "responsibilities": ["threatenLastLine", "protectAssignedZone"]
+                  },
+                  {
+                    "playerId": "rv-11",
+                    "normalizedX": 0.788,
+                    "normalizedY": 0.2312,
+                    "responsibilities": ["threatenLastLine", "protectAssignedZone"]
+                  }
+                ],
+                "width": 65,
+                "depth": 76,
+                "compactness": 37
+              },
+              {
+                "phase": "offensiveTransition",
+                "players": [
+                  {
+                    "playerId": "rv-01",
+                    "normalizedX": 0.09,
+                    "normalizedY": 0.5,
+                    "responsibilities": ["protectGoal", "supportProgression"]
+                  },
+                  {
+                    "playerId": "rv-02",
+                    "normalizedX": 0.3,
+                    "normalizedY": 0.84,
+                    "responsibilities": ["protectDepth", "supportProgression"]
+                  },
+                  {
+                    "playerId": "rv-03",
+                    "normalizedX": 0.24,
+                    "normalizedY": 0.62,
+                    "responsibilities": ["protectDepth", "supportProgression"]
+                  },
+                  {
+                    "playerId": "rv-04",
+                    "normalizedX": 0.24,
+                    "normalizedY": 0.38,
+                    "responsibilities": ["protectDepth", "supportProgression"]
+                  },
+                  {
+                    "playerId": "rv-05",
+                    "normalizedX": 0.3,
+                    "normalizedY": 0.16,
+                    "responsibilities": ["protectDepth", "supportProgression"]
+                  },
+                  {
+                    "playerId": "rv-06",
+                    "normalizedX": 0.48,
+                    "normalizedY": 0.5,
+                    "responsibilities": ["connectSectors", "supportProgression"]
+                  },
+                  {
+                    "playerId": "rv-07",
+                    "normalizedX": 0.59,
+                    "normalizedY": 0.69,
+                    "responsibilities": ["connectSectors", "supportProgression"]
+                  },
+                  {
+                    "playerId": "rv-08",
+                    "normalizedX": 0.59,
+                    "normalizedY": 0.31,
+                    "responsibilities": ["connectSectors", "supportProgression"]
+                  },
+                  {
+                    "playerId": "rv-09",
+                    "normalizedX": 0.8,
+                    "normalizedY": 0.78,
+                    "responsibilities": ["threatenLastLine", "supportProgression"]
+                  },
+                  {
+                    "playerId": "rv-10",
+                    "normalizedX": 0.88,
+                    "normalizedY": 0.5,
+                    "responsibilities": ["threatenLastLine", "supportProgression"]
+                  },
+                  {
+                    "playerId": "rv-11",
+                    "normalizedX": 0.8,
+                    "normalizedY": 0.22,
+                    "responsibilities": ["threatenLastLine", "supportProgression"]
+                  }
+                ],
+                "width": 68,
+                "depth": 79,
+                "compactness": 34
+              },
+              {
+                "phase": "defensiveTransition",
+                "players": [
+                  {
+                    "playerId": "rv-01",
+                    "normalizedX": 0.08725,
+                    "normalizedY": 0.5,
+                    "responsibilities": ["protectGoal", "restoreDefensiveBalance"]
+                  },
+                  {
+                    "playerId": "rv-02",
+                    "normalizedX": 0.29395,
+                    "normalizedY": 0.8298,
+                    "responsibilities": ["protectDepth", "restoreDefensiveBalance"]
+                  },
+                  {
+                    "playerId": "rv-03",
+                    "normalizedX": 0.23395,
+                    "normalizedY": 0.6164,
+                    "responsibilities": ["protectDepth", "restoreDefensiveBalance"]
+                  },
+                  {
+                    "playerId": "rv-04",
+                    "normalizedX": 0.23395,
+                    "normalizedY": 0.3836,
+                    "responsibilities": ["protectDepth", "restoreDefensiveBalance"]
+                  },
+                  {
+                    "playerId": "rv-05",
+                    "normalizedX": 0.29395,
+                    "normalizedY": 0.1702,
+                    "responsibilities": ["protectDepth", "restoreDefensiveBalance"]
+                  },
+                  {
+                    "playerId": "rv-06",
+                    "normalizedX": 0.4712,
+                    "normalizedY": 0.5,
+                    "responsibilities": ["connectSectors", "restoreDefensiveBalance"]
+                  },
+                  {
+                    "playerId": "rv-07",
+                    "normalizedX": 0.5812,
+                    "normalizedY": 0.6843,
+                    "responsibilities": ["connectSectors", "restoreDefensiveBalance"]
+                  },
+                  {
+                    "playerId": "rv-08",
+                    "normalizedX": 0.5812,
+                    "normalizedY": 0.3157,
+                    "responsibilities": ["connectSectors", "restoreDefensiveBalance"]
+                  },
+                  {
+                    "playerId": "rv-09",
+                    "normalizedX": 0.789,
+                    "normalizedY": 0.7716,
+                    "responsibilities": ["threatenLastLine", "restoreDefensiveBalance"]
+                  },
+                  {
+                    "playerId": "rv-10",
+                    "normalizedX": 0.869,
+                    "normalizedY": 0.5,
+                    "responsibilities": ["threatenLastLine", "restoreDefensiveBalance"]
+                  },
+                  {
+                    "playerId": "rv-11",
+                    "normalizedX": 0.789,
+                    "normalizedY": 0.2284,
+                    "responsibilities": ["threatenLastLine", "restoreDefensiveBalance"]
+                  }
+                ],
+                "width": 66,
+                "depth": 78,
+                "compactness": 37
+              }
+            ],
+            "spatial": {
+              "defensiveLine": 27,
+              "midfieldLine": 55,
+              "attackingLine": 82,
+              "width": 68,
+              "depth": 79,
+              "compactness": 46,
+              "leftCorridorPlayers": 3,
+              "centralCorridorPlayers": 5,
+              "rightCorridorPlayers": 3,
+              "emptyCorridors": [],
+              "asymmetry": 0,
+              "averagePlayerDistance": 45,
+              "averageSectorDistance": 27,
+              "playersBetweenLines": [],
+              "coverPairs": [
+                "rv-02:rv-03",
+                "rv-03:rv-04",
+                "rv-04:rv-05",
+                "rv-06:rv-07",
+                "rv-06:rv-08"
+              ],
+              "buildUpShape": "back4"
+            },
+            "resolvedStrategy": {
+              "presetId": "balanced",
+              "customized": false,
+              "mentality": "Equilibrada",
+              "risk": 45,
+              "physicalDemand": 50,
+              "strengths": [],
+              "vulnerabilities": [],
+              "explicitParameters": [
+                {
+                  "parameterId": "width",
+                  "value": 55,
+                  "explanation": "Amplitude-alvo da equipe com a bola."
+                },
+                {
+                  "parameterId": "tempo",
+                  "value": 50,
+                  "explanation": "Velocidade desejada da circulação."
+                },
+                {
+                  "parameterId": "creativeFreedom",
+                  "value": 50,
+                  "explanation": "Autonomia para decisões fora do padrão coletivo."
+                },
+                {
+                  "parameterId": "playersForward",
+                  "value": 50,
+                  "explanation": "Presença desejada à frente da linha da bola."
+                },
+                {
+                  "parameterId": "blockHeight",
+                  "value": 50,
+                  "explanation": "Altura de referência do bloco defensivo."
+                },
+                {
+                  "parameterId": "defensiveLine",
+                  "value": 50,
+                  "explanation": "Altura de referência da última linha."
+                },
+                {
+                  "parameterId": "depth",
+                  "value": 50,
+                  "explanation": "Profundidade ocupada entre a primeira e a última linha."
+                },
+                {
+                  "parameterId": "pressure",
+                  "value": 50,
+                  "explanation": "Intensidade e frequência das ações de pressão."
+                },
+                {
+                  "parameterId": "horizontalCompactness",
+                  "value": 60,
+                  "explanation": "Distância lateral entre jogadores sem a bola."
+                },
+                {
+                  "parameterId": "verticalCompactness",
+                  "value": 60,
+                  "explanation": "Distância-alvo entre setores sem a bola."
+                },
+                {
+                  "parameterId": "transitionSpeed",
+                  "value": 50,
+                  "explanation": "Velocidade desejada após mudança de posse."
+                }
+              ]
+            },
+            "resolvedInstructions": [
+              {
+                "instructionId": "collective.build-up-supported",
+                "scope": "collective",
+                "target": "team",
+                "behavior": "supported",
+                "expectedEffects": [
+                  "mais linhas de passe curtas",
+                  "progressão inicial menos direta"
+                ],
+                "precedence": 20
+              },
+              {
+                "instructionId": "collective.counter-press",
+                "scope": "collective",
+                "target": "team",
+                "behavior": "counterPress",
+                "expectedEffects": [
+                  "recuperação mais próxima da perda",
+                  "maior exposição se a primeira pressão for superada"
+                ],
+                "precedence": 20
+              }
+            ],
+            "instructionConflicts": [],
+            "opposition": {
+              "opponentId": "ferroviario-do-vale",
+              "knowledge": null,
+              "instructions": []
+            },
+            "familiarity": {
+              "schemaVersion": 1,
+              "overall": 93,
+              "collective": [
+                {
+                  "dimensionId": "baseStructure",
+                  "score": 96,
+                  "explanation": "Média da familiaridade dos titulares com suas zonas base."
+                },
+                {
+                  "dimensionId": "position",
+                  "score": 100,
+                  "explanation": "Compatibilidade persistida entre posição natural e responsabilidade nominal."
+                },
+                {
+                  "dimensionId": "inPossession",
+                  "score": 96,
+                  "explanation": "Complexidade explícita da largura e do ritmo com a bola."
+                },
+                {
+                  "dimensionId": "outOfPossession",
+                  "score": 96,
+                  "explanation": "Complexidade explícita da linha e da pressão sem a bola."
+                },
+                {
+                  "dimensionId": "offensiveTransition",
+                  "score": 96,
+                  "explanation": "Distância da transição ofensiva em relação ao plano equilibrado."
+                },
+                {
+                  "dimensionId": "defensiveTransition",
+                  "score": 96,
+                  "explanation": "Distância da segurança defensiva em relação ao plano equilibrado."
+                },
+                {
+                  "dimensionId": "collectiveInstructions",
+                  "score": 88,
+                  "explanation": "Quantidade e complexidade das instruções coletivas resolvidas."
+                },
+                {
+                  "dimensionId": "continuity",
+                  "score": 82,
+                  "explanation": "Continuidade do XI dentro desta variação, sem efeito de treino."
+                }
+              ],
+              "individuals": [
+                {
+                  "playerId": "rv-01",
+                  "position": 100,
+                  "role": 86,
+                  "zone": 96,
+                  "plan": 92,
+                  "responsibilities": 88,
+                  "contextual": 92,
+                  "explanations": [
+                    "posição nominal preservada",
+                    "2 responsabilidades resolvidas neste plano"
+                  ]
+                },
+                {
+                  "playerId": "rv-02",
+                  "position": 100,
+                  "role": 86,
+                  "zone": 96,
+                  "plan": 92,
+                  "responsibilities": 88,
+                  "contextual": 92,
+                  "explanations": [
+                    "posição nominal preservada",
+                    "2 responsabilidades resolvidas neste plano"
+                  ]
+                },
+                {
+                  "playerId": "rv-03",
+                  "position": 100,
+                  "role": 86,
+                  "zone": 96,
+                  "plan": 92,
+                  "responsibilities": 88,
+                  "contextual": 92,
+                  "explanations": [
+                    "posição nominal preservada",
+                    "2 responsabilidades resolvidas neste plano"
+                  ]
+                },
+                {
+                  "playerId": "rv-04",
+                  "position": 100,
+                  "role": 86,
+                  "zone": 96,
+                  "plan": 92,
+                  "responsibilities": 88,
+                  "contextual": 92,
+                  "explanations": [
+                    "posição nominal preservada",
+                    "2 responsabilidades resolvidas neste plano"
+                  ]
+                },
+                {
+                  "playerId": "rv-05",
+                  "position": 100,
+                  "role": 86,
+                  "zone": 96,
+                  "plan": 92,
+                  "responsibilities": 88,
+                  "contextual": 92,
+                  "explanations": [
+                    "posição nominal preservada",
+                    "2 responsabilidades resolvidas neste plano"
+                  ]
+                },
+                {
+                  "playerId": "rv-06",
+                  "position": 100,
+                  "role": 86,
+                  "zone": 96,
+                  "plan": 92,
+                  "responsibilities": 88,
+                  "contextual": 92,
+                  "explanations": [
+                    "posição nominal preservada",
+                    "2 responsabilidades resolvidas neste plano"
+                  ]
+                },
+                {
+                  "playerId": "rv-07",
+                  "position": 100,
+                  "role": 86,
+                  "zone": 96,
+                  "plan": 92,
+                  "responsibilities": 88,
+                  "contextual": 92,
+                  "explanations": [
+                    "posição nominal preservada",
+                    "2 responsabilidades resolvidas neste plano"
+                  ]
+                },
+                {
+                  "playerId": "rv-08",
+                  "position": 100,
+                  "role": 86,
+                  "zone": 96,
+                  "plan": 92,
+                  "responsibilities": 88,
+                  "contextual": 92,
+                  "explanations": [
+                    "posição nominal preservada",
+                    "2 responsabilidades resolvidas neste plano"
+                  ]
+                },
+                {
+                  "playerId": "rv-09",
+                  "position": 100,
+                  "role": 86,
+                  "zone": 96,
+                  "plan": 92,
+                  "responsibilities": 88,
+                  "contextual": 92,
+                  "explanations": [
+                    "posição nominal preservada",
+                    "2 responsabilidades resolvidas neste plano"
+                  ]
+                },
+                {
+                  "playerId": "rv-10",
+                  "position": 100,
+                  "role": 86,
+                  "zone": 96,
+                  "plan": 92,
+                  "responsibilities": 88,
+                  "contextual": 92,
+                  "explanations": [
+                    "posição nominal preservada",
+                    "2 responsabilidades resolvidas neste plano"
+                  ]
+                },
+                {
+                  "playerId": "rv-11",
+                  "position": 100,
+                  "role": 86,
+                  "zone": 96,
+                  "plan": 92,
+                  "responsibilities": 88,
+                  "contextual": 92,
+                  "explanations": [
+                    "posição nominal preservada",
+                    "2 responsabilidades resolvidas neste plano"
+                  ]
+                }
+              ],
+              "units": [
+                {
+                  "unitId": "defensiveUnit",
+                  "score": 92,
+                  "playerIds": ["rv-02", "rv-03", "rv-04", "rv-05"],
+                  "explanation": "Familiaridade contextual dos jogadores da unidade defensiveUnit."
+                },
+                {
+                  "unitId": "midfieldUnit",
+                  "score": 92,
+                  "playerIds": ["rv-06", "rv-07", "rv-08"],
+                  "explanation": "Familiaridade contextual dos jogadores da unidade midfieldUnit."
+                },
+                {
+                  "unitId": "attackingUnit",
+                  "score": 92,
+                  "playerIds": ["rv-09", "rv-10", "rv-11"],
+                  "explanation": "Familiaridade contextual dos jogadores da unidade attackingUnit."
+                }
+              ],
+              "history": [
+                {
+                  "eventId": "tactical-variation.primary.0.overall",
+                  "previous": 0,
+                  "current": 93,
+                  "dimensionId": "overall",
+                  "origin": "tacticalPlanSaved",
+                  "occurredAt": 1784338589353,
+                  "variationId": "tactical-variation.primary",
+                  "playerId": null,
+                  "unitId": null,
+                  "explanation": "Familiaridade coletiva mudou de 0% para 93% após salvar estratégia, estrutura ou instruções."
+                },
+                {
+                  "eventId": "tactical-variation.primary.0.player.rv-01",
+                  "previous": 0,
+                  "current": 92,
+                  "dimensionId": "playerContext",
+                  "origin": "tacticalPlanSaved",
+                  "occurredAt": 1784338589353,
+                  "variationId": "tactical-variation.primary",
+                  "playerId": "rv-01",
+                  "unitId": null,
+                  "explanation": "posição nominal preservada; 2 responsabilidades resolvidas neste plano"
+                },
+                {
+                  "eventId": "tactical-variation.primary.0.player.rv-02",
+                  "previous": 0,
+                  "current": 92,
+                  "dimensionId": "playerContext",
+                  "origin": "tacticalPlanSaved",
+                  "occurredAt": 1784338589353,
+                  "variationId": "tactical-variation.primary",
+                  "playerId": "rv-02",
+                  "unitId": null,
+                  "explanation": "posição nominal preservada; 2 responsabilidades resolvidas neste plano"
+                },
+                {
+                  "eventId": "tactical-variation.primary.0.player.rv-03",
+                  "previous": 0,
+                  "current": 92,
+                  "dimensionId": "playerContext",
+                  "origin": "tacticalPlanSaved",
+                  "occurredAt": 1784338589353,
+                  "variationId": "tactical-variation.primary",
+                  "playerId": "rv-03",
+                  "unitId": null,
+                  "explanation": "posição nominal preservada; 2 responsabilidades resolvidas neste plano"
+                },
+                {
+                  "eventId": "tactical-variation.primary.0.player.rv-04",
+                  "previous": 0,
+                  "current": 92,
+                  "dimensionId": "playerContext",
+                  "origin": "tacticalPlanSaved",
+                  "occurredAt": 1784338589353,
+                  "variationId": "tactical-variation.primary",
+                  "playerId": "rv-04",
+                  "unitId": null,
+                  "explanation": "posição nominal preservada; 2 responsabilidades resolvidas neste plano"
+                },
+                {
+                  "eventId": "tactical-variation.primary.0.player.rv-05",
+                  "previous": 0,
+                  "current": 92,
+                  "dimensionId": "playerContext",
+                  "origin": "tacticalPlanSaved",
+                  "occurredAt": 1784338589353,
+                  "variationId": "tactical-variation.primary",
+                  "playerId": "rv-05",
+                  "unitId": null,
+                  "explanation": "posição nominal preservada; 2 responsabilidades resolvidas neste plano"
+                },
+                {
+                  "eventId": "tactical-variation.primary.0.player.rv-06",
+                  "previous": 0,
+                  "current": 92,
+                  "dimensionId": "playerContext",
+                  "origin": "tacticalPlanSaved",
+                  "occurredAt": 1784338589353,
+                  "variationId": "tactical-variation.primary",
+                  "playerId": "rv-06",
+                  "unitId": null,
+                  "explanation": "posição nominal preservada; 2 responsabilidades resolvidas neste plano"
+                },
+                {
+                  "eventId": "tactical-variation.primary.0.player.rv-07",
+                  "previous": 0,
+                  "current": 92,
+                  "dimensionId": "playerContext",
+                  "origin": "tacticalPlanSaved",
+                  "occurredAt": 1784338589353,
+                  "variationId": "tactical-variation.primary",
+                  "playerId": "rv-07",
+                  "unitId": null,
+                  "explanation": "posição nominal preservada; 2 responsabilidades resolvidas neste plano"
+                },
+                {
+                  "eventId": "tactical-variation.primary.0.player.rv-08",
+                  "previous": 0,
+                  "current": 92,
+                  "dimensionId": "playerContext",
+                  "origin": "tacticalPlanSaved",
+                  "occurredAt": 1784338589353,
+                  "variationId": "tactical-variation.primary",
+                  "playerId": "rv-08",
+                  "unitId": null,
+                  "explanation": "posição nominal preservada; 2 responsabilidades resolvidas neste plano"
+                },
+                {
+                  "eventId": "tactical-variation.primary.0.player.rv-09",
+                  "previous": 0,
+                  "current": 92,
+                  "dimensionId": "playerContext",
+                  "origin": "tacticalPlanSaved",
+                  "occurredAt": 1784338589353,
+                  "variationId": "tactical-variation.primary",
+                  "playerId": "rv-09",
+                  "unitId": null,
+                  "explanation": "posição nominal preservada; 2 responsabilidades resolvidas neste plano"
+                },
+                {
+                  "eventId": "tactical-variation.primary.0.player.rv-10",
+                  "previous": 0,
+                  "current": 92,
+                  "dimensionId": "playerContext",
+                  "origin": "tacticalPlanSaved",
+                  "occurredAt": 1784338589353,
+                  "variationId": "tactical-variation.primary",
+                  "playerId": "rv-10",
+                  "unitId": null,
+                  "explanation": "posição nominal preservada; 2 responsabilidades resolvidas neste plano"
+                },
+                {
+                  "eventId": "tactical-variation.primary.0.player.rv-11",
+                  "previous": 0,
+                  "current": 92,
+                  "dimensionId": "playerContext",
+                  "origin": "tacticalPlanSaved",
+                  "occurredAt": 1784338589353,
+                  "variationId": "tactical-variation.primary",
+                  "playerId": "rv-11",
+                  "unitId": null,
+                  "explanation": "posição nominal preservada; 2 responsabilidades resolvidas neste plano"
+                }
+              ]
+            },
+            "diagnostic": {
+              "valid": true,
+              "readiness": 72,
+              "strengths": [],
+              "vulnerabilities": [],
+              "risks": [],
+              "alerts": []
+            },
+            "recommendations": [
+              {
+                "recommendationId": "staff.improve-compactness",
+                "reason": "A distância média entre setores produz compactação de 46%.",
+                "proposedChanges": [
+                  {
+                    "path": "strategy.outOfPossession.verticalCompactness",
+                    "from": 60,
+                    "to": 70
+                  }
+                ],
+                "benefit": "reduzir espaço entre meio e defesa",
+                "risk": "ceder mais largura ao adversário",
+                "affectedPlayers": [
+                  "rv-01",
+                  "rv-02",
+                  "rv-03",
+                  "rv-04",
+                  "rv-05",
+                  "rv-06",
+                  "rv-07",
+                  "rv-08",
+                  "rv-09",
+                  "rv-10",
+                  "rv-11"
+                ],
+                "confidence": 78,
+                "origin": "Análise do modelo tático",
+                "variationId": "tactical-variation.primary",
+                "planRevision": 0,
+                "staffId": null,
+                "staffRole": null,
+                "staffName": null,
+                "staffSpecialty": null,
+                "staffQuality": null,
+                "planKnowledge": null,
+                "opponentKnowledge": null
+              }
+            ],
+            "matchSnapshot": {
+              "schemaVersion": 1,
+              "tacticalPlanId": "tactical-variation.primary",
+              "variationId": "tactical-variation.primary",
+              "revision": 0,
+              "starters": [
+                "rv-01",
+                "rv-02",
+                "rv-03",
+                "rv-04",
+                "rv-05",
+                "rv-06",
+                "rv-07",
+                "rv-08",
+                "rv-09",
+                "rv-10",
+                "rv-11"
+              ],
+              "bench": ["rv-12", "rv-13", "rv-14", "rv-15", "rv-16", "rv-17", "rv-18"],
+              "normalizedPlacements": [
+                {
+                  "playerId": "rv-01",
+                  "normalizedX": 0.09,
+                  "normalizedY": 0.5,
+                  "positionId": "GK",
+                  "roleId": null,
+                  "side": "centre",
+                  "line": "goal",
+                  "zone": "goal",
+                  "sourcePresetSlotId": "legacy.0",
+                  "revision": 0
+                },
+                {
+                  "playerId": "rv-02",
+                  "normalizedX": 0.3,
+                  "normalizedY": 0.84,
+                  "positionId": "RB",
+                  "roleId": null,
+                  "side": "right",
+                  "line": "defence",
+                  "zone": "defensiveThird",
+                  "sourcePresetSlotId": "legacy.1",
+                  "revision": 0
+                },
+                {
+                  "playerId": "rv-03",
+                  "normalizedX": 0.24,
+                  "normalizedY": 0.62,
+                  "positionId": "CB",
+                  "roleId": null,
+                  "side": "right",
+                  "line": "defence",
+                  "zone": "defensiveThird",
+                  "sourcePresetSlotId": "legacy.2",
+                  "revision": 0
+                },
+                {
+                  "playerId": "rv-04",
+                  "normalizedX": 0.24,
+                  "normalizedY": 0.38,
+                  "positionId": "CB",
+                  "roleId": null,
+                  "side": "left",
+                  "line": "defence",
+                  "zone": "defensiveThird",
+                  "sourcePresetSlotId": "legacy.3",
+                  "revision": 0
+                },
+                {
+                  "playerId": "rv-05",
+                  "normalizedX": 0.3,
+                  "normalizedY": 0.16,
+                  "positionId": "LB",
+                  "roleId": null,
+                  "side": "left",
+                  "line": "defence",
+                  "zone": "defensiveThird",
+                  "sourcePresetSlotId": "legacy.4",
+                  "revision": 0
+                },
+                {
+                  "playerId": "rv-06",
+                  "normalizedX": 0.48,
+                  "normalizedY": 0.5,
+                  "positionId": "DM",
+                  "roleId": null,
+                  "side": "centre",
+                  "line": "midfield",
+                  "zone": "middleThird",
+                  "sourcePresetSlotId": "legacy.5",
+                  "revision": 0
+                },
+                {
+                  "playerId": "rv-07",
+                  "normalizedX": 0.59,
+                  "normalizedY": 0.69,
+                  "positionId": "CM",
+                  "roleId": null,
+                  "side": "right",
+                  "line": "midfield",
+                  "zone": "middleThird",
+                  "sourcePresetSlotId": "legacy.6",
+                  "revision": 0
+                },
+                {
+                  "playerId": "rv-08",
+                  "normalizedX": 0.59,
+                  "normalizedY": 0.31,
+                  "positionId": "CM",
+                  "roleId": null,
+                  "side": "left",
+                  "line": "midfield",
+                  "zone": "middleThird",
+                  "sourcePresetSlotId": "legacy.7",
+                  "revision": 0
+                },
+                {
+                  "playerId": "rv-09",
+                  "normalizedX": 0.8,
+                  "normalizedY": 0.78,
+                  "positionId": "RW",
+                  "roleId": null,
+                  "side": "right",
+                  "line": "attack",
+                  "zone": "finalThird",
+                  "sourcePresetSlotId": "legacy.8",
+                  "revision": 0
+                },
+                {
+                  "playerId": "rv-10",
+                  "normalizedX": 0.88,
+                  "normalizedY": 0.5,
+                  "positionId": "ST",
+                  "roleId": null,
+                  "side": "centre",
+                  "line": "attack",
+                  "zone": "finalThird",
+                  "sourcePresetSlotId": "legacy.9",
+                  "revision": 0
+                },
+                {
+                  "playerId": "rv-11",
+                  "normalizedX": 0.8,
+                  "normalizedY": 0.22,
+                  "positionId": "LW",
+                  "roleId": null,
+                  "side": "left",
+                  "line": "attack",
+                  "zone": "finalThird",
+                  "sourcePresetSlotId": "legacy.10",
+                  "revision": 0
+                }
+              ],
+              "structures": [
+                {
+                  "phase": "base",
+                  "players": [
+                    {
+                      "playerId": "rv-01",
+                      "normalizedX": 0.09,
+                      "normalizedY": 0.5,
+                      "responsibilities": ["protectGoal", "holdBasePosition"]
+                    },
+                    {
+                      "playerId": "rv-02",
+                      "normalizedX": 0.3,
+                      "normalizedY": 0.84,
+                      "responsibilities": ["protectDepth", "holdBasePosition"]
+                    },
+                    {
+                      "playerId": "rv-03",
+                      "normalizedX": 0.24,
+                      "normalizedY": 0.62,
+                      "responsibilities": ["protectDepth", "holdBasePosition"]
+                    },
+                    {
+                      "playerId": "rv-04",
+                      "normalizedX": 0.24,
+                      "normalizedY": 0.38,
+                      "responsibilities": ["protectDepth", "holdBasePosition"]
+                    },
+                    {
+                      "playerId": "rv-05",
+                      "normalizedX": 0.3,
+                      "normalizedY": 0.16,
+                      "responsibilities": ["protectDepth", "holdBasePosition"]
+                    },
+                    {
+                      "playerId": "rv-06",
+                      "normalizedX": 0.48,
+                      "normalizedY": 0.5,
+                      "responsibilities": ["connectSectors", "holdBasePosition"]
+                    },
+                    {
+                      "playerId": "rv-07",
+                      "normalizedX": 0.59,
+                      "normalizedY": 0.69,
+                      "responsibilities": ["connectSectors", "holdBasePosition"]
+                    },
+                    {
+                      "playerId": "rv-08",
+                      "normalizedX": 0.59,
+                      "normalizedY": 0.31,
+                      "responsibilities": ["connectSectors", "holdBasePosition"]
+                    },
+                    {
+                      "playerId": "rv-09",
+                      "normalizedX": 0.8,
+                      "normalizedY": 0.78,
+                      "responsibilities": ["threatenLastLine", "holdBasePosition"]
+                    },
+                    {
+                      "playerId": "rv-10",
+                      "normalizedX": 0.88,
+                      "normalizedY": 0.5,
+                      "responsibilities": ["threatenLastLine", "holdBasePosition"]
+                    },
+                    {
+                      "playerId": "rv-11",
+                      "normalizedX": 0.8,
+                      "normalizedY": 0.22,
+                      "responsibilities": ["threatenLastLine", "holdBasePosition"]
+                    }
+                  ],
+                  "width": 68,
+                  "depth": 79,
+                  "compactness": 34
+                },
+                {
+                  "phase": "inPossession",
+                  "players": [
+                    {
+                      "playerId": "rv-01",
+                      "normalizedX": 0.09,
+                      "normalizedY": 0.5,
+                      "responsibilities": ["protectGoal", "offerPossessionSupport"]
+                    },
+                    {
+                      "playerId": "rv-02",
+                      "normalizedX": 0.3,
+                      "normalizedY": 0.84,
+                      "responsibilities": ["protectDepth", "offerPossessionSupport"]
+                    },
+                    {
+                      "playerId": "rv-03",
+                      "normalizedX": 0.24,
+                      "normalizedY": 0.62,
+                      "responsibilities": ["protectDepth", "offerPossessionSupport"]
+                    },
+                    {
+                      "playerId": "rv-04",
+                      "normalizedX": 0.24,
+                      "normalizedY": 0.38,
+                      "responsibilities": ["protectDepth", "offerPossessionSupport"]
+                    },
+                    {
+                      "playerId": "rv-05",
+                      "normalizedX": 0.3,
+                      "normalizedY": 0.16,
+                      "responsibilities": ["protectDepth", "offerPossessionSupport"]
+                    },
+                    {
+                      "playerId": "rv-06",
+                      "normalizedX": 0.48,
+                      "normalizedY": 0.5,
+                      "responsibilities": ["connectSectors", "offerPossessionSupport"]
+                    },
+                    {
+                      "playerId": "rv-07",
+                      "normalizedX": 0.59,
+                      "normalizedY": 0.69,
+                      "responsibilities": ["connectSectors", "offerPossessionSupport"]
+                    },
+                    {
+                      "playerId": "rv-08",
+                      "normalizedX": 0.59,
+                      "normalizedY": 0.31,
+                      "responsibilities": ["connectSectors", "offerPossessionSupport"]
+                    },
+                    {
+                      "playerId": "rv-09",
+                      "normalizedX": 0.8,
+                      "normalizedY": 0.78,
+                      "responsibilities": ["threatenLastLine", "offerPossessionSupport"]
+                    },
+                    {
+                      "playerId": "rv-10",
+                      "normalizedX": 0.88,
+                      "normalizedY": 0.5,
+                      "responsibilities": ["threatenLastLine", "offerPossessionSupport"]
+                    },
+                    {
+                      "playerId": "rv-11",
+                      "normalizedX": 0.8,
+                      "normalizedY": 0.22,
+                      "responsibilities": ["threatenLastLine", "offerPossessionSupport"]
+                    }
+                  ],
+                  "width": 68,
+                  "depth": 79,
+                  "compactness": 34
+                },
+                {
+                  "phase": "outOfPossession",
+                  "players": [
+                    {
+                      "playerId": "rv-01",
+                      "normalizedX": 0.1064,
+                      "normalizedY": 0.5,
+                      "responsibilities": ["protectGoal", "protectAssignedZone"]
+                    },
+                    {
+                      "playerId": "rv-02",
+                      "normalizedX": 0.308,
+                      "normalizedY": 0.8264,
+                      "responsibilities": ["protectDepth", "protectAssignedZone"]
+                    },
+                    {
+                      "playerId": "rv-03",
+                      "normalizedX": 0.2504,
+                      "normalizedY": 0.6152,
+                      "responsibilities": ["protectDepth", "protectAssignedZone"]
+                    },
+                    {
+                      "playerId": "rv-04",
+                      "normalizedX": 0.2504,
+                      "normalizedY": 0.3848,
+                      "responsibilities": ["protectDepth", "protectAssignedZone"]
+                    },
+                    {
+                      "playerId": "rv-05",
+                      "normalizedX": 0.308,
+                      "normalizedY": 0.1736,
+                      "responsibilities": ["protectDepth", "protectAssignedZone"]
+                    },
+                    {
+                      "playerId": "rv-06",
+                      "normalizedX": 0.4808,
+                      "normalizedY": 0.5,
+                      "responsibilities": ["connectSectors", "protectAssignedZone"]
+                    },
+                    {
+                      "playerId": "rv-07",
+                      "normalizedX": 0.5864,
+                      "normalizedY": 0.6824,
+                      "responsibilities": ["connectSectors", "protectAssignedZone"]
+                    },
+                    {
+                      "playerId": "rv-08",
+                      "normalizedX": 0.5864,
+                      "normalizedY": 0.3176,
+                      "responsibilities": ["connectSectors", "protectAssignedZone"]
+                    },
+                    {
+                      "playerId": "rv-09",
+                      "normalizedX": 0.788,
+                      "normalizedY": 0.7688,
+                      "responsibilities": ["threatenLastLine", "protectAssignedZone"]
+                    },
+                    {
+                      "playerId": "rv-10",
+                      "normalizedX": 0.8648,
+                      "normalizedY": 0.5,
+                      "responsibilities": ["threatenLastLine", "protectAssignedZone"]
+                    },
+                    {
+                      "playerId": "rv-11",
+                      "normalizedX": 0.788,
+                      "normalizedY": 0.2312,
+                      "responsibilities": ["threatenLastLine", "protectAssignedZone"]
+                    }
+                  ],
+                  "width": 65,
+                  "depth": 76,
+                  "compactness": 37
+                },
+                {
+                  "phase": "offensiveTransition",
+                  "players": [
+                    {
+                      "playerId": "rv-01",
+                      "normalizedX": 0.09,
+                      "normalizedY": 0.5,
+                      "responsibilities": ["protectGoal", "supportProgression"]
+                    },
+                    {
+                      "playerId": "rv-02",
+                      "normalizedX": 0.3,
+                      "normalizedY": 0.84,
+                      "responsibilities": ["protectDepth", "supportProgression"]
+                    },
+                    {
+                      "playerId": "rv-03",
+                      "normalizedX": 0.24,
+                      "normalizedY": 0.62,
+                      "responsibilities": ["protectDepth", "supportProgression"]
+                    },
+                    {
+                      "playerId": "rv-04",
+                      "normalizedX": 0.24,
+                      "normalizedY": 0.38,
+                      "responsibilities": ["protectDepth", "supportProgression"]
+                    },
+                    {
+                      "playerId": "rv-05",
+                      "normalizedX": 0.3,
+                      "normalizedY": 0.16,
+                      "responsibilities": ["protectDepth", "supportProgression"]
+                    },
+                    {
+                      "playerId": "rv-06",
+                      "normalizedX": 0.48,
+                      "normalizedY": 0.5,
+                      "responsibilities": ["connectSectors", "supportProgression"]
+                    },
+                    {
+                      "playerId": "rv-07",
+                      "normalizedX": 0.59,
+                      "normalizedY": 0.69,
+                      "responsibilities": ["connectSectors", "supportProgression"]
+                    },
+                    {
+                      "playerId": "rv-08",
+                      "normalizedX": 0.59,
+                      "normalizedY": 0.31,
+                      "responsibilities": ["connectSectors", "supportProgression"]
+                    },
+                    {
+                      "playerId": "rv-09",
+                      "normalizedX": 0.8,
+                      "normalizedY": 0.78,
+                      "responsibilities": ["threatenLastLine", "supportProgression"]
+                    },
+                    {
+                      "playerId": "rv-10",
+                      "normalizedX": 0.88,
+                      "normalizedY": 0.5,
+                      "responsibilities": ["threatenLastLine", "supportProgression"]
+                    },
+                    {
+                      "playerId": "rv-11",
+                      "normalizedX": 0.8,
+                      "normalizedY": 0.22,
+                      "responsibilities": ["threatenLastLine", "supportProgression"]
+                    }
+                  ],
+                  "width": 68,
+                  "depth": 79,
+                  "compactness": 34
+                },
+                {
+                  "phase": "defensiveTransition",
+                  "players": [
+                    {
+                      "playerId": "rv-01",
+                      "normalizedX": 0.08725,
+                      "normalizedY": 0.5,
+                      "responsibilities": ["protectGoal", "restoreDefensiveBalance"]
+                    },
+                    {
+                      "playerId": "rv-02",
+                      "normalizedX": 0.29395,
+                      "normalizedY": 0.8298,
+                      "responsibilities": ["protectDepth", "restoreDefensiveBalance"]
+                    },
+                    {
+                      "playerId": "rv-03",
+                      "normalizedX": 0.23395,
+                      "normalizedY": 0.6164,
+                      "responsibilities": ["protectDepth", "restoreDefensiveBalance"]
+                    },
+                    {
+                      "playerId": "rv-04",
+                      "normalizedX": 0.23395,
+                      "normalizedY": 0.3836,
+                      "responsibilities": ["protectDepth", "restoreDefensiveBalance"]
+                    },
+                    {
+                      "playerId": "rv-05",
+                      "normalizedX": 0.29395,
+                      "normalizedY": 0.1702,
+                      "responsibilities": ["protectDepth", "restoreDefensiveBalance"]
+                    },
+                    {
+                      "playerId": "rv-06",
+                      "normalizedX": 0.4712,
+                      "normalizedY": 0.5,
+                      "responsibilities": ["connectSectors", "restoreDefensiveBalance"]
+                    },
+                    {
+                      "playerId": "rv-07",
+                      "normalizedX": 0.5812,
+                      "normalizedY": 0.6843,
+                      "responsibilities": ["connectSectors", "restoreDefensiveBalance"]
+                    },
+                    {
+                      "playerId": "rv-08",
+                      "normalizedX": 0.5812,
+                      "normalizedY": 0.3157,
+                      "responsibilities": ["connectSectors", "restoreDefensiveBalance"]
+                    },
+                    {
+                      "playerId": "rv-09",
+                      "normalizedX": 0.789,
+                      "normalizedY": 0.7716,
+                      "responsibilities": ["threatenLastLine", "restoreDefensiveBalance"]
+                    },
+                    {
+                      "playerId": "rv-10",
+                      "normalizedX": 0.869,
+                      "normalizedY": 0.5,
+                      "responsibilities": ["threatenLastLine", "restoreDefensiveBalance"]
+                    },
+                    {
+                      "playerId": "rv-11",
+                      "normalizedX": 0.789,
+                      "normalizedY": 0.2284,
+                      "responsibilities": ["threatenLastLine", "restoreDefensiveBalance"]
+                    }
+                  ],
+                  "width": 66,
+                  "depth": 78,
+                  "compactness": 37
+                }
+              ],
+              "strategy": {
+                "presetId": "balanced",
+                "customized": false,
+                "mentality": "Equilibrada",
+                "risk": 45,
+                "physicalDemand": 50,
+                "strengths": [],
+                "vulnerabilities": [],
+                "explicitParameters": [
+                  {
+                    "parameterId": "width",
+                    "value": 55,
+                    "explanation": "Amplitude-alvo da equipe com a bola."
+                  },
+                  {
+                    "parameterId": "tempo",
+                    "value": 50,
+                    "explanation": "Velocidade desejada da circulação."
+                  },
+                  {
+                    "parameterId": "creativeFreedom",
+                    "value": 50,
+                    "explanation": "Autonomia para decisões fora do padrão coletivo."
+                  },
+                  {
+                    "parameterId": "playersForward",
+                    "value": 50,
+                    "explanation": "Presença desejada à frente da linha da bola."
+                  },
+                  {
+                    "parameterId": "blockHeight",
+                    "value": 50,
+                    "explanation": "Altura de referência do bloco defensivo."
+                  },
+                  {
+                    "parameterId": "defensiveLine",
+                    "value": 50,
+                    "explanation": "Altura de referência da última linha."
+                  },
+                  {
+                    "parameterId": "depth",
+                    "value": 50,
+                    "explanation": "Profundidade ocupada entre a primeira e a última linha."
+                  },
+                  {
+                    "parameterId": "pressure",
+                    "value": 50,
+                    "explanation": "Intensidade e frequência das ações de pressão."
+                  },
+                  {
+                    "parameterId": "horizontalCompactness",
+                    "value": 60,
+                    "explanation": "Distância lateral entre jogadores sem a bola."
+                  },
+                  {
+                    "parameterId": "verticalCompactness",
+                    "value": 60,
+                    "explanation": "Distância-alvo entre setores sem a bola."
+                  },
+                  {
+                    "parameterId": "transitionSpeed",
+                    "value": 50,
+                    "explanation": "Velocidade desejada após mudança de posse."
+                  }
+                ]
+              },
+              "instructions": [
+                {
+                  "instructionId": "collective.build-up-supported",
+                  "scope": "collective",
+                  "target": "team",
+                  "behavior": "supported",
+                  "expectedEffects": [
+                    "mais linhas de passe curtas",
+                    "progressão inicial menos direta"
+                  ],
+                  "precedence": 20
+                },
+                {
+                  "instructionId": "collective.counter-press",
+                  "scope": "collective",
+                  "target": "team",
+                  "behavior": "counterPress",
+                  "expectedEffects": [
+                    "recuperação mais próxima da perda",
+                    "maior exposição se a primeira pressão for superada"
+                  ],
+                  "precedence": 20
+                }
+              ],
+              "opposition": {
+                "opponentId": "ferroviario-do-vale",
+                "knowledge": null,
+                "instructions": []
+              },
+              "familiarity": {
+                "schemaVersion": 1,
+                "overall": 93,
+                "collective": [
+                  {
+                    "dimensionId": "baseStructure",
+                    "score": 96,
+                    "explanation": "Média da familiaridade dos titulares com suas zonas base."
+                  },
+                  {
+                    "dimensionId": "position",
+                    "score": 100,
+                    "explanation": "Compatibilidade persistida entre posição natural e responsabilidade nominal."
+                  },
+                  {
+                    "dimensionId": "inPossession",
+                    "score": 96,
+                    "explanation": "Complexidade explícita da largura e do ritmo com a bola."
+                  },
+                  {
+                    "dimensionId": "outOfPossession",
+                    "score": 96,
+                    "explanation": "Complexidade explícita da linha e da pressão sem a bola."
+                  },
+                  {
+                    "dimensionId": "offensiveTransition",
+                    "score": 96,
+                    "explanation": "Distância da transição ofensiva em relação ao plano equilibrado."
+                  },
+                  {
+                    "dimensionId": "defensiveTransition",
+                    "score": 96,
+                    "explanation": "Distância da segurança defensiva em relação ao plano equilibrado."
+                  },
+                  {
+                    "dimensionId": "collectiveInstructions",
+                    "score": 88,
+                    "explanation": "Quantidade e complexidade das instruções coletivas resolvidas."
+                  },
+                  {
+                    "dimensionId": "continuity",
+                    "score": 82,
+                    "explanation": "Continuidade do XI dentro desta variação, sem efeito de treino."
+                  }
+                ],
+                "individuals": [
+                  {
+                    "playerId": "rv-01",
+                    "position": 100,
+                    "role": 86,
+                    "zone": 96,
+                    "plan": 92,
+                    "responsibilities": 88,
+                    "contextual": 92,
+                    "explanations": [
+                      "posição nominal preservada",
+                      "2 responsabilidades resolvidas neste plano"
+                    ]
+                  },
+                  {
+                    "playerId": "rv-02",
+                    "position": 100,
+                    "role": 86,
+                    "zone": 96,
+                    "plan": 92,
+                    "responsibilities": 88,
+                    "contextual": 92,
+                    "explanations": [
+                      "posição nominal preservada",
+                      "2 responsabilidades resolvidas neste plano"
+                    ]
+                  },
+                  {
+                    "playerId": "rv-03",
+                    "position": 100,
+                    "role": 86,
+                    "zone": 96,
+                    "plan": 92,
+                    "responsibilities": 88,
+                    "contextual": 92,
+                    "explanations": [
+                      "posição nominal preservada",
+                      "2 responsabilidades resolvidas neste plano"
+                    ]
+                  },
+                  {
+                    "playerId": "rv-04",
+                    "position": 100,
+                    "role": 86,
+                    "zone": 96,
+                    "plan": 92,
+                    "responsibilities": 88,
+                    "contextual": 92,
+                    "explanations": [
+                      "posição nominal preservada",
+                      "2 responsabilidades resolvidas neste plano"
+                    ]
+                  },
+                  {
+                    "playerId": "rv-05",
+                    "position": 100,
+                    "role": 86,
+                    "zone": 96,
+                    "plan": 92,
+                    "responsibilities": 88,
+                    "contextual": 92,
+                    "explanations": [
+                      "posição nominal preservada",
+                      "2 responsabilidades resolvidas neste plano"
+                    ]
+                  },
+                  {
+                    "playerId": "rv-06",
+                    "position": 100,
+                    "role": 86,
+                    "zone": 96,
+                    "plan": 92,
+                    "responsibilities": 88,
+                    "contextual": 92,
+                    "explanations": [
+                      "posição nominal preservada",
+                      "2 responsabilidades resolvidas neste plano"
+                    ]
+                  },
+                  {
+                    "playerId": "rv-07",
+                    "position": 100,
+                    "role": 86,
+                    "zone": 96,
+                    "plan": 92,
+                    "responsibilities": 88,
+                    "contextual": 92,
+                    "explanations": [
+                      "posição nominal preservada",
+                      "2 responsabilidades resolvidas neste plano"
+                    ]
+                  },
+                  {
+                    "playerId": "rv-08",
+                    "position": 100,
+                    "role": 86,
+                    "zone": 96,
+                    "plan": 92,
+                    "responsibilities": 88,
+                    "contextual": 92,
+                    "explanations": [
+                      "posição nominal preservada",
+                      "2 responsabilidades resolvidas neste plano"
+                    ]
+                  },
+                  {
+                    "playerId": "rv-09",
+                    "position": 100,
+                    "role": 86,
+                    "zone": 96,
+                    "plan": 92,
+                    "responsibilities": 88,
+                    "contextual": 92,
+                    "explanations": [
+                      "posição nominal preservada",
+                      "2 responsabilidades resolvidas neste plano"
+                    ]
+                  },
+                  {
+                    "playerId": "rv-10",
+                    "position": 100,
+                    "role": 86,
+                    "zone": 96,
+                    "plan": 92,
+                    "responsibilities": 88,
+                    "contextual": 92,
+                    "explanations": [
+                      "posição nominal preservada",
+                      "2 responsabilidades resolvidas neste plano"
+                    ]
+                  },
+                  {
+                    "playerId": "rv-11",
+                    "position": 100,
+                    "role": 86,
+                    "zone": 96,
+                    "plan": 92,
+                    "responsibilities": 88,
+                    "contextual": 92,
+                    "explanations": [
+                      "posição nominal preservada",
+                      "2 responsabilidades resolvidas neste plano"
+                    ]
+                  }
+                ],
+                "units": [
+                  {
+                    "unitId": "defensiveUnit",
+                    "score": 92,
+                    "playerIds": ["rv-02", "rv-03", "rv-04", "rv-05"],
+                    "explanation": "Familiaridade contextual dos jogadores da unidade defensiveUnit."
+                  },
+                  {
+                    "unitId": "midfieldUnit",
+                    "score": 92,
+                    "playerIds": ["rv-06", "rv-07", "rv-08"],
+                    "explanation": "Familiaridade contextual dos jogadores da unidade midfieldUnit."
+                  },
+                  {
+                    "unitId": "attackingUnit",
+                    "score": 92,
+                    "playerIds": ["rv-09", "rv-10", "rv-11"],
+                    "explanation": "Familiaridade contextual dos jogadores da unidade attackingUnit."
+                  }
+                ],
+                "history": [
+                  {
+                    "eventId": "tactical-variation.primary.0.overall",
+                    "previous": 0,
+                    "current": 93,
+                    "dimensionId": "overall",
+                    "origin": "tacticalPlanSaved",
+                    "occurredAt": 1784338589353,
+                    "variationId": "tactical-variation.primary",
+                    "playerId": null,
+                    "unitId": null,
+                    "explanation": "Familiaridade coletiva mudou de 0% para 93% após salvar estratégia, estrutura ou instruções."
+                  },
+                  {
+                    "eventId": "tactical-variation.primary.0.player.rv-01",
+                    "previous": 0,
+                    "current": 92,
+                    "dimensionId": "playerContext",
+                    "origin": "tacticalPlanSaved",
+                    "occurredAt": 1784338589353,
+                    "variationId": "tactical-variation.primary",
+                    "playerId": "rv-01",
+                    "unitId": null,
+                    "explanation": "posição nominal preservada; 2 responsabilidades resolvidas neste plano"
+                  },
+                  {
+                    "eventId": "tactical-variation.primary.0.player.rv-02",
+                    "previous": 0,
+                    "current": 92,
+                    "dimensionId": "playerContext",
+                    "origin": "tacticalPlanSaved",
+                    "occurredAt": 1784338589353,
+                    "variationId": "tactical-variation.primary",
+                    "playerId": "rv-02",
+                    "unitId": null,
+                    "explanation": "posição nominal preservada; 2 responsabilidades resolvidas neste plano"
+                  },
+                  {
+                    "eventId": "tactical-variation.primary.0.player.rv-03",
+                    "previous": 0,
+                    "current": 92,
+                    "dimensionId": "playerContext",
+                    "origin": "tacticalPlanSaved",
+                    "occurredAt": 1784338589353,
+                    "variationId": "tactical-variation.primary",
+                    "playerId": "rv-03",
+                    "unitId": null,
+                    "explanation": "posição nominal preservada; 2 responsabilidades resolvidas neste plano"
+                  },
+                  {
+                    "eventId": "tactical-variation.primary.0.player.rv-04",
+                    "previous": 0,
+                    "current": 92,
+                    "dimensionId": "playerContext",
+                    "origin": "tacticalPlanSaved",
+                    "occurredAt": 1784338589353,
+                    "variationId": "tactical-variation.primary",
+                    "playerId": "rv-04",
+                    "unitId": null,
+                    "explanation": "posição nominal preservada; 2 responsabilidades resolvidas neste plano"
+                  },
+                  {
+                    "eventId": "tactical-variation.primary.0.player.rv-05",
+                    "previous": 0,
+                    "current": 92,
+                    "dimensionId": "playerContext",
+                    "origin": "tacticalPlanSaved",
+                    "occurredAt": 1784338589353,
+                    "variationId": "tactical-variation.primary",
+                    "playerId": "rv-05",
+                    "unitId": null,
+                    "explanation": "posição nominal preservada; 2 responsabilidades resolvidas neste plano"
+                  },
+                  {
+                    "eventId": "tactical-variation.primary.0.player.rv-06",
+                    "previous": 0,
+                    "current": 92,
+                    "dimensionId": "playerContext",
+                    "origin": "tacticalPlanSaved",
+                    "occurredAt": 1784338589353,
+                    "variationId": "tactical-variation.primary",
+                    "playerId": "rv-06",
+                    "unitId": null,
+                    "explanation": "posição nominal preservada; 2 responsabilidades resolvidas neste plano"
+                  },
+                  {
+                    "eventId": "tactical-variation.primary.0.player.rv-07",
+                    "previous": 0,
+                    "current": 92,
+                    "dimensionId": "playerContext",
+                    "origin": "tacticalPlanSaved",
+                    "occurredAt": 1784338589353,
+                    "variationId": "tactical-variation.primary",
+                    "playerId": "rv-07",
+                    "unitId": null,
+                    "explanation": "posição nominal preservada; 2 responsabilidades resolvidas neste plano"
+                  },
+                  {
+                    "eventId": "tactical-variation.primary.0.player.rv-08",
+                    "previous": 0,
+                    "current": 92,
+                    "dimensionId": "playerContext",
+                    "origin": "tacticalPlanSaved",
+                    "occurredAt": 1784338589353,
+                    "variationId": "tactical-variation.primary",
+                    "playerId": "rv-08",
+                    "unitId": null,
+                    "explanation": "posição nominal preservada; 2 responsabilidades resolvidas neste plano"
+                  },
+                  {
+                    "eventId": "tactical-variation.primary.0.player.rv-09",
+                    "previous": 0,
+                    "current": 92,
+                    "dimensionId": "playerContext",
+                    "origin": "tacticalPlanSaved",
+                    "occurredAt": 1784338589353,
+                    "variationId": "tactical-variation.primary",
+                    "playerId": "rv-09",
+                    "unitId": null,
+                    "explanation": "posição nominal preservada; 2 responsabilidades resolvidas neste plano"
+                  },
+                  {
+                    "eventId": "tactical-variation.primary.0.player.rv-10",
+                    "previous": 0,
+                    "current": 92,
+                    "dimensionId": "playerContext",
+                    "origin": "tacticalPlanSaved",
+                    "occurredAt": 1784338589353,
+                    "variationId": "tactical-variation.primary",
+                    "playerId": "rv-10",
+                    "unitId": null,
+                    "explanation": "posição nominal preservada; 2 responsabilidades resolvidas neste plano"
+                  },
+                  {
+                    "eventId": "tactical-variation.primary.0.player.rv-11",
+                    "previous": 0,
+                    "current": 92,
+                    "dimensionId": "playerContext",
+                    "origin": "tacticalPlanSaved",
+                    "occurredAt": 1784338589353,
+                    "variationId": "tactical-variation.primary",
+                    "playerId": "rv-11",
+                    "unitId": null,
+                    "explanation": "posição nominal preservada; 2 responsabilidades resolvidas neste plano"
+                  }
+                ]
+              },
+              "spatial": {
+                "defensiveLine": 27,
+                "midfieldLine": 55,
+                "attackingLine": 82,
+                "width": 68,
+                "depth": 79,
+                "compactness": 46,
+                "leftCorridorPlayers": 3,
+                "centralCorridorPlayers": 5,
+                "rightCorridorPlayers": 3,
+                "emptyCorridors": [],
+                "asymmetry": 0,
+                "averagePlayerDistance": 45,
+                "averageSectorDistance": 27,
+                "playersBetweenLines": [],
+                "coverPairs": [
+                  "rv-02:rv-03",
+                  "rv-03:rv-04",
+                  "rv-04:rv-05",
+                  "rv-06:rv-07",
+                  "rv-06:rv-08"
+                ],
+                "buildUpShape": "back4"
+              },
+              "risks": [],
+              "vulnerabilities": [],
+              "valid": true,
+              "createdAt": 1784338589353
+            }
+          },
+          "revision": 0,
+          "createdAt": 1784338589353,
+          "updatedAt": 1784338589353
+        }
+      ]
+    },
+    "lastTacticalEvent": null,
+    "record": {
+      "played": 0,
+      "wins": 0,
+      "draws": 0,
+      "losses": 0,
+      "goalsFor": 0,
+      "goalsAgainst": 0,
+      "points": 0
+    },
+    "lastResult": null
+  },
+  "profiles": {
+    "schemaVersion": 2,
+    "revision": 0,
+    "players": [
+      {
+        "identity": {
+          "entityId": "rv-01",
+          "fullName": "Caio Brandão",
+          "knownName": "C. Brandão",
+          "nationality": "BRA",
+          "birthDate": "1999-01-01",
+          "age": 27,
+          "clubId": "aurora-fc",
+          "clubName": "Aurora Futebol Clube",
+          "clubShortName": "AUR",
+          "clubPrimaryColor": "#35c88a"
+        },
+        "shirtNumber": 1,
+        "heightCm": 190,
+        "weightKg": 68,
+        "preferredFoot": "right",
+        "squadRole": "FirstTeam",
+        "naturalPosition": "GK",
+        "attributes": {
+          "model": "goalkeeper",
+          "reaction": 78,
+          "positioning": 77,
+          "handling": 76,
+          "mobility": 74,
+          "rushingOut": 73,
+          "distribution": 71
+        },
+        "internalPotential": 76,
+        "contract": {
+          "clubId": "aurora-fc",
+          "startedAt": "2025-01-01",
+          "expiresAt": "2027-12-31",
+          "squadStatus": "FirstTeam"
+        }
+      },
+      {
+        "identity": {
+          "entityId": "rv-02",
+          "fullName": "Davi Moura",
+          "knownName": "D. Moura",
+          "nationality": "BRA",
+          "birthDate": "2002-02-02",
+          "age": 24,
+          "clubId": "aurora-fc",
+          "clubName": "Aurora Futebol Clube",
+          "clubShortName": "AUR",
+          "clubPrimaryColor": "#35c88a"
+        },
+        "shirtNumber": 22,
+        "heightCm": 177,
+        "weightKg": 71,
+        "preferredFoot": "right",
+        "squadRole": "FirstTeam",
+        "naturalPosition": "RB",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 63,
+          "technique": 71,
+          "passing": 72,
+          "tackling": 74,
+          "physical": 73,
+          "pace": 75
+        },
+        "internalPotential": 76,
+        "contract": {
+          "clubId": "aurora-fc",
+          "startedAt": "2025-01-01",
+          "expiresAt": "2028-12-31",
+          "squadStatus": "FirstTeam"
+        }
+      },
+      {
+        "identity": {
+          "entityId": "rv-03",
+          "fullName": "Iago Serpa",
+          "knownName": "I. Serpa",
+          "nationality": "BRA",
+          "birthDate": "1997-03-03",
+          "age": 29,
+          "clubId": "aurora-fc",
+          "clubName": "Aurora Futebol Clube",
+          "clubShortName": "AUR",
+          "clubPrimaryColor": "#35c88a"
+        },
+        "shirtNumber": 3,
+        "heightCm": 188,
+        "weightKg": 74,
+        "preferredFoot": "right",
+        "squadRole": "KeyPlayer",
+        "naturalPosition": "CB",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 63,
+          "technique": 73,
+          "passing": 76,
+          "tackling": 81,
+          "physical": 80,
+          "pace": 74
+        },
+        "internalPotential": 78,
+        "contract": {
+          "clubId": "aurora-fc",
+          "startedAt": "2025-01-01",
+          "expiresAt": "2029-12-31",
+          "squadStatus": "KeyPlayer"
+        }
+      },
+      {
+        "identity": {
+          "entityId": "rv-04",
+          "fullName": "Breno Vidal",
+          "knownName": "B. Vidal",
+          "nationality": "BRA",
+          "birthDate": "2001-04-04",
+          "age": 25,
+          "clubId": "aurora-fc",
+          "clubName": "Aurora Futebol Clube",
+          "clubShortName": "AUR",
+          "clubPrimaryColor": "#35c88a"
+        },
+        "shirtNumber": 4,
+        "heightCm": 186,
+        "weightKg": 77,
+        "preferredFoot": "right",
+        "squadRole": "FirstTeam",
+        "naturalPosition": "CB",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 60,
+          "technique": 70,
+          "passing": 73,
+          "tackling": 78,
+          "physical": 77,
+          "pace": 71
+        },
+        "internalPotential": 78,
+        "contract": {
+          "clubId": "aurora-fc",
+          "startedAt": "2025-01-01",
+          "expiresAt": "2030-12-31",
+          "squadStatus": "FirstTeam"
+        }
+      },
+      {
+        "identity": {
+          "entityId": "rv-05",
+          "fullName": "Nilo Azevedo",
+          "knownName": "N. Azevedo",
+          "nationality": "BRA",
+          "birthDate": "2004-05-05",
+          "age": 22,
+          "clubId": "aurora-fc",
+          "clubName": "Aurora Futebol Clube",
+          "clubShortName": "AUR",
+          "clubPrimaryColor": "#35c88a"
+        },
+        "shirtNumber": 16,
+        "heightCm": 175,
+        "weightKg": 80,
+        "preferredFoot": "left",
+        "squadRole": "FirstTeam",
+        "naturalPosition": "LB",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 64,
+          "technique": 72,
+          "passing": 73,
+          "tackling": 75,
+          "physical": 74,
+          "pace": 76
+        },
+        "internalPotential": 82,
+        "contract": {
+          "clubId": "aurora-fc",
+          "startedAt": "2025-01-01",
+          "expiresAt": "2027-12-31",
+          "squadStatus": "FirstTeam"
+        }
+      },
+      {
+        "identity": {
+          "entityId": "rv-06",
+          "fullName": "Tomás Paiva",
+          "knownName": "T. Paiva",
+          "nationality": "URU",
+          "birthDate": "1998-06-06",
+          "age": 28,
+          "clubId": "aurora-fc",
+          "clubName": "Aurora Futebol Clube",
+          "clubShortName": "AUR",
+          "clubPrimaryColor": "#35c88a"
+        },
+        "shirtNumber": 5,
+        "heightCm": 184,
+        "weightKg": 83,
+        "preferredFoot": "right",
+        "squadRole": "KeyPlayer",
+        "naturalPosition": "DM",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 68,
+          "technique": 78,
+          "passing": 81,
+          "tackling": 81,
+          "physical": 79,
+          "pace": 75
+        },
+        "internalPotential": 79,
+        "contract": {
+          "clubId": "aurora-fc",
+          "startedAt": "2025-01-01",
+          "expiresAt": "2028-12-31",
+          "squadStatus": "KeyPlayer"
+        }
+      },
+      {
+        "identity": {
+          "entityId": "rv-07",
+          "fullName": "Luan Seixas",
+          "knownName": "L. Seixas",
+          "nationality": "BRA",
+          "birthDate": "2003-07-07",
+          "age": 23,
+          "clubId": "aurora-fc",
+          "clubName": "Aurora Futebol Clube",
+          "clubShortName": "AUR",
+          "clubPrimaryColor": "#35c88a"
+        },
+        "shirtNumber": 8,
+        "heightCm": 181,
+        "weightKg": 86,
+        "preferredFoot": "right",
+        "squadRole": "FirstTeam",
+        "naturalPosition": "CM",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 72,
+          "technique": 79,
+          "passing": 80,
+          "tackling": 73,
+          "physical": 75,
+          "pace": 75
+        },
+        "internalPotential": 84,
+        "contract": {
+          "clubId": "aurora-fc",
+          "startedAt": "2025-01-01",
+          "expiresAt": "2029-12-31",
+          "squadStatus": "FirstTeam"
+        }
+      },
+      {
+        "identity": {
+          "entityId": "rv-08",
+          "fullName": "Ravi Monteiro",
+          "knownName": "R. Monteiro",
+          "nationality": "BRA",
+          "birthDate": "2000-08-08",
+          "age": 26,
+          "clubId": "aurora-fc",
+          "clubName": "Aurora Futebol Clube",
+          "clubShortName": "AUR",
+          "clubPrimaryColor": "#35c88a"
+        },
+        "shirtNumber": 10,
+        "heightCm": 178,
+        "weightKg": 70,
+        "preferredFoot": "left",
+        "squadRole": "FirstTeam",
+        "naturalPosition": "CM",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 71,
+          "technique": 78,
+          "passing": 79,
+          "tackling": 72,
+          "physical": 74,
+          "pace": 74
+        },
+        "internalPotential": 79,
+        "contract": {
+          "clubId": "aurora-fc",
+          "startedAt": "2025-01-01",
+          "expiresAt": "2030-12-31",
+          "squadStatus": "FirstTeam"
+        }
+      },
+      {
+        "identity": {
+          "entityId": "rv-09",
+          "fullName": "Enzo Falcão",
+          "knownName": "E. Falcão",
+          "nationality": "BRA",
+          "birthDate": "2005-09-09",
+          "age": 21,
+          "clubId": "aurora-fc",
+          "clubName": "Aurora Futebol Clube",
+          "clubShortName": "AUR",
+          "clubPrimaryColor": "#35c88a"
+        },
+        "shirtNumber": 7,
+        "heightCm": 174,
+        "weightKg": 73,
+        "preferredFoot": "left",
+        "squadRole": "KeyPlayer",
+        "naturalPosition": "RW",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 78,
+          "technique": 80,
+          "passing": 75,
+          "tackling": 65,
+          "physical": 72,
+          "pace": 81
+        },
+        "internalPotential": 86,
+        "contract": {
+          "clubId": "aurora-fc",
+          "startedAt": "2025-01-01",
+          "expiresAt": "2027-12-31",
+          "squadStatus": "KeyPlayer"
+        }
+      },
+      {
+        "identity": {
+          "entityId": "rv-10",
+          "fullName": "Murilo Braga",
+          "knownName": "M. Braga",
+          "nationality": "BRA",
+          "birthDate": "1999-10-10",
+          "age": 27,
+          "clubId": "aurora-fc",
+          "clubName": "Aurora Futebol Clube",
+          "clubShortName": "AUR",
+          "clubPrimaryColor": "#35c88a"
+        },
+        "shirtNumber": 9,
+        "heightCm": 187,
+        "weightKg": 76,
+        "preferredFoot": "right",
+        "squadRole": "KeyPlayer",
+        "naturalPosition": "ST",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 84,
+          "technique": 80,
+          "passing": 74,
+          "tackling": 65,
+          "physical": 81,
+          "pace": 81
+        },
+        "internalPotential": 82,
+        "contract": {
+          "clubId": "aurora-fc",
+          "startedAt": "2025-01-01",
+          "expiresAt": "2028-12-31",
+          "squadStatus": "KeyPlayer"
+        }
+      },
+      {
+        "identity": {
+          "entityId": "rv-11",
+          "fullName": "Noah Teles",
+          "knownName": "N. Teles",
+          "nationality": "BRA",
+          "birthDate": "2002-11-11",
+          "age": 24,
+          "clubId": "aurora-fc",
+          "clubName": "Aurora Futebol Clube",
+          "clubShortName": "AUR",
+          "clubPrimaryColor": "#35c88a"
+        },
+        "shirtNumber": 11,
+        "heightCm": 176,
+        "weightKg": 79,
+        "preferredFoot": "right",
+        "squadRole": "FirstTeam",
+        "naturalPosition": "LW",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 77,
+          "technique": 79,
+          "passing": 74,
+          "tackling": 64,
+          "physical": 71,
+          "pace": 80
+        },
+        "internalPotential": 82,
+        "contract": {
+          "clubId": "aurora-fc",
+          "startedAt": "2025-01-01",
+          "expiresAt": "2029-12-31",
+          "squadStatus": "FirstTeam"
+        }
+      },
+      {
+        "identity": {
+          "entityId": "rv-12",
+          "fullName": "Ícaro Reis",
+          "knownName": "Í. Reis",
+          "nationality": "BRA",
+          "birthDate": "2006-12-12",
+          "age": 20,
+          "clubId": "aurora-fc",
+          "clubName": "Aurora Futebol Clube",
+          "clubShortName": "AUR",
+          "clubPrimaryColor": "#35c88a"
+        },
+        "shirtNumber": 12,
+        "heightCm": 193,
+        "weightKg": 82,
+        "preferredFoot": "right",
+        "squadRole": "Prospect",
+        "naturalPosition": "GK",
+        "attributes": {
+          "model": "goalkeeper",
+          "reaction": 70,
+          "positioning": 69,
+          "handling": 68,
+          "mobility": 66,
+          "rushingOut": 65,
+          "distribution": 63
+        },
+        "internalPotential": 81,
+        "contract": {
+          "clubId": "aurora-fc",
+          "startedAt": "2025-01-01",
+          "expiresAt": "2030-12-31",
+          "squadStatus": "Prospect"
+        }
+      },
+      {
+        "identity": {
+          "entityId": "rv-13",
+          "fullName": "Otávio Luz",
+          "knownName": "O. Luz",
+          "nationality": "BRA",
+          "birthDate": "1995-01-13",
+          "age": 31,
+          "clubId": "aurora-fc",
+          "clubName": "Aurora Futebol Clube",
+          "clubShortName": "AUR",
+          "clubPrimaryColor": "#35c88a"
+        },
+        "shirtNumber": 14,
+        "heightCm": 190,
+        "weightKg": 85,
+        "preferredFoot": "right",
+        "squadRole": "Backup",
+        "naturalPosition": "CB",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 57,
+          "technique": 67,
+          "passing": 70,
+          "tackling": 75,
+          "physical": 74,
+          "pace": 68
+        },
+        "internalPotential": 72,
+        "contract": {
+          "clubId": "aurora-fc",
+          "startedAt": "2025-01-01",
+          "expiresAt": "2027-12-31",
+          "squadStatus": "Backup"
+        }
+      },
+      {
+        "identity": {
+          "entityId": "rv-14",
+          "fullName": "Pietro Nunes",
+          "knownName": "P. Nunes",
+          "nationality": "BRA",
+          "birthDate": "2007-02-14",
+          "age": 19,
+          "clubId": "aurora-fc",
+          "clubName": "Aurora Futebol Clube",
+          "clubShortName": "AUR",
+          "clubPrimaryColor": "#35c88a"
+        },
+        "shirtNumber": 27,
+        "heightCm": 179,
+        "weightKg": 69,
+        "preferredFoot": "right",
+        "squadRole": "Prospect",
+        "naturalPosition": "CM",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 66,
+          "technique": 73,
+          "passing": 74,
+          "tackling": 67,
+          "physical": 69,
+          "pace": 69
+        },
+        "internalPotential": 86,
+        "contract": {
+          "clubId": "aurora-fc",
+          "startedAt": "2025-01-01",
+          "expiresAt": "2028-12-31",
+          "squadStatus": "Prospect"
+        }
+      },
+      {
+        "identity": {
+          "entityId": "rv-15",
+          "fullName": "Gael Ramos",
+          "knownName": "G. Ramos",
+          "nationality": "ARG",
+          "birthDate": "2004-03-15",
+          "age": 22,
+          "clubId": "aurora-fc",
+          "clubName": "Aurora Futebol Clube",
+          "clubShortName": "AUR",
+          "clubPrimaryColor": "#35c88a"
+        },
+        "shirtNumber": 20,
+        "heightCm": 176,
+        "weightKg": 72,
+        "preferredFoot": "left",
+        "squadRole": "Rotation",
+        "naturalPosition": "AM",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 75,
+          "technique": 77,
+          "passing": 76,
+          "tackling": 64,
+          "physical": 69,
+          "pace": 74
+        },
+        "internalPotential": 83,
+        "contract": {
+          "clubId": "aurora-fc",
+          "startedAt": "2025-01-01",
+          "expiresAt": "2029-12-31",
+          "squadStatus": "Rotation"
+        }
+      },
+      {
+        "identity": {
+          "entityId": "rv-16",
+          "fullName": "Theo Barros",
+          "knownName": "T. Barros",
+          "nationality": "POR",
+          "birthDate": "2001-04-16",
+          "age": 25,
+          "clubId": "aurora-fc",
+          "clubName": "Aurora Futebol Clube",
+          "clubShortName": "AUR",
+          "clubPrimaryColor": "#35c88a"
+        },
+        "shirtNumber": 17,
+        "heightCm": 172,
+        "weightKg": 75,
+        "preferredFoot": "right",
+        "squadRole": "Rotation",
+        "naturalPosition": "RW",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 73,
+          "technique": 75,
+          "passing": 70,
+          "tackling": 60,
+          "physical": 67,
+          "pace": 76
+        },
+        "internalPotential": 75,
+        "contract": {
+          "clubId": "aurora-fc",
+          "startedAt": "2025-01-01",
+          "expiresAt": "2030-12-31",
+          "squadStatus": "Rotation"
+        }
+      },
+      {
+        "identity": {
+          "entityId": "rv-17",
+          "fullName": "Samuel Lins",
+          "knownName": "S. Lins",
+          "nationality": "BRA",
+          "birthDate": "1996-05-17",
+          "age": 30,
+          "clubId": "aurora-fc",
+          "clubName": "Aurora Futebol Clube",
+          "clubShortName": "AUR",
+          "clubPrimaryColor": "#35c88a"
+        },
+        "shirtNumber": 19,
+        "heightCm": 185,
+        "weightKg": 78,
+        "preferredFoot": "right",
+        "squadRole": "Rotation",
+        "naturalPosition": "ST",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 78,
+          "technique": 74,
+          "passing": 68,
+          "tackling": 59,
+          "physical": 75,
+          "pace": 75
+        },
+        "internalPotential": 75,
+        "contract": {
+          "clubId": "aurora-fc",
+          "startedAt": "2025-01-01",
+          "expiresAt": "2027-12-31",
+          "squadStatus": "Rotation"
+        }
+      },
+      {
+        "identity": {
+          "entityId": "rv-18",
+          "fullName": "Vitor Amaral",
+          "knownName": "V. Amaral",
+          "nationality": "BRA",
+          "birthDate": "2005-06-18",
+          "age": 21,
+          "clubId": "aurora-fc",
+          "clubName": "Aurora Futebol Clube",
+          "clubShortName": "AUR",
+          "clubPrimaryColor": "#35c88a"
+        },
+        "shirtNumber": 25,
+        "heightCm": 178,
+        "weightKg": 81,
+        "preferredFoot": "left",
+        "squadRole": "Prospect",
+        "naturalPosition": "LB",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 60,
+          "technique": 68,
+          "passing": 69,
+          "tackling": 71,
+          "physical": 70,
+          "pace": 72
+        },
+        "internalPotential": 82,
+        "contract": {
+          "clubId": "aurora-fc",
+          "startedAt": "2025-01-01",
+          "expiresAt": "2028-12-31",
+          "squadStatus": "Prospect"
+        }
+      }
+    ],
+    "externalPlayers": [
+      {
+        "profile": {
+          "identity": {
+            "entityId": "rv-fdv-01",
+            "fullName": "Martín Gouveia",
+            "knownName": "M. Gouveia",
+            "nationality": "URU",
+            "birthDate": "2001-09-21",
+            "age": 25,
+            "clubId": "ferroviario-do-vale",
+            "clubName": "Ferroviário do Vale",
+            "clubShortName": "FDV",
+            "clubPrimaryColor": "#d18a42"
+          },
+          "shirtNumber": 7,
+          "heightCm": 176,
+          "weightKg": 73,
+          "preferredFoot": "right",
+          "squadRole": "KeyPlayer",
+          "naturalPosition": "AM",
+          "attributes": {
+            "model": "outfield",
+            "finishing": 80,
+            "technique": 82,
+            "passing": 81,
+            "tackling": 69,
+            "physical": 74,
+            "pace": 79
+          },
+          "internalPotential": 82,
+          "contract": {
+            "clubId": "ferroviario-do-vale",
+            "startedAt": "2024-01-01",
+            "expiresAt": "2028-12-31",
+            "squadStatus": "Jogador-chave"
+          }
+        },
+        "condition": 94,
+        "matchFitness": 91,
+        "appearances": 14,
+        "goals": 2,
+        "assists": 1,
+        "averageRating": 71
+      },
+      {
+        "profile": {
+          "identity": {
+            "entityId": "rv-fdv-02",
+            "fullName": "Leandro Vilar",
+            "knownName": "L. Vilar",
+            "nationality": "BRA",
+            "birthDate": "2004-10-22",
+            "age": 22,
+            "clubId": "ferroviario-do-vale",
+            "clubName": "Ferroviário do Vale",
+            "clubShortName": "FDV",
+            "clubPrimaryColor": "#d18a42"
+          },
+          "shirtNumber": 8,
+          "heightCm": 180,
+          "weightKg": 77,
+          "preferredFoot": "right",
+          "squadRole": "KeyPlayer",
+          "naturalPosition": "ST",
+          "attributes": {
+            "model": "outfield",
+            "finishing": 79,
+            "technique": 75,
+            "passing": 69,
+            "tackling": 60,
+            "physical": 76,
+            "pace": 76
+          },
+          "internalPotential": 84,
+          "contract": {
+            "clubId": "ferroviario-do-vale",
+            "startedAt": "2024-01-01",
+            "expiresAt": "2028-12-31",
+            "squadStatus": "Jogador-chave"
+          }
+        },
+        "condition": 94,
+        "matchFitness": 91,
+        "appearances": 14,
+        "goals": 5,
+        "assists": 3,
+        "averageRating": 72
+      },
+      {
+        "profile": {
+          "identity": {
+            "entityId": "rv-fdv-03",
+            "fullName": "Nicolás Arce",
+            "knownName": "N. Arce",
+            "nationality": "ARG",
+            "birthDate": "1997-11-23",
+            "age": 29,
+            "clubId": "ferroviario-do-vale",
+            "clubName": "Ferroviário do Vale",
+            "clubShortName": "FDV",
+            "clubPrimaryColor": "#d18a42"
+          },
+          "shirtNumber": 9,
+          "heightCm": 184,
+          "weightKg": 81,
+          "preferredFoot": "right",
+          "squadRole": "KeyPlayer",
+          "naturalPosition": "CB",
+          "attributes": {
+            "model": "outfield",
+            "finishing": 62,
+            "technique": 72,
+            "passing": 75,
+            "tackling": 80,
+            "physical": 79,
+            "pace": 73
+          },
+          "internalPotential": 78,
+          "contract": {
+            "clubId": "ferroviario-do-vale",
+            "startedAt": "2024-01-01",
+            "expiresAt": "2028-12-31",
+            "squadStatus": "Jogador-chave"
+          }
+        },
+        "condition": 94,
+        "matchFitness": 91,
+        "appearances": 14,
+        "goals": 8,
+        "assists": 5,
+        "averageRating": 74
+      }
+    ],
+    "coaches": [
+      {
+        "identity": {
+          "entityId": "coach.aurora.head",
+          "fullName": "Helena Sampaio",
+          "knownName": "Helena Sampaio",
+          "nationality": "BRA",
+          "birthDate": "1983-05-14",
+          "age": 43,
+          "clubId": "aurora-fc",
+          "clubName": "Aurora Futebol Clube",
+          "clubShortName": "AUR",
+          "clubPrimaryColor": "#35c88a"
+        },
+        "role": "Treinador principal",
+        "reputation": 72,
+        "qualification": "Licença Continental Pro",
+        "experienceYears": 11,
+        "style": "Posse apoiada e desenvolvimento de jovens",
+        "preferredFormations": ["4-3-3", "4-2-3-1"],
+        "attributes": {
+          "tactical": 79,
+          "preparation": 76,
+          "adaptability": 74,
+          "decisionMaking": 77,
+          "technicalDevelopment": 81,
+          "physicalDevelopment": 70,
+          "mentalDevelopment": 78,
+          "tacticalDevelopment": 82,
+          "youthDevelopment": 84,
+          "motivation": 80,
+          "communication": 83,
+          "discipline": 72,
+          "peopleManagement": 81,
+          "abilityJudgement": 78,
+          "potentialJudgement": 80
+        },
+        "specialties": ["Desenvolvimento de jovens", "Ensino tático"],
+        "contract": {
+          "clubId": "aurora-fc",
+          "startedAt": "2025-01-01",
+          "expiresAt": "2027-12-31",
+          "squadStatus": "Treinador principal"
+        }
+      },
+      {
+        "identity": {
+          "entityId": "coach.ferroviario.head",
+          "fullName": "Raúl Mendonza",
+          "knownName": "Raúl Mendonza",
+          "nationality": "ARG",
+          "birthDate": "1977-06-15",
+          "age": 49,
+          "clubId": "ferroviario-do-vale",
+          "clubName": "Ferroviário do Vale",
+          "clubShortName": "FDV",
+          "clubPrimaryColor": "#d18a42"
+        },
+        "role": "Treinador principal",
+        "reputation": 76,
+        "qualification": "Licença Continental Pro",
+        "experienceYears": 15,
+        "style": "Bloco intenso e transições verticais",
+        "preferredFormations": ["4-4-2", "3-4-2-1"],
+        "attributes": {
+          "tactical": 82,
+          "preparation": 80,
+          "adaptability": 78,
+          "decisionMaking": 81,
+          "technicalDevelopment": 74,
+          "physicalDevelopment": 79,
+          "mentalDevelopment": 73,
+          "tacticalDevelopment": 77,
+          "youthDevelopment": 69,
+          "motivation": 76,
+          "communication": 72,
+          "discipline": 84,
+          "peopleManagement": 75,
+          "abilityJudgement": 80,
+          "potentialJudgement": 73
+        },
+        "specialties": ["Preparação física", "Organização defensiva"],
+        "contract": {
+          "clubId": "ferroviario-do-vale",
+          "startedAt": "2025-01-01",
+          "expiresAt": "2027-12-31",
+          "squadStatus": "Treinador principal"
+        }
+      }
+    ],
+    "assessments": [
+      {
+        "entityId": "rv-01",
+        "observerClubId": "aurora-fc",
+        "knowledgeLevel": "ownClub",
+        "confidence": 100,
+        "source": "Comissão técnica e rotina do clube",
+        "observedAt": 1767225600000,
+        "updatedAt": 1767225600000,
+        "expiresAt": null,
+        "knownFields": ["identity", "attributes", "condition", "contract"],
+        "estimatedFields": ["potential"],
+        "hiddenFields": ["internalPotential"],
+        "assessmentVersion": 1
+      },
+      {
+        "entityId": "rv-02",
+        "observerClubId": "aurora-fc",
+        "knowledgeLevel": "ownClub",
+        "confidence": 100,
+        "source": "Comissão técnica e rotina do clube",
+        "observedAt": 1767225600000,
+        "updatedAt": 1767225600000,
+        "expiresAt": null,
+        "knownFields": ["identity", "attributes", "condition", "contract"],
+        "estimatedFields": ["potential"],
+        "hiddenFields": ["internalPotential"],
+        "assessmentVersion": 1
+      },
+      {
+        "entityId": "rv-03",
+        "observerClubId": "aurora-fc",
+        "knowledgeLevel": "ownClub",
+        "confidence": 100,
+        "source": "Comissão técnica e rotina do clube",
+        "observedAt": 1767225600000,
+        "updatedAt": 1767225600000,
+        "expiresAt": null,
+        "knownFields": ["identity", "attributes", "condition", "contract"],
+        "estimatedFields": ["potential"],
+        "hiddenFields": ["internalPotential"],
+        "assessmentVersion": 1
+      },
+      {
+        "entityId": "rv-04",
+        "observerClubId": "aurora-fc",
+        "knowledgeLevel": "ownClub",
+        "confidence": 100,
+        "source": "Comissão técnica e rotina do clube",
+        "observedAt": 1767225600000,
+        "updatedAt": 1767225600000,
+        "expiresAt": null,
+        "knownFields": ["identity", "attributes", "condition", "contract"],
+        "estimatedFields": ["potential"],
+        "hiddenFields": ["internalPotential"],
+        "assessmentVersion": 1
+      },
+      {
+        "entityId": "rv-05",
+        "observerClubId": "aurora-fc",
+        "knowledgeLevel": "ownClub",
+        "confidence": 100,
+        "source": "Comissão técnica e rotina do clube",
+        "observedAt": 1767225600000,
+        "updatedAt": 1767225600000,
+        "expiresAt": null,
+        "knownFields": ["identity", "attributes", "condition", "contract"],
+        "estimatedFields": ["potential"],
+        "hiddenFields": ["internalPotential"],
+        "assessmentVersion": 1
+      },
+      {
+        "entityId": "rv-06",
+        "observerClubId": "aurora-fc",
+        "knowledgeLevel": "ownClub",
+        "confidence": 100,
+        "source": "Comissão técnica e rotina do clube",
+        "observedAt": 1767225600000,
+        "updatedAt": 1767225600000,
+        "expiresAt": null,
+        "knownFields": ["identity", "attributes", "condition", "contract"],
+        "estimatedFields": ["potential"],
+        "hiddenFields": ["internalPotential"],
+        "assessmentVersion": 1
+      },
+      {
+        "entityId": "rv-07",
+        "observerClubId": "aurora-fc",
+        "knowledgeLevel": "ownClub",
+        "confidence": 100,
+        "source": "Comissão técnica e rotina do clube",
+        "observedAt": 1767225600000,
+        "updatedAt": 1767225600000,
+        "expiresAt": null,
+        "knownFields": ["identity", "attributes", "condition", "contract"],
+        "estimatedFields": ["potential"],
+        "hiddenFields": ["internalPotential"],
+        "assessmentVersion": 1
+      },
+      {
+        "entityId": "rv-08",
+        "observerClubId": "aurora-fc",
+        "knowledgeLevel": "ownClub",
+        "confidence": 100,
+        "source": "Comissão técnica e rotina do clube",
+        "observedAt": 1767225600000,
+        "updatedAt": 1767225600000,
+        "expiresAt": null,
+        "knownFields": ["identity", "attributes", "condition", "contract"],
+        "estimatedFields": ["potential"],
+        "hiddenFields": ["internalPotential"],
+        "assessmentVersion": 1
+      },
+      {
+        "entityId": "rv-09",
+        "observerClubId": "aurora-fc",
+        "knowledgeLevel": "ownClub",
+        "confidence": 100,
+        "source": "Comissão técnica e rotina do clube",
+        "observedAt": 1767225600000,
+        "updatedAt": 1767225600000,
+        "expiresAt": null,
+        "knownFields": ["identity", "attributes", "condition", "contract"],
+        "estimatedFields": ["potential"],
+        "hiddenFields": ["internalPotential"],
+        "assessmentVersion": 1
+      },
+      {
+        "entityId": "rv-10",
+        "observerClubId": "aurora-fc",
+        "knowledgeLevel": "ownClub",
+        "confidence": 100,
+        "source": "Comissão técnica e rotina do clube",
+        "observedAt": 1767225600000,
+        "updatedAt": 1767225600000,
+        "expiresAt": null,
+        "knownFields": ["identity", "attributes", "condition", "contract"],
+        "estimatedFields": ["potential"],
+        "hiddenFields": ["internalPotential"],
+        "assessmentVersion": 1
+      },
+      {
+        "entityId": "rv-11",
+        "observerClubId": "aurora-fc",
+        "knowledgeLevel": "ownClub",
+        "confidence": 100,
+        "source": "Comissão técnica e rotina do clube",
+        "observedAt": 1767225600000,
+        "updatedAt": 1767225600000,
+        "expiresAt": null,
+        "knownFields": ["identity", "attributes", "condition", "contract"],
+        "estimatedFields": ["potential"],
+        "hiddenFields": ["internalPotential"],
+        "assessmentVersion": 1
+      },
+      {
+        "entityId": "rv-12",
+        "observerClubId": "aurora-fc",
+        "knowledgeLevel": "ownClub",
+        "confidence": 100,
+        "source": "Comissão técnica e rotina do clube",
+        "observedAt": 1767225600000,
+        "updatedAt": 1767225600000,
+        "expiresAt": null,
+        "knownFields": ["identity", "attributes", "condition", "contract"],
+        "estimatedFields": ["potential"],
+        "hiddenFields": ["internalPotential"],
+        "assessmentVersion": 1
+      },
+      {
+        "entityId": "rv-13",
+        "observerClubId": "aurora-fc",
+        "knowledgeLevel": "ownClub",
+        "confidence": 100,
+        "source": "Comissão técnica e rotina do clube",
+        "observedAt": 1767225600000,
+        "updatedAt": 1767225600000,
+        "expiresAt": null,
+        "knownFields": ["identity", "attributes", "condition", "contract"],
+        "estimatedFields": ["potential"],
+        "hiddenFields": ["internalPotential"],
+        "assessmentVersion": 1
+      },
+      {
+        "entityId": "rv-14",
+        "observerClubId": "aurora-fc",
+        "knowledgeLevel": "ownClub",
+        "confidence": 100,
+        "source": "Comissão técnica e rotina do clube",
+        "observedAt": 1767225600000,
+        "updatedAt": 1767225600000,
+        "expiresAt": null,
+        "knownFields": ["identity", "attributes", "condition", "contract"],
+        "estimatedFields": ["potential"],
+        "hiddenFields": ["internalPotential"],
+        "assessmentVersion": 1
+      },
+      {
+        "entityId": "rv-15",
+        "observerClubId": "aurora-fc",
+        "knowledgeLevel": "ownClub",
+        "confidence": 100,
+        "source": "Comissão técnica e rotina do clube",
+        "observedAt": 1767225600000,
+        "updatedAt": 1767225600000,
+        "expiresAt": null,
+        "knownFields": ["identity", "attributes", "condition", "contract"],
+        "estimatedFields": ["potential"],
+        "hiddenFields": ["internalPotential"],
+        "assessmentVersion": 1
+      },
+      {
+        "entityId": "rv-16",
+        "observerClubId": "aurora-fc",
+        "knowledgeLevel": "ownClub",
+        "confidence": 100,
+        "source": "Comissão técnica e rotina do clube",
+        "observedAt": 1767225600000,
+        "updatedAt": 1767225600000,
+        "expiresAt": null,
+        "knownFields": ["identity", "attributes", "condition", "contract"],
+        "estimatedFields": ["potential"],
+        "hiddenFields": ["internalPotential"],
+        "assessmentVersion": 1
+      },
+      {
+        "entityId": "rv-17",
+        "observerClubId": "aurora-fc",
+        "knowledgeLevel": "ownClub",
+        "confidence": 100,
+        "source": "Comissão técnica e rotina do clube",
+        "observedAt": 1767225600000,
+        "updatedAt": 1767225600000,
+        "expiresAt": null,
+        "knownFields": ["identity", "attributes", "condition", "contract"],
+        "estimatedFields": ["potential"],
+        "hiddenFields": ["internalPotential"],
+        "assessmentVersion": 1
+      },
+      {
+        "entityId": "rv-18",
+        "observerClubId": "aurora-fc",
+        "knowledgeLevel": "ownClub",
+        "confidence": 100,
+        "source": "Comissão técnica e rotina do clube",
+        "observedAt": 1767225600000,
+        "updatedAt": 1767225600000,
+        "expiresAt": null,
+        "knownFields": ["identity", "attributes", "condition", "contract"],
+        "estimatedFields": ["potential"],
+        "hiddenFields": ["internalPotential"],
+        "assessmentVersion": 1
+      },
+      {
+        "entityId": "rv-fdv-01",
+        "observerClubId": "aurora-fc",
+        "knowledgeLevel": "wellKnown",
+        "confidence": 82,
+        "source": "Partidas anteriores e estatísticas públicas",
+        "observedAt": 1767225600000,
+        "updatedAt": 1767225600000,
+        "expiresAt": 1775001600000,
+        "knownFields": ["identity", "career", "publicStatistics"],
+        "estimatedFields": ["attributes", "ratings", "potential"],
+        "hiddenFields": ["internalPotential"],
+        "assessmentVersion": 1
+      },
+      {
+        "entityId": "rv-fdv-02",
+        "observerClubId": "aurora-fc",
+        "knowledgeLevel": "partial",
+        "confidence": 58,
+        "source": "Observação parcial da comissão",
+        "observedAt": 1767225600000,
+        "updatedAt": 1767225600000,
+        "expiresAt": 1775001600000,
+        "knownFields": ["identity", "publicStatistics"],
+        "estimatedFields": ["attributes", "ratings", "potential"],
+        "hiddenFields": ["condition", "internalPotential"],
+        "assessmentVersion": 1
+      },
+      {
+        "entityId": "rv-fdv-03",
+        "observerClubId": "aurora-fc",
+        "knowledgeLevel": "limited",
+        "confidence": 34,
+        "source": "Informação pública limitada",
+        "observedAt": 1767225600000,
+        "updatedAt": 1767225600000,
+        "expiresAt": 1775001600000,
+        "knownFields": ["identity"],
+        "estimatedFields": ["ratings"],
+        "hiddenFields": ["attributes", "condition", "internalPotential"],
+        "assessmentVersion": 1
+      },
+      {
+        "entityId": "coach.aurora.head",
+        "observerClubId": "aurora-fc",
+        "knowledgeLevel": "ownClub",
+        "confidence": 100,
+        "source": "Contrato e trabalho diário",
+        "observedAt": 1767225600000,
+        "updatedAt": 1767225600000,
+        "expiresAt": null,
+        "knownFields": ["identity", "attributes", "condition", "contract"],
+        "estimatedFields": ["potential"],
+        "hiddenFields": ["internalPotential"],
+        "assessmentVersion": 1
+      },
+      {
+        "entityId": "coach.ferroviario.head",
+        "observerClubId": "aurora-fc",
+        "knowledgeLevel": "partial",
+        "confidence": 61,
+        "source": "Carreira pública e estilo observado",
+        "observedAt": 1767225600000,
+        "updatedAt": 1767225600000,
+        "expiresAt": 1775001600000,
+        "knownFields": ["identity", "publicStatistics"],
+        "estimatedFields": ["attributes", "ratings", "potential"],
+        "hiddenFields": ["condition", "internalPotential"],
+        "assessmentVersion": 1
+      }
+    ],
+    "ratingHistory": [],
+    "attributeHistory": [
+      {
+        "snapshotId": "rv-01.attributes.bootstrap",
+        "playerId": "rv-01",
+        "attributes": {
+          "model": "goalkeeper",
+          "reaction": 78,
+          "positioning": 77,
+          "handling": 76,
+          "mobility": 74,
+          "rushingOut": 73,
+          "distribution": 71
+        },
+        "source": "Marco inicial da Fase 06.4",
+        "recordedAt": 1767225600000
+      },
+      {
+        "snapshotId": "rv-02.attributes.bootstrap",
+        "playerId": "rv-02",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 63,
+          "technique": 71,
+          "passing": 72,
+          "tackling": 74,
+          "physical": 73,
+          "pace": 75
+        },
+        "source": "Marco inicial da Fase 06.4",
+        "recordedAt": 1767225600000
+      },
+      {
+        "snapshotId": "rv-03.attributes.bootstrap",
+        "playerId": "rv-03",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 63,
+          "technique": 73,
+          "passing": 76,
+          "tackling": 81,
+          "physical": 80,
+          "pace": 74
+        },
+        "source": "Marco inicial da Fase 06.4",
+        "recordedAt": 1767225600000
+      },
+      {
+        "snapshotId": "rv-04.attributes.bootstrap",
+        "playerId": "rv-04",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 60,
+          "technique": 70,
+          "passing": 73,
+          "tackling": 78,
+          "physical": 77,
+          "pace": 71
+        },
+        "source": "Marco inicial da Fase 06.4",
+        "recordedAt": 1767225600000
+      },
+      {
+        "snapshotId": "rv-05.attributes.bootstrap",
+        "playerId": "rv-05",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 64,
+          "technique": 72,
+          "passing": 73,
+          "tackling": 75,
+          "physical": 74,
+          "pace": 76
+        },
+        "source": "Marco inicial da Fase 06.4",
+        "recordedAt": 1767225600000
+      },
+      {
+        "snapshotId": "rv-06.attributes.bootstrap",
+        "playerId": "rv-06",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 68,
+          "technique": 78,
+          "passing": 81,
+          "tackling": 81,
+          "physical": 79,
+          "pace": 75
+        },
+        "source": "Marco inicial da Fase 06.4",
+        "recordedAt": 1767225600000
+      },
+      {
+        "snapshotId": "rv-07.attributes.bootstrap",
+        "playerId": "rv-07",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 72,
+          "technique": 79,
+          "passing": 80,
+          "tackling": 73,
+          "physical": 75,
+          "pace": 75
+        },
+        "source": "Marco inicial da Fase 06.4",
+        "recordedAt": 1767225600000
+      },
+      {
+        "snapshotId": "rv-08.attributes.bootstrap",
+        "playerId": "rv-08",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 71,
+          "technique": 78,
+          "passing": 79,
+          "tackling": 72,
+          "physical": 74,
+          "pace": 74
+        },
+        "source": "Marco inicial da Fase 06.4",
+        "recordedAt": 1767225600000
+      },
+      {
+        "snapshotId": "rv-09.attributes.bootstrap",
+        "playerId": "rv-09",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 78,
+          "technique": 80,
+          "passing": 75,
+          "tackling": 65,
+          "physical": 72,
+          "pace": 81
+        },
+        "source": "Marco inicial da Fase 06.4",
+        "recordedAt": 1767225600000
+      },
+      {
+        "snapshotId": "rv-10.attributes.bootstrap",
+        "playerId": "rv-10",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 84,
+          "technique": 80,
+          "passing": 74,
+          "tackling": 65,
+          "physical": 81,
+          "pace": 81
+        },
+        "source": "Marco inicial da Fase 06.4",
+        "recordedAt": 1767225600000
+      },
+      {
+        "snapshotId": "rv-11.attributes.bootstrap",
+        "playerId": "rv-11",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 77,
+          "technique": 79,
+          "passing": 74,
+          "tackling": 64,
+          "physical": 71,
+          "pace": 80
+        },
+        "source": "Marco inicial da Fase 06.4",
+        "recordedAt": 1767225600000
+      },
+      {
+        "snapshotId": "rv-12.attributes.bootstrap",
+        "playerId": "rv-12",
+        "attributes": {
+          "model": "goalkeeper",
+          "reaction": 70,
+          "positioning": 69,
+          "handling": 68,
+          "mobility": 66,
+          "rushingOut": 65,
+          "distribution": 63
+        },
+        "source": "Marco inicial da Fase 06.4",
+        "recordedAt": 1767225600000
+      },
+      {
+        "snapshotId": "rv-13.attributes.bootstrap",
+        "playerId": "rv-13",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 57,
+          "technique": 67,
+          "passing": 70,
+          "tackling": 75,
+          "physical": 74,
+          "pace": 68
+        },
+        "source": "Marco inicial da Fase 06.4",
+        "recordedAt": 1767225600000
+      },
+      {
+        "snapshotId": "rv-14.attributes.bootstrap",
+        "playerId": "rv-14",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 66,
+          "technique": 73,
+          "passing": 74,
+          "tackling": 67,
+          "physical": 69,
+          "pace": 69
+        },
+        "source": "Marco inicial da Fase 06.4",
+        "recordedAt": 1767225600000
+      },
+      {
+        "snapshotId": "rv-15.attributes.bootstrap",
+        "playerId": "rv-15",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 75,
+          "technique": 77,
+          "passing": 76,
+          "tackling": 64,
+          "physical": 69,
+          "pace": 74
+        },
+        "source": "Marco inicial da Fase 06.4",
+        "recordedAt": 1767225600000
+      },
+      {
+        "snapshotId": "rv-16.attributes.bootstrap",
+        "playerId": "rv-16",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 73,
+          "technique": 75,
+          "passing": 70,
+          "tackling": 60,
+          "physical": 67,
+          "pace": 76
+        },
+        "source": "Marco inicial da Fase 06.4",
+        "recordedAt": 1767225600000
+      },
+      {
+        "snapshotId": "rv-17.attributes.bootstrap",
+        "playerId": "rv-17",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 78,
+          "technique": 74,
+          "passing": 68,
+          "tackling": 59,
+          "physical": 75,
+          "pace": 75
+        },
+        "source": "Marco inicial da Fase 06.4",
+        "recordedAt": 1767225600000
+      },
+      {
+        "snapshotId": "rv-18.attributes.bootstrap",
+        "playerId": "rv-18",
+        "attributes": {
+          "model": "outfield",
+          "finishing": 60,
+          "technique": 68,
+          "passing": 69,
+          "tackling": 71,
+          "physical": 70,
+          "pace": 72
+        },
+        "source": "Marco inicial da Fase 06.4",
+        "recordedAt": 1767225600000
+      }
+    ]
+  },
+  "clubs": [
+    {
+      "id": "aurora-fc",
+      "name": "Aurora Futebol Clube",
+      "shortName": "AUR",
+      "city": "Porto Claro",
+      "primaryColor": "#35c88a",
+      "countryCode": "BRA",
+      "competitionName": "Liga Horizonte",
+      "stadiumName": null
+    },
+    {
+      "id": "ferroviario-do-vale",
+      "name": "Ferroviário do Vale",
+      "shortName": "FDV",
+      "city": "Vale do Norte",
+      "primaryColor": "#d18a42",
+      "countryCode": "BRA",
+      "competitionName": "Liga Horizonte",
+      "stadiumName": null
+    }
+  ],
+  "nations": [
+    {
+      "id": "bra",
+      "name": "Brasil",
+      "iso2": "BR",
+      "iso3": "BRA",
+      "aliases": ["BR", "BRA"],
+      "confederationId": "confederation.conmebol",
+      "flagAssetId": "asset.flag.br",
+      "externalIds": [
+        {
+          "source": "iso-3166-1-alpha-3",
+          "externalId": "BRA"
+        }
+      ]
+    },
+    {
+      "id": "arg",
+      "name": "Argentina",
+      "iso2": "AR",
+      "iso3": "ARG",
+      "aliases": ["AR", "ARG"],
+      "confederationId": "confederation.conmebol",
+      "flagAssetId": "asset.flag.ar",
+      "externalIds": [
+        {
+          "source": "iso-3166-1-alpha-3",
+          "externalId": "ARG"
+        }
+      ]
+    },
+    {
+      "id": "ury",
+      "name": "Uruguai",
+      "iso2": "UY",
+      "iso3": "URY",
+      "aliases": ["UY", "URY", "URU"],
+      "confederationId": "confederation.conmebol",
+      "flagAssetId": "asset.flag.uy",
+      "externalIds": [
+        {
+          "source": "iso-3166-1-alpha-3",
+          "externalId": "URY"
+        }
+      ]
+    },
+    {
+      "id": "prt",
+      "name": "Portugal",
+      "iso2": "PT",
+      "iso3": "PRT",
+      "aliases": ["PT", "PRT", "POR"],
+      "confederationId": "confederation.uefa",
+      "flagAssetId": "asset.flag.pt",
+      "externalIds": [
+        {
+          "source": "iso-3166-1-alpha-3",
+          "externalId": "PRT"
+        }
+      ]
+    }
+  ],
+  "regions": [
+    {
+      "id": "official.rivallo.region.horizonte",
+      "nationId": "bra",
+      "name": "Horizonte"
+    },
+    {
+      "id": "official.rivallo.region.vale",
+      "nationId": "bra",
+      "name": "Vale"
+    }
+  ],
+  "cities": [
+    {
+      "id": "official.rivallo.city.porto-claro",
+      "nationId": "bra",
+      "regionId": "official.rivallo.region.horizonte",
+      "name": "Porto Claro"
+    },
+    {
+      "id": "official.rivallo.city.vale-do-norte",
+      "nationId": "bra",
+      "regionId": "official.rivallo.region.vale",
+      "name": "Vale do Norte"
+    }
+  ],
+  "stadiums": [
+    {
+      "id": "official.rivallo.stadium.aurora",
+      "name": "Estádio Aurora",
+      "cityId": "official.rivallo.city.porto-claro",
+      "ownerClubId": "aurora-fc",
+      "capacity": 28400,
+      "assetId": null
+    },
+    {
+      "id": "official.rivallo.stadium.ferroviario",
+      "name": "Estádio do Vale",
+      "cityId": "official.rivallo.city.vale-do-norte",
+      "ownerClubId": "ferroviario-do-vale",
+      "capacity": 24100,
+      "assetId": null
+    }
+  ],
+  "competitions": [
+    {
+      "id": "official.rivallo.competition.liga-horizonte",
+      "name": "Liga Horizonte",
+      "shortName": "Liga Horizonte",
+      "nationId": "bra",
+      "logoAssetId": null,
+      "seasons": [
+        {
+          "id": "official.rivallo.competition.liga-horizonte.season.demo",
+          "competitionId": "official.rivallo.competition.liga-horizonte",
+          "label": "Temporada demonstrativa",
+          "startDate": "2026-01-01",
+          "endDate": "2026-12-31",
+          "rules": {
+            "pointsForWin": 3,
+            "pointsForDraw": 1,
+            "pointsForLoss": 0,
+            "participantCount": 2,
+            "rounds": 2,
+            "legs": 2,
+            "tieBreakers": ["points", "wins", "goalDifference", "goalsFor"]
+          },
+          "participantClubIds": ["aurora-fc", "ferroviario-do-vale"]
+        }
+      ]
+    }
+  ],
+  "positions": [
+    {
+      "id": "GK",
+      "label": "Goleiro",
+      "abbreviation": "GOL"
+    },
+    {
+      "id": "RB",
+      "label": "Lateral direito",
+      "abbreviation": "LD"
+    },
+    {
+      "id": "CB",
+      "label": "Zagueiro",
+      "abbreviation": "ZAG"
+    },
+    {
+      "id": "LB",
+      "label": "Lateral esquerdo",
+      "abbreviation": "LE"
+    },
+    {
+      "id": "DM",
+      "label": "Volante",
+      "abbreviation": "VOL"
+    },
+    {
+      "id": "CM",
+      "label": "Meia central",
+      "abbreviation": "MC"
+    },
+    {
+      "id": "AM",
+      "label": "Meia ofensivo",
+      "abbreviation": "MEI"
+    },
+    {
+      "id": "RW",
+      "label": "Ponta direita",
+      "abbreviation": "PD"
+    },
+    {
+      "id": "LW",
+      "label": "Ponta esquerda",
+      "abbreviation": "PE"
+    },
+    {
+      "id": "ST",
+      "label": "Atacante",
+      "abbreviation": "ATA"
+    }
+  ],
+  "roles": [
+    {
+      "id": "role.gk.support",
+      "positionId": "GK",
+      "label": "Goleiro · Apoio",
+      "responsibilities": []
+    },
+    {
+      "id": "role.rb.support",
+      "positionId": "RB",
+      "label": "Lateral · Apoio",
+      "responsibilities": []
+    },
+    {
+      "id": "role.cb.defend",
+      "positionId": "CB",
+      "label": "Zagueiro · Defesa",
+      "responsibilities": []
+    },
+    {
+      "id": "role.lb.support",
+      "positionId": "LB",
+      "label": "Lateral · Apoio",
+      "responsibilities": []
+    },
+    {
+      "id": "role.dm.support",
+      "positionId": "DM",
+      "label": "Volante · Suporte",
+      "responsibilities": []
+    },
+    {
+      "id": "role.cm.support",
+      "positionId": "CM",
+      "label": "Meia central · Suporte",
+      "responsibilities": []
+    },
+    {
+      "id": "role.am.attack",
+      "positionId": "AM",
+      "label": "Armador · Ataque",
+      "responsibilities": []
+    },
+    {
+      "id": "role.rw.attack",
+      "positionId": "RW",
+      "label": "Extremo · Ataque",
+      "responsibilities": []
+    },
+    {
+      "id": "role.lw.attack",
+      "positionId": "LW",
+      "label": "Extremo · Ataque",
+      "responsibilities": []
+    },
+    {
+      "id": "role.st.attack",
+      "positionId": "ST",
+      "label": "Atacante · Ataque",
+      "responsibilities": []
+    }
+  ],
+  "attributes": [
+    {
+      "id": "finishing",
+      "label": "Finalização",
+      "category": "outfield",
+      "minimum": 0,
+      "maximum": 100
+    },
+    {
+      "id": "technique",
+      "label": "Técnica",
+      "category": "outfield",
+      "minimum": 0,
+      "maximum": 100
+    },
+    {
+      "id": "passing",
+      "label": "Passe",
+      "category": "outfield",
+      "minimum": 0,
+      "maximum": 100
+    },
+    {
+      "id": "tackling",
+      "label": "Desarme",
+      "category": "outfield",
+      "minimum": 0,
+      "maximum": 100
+    },
+    {
+      "id": "physical",
+      "label": "Físico",
+      "category": "outfield",
+      "minimum": 0,
+      "maximum": 100
+    },
+    {
+      "id": "pace",
+      "label": "Velocidade",
+      "category": "outfield",
+      "minimum": 0,
+      "maximum": 100
+    },
+    {
+      "id": "reaction",
+      "label": "Reação",
+      "category": "goalkeeper",
+      "minimum": 0,
+      "maximum": 100
+    },
+    {
+      "id": "positioning",
+      "label": "Posicionamento",
+      "category": "goalkeeper",
+      "minimum": 0,
+      "maximum": 100
+    },
+    {
+      "id": "handling",
+      "label": "Manejo",
+      "category": "goalkeeper",
+      "minimum": 0,
+      "maximum": 100
+    },
+    {
+      "id": "mobility",
+      "label": "Mobilidade",
+      "category": "goalkeeper",
+      "minimum": 0,
+      "maximum": 100
+    },
+    {
+      "id": "rushingOut",
+      "label": "Saídas",
+      "category": "goalkeeper",
+      "minimum": 0,
+      "maximum": 100
+    },
+    {
+      "id": "distribution",
+      "label": "Distribuição",
+      "category": "goalkeeper",
+      "minimum": 0,
+      "maximum": 100
+    }
+  ],
+  "traits": [],
+  "assets": [
+    {
+      "id": "asset.player.rv-01.portrait",
+      "entityId": "rv-01",
+      "kind": "playerPortrait",
+      "path": "assets/player-faces/rv-01.webp",
+      "mediaType": "image/webp",
+      "checksum": "sha256:18cbd1a5da65af69ba59d89551cc64bd5994834e99b3e802f0be60fb3cfe196b",
+      "provenance": "Rivallo fictional asset set",
+      "rights": "Rivallo public fictional content",
+      "privateUse": false
+    },
+    {
+      "id": "asset.player.rv-02.portrait",
+      "entityId": "rv-02",
+      "kind": "playerPortrait",
+      "path": "assets/player-faces/rv-02.webp",
+      "mediaType": "image/webp",
+      "checksum": "sha256:535245fed9d8219c8b25749514866f302ccea5a6353e4da71490dc1089df7bd6",
+      "provenance": "Rivallo fictional asset set",
+      "rights": "Rivallo public fictional content",
+      "privateUse": false
+    },
+    {
+      "id": "asset.player.rv-03.portrait",
+      "entityId": "rv-03",
+      "kind": "playerPortrait",
+      "path": "assets/player-faces/rv-03.webp",
+      "mediaType": "image/webp",
+      "checksum": "sha256:c23f360d74eb8d871916179a2c092cb5081a21419fa16930912d8f17cc0c0620",
+      "provenance": "Rivallo fictional asset set",
+      "rights": "Rivallo public fictional content",
+      "privateUse": false
+    },
+    {
+      "id": "asset.player.rv-04.portrait",
+      "entityId": "rv-04",
+      "kind": "playerPortrait",
+      "path": "assets/player-faces/rv-04.webp",
+      "mediaType": "image/webp",
+      "checksum": "sha256:31b8ca8c43197f327021f49621510ee87a2b443cb6a1287fa99befadf79df9f2",
+      "provenance": "Rivallo fictional asset set",
+      "rights": "Rivallo public fictional content",
+      "privateUse": false
+    },
+    {
+      "id": "asset.player.rv-05.portrait",
+      "entityId": "rv-05",
+      "kind": "playerPortrait",
+      "path": "assets/player-faces/rv-05.webp",
+      "mediaType": "image/webp",
+      "checksum": "sha256:cdcf7bc9f5ea31bc681159cf41de816bcc7a1157bf14cb1529267ee480da2c47",
+      "provenance": "Rivallo fictional asset set",
+      "rights": "Rivallo public fictional content",
+      "privateUse": false
+    },
+    {
+      "id": "asset.player.rv-06.portrait",
+      "entityId": "rv-06",
+      "kind": "playerPortrait",
+      "path": "assets/player-faces/rv-06.webp",
+      "mediaType": "image/webp",
+      "checksum": "sha256:6ef9a6d8d4c3f13ce9b8bd8b17a7a5ca5627ec063ffc64f6906ff6510ece4ad0",
+      "provenance": "Rivallo fictional asset set",
+      "rights": "Rivallo public fictional content",
+      "privateUse": false
+    },
+    {
+      "id": "asset.player.rv-07.portrait",
+      "entityId": "rv-07",
+      "kind": "playerPortrait",
+      "path": "assets/player-faces/rv-07.webp",
+      "mediaType": "image/webp",
+      "checksum": "sha256:5ac7f628c5108a9660513cfe4d43b0d3d88b87b058439754fff2606f55860670",
+      "provenance": "Rivallo fictional asset set",
+      "rights": "Rivallo public fictional content",
+      "privateUse": false
+    },
+    {
+      "id": "asset.player.rv-08.portrait",
+      "entityId": "rv-08",
+      "kind": "playerPortrait",
+      "path": "assets/player-faces/rv-08.webp",
+      "mediaType": "image/webp",
+      "checksum": "sha256:634a5ee0483dd3a8c8d98ed1a43804294c077cb9b7ede373b19ae372d7628534",
+      "provenance": "Rivallo fictional asset set",
+      "rights": "Rivallo public fictional content",
+      "privateUse": false
+    },
+    {
+      "id": "asset.player.rv-09.portrait",
+      "entityId": "rv-09",
+      "kind": "playerPortrait",
+      "path": "assets/player-faces/rv-09.webp",
+      "mediaType": "image/webp",
+      "checksum": "sha256:8376eff7559a1f1b2f1dc0193299f1ba106ab1ddee20fea6fb9b2b831da52a96",
+      "provenance": "Rivallo fictional asset set",
+      "rights": "Rivallo public fictional content",
+      "privateUse": false
+    },
+    {
+      "id": "asset.player.rv-10.portrait",
+      "entityId": "rv-10",
+      "kind": "playerPortrait",
+      "path": "assets/player-faces/rv-10.webp",
+      "mediaType": "image/webp",
+      "checksum": "sha256:a76fefceea199f029226e8f7f27eb807f41f50467797e58cd60b00cc389d887d",
+      "provenance": "Rivallo fictional asset set",
+      "rights": "Rivallo public fictional content",
+      "privateUse": false
+    },
+    {
+      "id": "asset.player.rv-11.portrait",
+      "entityId": "rv-11",
+      "kind": "playerPortrait",
+      "path": "assets/player-faces/rv-11.webp",
+      "mediaType": "image/webp",
+      "checksum": "sha256:4f0833ea1ee5903ade0c6618070b5ba619499a9a2eadfeecb88b33bdee19c257",
+      "provenance": "Rivallo fictional asset set",
+      "rights": "Rivallo public fictional content",
+      "privateUse": false
+    },
+    {
+      "id": "asset.player.rv-12.portrait",
+      "entityId": "rv-12",
+      "kind": "playerPortrait",
+      "path": "assets/player-faces/rv-12.webp",
+      "mediaType": "image/webp",
+      "checksum": "sha256:71733f1d97b7c1e9a459e8a62c0df88a00b479962c383c59551ffa7e81621960",
+      "provenance": "Rivallo fictional asset set",
+      "rights": "Rivallo public fictional content",
+      "privateUse": false
+    },
+    {
+      "id": "asset.player.rv-13.portrait",
+      "entityId": "rv-13",
+      "kind": "playerPortrait",
+      "path": "assets/player-faces/rv-13.webp",
+      "mediaType": "image/webp",
+      "checksum": "sha256:2bcd85f9e83c1158c7d82e51cdb7f20c007e33b7546049b0029c8d873a363160",
+      "provenance": "Rivallo fictional asset set",
+      "rights": "Rivallo public fictional content",
+      "privateUse": false
+    },
+    {
+      "id": "asset.player.rv-14.portrait",
+      "entityId": "rv-14",
+      "kind": "playerPortrait",
+      "path": "assets/player-faces/rv-14.webp",
+      "mediaType": "image/webp",
+      "checksum": "sha256:fb72fae2d84b88ab2cc7ec4b6de48606b285a48567fe014e22bae65f14a6ca3b",
+      "provenance": "Rivallo fictional asset set",
+      "rights": "Rivallo public fictional content",
+      "privateUse": false
+    },
+    {
+      "id": "asset.player.rv-15.portrait",
+      "entityId": "rv-15",
+      "kind": "playerPortrait",
+      "path": "assets/player-faces/rv-15.webp",
+      "mediaType": "image/webp",
+      "checksum": "sha256:34c9d716440f3bf7375f1700c1babbfe0c6a274f395fc06e003775e1ad0f3393",
+      "provenance": "Rivallo fictional asset set",
+      "rights": "Rivallo public fictional content",
+      "privateUse": false
+    },
+    {
+      "id": "asset.player.rv-16.portrait",
+      "entityId": "rv-16",
+      "kind": "playerPortrait",
+      "path": "assets/player-faces/rv-16.webp",
+      "mediaType": "image/webp",
+      "checksum": "sha256:c045d2f347c29dc5c5df5676d4ee09d5deeead8fea0002bd41573630fbee478f",
+      "provenance": "Rivallo fictional asset set",
+      "rights": "Rivallo public fictional content",
+      "privateUse": false
+    },
+    {
+      "id": "asset.player.rv-17.portrait",
+      "entityId": "rv-17",
+      "kind": "playerPortrait",
+      "path": "assets/player-faces/rv-17.webp",
+      "mediaType": "image/webp",
+      "checksum": "sha256:bb9b97c408b2520fc289d9c1f63d4066c1e0d2a7f86e3991ee03b3bb328037d1",
+      "provenance": "Rivallo fictional asset set",
+      "rights": "Rivallo public fictional content",
+      "privateUse": false
+    },
+    {
+      "id": "asset.player.rv-18.portrait",
+      "entityId": "rv-18",
+      "kind": "playerPortrait",
+      "path": "assets/player-faces/rv-18.webp",
+      "mediaType": "image/webp",
+      "checksum": "sha256:add182ffe57e9b29572e5c2658f7f986ae34d13315a9fa8bba6583f79b68ec36",
+      "provenance": "Rivallo fictional asset set",
+      "rights": "Rivallo public fictional content",
+      "privateUse": false
+    },
+    {
+      "id": "asset.coach.helena-sampaio.portrait",
+      "entityId": "coach.aurora.head",
+      "kind": "coachPortrait",
+      "path": "assets/coach-faces/helena-sampaio.webp",
+      "mediaType": "image/webp",
+      "checksum": "sha256:252ce4a03a6550381de0206e81808b959b10d784173d9e4079da1e5b3cbf32b3",
+      "provenance": "Rivallo fictional asset set",
+      "rights": "Rivallo public fictional content",
+      "privateUse": false
+    },
+    {
+      "id": "asset.coach.raul-mendonza.portrait",
+      "entityId": "coach.ferroviario.head",
+      "kind": "coachPortrait",
+      "path": "assets/coach-faces/raul-mendonza.webp",
+      "mediaType": "image/webp",
+      "checksum": "sha256:46e8ac060844d426e95805d9f86b6fb89b6833111ec1635272c989807aa22f77",
+      "provenance": "Rivallo fictional asset set",
+      "rights": "Rivallo public fictional content",
+      "privateUse": false
+    },
+    {
+      "id": "asset.flag.br",
+      "entityId": "bra",
+      "kind": "nationFlag",
+      "path": "assets/flags/br.svg",
+      "mediaType": "image/svg+xml",
+      "checksum": "sha256:d7c41090b476623e865b2b0cc65d4daa92c32c901b57983d8f4c638e8143de53",
+      "provenance": "Rivallo fictional asset set",
+      "rights": "Rivallo public fictional content",
+      "privateUse": false
+    },
+    {
+      "id": "asset.flag.ar",
+      "entityId": "arg",
+      "kind": "nationFlag",
+      "path": "assets/flags/ar.svg",
+      "mediaType": "image/svg+xml",
+      "checksum": "sha256:6f4a9b10eb1a0e3db1310f2d76afdf7c66d27c24f0f793df21a50ebe11b808eb",
+      "provenance": "Rivallo fictional asset set",
+      "rights": "Rivallo public fictional content",
+      "privateUse": false
+    },
+    {
+      "id": "asset.flag.uy",
+      "entityId": "ury",
+      "kind": "nationFlag",
+      "path": "assets/flags/uy.svg",
+      "mediaType": "image/svg+xml",
+      "checksum": "sha256:8cd39101e80f02cde71eee91dc74d74d685c588349b5650638133e7921ca71c1",
+      "provenance": "Rivallo fictional asset set",
+      "rights": "Rivallo public fictional content",
+      "privateUse": false
+    },
+    {
+      "id": "asset.flag.pt",
+      "entityId": "prt",
+      "kind": "nationFlag",
+      "path": "assets/flags/pt.svg",
+      "mediaType": "image/svg+xml",
+      "checksum": "sha256:da99580e0bc2a4337c808533f9412cd17aee53e3dfe7b9ea7bd0edbabd70fb70",
+      "provenance": "Rivallo fictional asset set",
+      "rights": "Rivallo public fictional content",
+      "privateUse": false
+    }
+  ]
+}

@@ -487,12 +487,7 @@ export function PlayerInspector({
   return (
     <aside className="player-inspector" aria-label={`Resumo de ${profile.identity.fullName}`}>
       <header>
-        <PlayerFace
-          decorative
-          index={Number.parseInt(playerId.replace(/\D/gu, ''), 10) - 1}
-          name={profile.identity.fullName}
-          size={88}
-        />
+        <PlayerFace decorative entityId={playerId} name={profile.identity.fullName} size={88} />
         <div>
           <span>{positionLongLabels[profile.naturalPosition]}</span>
           <h2>{profile.identity.fullName}</h2>
@@ -621,7 +616,12 @@ export function CoachInspector({
   return (
     <aside className="coach-inspector" aria-label={`Resumo de ${profile.identity.fullName}`}>
       <header>
-        <CoachFace decorative name={profile.identity.fullName} size={56} />
+        <CoachFace
+          decorative
+          entityId={profile.identity.entityId}
+          name={profile.identity.fullName}
+          size={56}
+        />
         <div>
           <small>{profile.role}</small>
           <h2>{profile.identity.knownName}</h2>

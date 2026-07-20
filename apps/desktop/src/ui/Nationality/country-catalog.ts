@@ -1,75 +1,48 @@
-import argentinaFlag from '../../assets/flags/ar.svg';
-import brazilFlag from '../../assets/flags/br.svg';
-import portugalFlag from '../../assets/flags/pt.svg';
-import uruguayFlag from '../../assets/flags/uy.svg';
+import { getWorldReferenceCatalog, resolveWorldAssetById } from '../../world-reference-catalog.js';
 
-export type KnownIsoCountryCode = 'AR' | 'BR' | 'PT' | 'UY';
+export type KnownIsoCountryCode = string;
 
 export interface CountryCatalogEntry {
-  readonly iso2: KnownIsoCountryCode;
-  readonly iso3: 'ARG' | 'BRA' | 'PRT' | 'URY';
+  readonly nationId: string;
+  readonly iso2: string;
+  readonly iso3: string;
   readonly countryName: string;
-  readonly flagSrc: string;
+  readonly flagSrc: string | null;
   readonly aliases: readonly string[];
 }
 
 export interface ResolvedCountryCode {
   readonly key: string;
   readonly normalizedInput: string;
-  readonly iso2: KnownIsoCountryCode | null;
-  readonly iso3: CountryCatalogEntry['iso3'] | null;
+  readonly iso2: string | null;
+  readonly iso3: string | null;
   readonly displayCode: string;
   readonly countryName: string;
   readonly flagSrc: string | null;
   readonly known: boolean;
 }
 
-export const countryCatalog: readonly CountryCatalogEntry[] = [
-  {
-    iso2: 'BR',
-    iso3: 'BRA',
-    countryName: 'Brasil',
-    flagSrc: brazilFlag,
-    aliases: ['BR', 'BRA'],
-  },
-  {
-    iso2: 'AR',
-    iso3: 'ARG',
-    countryName: 'Argentina',
-    flagSrc: argentinaFlag,
-    aliases: ['AR', 'ARG'],
-  },
-  {
-    iso2: 'UY',
-    iso3: 'URY',
-    countryName: 'Uruguai',
-    flagSrc: uruguayFlag,
-    aliases: ['UY', 'URY', 'URU'],
-  },
-  {
-    iso2: 'PT',
-    iso3: 'PRT',
-    countryName: 'Portugal',
-    flagSrc: portugalFlag,
-    aliases: ['PT', 'PRT', 'POR'],
-  },
-] as const;
-
-const countryByAlias = new Map(
-  countryCatalog.flatMap((country) => country.aliases.map((alias) => [alias, country] as const)),
-);
-
 export const normalizeCountryCode = (code: string) => code.trim().toLocaleUpperCase('en-US');
+
+export const getCountryCatalog = (): readonly CountryCatalogEntry[] =>
+  getWorldReferenceCatalog().nations.map((nation) => ({
+    nationId: nation.id,
+    iso2: normalizeCountryCode(nation.iso2),
+    iso3: normalizeCountryCode(nation.iso3),
+    countryName: nation.name,
+    flagSrc: nation.flagAssetId ? resolveWorldAssetById(nation.flagAssetId) : null,
+    aliases: [nation.iso2, nation.iso3, ...nation.aliases].map(normalizeCountryCode),
+  }));
 
 const isDisplayableUnknownCode = (code: string) => /^[A-Z]{2,3}$/u.test(code);
 
 export function resolveCountryCode(code: string): ResolvedCountryCode {
   const normalizedInput = normalizeCountryCode(code);
-  const country = countryByAlias.get(normalizedInput);
+  const country = getCountryCatalog().find(({ aliases }) => aliases.includes(normalizedInput));
 
   if (country) {
     return {
-      key: `iso:${country.iso2}`,
+      key: `nation:${country.nationId}`,
       normalizedInput,
       iso2: country.iso2,
       iso3: country.iso3,

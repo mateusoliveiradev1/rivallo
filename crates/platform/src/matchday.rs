@@ -121,8 +121,15 @@ pub struct MatchdayCoordinator {
 
 impl MatchdayCoordinator {
     pub fn new(path: impl Into<PathBuf>) -> Self {
+        Self::with_initial_state(path, MatchdayState::default())
+    }
+
+    pub fn with_initial_state(path: impl Into<PathBuf>, initial_state: MatchdayState) -> Self {
         Self {
-            service: Mutex::new(MatchdayService::new(FileMatchdayRepository::new(path))),
+            service: Mutex::new(MatchdayService::with_initial_state(
+                FileMatchdayRepository::new(path),
+                initial_state,
+            )),
         }
     }
 

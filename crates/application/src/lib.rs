@@ -4,27 +4,31 @@ mod matchday;
 mod persistence;
 mod profiles;
 mod table_view;
+mod world;
 
 pub use matchday::{MatchdayRepository, MatchdayService, MatchdayServiceError};
 pub use persistence::{LocalPersistenceError, LocalPersistencePort};
 pub use profiles::{ProfileRepository, ProfileService};
 pub use rivallo_domain::{
-    AttributeGroupProjection, AttributeProjection, AttributeSnapshot, Club, ClubProfileProjection,
-    ClubTacticalIdentityProjection, CoachAttributeSet, CoachDevelopmentProfile,
-    CoachProfileProjection, CoachSportingProfile, ContractSummary, CustomFormationIdentity,
-    EntityProfileReference, ExplainableRating, ExternalPlayerState, Formation,
-    GlobalProfileSearchResult, KnowledgeLevel, KnowledgeValue, KnowledgeValueKind, LineupSelection,
-    MatchEvent, MatchResult, MatchdayState, NationProfileProjection, PersonIdentity, Player,
-    PlayerAttributeCategory, PlayerAttributeSet, PlayerDevelopmentProjection,
-    PlayerProfileProjection, PlayerSportingProfile, PlayerStatisticsProjection,
-    PlayerTrainingProfile, Position, PositionRatingProjection, PotentialEstimate, PreferredFoot,
-    ProfileWorld, RATING_SCALE_VERSION, RatingFactor, RatingFactorImpact, RatingKind,
-    RatingSnapshot, RoleRatingProjection, ScoutingAssessment, SeasonRecord, SquadRole,
-    TACTICAL_PLAN_SCHEMA_VERSION, TacticalApproach, TacticalLibraryCommand, TacticalLine,
-    TacticalMatchSnapshot, TacticalModelConfig, TacticalModelSnapshot, TacticalPlanEvent,
-    TacticalPlanPreview, TacticalPlanProposal, TacticalPlanSnapshot, TacticalPlanUpdate,
-    TacticalPlayerPlacement, TacticalSide, TacticalStrategyConfig, TacticalStrategyPresetId,
-    TacticalStrategyPresetSummary, TacticalVariationLibrarySnapshot, TacticalZone,
+    AssetReference, AttributeGroupProjection, AttributeProjection, AttributeSnapshot, Club,
+    ClubProfileProjection, ClubTacticalIdentityProjection, CoachAttributeSet,
+    CoachDevelopmentProfile, CoachProfileProjection, CoachSportingProfile, ContentPackage,
+    ContractSummary, CustomFormationIdentity, DataPackageType, EntityProfileReference,
+    ExplainableRating, ExternalPlayerState, Formation, GlobalProfileSearchResult, KnowledgeLevel,
+    KnowledgeValue, KnowledgeValueKind, LineupSelection, MatchEvent, MatchResult, MatchdayState,
+    Nation, NationProfileProjection, PackageCoverageReport, PackageManifest, PackagePatch,
+    PackagePatchOperation, PackageValidationDiagnostic, PackageValidationReport, PackageVisibility,
+    PersonIdentity, Player, PlayerAttributeCategory, PlayerAttributeSet,
+    PlayerDevelopmentProjection, PlayerProfileProjection, PlayerSportingProfile,
+    PlayerStatisticsProjection, PlayerTrainingProfile, Position, PositionRatingProjection,
+    PotentialEstimate, PreferredFoot, ProfileWorld, RATING_SCALE_VERSION, RatingFactor,
+    RatingFactorImpact, RatingKind, RatingSnapshot, ResolvedWorldDatabase, RoleRatingProjection,
+    ScoutingAssessment, SeasonRecord, SquadRole, TACTICAL_PLAN_SCHEMA_VERSION, TacticalApproach,
+    TacticalLibraryCommand, TacticalLine, TacticalMatchSnapshot, TacticalModelConfig,
+    TacticalModelSnapshot, TacticalPlanEvent, TacticalPlanPreview, TacticalPlanProposal,
+    TacticalPlanSnapshot, TacticalPlanUpdate, TacticalPlayerPlacement, TacticalSide,
+    TacticalStrategyConfig, TacticalStrategyPresetId, TacticalStrategyPresetSummary,
+    TacticalVariationLibrarySnapshot, TacticalZone, WorldEntityKind, WorldPackageData,
 };
 pub use table_view::{
     CURRENT_ENVELOPE_VERSION, ColumnId, ColumnPinning, ColumnPinningSide, CreateTableViewRequest,
@@ -39,6 +43,7 @@ pub use table_view::{
     TableViewState, TableViewValidationCode, TableViewValidationError, ViewId, ViewMutability,
     ViewProvenance, WindowId, squad_system_default_repository_state,
 };
+pub use world::{DataPackageCatalogEntry, WorldDatabaseService, WorldPackageRepository};
 
 use rivallo_domain::{ModuleId, PreparedContractInput};
 

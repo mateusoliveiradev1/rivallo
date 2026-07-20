@@ -1,19 +1,30 @@
 import type { CSSProperties } from 'react';
 
-import helenaSampaio from '../assets/coach-faces/helena-sampaio.webp';
-import raulMendonza from '../assets/coach-faces/raul-mendonza.webp';
+import { resolveWorldEntityAsset } from '../world-reference-catalog.js';
 
 interface CoachFaceProps {
+  readonly entityId: string;
   readonly name: string;
   readonly className?: string;
   readonly size?: number;
   readonly decorative?: boolean;
 }
 
-const portraitFor = (name: string) =>
-  name.toLocaleLowerCase('pt-BR').includes('helena') ? helenaSampaio : raulMendonza;
+const initialsFor = (name: string) =>
+  name
+    .split(/\s+/u)
+    .slice(0, 2)
+    .map((part) => part[0]?.toLocaleUpperCase('pt-BR') ?? '')
+    .join('');
 
-export function CoachFace({ name, className, size = 40, decorative = false }: CoachFaceProps) {
+export function CoachFace({
+  entityId,
+  name,
+  className,
+  size = 40,
+  decorative = false,
+}: CoachFaceProps) {
+  const source = resolveWorldEntityAsset(entityId, 'coachPortrait');
   const style = { '--player-face-size': `${size}px` } as CSSProperties;
   return (
     <span
@@ -23,7 +34,7 @@ export function CoachFace({ name, className, size = 40, decorative = false }: Co
       role={decorative ? undefined : 'img'}
       style={style}
     >
-      <img alt="" draggable={false} src={portraitFor(name)} />
+      {source ? <img alt="" draggable={false} src={source} /> : <b>{initialsFor(name)}</b>}
     </span>
   );
 }

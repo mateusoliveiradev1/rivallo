@@ -5,20 +5,21 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use rivallo_platform::{
-    ClubProfileProjection, CoachProfileProjection, ColumnId, ColumnPinning, ColumnPinningSide,
-    FilterGroupId, FilterGroupLogic, FilterId, FilterOperator, FilterValue, Formation,
-    GlobalProfileSearchResult, LOCAL_API_ADDRESS, LegacyImportOutcome, LegacyImportReceipt,
-    LegacyTableViewImport, LineupSelection, MatchdayCoordinator, MatchdayState,
-    NationProfileProjection, NullOrder, OwnerScope, PlayerProfileProjection, ProfileCoordinator,
-    READINESS_POLL_INTERVAL, READINESS_TIMEOUT, ReadinessDiagnostic, SHUTDOWN_CONTROL_MESSAGE,
+    AssetReference, ClubProfileProjection, CoachProfileProjection, ColumnId, ColumnPinning,
+    ColumnPinningSide, ContentPackage, DataPackageCatalogEntry, FilterGroupId, FilterGroupLogic,
+    FilterId, FilterOperator, FilterValue, Formation, GlobalProfileSearchResult, LOCAL_API_ADDRESS,
+    LegacyImportOutcome, LegacyImportReceipt, LegacyTableViewImport, LineupSelection,
+    MatchdayCoordinator, MatchdayState, Nation, NationProfileProjection, NullOrder, OwnerScope,
+    PackageValidationReport, PlayerProfileProjection, ProfileCoordinator, READINESS_POLL_INTERVAL,
+    READINESS_TIMEOUT, ReadinessDiagnostic, ResolvedWorldDatabase, SHUTDOWN_CONTROL_MESSAGE,
     SavedTableView, SortDirection, TableColumnState, TableDataWindow, TableDensity,
     TableFilterClause, TableFilterGroup, TableFilterNode, TableId, TableSort, TableViewCoordinator,
     TableViewEnvelopeMetadata, TableViewLoadOutcome, TableViewPolicyError, TableViewRecoveryReason,
     TableViewRepositoryState, TableViewServiceError, TableViewState, TableViewValidationError,
     TacticalApproach, TacticalLibraryCommand, TacticalMatchSnapshot, TacticalPlanPreview,
     TacticalPlanProposal, TacticalPlanUpdate, TacticalStrategyPresetSummary, ViewId,
-    ViewMutability, ViewProvenance, WindowId, squad_system_default_repository_state,
-    validate_readiness_response,
+    ViewMutability, ViewProvenance, WindowId, WorldDatabaseCoordinator,
+    squad_system_default_repository_state, validate_readiness_response,
 };
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, RunEvent, State};
@@ -198,6 +199,30 @@ struct TableViewRepositoryStateDto {
 #[serde(rename_all = "camelCase")]
 struct SaveTableViewsRequestDto {
     state: TableViewRepositoryStateDto,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DataPackageAuthoringDto {
+    manifest_json: String,
+    world_json: Option<String>,
+    patches_json: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WorldReferenceCatalogDto {
+    assets: Vec<WorldAssetReferenceDto>,
+    nations: Vec<Nation>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WorldAssetReferenceDto {
+    #[serde(flatten)]
+    asset: AssetReference,
+    source_package_id: Option<String>,
+    runtime_source: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize)]
@@ -1515,6 +1540,82 @@ fn search_profiles(
 }
 
 #[tauri::command]
+fn world_database_status(
+    world: State<'_, Arc<WorldDatabaseCoordinator>>,
+) -> Result<ResolvedWorldDatabase, PackageValidationReport> {
+    world.resolved()
+}
+
+#[tauri::command]
+fn world_reference_catalog(
+    world: State<'_, Arc<WorldDatabaseCoordinator>>,
+) -> Result<WorldReferenceCatalogDto, PackageValidationReport> {
+    let resolved = world.resolved()?;
+    let source_package_id =
+        (resolved.packages.len() == 1).then(|| resolved.packages[0].package_id.clone());
+    Ok(WorldReferenceCatalogDto {
+        assets: resolved
+            .world
+            .assets
+            .into_iter()
+            .map(|asset| WorldAssetReferenceDto {
+                asset,
+                source_package_id: source_package_id.clone(),
+                runtime_source: None,
+            })
+            .collect(),
+        nations: resolved.world.nations,
+    })
+}
+
+#[tauri::command]
+fn data_package_catalog(
+    world: State<'_, Arc<WorldDatabaseCoordinator>>,
+) -> Result<Vec<DataPackageCatalogEntry>, PackageValidationReport> {
+    world.catalog()
+}
+
+#[tauri::command]
+fn validate_data_package(
+    package: ContentPackage,
+    world: State<'_, Arc<WorldDatabaseCoordinator>>,
+) -> PackageValidationReport {
+    world.validate_candidate(&package)
+}
+
+#[tauri::command]
+fn export_data_package(
+    package: ContentPackage,
+    world: State<'_, Arc<WorldDatabaseCoordinator>>,
+) -> Result<PackageValidationReport, PackageValidationReport> {
+    world.export_candidate(&package)
+}
+
+#[tauri::command]
+fn validate_data_package_source(
+    source: DataPackageAuthoringDto,
+    world: State<'_, Arc<WorldDatabaseCoordinator>>,
+) -> PackageValidationReport {
+    world.validate_authoring(
+        &source.manifest_json,
+        source.world_json.as_deref(),
+        source.patches_json.as_deref(),
+    )
+}
+
+#[tauri::command]
+fn export_data_package_source(
+    source: DataPackageAuthoringDto,
+    world: State<'_, Arc<WorldDatabaseCoordinator>>,
+) -> Result<PackageValidationReport, PackageValidationReport> {
+    world.export_authoring(
+        &source.manifest_json,
+        source.world_json.as_deref(),
+        source.patches_json.as_deref(),
+    )
+}
+
+#[tauri::command]
 fn load_table_views(table_views: State<'_, Arc<TableViewCoordinator>>) -> LoadTableViewsResponse {
     load_table_views_response(table_views.load())
 }
@@ -1575,6 +1676,13 @@ fn main() {
             club_profile,
             nation_profile,
             search_profiles,
+            world_database_status,
+            world_reference_catalog,
+            data_package_catalog,
+            validate_data_package,
+            export_data_package,
+            validate_data_package_source,
+            export_data_package_source,
             load_table_views,
             save_table_views,
             import_legacy_table_preferences
@@ -1590,9 +1698,24 @@ fn main() {
                 .app_data_dir()?
                 .join("player-coach-profiles.json");
             let table_views_path = app.path().app_data_dir()?.join("table-views.json");
-            app.manage(Arc::new(MatchdayCoordinator::new(matchday_path)));
-            app.manage(Arc::new(ProfileCoordinator::new(profiles_path)));
+            let data_packages_path = app.path().app_data_dir()?.join("data-packages");
+            let world = Arc::new(WorldDatabaseCoordinator::new(data_packages_path));
+            let bootstrap = world.resolved().map_err(|report| {
+                io::Error::other(format!(
+                    "the active world package failed validation: {:?}",
+                    report.diagnostics
+                ))
+            })?;
+            app.manage(Arc::new(MatchdayCoordinator::with_initial_state(
+                matchday_path,
+                bootstrap.world.matchday.clone(),
+            )));
+            app.manage(Arc::new(ProfileCoordinator::with_initial_world(
+                profiles_path,
+                bootstrap.world.profiles.clone(),
+            )));
             app.manage(Arc::new(TableViewCoordinator::new(table_views_path)));
+            app.manage(world);
             manager.begin(app.handle().clone());
             Ok(())
         })

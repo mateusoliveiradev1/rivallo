@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rivallo.local/schemas/package-manifest.v1.json",
+  "title": "Rivallo package manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "packageId",
+    "name",
+    "version",
+    "schemaVersion",
+    "gameVersionCompatibility",
+    "author",
+    "description",
+    "contentType",
+    "dependencies",
+    "conflicts",
+    "loadOrderHint",
+    "entrypoints",
+    "assets",
+    "provenance",
+    "visibility",
+    "checksum"
+  ],
+  "properties": {
+    "packageId": { "$ref": "#/$defs/stableId" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$" },
+    "schemaVersion": { "const": 1 },
+    "gameVersionCompatibility": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "author": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "description": { "type": "string", "minLength": 1, "maxLength": 1000 },
+    "contentType": { "enum": ["base", "mod"] },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["packageId", "versionRequirement", "optional"],
+        "properties": {
+          "packageId": { "$ref": "#/$defs/stableId" },
+          "versionRequirement": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "optional": { "type": "boolean" }
+        }
+      }
+    },
+    "conflicts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["packageId", "reason"],
+        "properties": {
+          "packageId": { "$ref": "#/$defs/stableId" },
+          "reason": { "type": "string", "minLength": 1, "maxLength": 500 }
+        }
+      }
+    },
+    "loadOrderHint": { "type": "integer", "minimum": -100000, "maximum": 100000 },
+    "entrypoints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["world"],
+      "properties": {
+        "world": { "$ref": "#/$defs/relativePath" },
+        "patches": { "oneOf": [{ "$ref": "#/$defs/relativePath" }, { "type": "null" }] },
+        "assets": { "oneOf": [{ "$ref": "#/$defs/relativePath" }, { "type": "null" }] }
+      }
+    },
+    "assets": { "type": "array", "items": { "$ref": "world-package.schema.json#/$defs/asset" } },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "rights", "createdAt"],
+      "properties": {
+        "source": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "rights": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date" },
+        "notes": { "type": ["string", "null"], "maxLength": 1000 }
+      }
+    },
+    "visibility": { "enum": ["public", "privateDevelopment"] },
+    "checksum": { "type": "string", "pattern": "^(?:sha256:)?[a-f0-9]{64}$" }
+  },
+  "$defs": {
+    "stableId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$" },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 260,
+      "pattern": "^(?![\\\\/])(?!.*\\.\\.)(?!.*:).+$"
+    }
+  }
+}

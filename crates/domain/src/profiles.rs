@@ -957,11 +957,13 @@ fn attribute_seed(player: &Player) -> PlayerAttributeSet {
     }
 }
 
+#[cfg(test)]
 fn birth_date_for(age: u8, index: usize) -> String {
     let year = 2026_u16.saturating_sub(u16::from(age));
     format!("{year}-{:02}-{:02}", index % 12 + 1, index % 27 + 1)
 }
 
+#[cfg(test)]
 fn own_player_profile(player: &Player, club: &Club, index: usize) -> PlayerSportingProfile {
     PlayerSportingProfile {
         identity: PersonIdentity {
@@ -1044,6 +1046,7 @@ fn assessment(
     }
 }
 
+#[cfg(test)]
 struct ExternalPlayerSeed<'a> {
     id: &'a str,
     name: &'a str,
@@ -1057,6 +1060,7 @@ struct ExternalPlayerSeed<'a> {
     index: usize,
 }
 
+#[cfg(test)]
 fn external_player(seed: ExternalPlayerSeed<'_>) -> ExternalPlayerState {
     let ExternalPlayerSeed {
         id,
@@ -1130,6 +1134,7 @@ fn external_player(seed: ExternalPlayerSeed<'_>) -> ExternalPlayerState {
     }
 }
 
+#[cfg(test)]
 fn coach(
     id: &str,
     name: &str,
@@ -1285,6 +1290,25 @@ impl ProfileWorld {
     }
 
     pub fn seed(state: &MatchdayState, now: u64) -> Self {
+        let mut world = crate::world::bundled_official_world().profiles;
+        world.reconcile_matchday(state);
+        for assessment in &mut world.assessments {
+            if assessment.observed_at == 0 {
+                assessment.observed_at = now;
+            }
+            if assessment.updated_at == 0 {
+                assessment.updated_at = now;
+            }
+        }
+        world
+    }
+
+    #[cfg(test)]
+    #[allow(
+        dead_code,
+        reason = "legacy fixture retained only for package migration regression"
+    )]
+    fn legacy_hardcoded_seed(state: &MatchdayState, now: u64) -> Self {
         let players: Vec<_> = state
             .players
             .iter()
@@ -2865,7 +2889,10 @@ mod tests {
         assert_eq!(first.contextual_rating, second.contextual_rating);
         assert_eq!(first.rating_history.len(), 1);
         assert_eq!(second.rating_history.len(), 1);
-        assert_eq!(second.contextual_rating.updated_at, NOW);
+        assert_eq!(
+            second.contextual_rating.updated_at,
+            first.contextual_rating.updated_at
+        );
         assert!(!first.current_ability.factors.iter().any(|factor| {
             matches!(
                 factor.factor_id.as_str(),

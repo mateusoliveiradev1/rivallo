@@ -127,6 +127,15 @@ impl ProfileCoordinator {
         }
     }
 
+    pub fn with_initial_world(path: impl Into<PathBuf>, initial_world: ProfileWorld) -> Self {
+        Self {
+            service: Mutex::new(ProfileService::with_initial_world(
+                FileProfileRepository::new(path),
+                initial_world,
+            )),
+        }
+    }
+
     fn service(&self) -> Result<MutexGuard<'_, ProfileService<FileProfileRepository>>, String> {
         self.service
             .lock()

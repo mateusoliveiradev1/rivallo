@@ -697,7 +697,9 @@ describe('Phase 06.1 Table View Engine production boundaries', () => {
       'axum',
       'rivallo-application',
       'rivallo-contracts',
+      'serde',
       'serde_json',
+      'sha2',
       'tokio',
       'utoipa',
     ]);
@@ -708,18 +710,18 @@ describe('Phase 06.1 Table View Engine production boundaries', () => {
     )
       .flat()
       .sort();
-    expect(cargoEdges, 'Cargo direct manifest inventory changed').toHaveLength(15);
+    expect(cargoEdges, 'Cargo direct manifest inventory changed').toHaveLength(18);
     expect(
       createHash('sha256').update(cargoEdges.join('\n')).digest('hex'),
       'Cargo manifest edge inventory changed; review before accepting',
-    ).toBe('21a9f47db21381ed23919a144781e2fdf366519e942fc39d6a6958004a1aba8f');
+    ).toBe('e062569ad3a0ff00e7d114978e793938b2f0579ff755b876cee1dfe98a159475');
 
     const applicationLockEntry = cargoLock.match(
       /\[\[package\]\]\s+name = "rivallo-application"[\s\S]*?(?=\n\[\[package\]\]|$)/u,
     )?.[0];
     expect(applicationLockEntry, 'Cargo.lock is missing rivallo-application').toBeDefined();
-    expectTerms(applicationLockEntry ?? '', 'reviewed Cargo.lock serde edge', [
-      /dependencies = \[\s*"rivallo-domain",\s*"serde",\s*\]/u,
+    expectTerms(applicationLockEntry ?? '', 'reviewed Cargo.lock serialization edges', [
+      /dependencies = \[\s*"rivallo-domain",\s*"serde",\s*"serde_json",\s*\]/u,
     ]);
 
     const registryInventory = cargoRegistryInventory(cargoLock);

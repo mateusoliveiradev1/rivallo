@@ -139,13 +139,11 @@ export function EntityReferenceList({
             route={routeForReference(reference)}
           >
             {reference.entityType === 'coach' ? (
-              <CoachFace decorative name={reference.name} size={36} />
+              <CoachFace decorative entityId={reference.entityId} name={reference.name} size={36} />
             ) : reference.entityType === 'player' ? (
               <PlayerFace
                 decorative
-                index={reference.entityId
-                  .split('')
-                  .reduce((sum, value) => sum + value.charCodeAt(0), 0)}
+                entityId={reference.entityId}
                 name={reference.name}
                 size={36}
               />

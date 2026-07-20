@@ -3,6 +3,7 @@
 mod matchday;
 mod profiles;
 mod tactics;
+mod world;
 
 pub use matchday::{
     Club, CustomFormationIdentity, Formation, LineupSelection, MatchEvent, MatchResult,
@@ -40,6 +41,16 @@ pub use tactics::{
     TacticalStrategyPresetId, TacticalStrategyPresetSummary, TransitionStrategy,
     UnitTacticalFamiliarity, compare_tactical_models, default_instructions, resolve_strategy,
     resolve_tactical_model, tactical_strategy_preset_catalog,
+};
+pub use world::{
+    AssetReference, AttributeDefinition, City, Competition, CompetitionRules,
+    CompetitionSeasonDefinition, ContentPackage, DataPackageType, ExternalIdentifier, Nation,
+    PackageConflict, PackageCoverageReport, PackageDependency, PackageEntrypoints, PackageManifest,
+    PackagePatch, PackagePatchOperation, PackageProvenance, PackageValidationDiagnostic,
+    PackageValidationReport, PackageVisibility, PositionDefinition, Region, ResolvedWorldDatabase,
+    RoleDefinition, Stadium, TraitDefinition, ValidationSeverity, WORLD_DATABASE_SCHEMA_VERSION,
+    WorldDatabaseFingerprint, WorldEntity, WorldEntityKind, WorldPackageData,
+    resolve_world_packages, validate_package,
 };
 
 /// A neutral identifier for a module participating in contract preparation.

@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "format:check": "prettier --check package.json turbo.json pnpm-workspace.yaml scripts/*.mjs tooling-tests/*.mjs browser-tests/*.ts playwright.config.ts apps/desktop/package.json apps/desktop/vite.config.ts apps/desktop/index.html \"apps/desktop/src/**/*.{ts,tsx,css}\" apps/desktop/src-tauri/tauri.conf.json \"packages/design-tokens/src/**/*.{ts,css}\" \"packages/icons/src/**/*.{ts,tsx}\" docker-compose.yml .github/workflows/ci.yml docs/operations/local-development.md eslint.config.mjs vitest.config.mjs tsconfig.json .prettierrc.json",
+    "format:check": "prettier --check package.json turbo.json pnpm-workspace.yaml scripts/*.mjs tooling-tests/*.mjs browser-tests/*.ts playwright.config.ts apps/desktop/package.json apps/desktop/vite.config.ts apps/desktop/index.html \"apps/desktop/src/**/*.{ts,tsx,css}\" apps/desktop/src-tauri/tauri.conf.json \"packages/design-tokens/src/**/*.{ts,css}\" \"packages/icons/src/**/*.{ts,tsx}\" \"data/**/*.{json,md}\" docs/adr/ADR-0014-world-package-patches-and-integrity.md \"docs/data-packages/*.md\" docker-compose.yml .github/workflows/ci.yml eslint.config.mjs vitest.config.mjs tsconfig.json .prettierrc.json",
     "lint": "eslint scripts tooling-tests browser-tests apps/desktop/src packages/design-tokens/src packages/icons/src eslint.config.mjs vitest.config.mjs playwright.config.ts --max-warnings 0",
     "quality": "node scripts/run-quality.mjs check",
     "quality:clean": "node scripts/verify-clean-worktree.mjs -- node scripts/run-quality.mjs clean-pass",
@@ -25,6 +25,7 @@
     "test": "vitest run",
     "tokens:generate": "node scripts/generate-design-tokens.mjs",
     "tokens:check": "node scripts/verify-design-token-drift.mjs",
+    "data:public-guard": "node scripts/verify-public-data-packages.mjs",
     "toolchains": "node scripts/check-toolchains.mjs",
     "typecheck": "tsc --noEmit",
     "ui-lab:test": "playwright test browser-tests/ui-lab.spec.ts"

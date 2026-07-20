@@ -41,7 +41,6 @@ const renderCard = (mode: PitchMode, contextualRating?: string) => {
         displayName={player.shortName}
         metric={metric}
         player={player}
-        playerIndex={0}
         positionLabel="MC"
       />
     </button>,

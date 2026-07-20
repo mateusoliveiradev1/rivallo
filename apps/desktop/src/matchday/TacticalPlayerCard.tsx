@@ -61,13 +61,11 @@ const conditionSummary = (condition: number) => {
 
 export function TacticalPlayerCardContent({
   player,
-  playerIndex,
   displayName,
   positionLabel,
   metric,
 }: {
   readonly player: Player;
-  readonly playerIndex: number;
   readonly displayName: string;
   readonly positionLabel: string;
   readonly metric: TacticalPrimaryMetric;
@@ -76,7 +74,7 @@ export function TacticalPlayerCardContent({
   return (
     <>
       <span className="tactical-player-card__portrait" data-card-region="portrait">
-        <PlayerFace decorative index={playerIndex} name={player.name} size={44} />
+        <PlayerFace decorative entityId={player.id} name={player.name} size={44} />
       </span>
       <span
         aria-label={`Camisa ${player.shirtNumber}`}

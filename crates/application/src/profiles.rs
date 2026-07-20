@@ -11,11 +11,31 @@ pub trait ProfileRepository {
 
 pub struct ProfileService<R> {
     repository: R,
+    initial_world: Option<ProfileWorld>,
 }
 
 impl<R: ProfileRepository> ProfileService<R> {
     pub fn new(repository: R) -> Self {
-        Self { repository }
+        Self {
+            repository,
+            initial_world: None,
+        }
+    }
+
+    pub fn with_initial_world(repository: R, initial_world: ProfileWorld) -> Self {
+        Self {
+            repository,
+            initial_world: Some(initial_world),
+        }
+    }
+
+    fn initial_world(&self, matchday: &MatchdayState, now: u64) -> ProfileWorld {
+        let mut world = self
+            .initial_world
+            .clone()
+            .unwrap_or_else(|| ProfileWorld::seed(matchday, now));
+        world.reconcile_matchday(matchday);
+        world
     }
 
     fn world(&self, matchday: &MatchdayState, now: u64) -> Result<ProfileWorld, String> {
@@ -30,7 +50,7 @@ impl<R: ProfileRepository> ProfileService<R> {
                 Ok(world)
             }
             None => {
-                let world = ProfileWorld::seed(matchday, now);
+                let world = self.initial_world(matchday, now);
                 world.validate()?;
                 self.repository.save(&world)?;
                 Ok(world)
@@ -42,7 +62,7 @@ impl<R: ProfileRepository> ProfileService<R> {
         let mut world = self
             .repository
             .load()?
-            .unwrap_or_else(|| ProfileWorld::seed(matchday, now));
+            .unwrap_or_else(|| self.initial_world(matchday, now));
         world = world.migrate()?;
         world.reconcile_matchday(matchday);
         world.validate()?;

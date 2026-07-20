@@ -2522,6 +2522,7 @@ version = "0.1.0"
 dependencies = [
  "rivallo-domain",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2547,6 +2548,7 @@ name = "rivallo-domain"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2556,7 +2558,9 @@ dependencies = [
  "axum",
  "rivallo-application",
  "rivallo-contracts",
+ "serde",
  "serde_json",
+ "sha2",
  "tokio",
  "utoipa",
 ]

@@ -1,0 +1,27 @@
+{
+  "packageId": "official.rivallo.foundation",
+  "name": "Rivallo Official Fictional Database",
+  "version": "1.0.0",
+  "schemaVersion": 1,
+  "gameVersionCompatibility": ">=0.1.0 <0.2.0",
+  "author": "Rivallo",
+  "description": "Official public fictional world preserving the current Aurora/Ferroviário playable slice.",
+  "contentType": "base",
+  "dependencies": [],
+  "conflicts": [],
+  "loadOrderHint": 0,
+  "entrypoints": {
+    "world": "data/world.json",
+    "patches": null,
+    "assets": "assets"
+  },
+  "assets": [],
+  "provenance": {
+    "source": "Rivallo fictional seed migrated from the stable Phase 06.4 checkpoint",
+    "rights": "Rivallo public fictional content",
+    "createdAt": "2026-07-17",
+    "notes": "No private or real-world development package is included."
+  },
+  "visibility": "public",
+  "checksum": "sha256:13533a942854eed7e87725f7febb254782adc35cb11ebc2cf630d946cfe8b4b8"
+}

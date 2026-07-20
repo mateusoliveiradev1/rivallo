@@ -650,9 +650,6 @@ export function SquadWorkspace({
                       </tr>
                     ))
                   : squadTable.getRowModel().rows.map(({ original: player }) => {
-                      const playerIndex = state.players.findIndex(
-                        (candidate) => candidate.id === player.id,
-                      );
                       const selected = selectedIds.includes(player.id);
                       const focused = player.id === focusedPlayerId;
 
@@ -720,7 +717,7 @@ export function SquadWorkspace({
                                     onNavigate={() => onOpenProfile(player.id)}
                                     route={{ kind: 'player', entityId: player.id }}
                                   >
-                                    <PlayerFace index={playerIndex} name={player.name} size={36} />
+                                    <PlayerFace entityId={player.id} name={player.name} size={36} />
                                     <span className="player-identity">
                                       <strong>{player.name}</strong>
                                       <small>{positionLongLabels[player.position]}</small>

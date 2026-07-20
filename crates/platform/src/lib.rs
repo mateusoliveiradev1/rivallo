@@ -5,35 +5,39 @@ pub mod persistence;
 mod profiles;
 mod runtime;
 mod table_view;
+mod world;
 
 pub use matchday::{FileMatchdayRepository, MatchdayCoordinator};
 pub use persistence::{LocalDataDirectoryResolver, SqlitePersistenceAdapter};
 pub use profiles::{FileProfileRepository, ProfileCoordinator};
 pub use rivallo_application::{
-    AttributeGroupProjection, AttributeProjection, AttributeSnapshot, ClubProfileProjection,
-    ClubTacticalIdentityProjection, CoachAttributeSet, CoachDevelopmentProfile,
-    CoachProfileProjection, CoachSportingProfile, ColumnId, ColumnPinning, ColumnPinningSide,
-    ContractSummary, CustomFormationIdentity, EntityProfileReference, ExplainableRating,
-    ExternalPlayerState, FilterGroupId, FilterGroupLogic, FilterId, FilterOperator, FilterValue,
-    Formation, GlobalProfileSearchResult, KnowledgeLevel, KnowledgeValue, KnowledgeValueKind,
+    AssetReference, AttributeGroupProjection, AttributeProjection, AttributeSnapshot,
+    ClubProfileProjection, ClubTacticalIdentityProjection, CoachAttributeSet,
+    CoachDevelopmentProfile, CoachProfileProjection, CoachSportingProfile, ColumnId, ColumnPinning,
+    ColumnPinningSide, ContentPackage, ContractSummary, CustomFormationIdentity,
+    DataPackageCatalogEntry, EntityProfileReference, ExplainableRating, ExternalPlayerState,
+    FilterGroupId, FilterGroupLogic, FilterId, FilterOperator, FilterValue, Formation,
+    GlobalProfileSearchResult, KnowledgeLevel, KnowledgeValue, KnowledgeValueKind,
     LegacyImportOutcome, LegacyImportReceipt, LegacyTableViewImport, LineupSelection,
-    MatchdayState, NationProfileProjection, NullOrder, OwnerScope, PersonIdentity,
-    PlayerAttributeCategory, PlayerAttributeSet, PlayerDevelopmentProjection,
+    MatchdayState, Nation, NationProfileProjection, NullOrder, OwnerScope, PackageCoverageReport,
+    PackageManifest, PackagePatch, PackageValidationDiagnostic, PackageValidationReport,
+    PersonIdentity, PlayerAttributeCategory, PlayerAttributeSet, PlayerDevelopmentProjection,
     PlayerProfileProjection, PlayerSportingProfile, PlayerStatisticsProjection,
     PlayerTrainingProfile, PositionRatingProjection, PotentialEstimate, ProfileWorld,
     RATING_SCALE_VERSION, RatingFactor, RatingFactorImpact, RatingKind, RatingSnapshot,
-    RoleRatingProjection, SavedTableView, ScoutingAssessment, SortDirection, TableColumnState,
-    TableDataWindow, TableDensity, TableFilterClause, TableFilterGroup, TableFilterNode, TableId,
-    TableSort, TableViewEnvelopeMetadata, TableViewLoadOutcome, TableViewPolicyError,
-    TableViewRecoveryReason, TableViewRepositoryError, TableViewRepositoryState,
-    TableViewServiceError, TableViewState, TableViewValidationError, TacticalApproach,
-    TacticalLibraryCommand, TacticalLine, TacticalMatchSnapshot, TacticalModelConfig,
-    TacticalModelSnapshot, TacticalPlanEvent, TacticalPlanPreview, TacticalPlanProposal,
-    TacticalPlanSnapshot, TacticalPlanUpdate, TacticalPlayerPlacement, TacticalSide,
-    TacticalStrategyPresetSummary, TacticalVariationLibrarySnapshot, TacticalZone, ViewId,
-    ViewMutability, ViewProvenance, WindowId, squad_system_default_repository_state,
+    ResolvedWorldDatabase, RoleRatingProjection, SavedTableView, ScoutingAssessment, SortDirection,
+    TableColumnState, TableDataWindow, TableDensity, TableFilterClause, TableFilterGroup,
+    TableFilterNode, TableId, TableSort, TableViewEnvelopeMetadata, TableViewLoadOutcome,
+    TableViewPolicyError, TableViewRecoveryReason, TableViewRepositoryError,
+    TableViewRepositoryState, TableViewServiceError, TableViewState, TableViewValidationError,
+    TacticalApproach, TacticalLibraryCommand, TacticalLine, TacticalMatchSnapshot,
+    TacticalModelConfig, TacticalModelSnapshot, TacticalPlanEvent, TacticalPlanPreview,
+    TacticalPlanProposal, TacticalPlanSnapshot, TacticalPlanUpdate, TacticalPlayerPlacement,
+    TacticalSide, TacticalStrategyPresetSummary, TacticalVariationLibrarySnapshot, TacticalZone,
+    ViewId, ViewMutability, ViewProvenance, WindowId, squad_system_default_repository_state,
 };
 pub use table_view::{FileTableViewRepository, TableViewCoordinator};
+pub use world::{FileWorldPackageRepository, WorldDatabaseCoordinator};
 
 pub use runtime::{
     CancellationToken, LOCAL_API_ADDRESS, LOCAL_API_PORT, LOCAL_API_SERVICE_ID,

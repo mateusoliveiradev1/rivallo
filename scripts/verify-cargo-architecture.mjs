@@ -14,11 +14,15 @@ const DOMAIN_ALLOWLIST = new Set([
   'serde',
   'serde_core',
   'serde_derive',
+  'serde_json',
+  'itoa',
+  'memchr',
   'proc-macro2',
   'quote',
   'syn',
   'thiserror',
   'unicode-ident',
+  'zmij',
 ]);
 const DOMAIN_DENYLIST = new Set([
   'actix-web',

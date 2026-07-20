@@ -102,11 +102,6 @@ const formatDate = (value: string | number) => {
   return Number.isNaN(date.getTime()) ? 'Não informado' : date.toLocaleDateString('pt-BR');
 };
 
-const entityIndex = (entityId: string) => {
-  const parsed = Number.parseInt(entityId.replace(/\D/gu, ''), 10);
-  return Number.isFinite(parsed) ? Math.max(0, parsed - 1) : 0;
-};
-
 const isPlayerProfile = (profile: ProfileProjection): profile is PlayerProfileProjection =>
   'naturalPosition' in profile;
 
@@ -1215,12 +1210,17 @@ function ProfileHero({
         {player ? (
           <PlayerFace
             decorative
-            index={entityIndex(profile.identity.entityId)}
+            entityId={profile.identity.entityId}
             name={profile.identity.fullName}
             size={96}
           />
         ) : (
-          <CoachFace decorative name={profile.identity.fullName} size={96} />
+          <CoachFace
+            decorative
+            entityId={profile.identity.entityId}
+            name={profile.identity.fullName}
+            size={96}
+          />
         )}
       </div>
       <div className="profile-hero__identity">

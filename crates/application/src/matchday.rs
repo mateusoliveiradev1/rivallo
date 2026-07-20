@@ -75,11 +75,19 @@ impl From<MatchdayError> for MatchdayServiceError {
 
 pub struct MatchdayService<R> {
     repository: R,
+    initial_state: MatchdayState,
 }
 
 impl<R: MatchdayRepository> MatchdayService<R> {
     pub fn new(repository: R) -> Self {
-        Self { repository }
+        Self::with_initial_state(repository, MatchdayState::default())
+    }
+
+    pub fn with_initial_state(repository: R, initial_state: MatchdayState) -> Self {
+        Self {
+            repository,
+            initial_state,
+        }
     }
 
     pub fn state(&self) -> Result<MatchdayState, MatchdayServiceError> {
@@ -99,7 +107,7 @@ impl<R: MatchdayRepository> MatchdayService<R> {
                 Ok(state)
             }
             None => {
-                let state = MatchdayState::default();
+                let state = self.initial_state.clone();
                 self.repository
                     .save(&state)
                     .map_err(MatchdayServiceError::Persistence)?;
