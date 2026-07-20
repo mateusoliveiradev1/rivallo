@@ -1305,11 +1305,8 @@ fn migrate_verified_new_entity_operations(
         .map_err(|error| serialization_report("data/patches.json", error))?;
     let verified = [
         ("community.example.city.sao-paulo", "city"),
-        ("community.example.stadium.Estádio Horizonte", "stadium"),
-        (
-            "community.example.club.sao-paulo-futebol-clube",
-            "club",
-        ),
+        ("community.example.stadium.arena-modelo", "stadium"),
+        ("community.example.club.clube-atletico-modelo", "club"),
     ];
     let mut changed = false;
     for patch in &mut patches {
@@ -2182,20 +2179,20 @@ mod tests {
 
     #[test]
     fn verified_legacy_draft_entities_migrate_from_replace_to_add_only() {
-        let mut source = empty_mod_source("community.example.brasileirao", "1.0.0");
+        let mut source = empty_mod_source("community.example.liga-modelo", "1.0.0");
         source.patches_json = Some(
             serde_json::json!([
                 {
                     "operation": "replace",
                     "entityKind": "stadium",
-                    "targetId": "community.example.stadium.Estádio Horizonte",
+                    "targetId": "community.example.stadium.arena-modelo",
                     "entity": { "kind": "stadium", "value": {} },
                     "reason": "legacy"
                 },
                 {
                     "operation": "replace",
                     "entityKind": "competition",
-                    "targetId": "competition.official.brasileirao",
+                    "targetId": "competition.official.liga-modelo",
                     "entity": { "kind": "competition", "value": {} },
                     "reason": "legitimate base edit"
                 }
@@ -2204,12 +2201,12 @@ mod tests {
         );
         let mut record = CreatorProjectRecord {
             schema_version: CREATOR_PROJECT_SCHEMA_VERSION,
-            project_id: "project.community.example.brasileirao".to_owned(),
-            name: "Brasileirão".to_owned(),
+            project_id: "project.community.example.liga-modelo".to_owned(),
+            name: "LM".to_owned(),
             mode: CreatorProjectMode::DataStudio,
             status: CreatorProjectStatus::Blocked,
             base_package_id: "official.rivallo.foundation".to_owned(),
-            package_id: "community.example.brasileirao".to_owned(),
+            package_id: "community.example.liga-modelo".to_owned(),
             version: "1.0.0".to_owned(),
             created_at: 1,
             updated_at: 1,

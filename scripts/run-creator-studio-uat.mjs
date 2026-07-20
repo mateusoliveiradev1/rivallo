@@ -224,22 +224,16 @@ const definitions = [
   [
     '02',
     'Geografia',
-    '02 Geografia — Brasil, São Paulo e autoridade de contagem',
+    '02 Geografia — Brasil, Vila Modelo e autoridade de contagem',
     ['02-divisao-administrativa.png', '02-cidade.png'],
     [],
   ],
-  [
-    '03',
-    'Estádio',
-    '03 Estádio — Estádio Horizonte sem clube',
-    ['03-estadio-Estádio Horizonte.png'],
-    [],
-  ],
+  ['03', 'Estádio', '03 Estádio — Arena Modelo sem clube', ['03-estadio-Arena Modelo.png'], []],
   [
     '04',
     'Clube',
-    '04 Clube — Aurora FC como Add e rascunho sem competição',
-    ['04-clube-afc.png'],
+    '04 Clube — Atlético Modelo como Add e rascunho sem competição',
+    ['04-clube-cam.png'],
     [],
   ],
   [
@@ -253,7 +247,7 @@ const definitions = [
     '06',
     'Competição',
     '06–08 Competição, temporada explícita e participante sem duplicação',
-    ['06-competicao-brasileirao.png'],
+    ['06-competicao-liga-modelo.png'],
     [],
   ],
   [
@@ -267,7 +261,7 @@ const definitions = [
     '08',
     'Participantes',
     '06–08 Competição, temporada explícita e participante sem duplicação',
-    ['06-competicao-brasileirao.png'],
+    ['06-competicao-liga-modelo.png'],
     [],
   ],
   [

@@ -39,7 +39,7 @@ const readPersistedUatClub = async (page: Page) =>
     return patches
       .filter(
         (patch) =>
-          patch.entityKind === 'club' && patch.entity?.value?.name === 'Aurora Futebol Clube',
+          patch.entityKind === 'club' && patch.entity?.value?.name === 'Clube Atlético Modelo',
       )
       .at(-1)?.entity?.value;
   });
@@ -494,14 +494,14 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
     await screenshot(page, testInfo, '01-projeto');
   });
 
-  await test.step('02 Geografia — Brasil, São Paulo e autoridade de contagem', async () => {
+  await test.step('02 Geografia — Brasil, Vila Modelo e autoridade de contagem', async () => {
     await page.getByRole('button', { name: 'Divisões administrativas' }).click();
     await expect(page.getByText('0 divisões administrativas cadastradas')).toBeVisible();
     await page
       .locator('.studio-module-toolbar')
       .getByRole('button', { name: 'Criar novo' })
       .click();
-    await page.getByRole('textbox', { name: 'Nome' }).fill('São Paulo');
+    await page.getByRole('textbox', { name: 'Nome' }).fill('Vila Modelo');
     await page.getByRole('combobox', { name: /Na..o/u }).selectOption('nation.brazil');
     await page
       .getByLabel('Inspector da entidade')
@@ -516,54 +516,52 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
       .locator('.studio-module-toolbar')
       .getByRole('button', { name: 'Criar novo' })
       .click();
-    await page.getByRole('textbox', { name: 'Nome' }).fill('São Paulo');
+    await page.getByRole('textbox', { name: 'Nome' }).fill('Vila Modelo');
     await page.getByRole('combobox', { name: /Na..o/u }).selectOption('nation.brazil');
     await page
       .getByRole('combobox', { name: /Divis.o administrativa/u })
-      .selectOption({ label: 'São Paulo' });
+      .selectOption({ label: 'Vila Modelo' });
     await page
       .getByLabel('Inspector da entidade')
       .getByRole('button', { name: 'Salvar rascunho' })
       .click();
-    const cityRow = page.getByRole('row', { name: /Selecionar São Paulo/u });
-    await expect(cityRow).toContainText('São Paulo');
-    await expect(cityRow).toContainText('São Paulo · Brasil');
+    const cityRow = page.getByRole('row', { name: /Selecionar Vila Modelo/u });
+    await expect(cityRow).toContainText('Vila Modelo');
+    await expect(cityRow).toContainText('Vila Modelo · Brasil');
     await screenshot(page, testInfo, '02-cidade');
   });
 
-  await test.step('03 Estádio — Estádio Horizonte sem clube', async () => {
+  await test.step('03 Estádio — Arena Modelo sem clube', async () => {
     await page.getByRole('button', { name: /^Est.dios$/u }).click();
     await page
       .locator('.studio-module-toolbar')
       .getByRole('button', { name: 'Criar novo' })
       .click();
-    await page.getByRole('textbox', { name: 'Nome' }).fill('Estádio Horizonte');
-    await page.getByRole('combobox', { name: 'Cidade' }).selectOption({ label: 'São Paulo' });
+    await page.getByRole('textbox', { name: 'Nome' }).fill('Arena Modelo');
+    await page.getByRole('combobox', { name: 'Cidade' }).selectOption({ label: 'Vila Modelo' });
     await page.getByRole('spinbutton', { name: 'Capacidade' }).fill('66795');
     await page
       .getByLabel('Inspector da entidade')
       .getByRole('button', { name: 'Salvar rascunho' })
       .click();
-    await expect(page.getByText('Estádio Horizonte', { exact: true }).first()).toBeVisible();
-    await screenshot(page, testInfo, '03-estadio-Estádio Horizonte');
+    await expect(page.getByText('Arena Modelo', { exact: true }).first()).toBeVisible();
+    await screenshot(page, testInfo, '03-estadio-Arena Modelo');
   });
 
-  await test.step('04 Clube — Aurora FC como Add e rascunho sem competição', async () => {
+  await test.step('04 Clube — Atlético Modelo como Add e rascunho sem competição', async () => {
     await page.getByRole('button', { name: 'Clubes', exact: true }).click();
     await page
       .locator('.studio-module-toolbar')
       .getByRole('button', { name: 'Criar novo' })
       .click();
-    await page.getByRole('textbox', { name: 'Nome completo' }).fill('Aurora Futebol Clube');
-    await page.getByRole('textbox', { name: 'Sigla' }).fill('afc');
-    await page.getByRole('combobox', { name: 'Cidade' }).selectOption({ label: 'São Paulo' });
+    await page.getByRole('textbox', { name: 'Nome completo' }).fill('Clube Atlético Modelo');
+    await page.getByRole('textbox', { name: 'Sigla' }).fill('cam');
+    await page.getByRole('combobox', { name: 'Cidade' }).selectOption({ label: 'Vila Modelo' });
     await page.getByRole('combobox', { name: 'País' }).selectOption({ label: 'Brasil' });
-    await page
-      .getByRole('combobox', { name: 'Estádio' })
-      .selectOption({ label: 'Estádio Horizonte' });
+    await page.getByRole('combobox', { name: 'Estádio' }).selectOption({ label: 'Arena Modelo' });
     await page.getByRole('button', { name: 'Adicionar clube ao mod' }).click();
-    await expect(page.getByText('Aurora Futebol Clube', { exact: true }).first()).toBeVisible();
-    await screenshot(page, testInfo, '04-clube-afc');
+    await expect(page.getByText('Clube Atlético Modelo', { exact: true }).first()).toBeVisible();
+    await screenshot(page, testInfo, '04-clube-cam');
     const operation = await page.evaluate(() => {
       const state = (
         window as unknown as {
@@ -584,9 +582,9 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
     await page.getByRole('button', { name: 'Assets', exact: true }).click();
     await page
       .getByRole('combobox', { name: 'Entidade' })
-      .selectOption({ label: 'Aurora Futebol Clube · clubCrest' });
+      .selectOption({ label: 'Clube Atlético Modelo · clubCrest' });
     await page.locator('input[type="file"][accept*="image/png"]').setInputFiles({
-      name: 'afc-uat.png',
+      name: 'cam-uat.png',
       mimeType: 'image/png',
       buffer: Buffer.from(
         'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
@@ -632,7 +630,7 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
     await page.getByRole('button', { name: 'Assets', exact: true }).click();
     await page
       .getByRole('combobox', { name: 'Entidade' })
-      .selectOption({ label: 'Aurora Futebol Clube · clubCrest' });
+      .selectOption({ label: 'Clube Atlético Modelo · clubCrest' });
     await expect(page.getByRole('img', { name: 'Preview em card' })).toBeVisible();
     await screenshot(page, testInfo, '05-asset-reaberto');
   });
@@ -643,22 +641,22 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
       .locator('.studio-module-toolbar')
       .getByRole('button', { name: 'Criar novo' })
       .click();
-    await page.getByRole('textbox', { name: 'Nome', exact: true }).fill('Liga Horizonte');
-    await page.getByRole('textbox', { name: /Nome curto ou sigla/u }).fill('Brasileirão');
+    await page.getByRole('textbox', { name: 'Nome', exact: true }).fill('Liga Modelo');
+    await page.getByRole('textbox', { name: /Nome curto ou sigla/u }).fill('LM');
     await expect(page.getByText('Nenhuma temporada será criada')).toBeVisible();
     await page.getByRole('radio', { name: /Criar nova temporada/u }).click();
     await expect(
       page.getByText('A temporada 2026 será criada e vinculada a esta competição.'),
     ).toBeVisible();
     await screenshot(page, testInfo, '06-temporada-explicita');
-    const afc = page.getByRole('checkbox', { name: /Aurora Futebol Clube/u });
-    await afc.check();
-    await afc.uncheck();
-    await afc.check();
-    await expect(afc).toBeChecked();
+    const cam = page.getByRole('checkbox', { name: /Clube Atlético Modelo/u });
+    await cam.check();
+    await cam.uncheck();
+    await cam.check();
+    await expect(cam).toBeChecked();
     await page.getByRole('button', { name: 'Salvar competição' }).click();
-    await expect(page.getByText('Liga Horizonte', { exact: true }).first()).toBeVisible();
-    await screenshot(page, testInfo, '06-competicao-brasileirao');
+    await expect(page.getByText('Liga Modelo', { exact: true }).first()).toBeVisible();
+    await screenshot(page, testInfo, '06-competicao-liga-modelo');
 
     await page.getByRole('button', { name: 'Temporadas', exact: true }).click();
     await expect(page.locator('.studio-table-toolbar').getByText('1 itens')).toBeVisible();
@@ -680,8 +678,8 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
     const competitionRow = page
       .getByLabel('Lista de Competições')
       .getByRole('row')
-      .filter({ hasText: 'Liga Horizonte' });
-    await competitionRow.getByRole('button', { name: /Liga Horizonte/u }).click();
+      .filter({ hasText: 'Liga Modelo' });
+    await competitionRow.getByRole('button', { name: /Liga Modelo/u }).click();
     await page.locator('.studio-module-toolbar').getByRole('button', { name: 'Editar' }).click();
     await expect(page.getByRole('radio', { name: /Usar temporada existente/u })).toHaveAttribute(
       'aria-checked',
@@ -717,7 +715,7 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
       await inspector.getByRole('textbox', { name: 'Cargo ou função' }).fill(roleTitle);
       await inspector
         .getByRole('combobox', { name: 'Clube' })
-        .selectOption({ label: 'Aurora Futebol Clube' });
+        .selectOption({ label: 'Clube Atlético Modelo' });
       await inspector
         .getByRole('textbox', { name: 'Fonte', exact: true })
         .fill('creator-studio.synthetic');
@@ -742,7 +740,7 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
         .fill(`player-${fullName.toLocaleLowerCase('pt-BR').replace(/\s+/gu, '-')}`);
       await inspector
         .getByRole('combobox', { name: 'Clube' })
-        .selectOption({ label: 'Aurora Futebol Clube' });
+        .selectOption({ label: 'Clube Atlético Modelo' });
       await inspector.getByRole('combobox', { name: 'Posição detalhada' }).selectOption(position);
       await inspector
         .getByRole('textbox', { name: 'Fonte', exact: true })
@@ -846,7 +844,7 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
       'sourceRecordId',
       'verificationStatus',
     ];
-    const clubId = 'test.synthetic.world.club.sao-paulo-futebol-clube';
+    const clubId = 'community.rivallo-uat.club.clube-atletico-modelo';
     const rows = Array.from({ length: 15 }, (_, index) =>
       [
         `uat.creator.player.${index + 4}`,
@@ -877,8 +875,8 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
   });
 
   await test.step('10 Contratos e inscrições — lote acumulativo, idempotente e sem duplicação', async () => {
-    const clubId = 'test.synthetic.world.club.sao-paulo-futebol-clube';
-    const competitionId = 'test.synthetic.world.competition.sample-league-2026';
+    const clubId = 'community.rivallo-uat.club.clube-atletico-modelo';
+    const competitionId = 'community.rivallo-uat.competition.liga-modelo';
     const seasonId = `${competitionId}.season.2026`;
     const visualPlayerIds = [
       'community.person.player-rafael-uat',
@@ -960,9 +958,9 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
     const clubRow = page
       .getByLabel('Lista de Clubes')
       .getByRole('row')
-      .filter({ hasText: 'Aurora Futebol Clube' });
+      .filter({ hasText: 'Clube Atlético Modelo' });
     await expect(clubRow).toContainText('Rascunho incompleto');
-    await clubRow.getByRole('button', { name: /Aurora Futebol Clube/u }).click();
+    await clubRow.getByRole('button', { name: /Clube Atlético Modelo/u }).click();
     await expect(
       page.getByLabel('Inspector da entidade').getByText('Sem competição inicial'),
     ).toBeVisible();
@@ -978,7 +976,7 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
     await page
       .getByLabel('Inspector da entidade')
       .getByRole('combobox', { name: 'Competição' })
-      .selectOption({ label: 'Liga Horizonte' });
+      .selectOption({ label: 'Liga Modelo' });
     await page
       .getByLabel('Inspector da entidade')
       .getByRole('button', { name: 'Salvar edição do clube' })
@@ -987,14 +985,14 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
     await expect
       .poll(() => readPersistedUatClub(page))
       .toMatchObject({
-        competitionId: expect.stringContaining('sample-league-2026'),
+        competitionId: expect.stringContaining('liga-modelo'),
       });
 
     await page.getByRole('button', { name: /^Competi..es$/u }).click();
     const competitionRow = page
       .getByLabel('Lista de Competições')
       .getByRole('row')
-      .filter({ hasText: 'Liga Horizonte' });
+      .filter({ hasText: 'Liga Modelo' });
     await expect(competitionRow).toContainText('Estruturalmente válido');
     await screenshot(page, testInfo, '11-readiness-estrutural');
 
@@ -1002,9 +1000,9 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
     const readyClubRow = page
       .getByLabel('Lista de Clubes')
       .getByRole('row')
-      .filter({ hasText: 'Aurora Futebol Clube' });
+      .filter({ hasText: 'Clube Atlético Modelo' });
     await expect(readyClubRow).toContainText('Rascunho incompleto');
-    await readyClubRow.getByRole('button', { name: /Aurora Futebol Clube/u }).click();
+    await readyClubRow.getByRole('button', { name: /Clube Atlético Modelo/u }).click();
     await expect(
       page.getByLabel('Inspector da entidade').getByText('0 de 18 jogadores mínimos'),
     ).toBeVisible();
@@ -1075,7 +1073,7 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
     const versionDialog = page.getByRole('dialog', { name: 'O que mudou nesta versão?' });
     await versionDialog
       .getByRole('textbox', { name: 'Notas da versão' })
-      .fill('Adiciona a história revisada do Aurora FC.');
+      .fill('Adiciona a história revisada do Atlético Modelo.');
     await versionDialog.getByRole('button', { name: 'Criar projeto da nova versão' }).click();
     await expect(page.getByText(/1.0.1 · official.rivallo.foundation/u)).toBeVisible();
 
@@ -1083,14 +1081,14 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
     const clubRow = page
       .getByLabel('Lista de Clubes')
       .getByRole('row')
-      .filter({ hasText: 'Aurora Futebol Clube' });
-    await clubRow.getByRole('button', { name: /Aurora Futebol Clube/u }).click();
+      .filter({ hasText: 'Clube Atlético Modelo' });
+    await clubRow.getByRole('button', { name: /Clube Atlético Modelo/u }).click();
     await page.locator('.studio-module-toolbar').getByRole('button', { name: 'Editar' }).click();
     await page
       .getByLabel('Inspector da entidade')
       .getByRole('textbox', { name: 'História do clube' })
       .fill(
-        'Fundado em 1930, o Aurora FC construiu uma trajetória de conquistas nacionais e internacionais no Estádio Horizonte.',
+        'Fundado em 2001, o Atlético Modelo construiu uma trajetória de conquistas nacionais e internacionais no Arena Modelo.',
       );
     await page
       .getByLabel('Inspector da entidade')
@@ -1100,10 +1098,10 @@ test('Creator Studio functional UAT', async ({ page }, testInfo) => {
     await expect
       .poll(() => readPersistedUatClub(page))
       .toMatchObject({
-        historySummary: expect.stringContaining('Fundado em 1930'),
+        historySummary: expect.stringContaining('Fundado em 2001'),
       });
     await page.getByRole('button', { name: 'Patches', exact: true }).click();
-    await expect(page.getByText('Aurora Futebol Clube', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('Clube Atlético Modelo', { exact: true }).first()).toBeVisible();
     await screenshot(page, testInfo, '15-versao-1-0-1-revisao');
 
     await page.getByRole('button', { name: 'Exportar .rivmod' }).click();
