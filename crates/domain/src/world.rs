@@ -1996,7 +1996,10 @@ fn validate_world_references(
         let claims_gameplay = readiness.gameplay == GameplayReadiness::GameplayReady;
         let evaluated = readiness.evaluation == SportingEvaluationStatus::Evaluated;
         let structurally_valid = readiness.structural == StructuralValidity::StructurallyValid;
-        if claims_runtime != has_runtime_profile
+        let has_player_or_coach_role = person.roles.iter().any(|role| {
+            matches!(role.kind, PersonRoleKind::Player | PersonRoleKind::Coach)
+        });
+        if (has_player_or_coach_role && claims_runtime != has_runtime_profile)
             || (claims_gameplay && (!claims_runtime || !evaluated || !structurally_valid))
             || ((!claims_gameplay || !claims_runtime || !evaluated)
                 && readiness.blockers.is_empty())
