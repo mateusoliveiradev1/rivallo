@@ -1388,7 +1388,7 @@ fn raw_slot_checksum(raw: &[u8]) -> String {
     format!("sha256:{}", hex(&Sha256::digest(compact)))
 }
 
-/// Restores only the one field absent from saves created by the legacy-local migration.
+/// Restores only the coverage field absent from saves created before factual people shipped.
 ///
 /// A zero coverage count means that the historical count was not recorded. It is not a
 /// readiness signal and does not modify the persisted world or its people. The original raw
@@ -1398,7 +1398,10 @@ fn legacy_envelope_with_unknown_people_count(
 ) -> Option<serde_json::Value> {
     let mut patched = persisted.clone();
     let slot = patched.get_mut("slot")?.as_object_mut()?;
-    if slot.get("operationId")?.as_str()? != LEGACY_LOCAL_MIGRATION_OPERATION {
+    let operation_id = slot.get("operationId")?.as_str()?;
+    if operation_id != LEGACY_LOCAL_MIGRATION_OPERATION
+        && !operation_id.starts_with("career-create:")
+    {
         return None;
     }
     let coverage = slot
@@ -1758,6 +1761,36 @@ mod tests {
                 .any(|blocker| blocker == "person.runtime_profile_blocked")
         );
 
+        fs::remove_dir_all(root).expect("removes compatibility fixture");
+    }
+
+    #[test]
+    fn historical_created_slot_without_people_fields_is_read_only_and_loadable() {
+        let (root, coordinator, _world, career_id) = compatibility_fixture("created-before-people");
+        let before = rewrite_slot_json(&coordinator, &career_id, |slot| {
+            slot["operationId"] =
+                serde_json::Value::String("career-create:historical-fixture".to_owned());
+            slot.pointer_mut("/baseSnapshot/resolved/world")
+                .and_then(serde_json::Value::as_object_mut)
+                .expect("world object")
+                .remove("people");
+            slot.pointer_mut("/baseSnapshot/resolved/coverage")
+                .and_then(serde_json::Value::as_object_mut)
+                .expect("coverage object")
+                .remove("people");
+        });
+
+        let loaded = coordinator
+            .read_slot(&career_id)
+            .expect("loads a checksum-valid historical created slot");
+        let after = fs::read(coordinator.slot_path(&career_id)).expect("reads slot after load");
+
+        assert_eq!(
+            before, after,
+            "compatibility reads must not rewrite the save"
+        );
+        assert!(loaded.base_snapshot.resolved.world.people.is_empty());
+        assert_eq!(loaded.base_snapshot.resolved.coverage.people, 0);
         fs::remove_dir_all(root).expect("removes compatibility fixture");
     }
 
