@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   defaultPortraitRecipe,
@@ -6,7 +6,12 @@ import {
   renderPortraitUpload,
 } from '../portrait/PortraitEngine.js';
 import { Button } from '../ui/primitives/actions.js';
-import type { AuthoringAssetUpload, CommunityChange, ModAuthoringWorld } from './types.js';
+import type {
+  AuthoringAssetUpload,
+  CommunityChange,
+  GeneratedPackagePatch,
+  ModAuthoringWorld,
+} from './types.js';
 
 const extensions: Record<string, string> = {
   'image/png': 'png',
@@ -16,10 +21,12 @@ const extensions: Record<string, string> = {
 
 export function AssetManager({
   world,
+  assets,
   author,
   onUpsert,
 }: {
   readonly world: ModAuthoringWorld;
+  readonly assets: readonly AuthoringAssetUpload[];
   readonly author: string;
   readonly onUpsert: (change: CommunityChange) => void;
 }) {
@@ -37,15 +44,40 @@ export function AssetManager({
         : ('staffPortrait' as const),
     })),
   ];
-  const entities = [
-    ...world.clubs.map((item) => ({ id: item.id, label: item.name, kind: 'clubCrest' as const })),
-    ...people,
-    ...(world.competitions ?? []).map((item) => ({
-      id: item.id,
-      label: item.name,
-      kind: 'competitionLogo' as const,
-    })),
-  ];
+  const entities = useMemo(
+    () => [
+      ...world.clubs.map((item) => ({
+        id: item.id,
+        label: item.name,
+        kind: 'clubCrest' as const,
+        entityKind: 'club' as const,
+        value: item,
+      })),
+      ...people,
+      ...(world.competitions ?? []).map((item) => ({
+        id: item.id,
+        label: item.name,
+        kind: 'competitionLogo' as const,
+        entityKind: 'competition' as const,
+        value: item,
+      })),
+      ...world.nations.map((item) => ({
+        id: item.id,
+        label: item.name,
+        kind: 'nationFlag' as const,
+        entityKind: 'nation' as const,
+        value: item,
+      })),
+      ...(world.stadiums ?? []).map((item) => ({
+        id: item.id,
+        label: item.name,
+        kind: 'stadiumImage' as const,
+        entityKind: 'stadium' as const,
+        value: item,
+      })),
+    ],
+    [people, world.clubs, world.competitions, world.nations, world.stadiums],
+  );
   const [entityId, setEntityId] = useState(entities[0]?.id ?? '');
   const [selectedPeople, setSelectedPeople] = useState<string[]>([]);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -55,16 +87,59 @@ export function AssetManager({
   const [framing, setFraming] = useState(50);
   const cancelled = useRef(false);
 
+  useEffect(() => {
+    const current = assets.find((asset) => asset.entityId === entityId);
+    setCurrentAssetId(current?.id ?? '');
+    if (!current) {
+      setPreview('');
+      return;
+    }
+    const url = URL.createObjectURL(
+      new Blob([new Uint8Array(current.bytes)], { type: current.mediaType }),
+    );
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [assets, entityId]);
+
+  const referencePatches = (
+    assetId: string | null,
+    target = entities.find((item) => item.id === entityId),
+  ): GeneratedPackagePatch[] => {
+    if (!target || !('entityKind' in target)) return [];
+    const field =
+      target.entityKind === 'club'
+        ? 'crestAssetId'
+        : target.entityKind === 'competition'
+          ? 'logoAssetId'
+          : target.entityKind === 'nation'
+            ? 'flagAssetId'
+            : 'assetId';
+    return [
+      {
+        operation: 'replace',
+        entityKind: target.entityKind,
+        targetId: target.id,
+        entity: { kind: target.entityKind, value: { ...target.value, [field]: assetId } },
+        reason: assetId
+          ? 'Asset associado no Creator Studio'
+          : 'Asset desvinculado no Creator Studio',
+      },
+    ];
+  };
+
   const addAsset = (asset: AuthoringAssetUpload, label: string) => {
     setCurrentAssetId(asset.id);
+    const entity = entities.find((item) => item.id === asset.entityId);
+    const changeKind: CommunityChange['kind'] =
+      entity && 'entityKind' in entity ? entity.entityKind : 'asset';
     onUpsert({
       id: `asset:${asset.id}`,
-      kind: 'asset',
+      kind: changeKind,
       operation: 'create',
-      targetId: asset.id,
+      targetId: asset.entityId,
       label,
       summary: `${asset.kind} · associado por ID`,
-      patches: [],
+      patches: referencePatches(asset.id, entity),
       asset,
     });
   };
@@ -75,10 +150,10 @@ export function AssetManager({
       id: `asset:${currentAssetId}`,
       kind: 'asset',
       operation: 'delete',
-      targetId: currentAssetId,
+      targetId: entityId,
       label: entity?.label ?? 'Asset',
       summary: 'Imagem removida; o fallback visual será usado.',
-      patches: [],
+      patches: referencePatches(null, entity),
       asset: null,
     });
     if (preview.startsWith('blob:')) URL.revokeObjectURL(preview);
@@ -235,6 +310,34 @@ export function AssetManager({
                 Usar fallback
               </Button>
             </div>
+          )}
+        </section>
+        <section className="studio-panel asset-library" aria-labelledby="asset-library-title">
+          <div className="studio-panel__heading">
+            <div>
+              <h3 id="asset-library-title">Biblioteca do projeto</h3>
+              <p>Imagens persistidas no rascunho e restauradas por identidade.</p>
+            </div>
+            <strong>{assets.length}</strong>
+          </div>
+          {assets.length === 0 ? (
+            <p className="studio-empty">Nenhuma imagem adicionada. Escolha uma entidade ao lado.</p>
+          ) : (
+            <ul className="asset-library__list">
+              {assets.map((asset) => {
+                const entity = entities.find((item) => item.id === asset.entityId);
+                return (
+                  <li key={asset.id}>
+                    <button onClick={() => setEntityId(asset.entityId)} type="button">
+                      <strong>{entity?.label ?? asset.entityId}</strong>
+                      <span>
+                        {asset.kind} · {(asset.bytes.length / 1024).toFixed(1)} KB
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </section>
         <section className="studio-panel">

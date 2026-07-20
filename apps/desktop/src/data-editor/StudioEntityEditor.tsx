@@ -3,8 +3,13 @@ import { useMemo, useState } from 'react';
 import { Button } from '../ui/primitives/actions.js';
 import { CommunityEntityEditor } from './CommunityEntityEditor.js';
 import { CompetitionBuilder } from './CompetitionBuilder.js';
-import type { StudioEntityRecord, StudioModuleId } from './authoring-graph.js';
 import type {
+  StudioEntityRecord,
+  StudioModuleId,
+  StudioRegistrationRecordValue,
+} from './authoring-graph.js';
+import type {
+  AuthoringAssetUpload,
   AuthoringCoachProfile,
   AuthoringPlayerProfile,
   CommunityChange,
@@ -67,6 +72,7 @@ function SimpleEntityForm({
   author,
   world,
   onUpsert,
+  onRelatedUpsert,
   onNavigate,
 }: {
   readonly module: StudioModuleId;
@@ -75,9 +81,12 @@ function SimpleEntityForm({
   readonly author: string;
   readonly world: ModAuthoringWorld;
   readonly onUpsert: (change: CommunityChange) => void;
+  readonly onRelatedUpsert: (change: CommunityChange) => void;
   readonly onNavigate: (module: StudioModuleId, id?: string) => void;
 }) {
   const [draft, setDraft] = useState(() => draftFrom(module, record));
+  const [inlineDivisionOpen, setInlineDivisionOpen] = useState(false);
+  const [inlineDivisionName, setInlineDivisionName] = useState('');
   const entityKind = simpleKind[module];
   if (!entityKind) return null;
   const id =
@@ -139,6 +148,32 @@ function SimpleEntityForm({
       ],
       asset: null,
     });
+  };
+  const createInlineDivision = () => {
+    if (!draft.nationId || !inlineDivisionName.trim()) return;
+    const regionId = `community.${slug(author || 'autor')}.region.${slug(inlineDivisionName)}`;
+    const value = { id: regionId, nationId: draft.nationId, name: inlineDivisionName.trim() };
+    onRelatedUpsert({
+      id: `region:${regionId}`,
+      kind: 'region',
+      operation: 'create',
+      targetId: regionId,
+      label: value.name,
+      summary: 'Divisão administrativa criada durante o cadastro da cidade',
+      patches: [
+        {
+          operation: 'add',
+          entityKind: 'region',
+          targetId: regionId,
+          entity: { kind: 'region', value },
+          reason: 'Criação relacionada no Creator Studio',
+        },
+      ],
+      asset: null,
+    });
+    setDraft({ ...draft, regionId });
+    setInlineDivisionName('');
+    setInlineDivisionOpen(false);
   };
   return (
     <form
@@ -205,14 +240,15 @@ function SimpleEntityForm({
       )}
       {module === 'cities' && (
         <label>
-          Região
+          Divisão administrativa
+          <small>Estado, província, departamento ou outra divisão que organiza a cidade.</small>
           <span className="studio-relation-control">
             <select
-              aria-label="Região"
+              aria-label="Divisão administrativa"
               onChange={(event) => setDraft({ ...draft, regionId: event.target.value })}
               value={draft.regionId}
             >
-              <option value="">Sem região</option>
+              <option value="">Resolver depois</option>
               {(world.regions ?? [])
                 .filter((item) => !draft.nationId || item.nationId === draft.nationId)
                 .map((item) => (
@@ -221,11 +257,55 @@ function SimpleEntityForm({
                   </option>
                 ))}
             </select>
-            <button onClick={() => onNavigate('regions')} type="button">
-              + Criar região
+            <button
+              disabled={!draft.nationId}
+              onClick={() => setInlineDivisionOpen(true)}
+              type="button"
+            >
+              + Criar divisão
             </button>
           </span>
         </label>
+      )}
+      {inlineDivisionOpen && (
+        <div
+          aria-labelledby="inline-division-title"
+          aria-modal="true"
+          className="studio-inline-dialog"
+          role="dialog"
+        >
+          <div>
+            <span>Criação relacionada</span>
+            <h4 id="inline-division-title">Nova divisão administrativa</h4>
+            <p>O formulário da cidade ficará preservado e a nova divisão será selecionada.</p>
+            <label>
+              Nome
+              <input
+                autoFocus
+                onChange={(event) => setInlineDivisionName(event.target.value)}
+                placeholder="Ex.: São Paulo"
+                value={inlineDivisionName}
+              />
+            </label>
+            <div>
+              <Button
+                onClick={() => setInlineDivisionOpen(false)}
+                type="button"
+                variant="secondary"
+              >
+                Cancelar
+              </Button>
+              <Button
+                disabled={!inlineDivisionName.trim()}
+                onClick={createInlineDivision}
+                type="button"
+                variant="primary"
+              >
+                Criar e selecionar
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
       {module === 'stadiums' && (
         <>
@@ -393,19 +473,31 @@ function ContractEditor({
 }
 
 function RegistrationEditor({
+  record,
   world,
   onUpsert,
 }: {
+  readonly record: StudioEntityRecord | null;
   readonly world: ModAuthoringWorld;
   readonly onUpsert: (change: CommunityChange) => void;
 }) {
+  const existing = record?.value as StudioRegistrationRecordValue | undefined;
   const competitions = world.competitions ?? [];
-  const [competitionId, setCompetitionId] = useState(competitions[0]?.id ?? '');
+  const [competitionId, setCompetitionId] = useState(
+    existing?.competition.id ?? competitions[0]?.id ?? '',
+  );
   const competition = competitions.find((item) => item.id === competitionId);
-  const [seasonId, setSeasonId] = useState(competition?.seasons[0]?.id ?? '');
-  const [playerId, setPlayerId] = useState(world.playerProfiles[0]?.identity.entityId ?? '');
-  const [clubId, setClubId] = useState(world.clubs[0]?.id ?? '');
-  const [shirtNumber, setShirtNumber] = useState('');
+  const [seasonId, setSeasonId] = useState(
+    existing?.season.id ?? competition?.seasons[0]?.id ?? '',
+  );
+  const [playerId, setPlayerId] = useState(
+    existing?.registration.playerId ?? world.playerProfiles[0]?.identity.entityId ?? '',
+  );
+  const [clubId, setClubId] = useState(existing?.registration.clubId ?? world.clubs[0]?.id ?? '');
+  const [shirtNumber, setShirtNumber] = useState(
+    existing?.registration.shirtNumber?.toString() ?? '',
+  );
+  const [eligible, setEligible] = useState(existing?.registration.eligible ?? true);
   const save = () => {
     const currentCompetition = competitions.find((item) => item.id === competitionId);
     if (!currentCompetition) return;
@@ -414,21 +506,34 @@ function RegistrationEditor({
       clubId,
       shirtNumber: shirtNumber ? Number(shirtNumber) : null,
       contractReference: null,
-      eligible: true,
+      eligible,
     };
     const next: StudioCompetition = {
       ...currentCompetition,
-      seasons: currentCompetition.seasons.map((season) =>
-        season.id === seasonId
-          ? { ...season, playerRegistrations: [...season.playerRegistrations, registration] }
-          : season,
-      ),
+      seasons: currentCompetition.seasons.map((season) => {
+        const withoutEdited = existing
+          ? season.playerRegistrations.filter(
+              (item, index) =>
+                season.id !== existing.season.id ||
+                index !== existing.index ||
+                item.playerId !== existing.registration.playerId,
+            )
+          : season.playerRegistrations;
+        if (season.id !== seasonId) return { ...season, playerRegistrations: withoutEdited };
+        return {
+          ...season,
+          playerRegistrations: [
+            ...withoutEdited.filter((item) => item.playerId !== playerId),
+            registration,
+          ],
+        };
+      }),
     };
     onUpsert({
       id: `registration:${seasonId}:${playerId}`,
       kind: 'registration',
-      operation: 'create',
-      targetId: playerId,
+      operation: existing ? 'edit' : 'create',
+      targetId: currentCompetition.id,
       label: `Inscrição de ${world.playerProfiles.find((item) => item.identity.entityId === playerId)?.identity.knownName ?? playerId}`,
       summary: currentCompetition.name,
       patches: [
@@ -437,7 +542,7 @@ function RegistrationEditor({
           entityKind: 'competition',
           targetId: currentCompetition.id,
           entity: { kind: 'competition', value: next },
-          reason: 'Inscrição criada visualmente no Creator Studio',
+          reason: `Inscrição ${existing ? 'editada' : 'criada'} visualmente no Creator Studio`,
         },
       ],
       asset: null,
@@ -446,12 +551,13 @@ function RegistrationEditor({
   return (
     <form className="studio-inspector-form" onSubmit={(event) => event.preventDefault()}>
       <header>
-        <h3>Nova inscrição</h3>
+        <h3>{existing ? 'Editar inscrição' : 'Nova inscrição'}</h3>
         <p>Vincule jogador, clube e temporada sem editar JSON.</p>
       </header>
       <label>
         Competição
         <select
+          disabled={Boolean(existing)}
           onChange={(event) => {
             setCompetitionId(event.target.value);
             setSeasonId(
@@ -506,8 +612,17 @@ function RegistrationEditor({
           value={shirtNumber}
         />
       </label>
+      <label className="studio-checkbox-field">
+        <input
+          checked={eligible}
+          onChange={(event) => setEligible(event.target.checked)}
+          type="checkbox"
+        />
+        Elegível para jogar
+        <small>Desmarque quando a inscrição existir, mas ainda estiver pendente.</small>
+      </label>
       <Button disabled={!seasonId || !playerId || !clubId} onClick={save} variant="primary">
-        Salvar inscrição
+        {existing ? 'Salvar alterações' : 'Salvar inscrição'}
       </Button>
     </form>
   );
@@ -607,16 +722,20 @@ export function StudioEntityEditor({
   record,
   mode,
   author,
+  assets = [],
   world,
   onUpsert,
+  onRelatedUpsert,
   onNavigate,
 }: {
   readonly module: StudioModuleId;
   readonly record: StudioEntityRecord | null;
   readonly mode: 'create' | 'edit';
   readonly author: string;
+  readonly assets?: readonly AuthoringAssetUpload[];
   readonly world: ModAuthoringWorld;
   readonly onUpsert: (change: CommunityChange) => void;
+  readonly onRelatedUpsert?: (change: CommunityChange) => void;
   readonly onNavigate: (module: StudioModuleId, id?: string) => void;
 }) {
   const editorKey = `${module}:${mode}:${record?.id ?? 'new'}`;
@@ -631,6 +750,7 @@ export function StudioEntityEditor({
         mode={mode}
         module={module}
         onNavigate={onNavigate}
+        onRelatedUpsert={onRelatedUpsert ?? onUpsert}
         onUpsert={onUpsert}
         record={memoRecord}
         world={world}
@@ -639,6 +759,7 @@ export function StudioEntityEditor({
   if (canUsePersonEditor)
     return (
       <CommunityEntityEditor
+        assets={assets}
         author={author}
         embedded
         initialEntityId={record?.id}
@@ -669,7 +790,7 @@ export function StudioEntityEditor({
   if (module === 'contracts')
     return <ContractEditor key={editorKey} onUpsert={onUpsert} record={record} world={world} />;
   if (module === 'registrations')
-    return <RegistrationEditor key={editorKey} onUpsert={onUpsert} world={world} />;
+    return <RegistrationEditor key={editorKey} onUpsert={onUpsert} record={record} world={world} />;
   if (module === 'translations')
     return <TranslationEditor key={editorKey} onUpsert={onUpsert} record={record} world={world} />;
   return null;

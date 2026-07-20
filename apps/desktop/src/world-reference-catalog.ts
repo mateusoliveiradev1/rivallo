@@ -45,6 +45,25 @@ const bundledSourceFor = (path: string): string | null =>
 const sourceFor = (asset: WorldAssetReference): string | null =>
   asset.runtimeSource ? convertFileSrc(asset.runtimeSource) : bundledSourceFor(asset.path);
 
+export const resolveAssetByIdFromCatalog = (
+  catalog: WorldReferenceCatalog,
+  assetId: string,
+): string | null => {
+  const asset = catalog.assets.find(({ id }) => id === assetId);
+  return asset ? sourceFor(asset) : null;
+};
+
+export const resolveEntityAssetFromCatalog = (
+  catalog: WorldReferenceCatalog,
+  entityId: string,
+  kind: string,
+): string | null => {
+  const asset = catalog.assets.find(
+    (candidate) => candidate.entityId === entityId && candidate.kind === kind,
+  );
+  return asset ? sourceFor(asset) : null;
+};
+
 export const configureWorldReferenceCatalog = (catalog: WorldReferenceCatalog): void => {
   activeCatalog = {
     assets: [...catalog.assets],
@@ -55,19 +74,22 @@ export const configureWorldReferenceCatalog = (catalog: WorldReferenceCatalog): 
 export const getWorldReferenceCatalog = (): WorldReferenceCatalog => activeCatalog;
 
 export const resolveWorldAssetById = (assetId: string): string | null => {
-  const asset = activeCatalog.assets.find(({ id }) => id === assetId);
-  return asset ? sourceFor(asset) : null;
+  return resolveAssetByIdFromCatalog(activeCatalog, assetId);
 };
 
 export const resolveWorldEntityAsset = (entityId: string, kind: string): string | null => {
-  const asset = activeCatalog.assets.find(
-    (candidate) => candidate.entityId === entityId && candidate.kind === kind,
-  );
-  return asset ? sourceFor(asset) : null;
+  return resolveEntityAssetFromCatalog(activeCatalog, entityId, kind);
 };
 
 export const loadWorldReferenceCatalog = async (): Promise<WorldReferenceCatalog> =>
   invoke<WorldReferenceCatalog>('world_reference_catalog');
+
+export const loadWorldReferenceCatalogForSelection = async (
+  packageIds: readonly string[],
+): Promise<WorldReferenceCatalog> =>
+  invoke<WorldReferenceCatalog>('world_reference_catalog_for_selection', {
+    packageIds,
+  });
 
 export const initializeWorldReferenceCatalog = async (): Promise<void> => {
   try {

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '../ui/primitives/actions.js';
+import { Status } from '../ui/primitives/feedback.js';
 import { AssetManager } from './AssetManager.js';
 import {
   dependentRecords,
@@ -10,6 +11,7 @@ import {
   removalChange,
   type StudioEntityRecord,
   type StudioModuleId,
+  type StudioSeasonRecordValue,
 } from './authoring-graph.js';
 import { CsvImport } from './CsvImport.js';
 import { PackageValidationSummary } from './PackageValidationSummary.js';
@@ -20,12 +22,13 @@ import type {
   GeneratedPackagePatch,
   ModAuthoringWorld,
   PackageValidationReport,
+  StudioCompetition,
 } from './types.js';
 
 const modules = [
   ['overview', 'Visão geral'],
   ['nations', 'Nações'],
-  ['regions', 'Regiões'],
+  ['regions', 'Divisões administrativas'],
   ['cities', 'Cidades'],
   ['stadiums', 'Estádios'],
   ['clubs', 'Clubes'],
@@ -82,7 +85,9 @@ const exportRecords = (module: StudioModuleId, records: readonly StudioEntityRec
   URL.revokeObjectURL(link.href);
 };
 
-const cloneId = (id: string) => `${id}.copy-${Date.now().toString(36)}`;
+let cloneSequence = 0;
+const cloneId = (id: string) =>
+  `${id}.copy-${Date.now().toString(36)}-${(++cloneSequence).toString(36)}`;
 
 function duplicateRecord(
   record: StudioEntityRecord,
@@ -165,6 +170,40 @@ function duplicateRecord(
               reason: 'Perfil duplicado no Creator Studio',
             },
           ],
+      asset: null,
+    };
+  }
+  if (record.module === 'seasons') {
+    const context = record.value as StudioSeasonRecordValue;
+    const competition =
+      world.competitions?.find((item) => item.id === context.competition.id) ?? context.competition;
+    const seasonId = cloneId(context.season.id);
+    const season = {
+      ...context.season,
+      id: seasonId,
+      competitionId: competition.id,
+      label: `${context.season.label} — cópia`,
+    };
+    const next: StudioCompetition = {
+      ...competition,
+      seasons: [...competition.seasons, season],
+    };
+    return {
+      id: `season:${seasonId}`,
+      kind: 'season',
+      operation: 'duplicate',
+      targetId: competition.id,
+      label: season.label,
+      summary: 'Temporada duplicada dentro da competição',
+      patches: [
+        {
+          operation: 'replace',
+          entityKind: 'competition',
+          targetId: competition.id,
+          entity: { kind: 'competition', value: next },
+          reason: `${context.season.label} duplicada no Creator Studio`,
+        },
+      ],
       asset: null,
     };
   }
@@ -259,22 +298,36 @@ export function DataStudio({
   changes,
   initialModule,
   initialEntity,
+  initialIssue,
   report,
   onUpsert,
   onBatch,
   onRollback,
   onValidate,
+  advancedConfig = { packageId: '', version: '1.0.0', basePackageId: '', changelog: '' },
+  onAdvancedUpdate = () => undefined,
 }: {
   readonly world: ModAuthoringWorld;
   readonly author: string;
   readonly changes: readonly CommunityChange[];
   readonly initialModule?: string | null;
   readonly initialEntity?: string | null;
+  readonly initialIssue?: string | null;
   readonly report: PackageValidationReport | null;
   readonly onUpsert: (change: CommunityChange) => void;
   readonly onBatch: (changes: readonly CommunityChange[]) => void;
   readonly onRollback: (ids: readonly string[]) => void;
   readonly onValidate: () => Promise<void>;
+  readonly advancedConfig?: {
+    readonly packageId: string;
+    readonly version: string;
+    readonly basePackageId: string;
+    readonly changelog: string;
+  };
+  readonly onAdvancedUpdate?: (update: {
+    readonly version?: string;
+    readonly changelog?: string;
+  }) => void;
 }) {
   const safeInitial = modules.some(([id]) => id === initialModule)
     ? (initialModule as StudioModule)
@@ -287,11 +340,12 @@ export function DataStudio({
   const [editorMode, setEditorMode] = useState<'create' | 'edit' | null>(
     initialEntity ? 'edit' : null,
   );
-  const [onlyPending, setOnlyPending] = useState(false);
+  const [onlyPending, setOnlyPending] = useState(Boolean(initialIssue));
   const [showDependencies, setShowDependencies] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkConfirm, setBulkConfirm] = useState(false);
+  const inspectorTriggerRef = useRef<HTMLButtonElement | null>(null);
   const draftWorld = useMemo(() => projectAuthoringWorld(world, changes), [changes, world]);
   const moduleRecords = useMemo(
     () =>
@@ -310,6 +364,10 @@ export function DataStudio({
   const dependencies = activeRecord ? dependentRecords(draftWorld, activeRecord) : [];
   const isEntityModule = editableModules.includes(module as StudioModuleId);
   const canMutate = Boolean(activeRecord && isEntityModule);
+  const canDuplicate = Boolean(
+    activeRecord && !['contracts', 'registrations', 'translations'].includes(activeRecord.module),
+  );
+  const canDelete = Boolean(activeRecord && removalChange(activeRecord, draftWorld));
   const moduleReadiness = activeRecord
     ? readinessForEntity(draftWorld, activeRecord.module, activeRecord.id)
     : null;
@@ -327,6 +385,12 @@ export function DataStudio({
     navigate(next);
     setEditorMode('create');
   };
+  const closeInspector = () => {
+    setEditorMode(null);
+    setActiveId('');
+    setConfirmDelete(false);
+    window.setTimeout(() => inspectorTriggerRef.current?.focus(), 0);
+  };
 
   const applyDelete = () => {
     if (!activeRecord) return;
@@ -339,17 +403,41 @@ export function DataStudio({
   };
 
   const selectedRecords = moduleRecords.filter((item) => selected.includes(item.id));
+  const duplicableSelectedRecords = selectedRecords.filter(
+    (record) => !['contracts', 'registrations', 'translations'].includes(record.module),
+  );
+  const deletableSelectedRecords = selectedRecords.filter((record) =>
+    Boolean(removalChange(record, draftWorld) && dependentRecords(draftWorld, record).length === 0),
+  );
   const applyBulkDuplicate = () => {
-    const batch = selectedRecords
-      .map((record) => duplicateRecord(record, draftWorld))
-      .filter((change): change is CommunityChange => Boolean(change));
+    let workingWorld = draftWorld;
+    const batch: CommunityChange[] = [];
+    for (const selectedRecord of duplicableSelectedRecords) {
+      const currentRecord = recordsForModule(workingWorld, [], selectedRecord.module).find(
+        (record) => record.id === selectedRecord.id,
+      );
+      if (!currentRecord) continue;
+      const change = duplicateRecord(currentRecord, workingWorld);
+      if (!change) continue;
+      batch.push(change);
+      workingWorld = projectAuthoringWorld(workingWorld, [change]);
+    }
     if (batch.length) onBatch(batch);
     setBulkOpen(false);
   };
   const applyBulkDelete = () => {
-    const batch = selectedRecords
-      .map((record) => removalChange(record, draftWorld))
-      .filter((change): change is CommunityChange => Boolean(change));
+    let workingWorld = draftWorld;
+    const batch: CommunityChange[] = [];
+    for (const selectedRecord of deletableSelectedRecords) {
+      const currentRecord = recordsForModule(workingWorld, [], selectedRecord.module).find(
+        (record) => record.id === selectedRecord.id,
+      );
+      if (!currentRecord) continue;
+      const change = removalChange(currentRecord, workingWorld);
+      if (!change) continue;
+      batch.push(change);
+      workingWorld = projectAuthoringWorld(workingWorld, [change]);
+    }
     if (batch.length) onBatch(batch);
     setSelected([]);
     setActiveId('');
@@ -365,13 +453,12 @@ export function DataStudio({
         target?.closest('input, textarea, select, [contenteditable="true"]'),
       );
       if (event.key === 'Escape' && (editorMode || activeRecord || confirmDelete || bulkOpen)) {
-        setEditorMode(null);
-        setActiveId('');
+        closeInspector();
         setConfirmDelete(false);
         setBulkConfirm(false);
         setBulkOpen(false);
       }
-      if (event.key === 'Delete' && activeRecord && !isTyping) {
+      if (event.key === 'Delete' && canDelete && !isTyping) {
         event.preventDefault();
         setConfirmDelete(true);
       }
@@ -382,7 +469,7 @@ export function DataStudio({
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [activeRecord, bulkOpen, confirmDelete, editorMode]);
+  }, [activeRecord, bulkOpen, canDelete, confirmDelete, editorMode]);
 
   return (
     <div className="data-studio">
@@ -476,7 +563,12 @@ export function DataStudio({
         )}
 
         {module === 'assets' && (
-          <AssetManager author={author} onUpsert={onUpsert} world={draftWorld} />
+          <AssetManager
+            assets={changes.flatMap((change) => (change.asset ? [change.asset] : []))}
+            author={author}
+            onUpsert={onUpsert}
+            world={draftWorld}
+          />
         )}
         {module === 'import' && (
           <CsvImport onImport={onBatch} onRollback={onRollback} world={draftWorld} />
@@ -535,15 +627,51 @@ export function DataStudio({
           </section>
         )}
         {module === 'advanced' && (
-          <section className="studio-advanced-notice">
-            <h2>Configuração avançada</h2>
-            <p>
-              JSON é somente leitura neste modo. Use os módulos visuais para alterar o draft
-              canônico.
-            </p>
-            <Button onClick={() => navigate('patches')} variant="secondary">
-              Revisar patches semanticamente
-            </Button>
+          <section className="studio-advanced-notice" aria-labelledby="advanced-config-title">
+            <header>
+              <span>Configuração segura</span>
+              <h2 id="advanced-config-title">Compatibilidade e versão</h2>
+              <p>Altere metadados do pacote sem abrir ou editar JSON.</p>
+            </header>
+            <div className="studio-panel studio-form-grid">
+              <label>
+                Versão
+                <input
+                  aria-label="Versão do mod"
+                  onChange={(event) => onAdvancedUpdate({ version: event.target.value })}
+                  value={advancedConfig.version}
+                />
+                <small>Use major.minor.patch, por exemplo 1.2.0.</small>
+              </label>
+              <label>
+                Compatibilidade do jogo
+                <input disabled value=">=0.1.0 <0.2.0" />
+              </label>
+              <label>
+                Base de referência
+                <input disabled value={advancedConfig.basePackageId} />
+              </label>
+              <label>
+                Identidade do pacote
+                <input disabled value={advancedConfig.packageId} />
+              </label>
+              <label className="studio-form-grid__wide">
+                Notas da versão
+                <textarea
+                  maxLength={1200}
+                  onChange={(event) => onAdvancedUpdate({ changelog: event.target.value })}
+                  value={advancedConfig.changelog}
+                />
+              </label>
+            </div>
+            <div className="studio-quick-actions">
+              <Button onClick={() => navigate('patches')} variant="secondary">
+                Revisar mudanças
+              </Button>
+              <Button onClick={() => navigate('validation')} variant="secondary">
+                Verificar compatibilidade
+              </Button>
+            </div>
           </section>
         )}
 
@@ -553,9 +681,23 @@ export function DataStudio({
               <div>
                 <span>{labelForModule(module)}</span>
                 <h2 id="studio-module-heading">Dados, relações e readiness</h2>
-                <p>{moduleRecords.length.toLocaleString('pt-BR')} itens no draft resolvido.</p>
+                <p>
+                  {moduleRecords.length.toLocaleString('pt-BR')}{' '}
+                  {labelForModule(module).toLowerCase()} cadastrados
+                  {moduleRecords.filter((item) => item.readiness?.issues.length).length
+                    ? ` · ${moduleRecords.filter((item) => item.readiness?.issues.length).length} com pendências`
+                    : ''}
+                </p>
               </div>
             </header>
+            {initialIssue && (
+              <Status label="Correção aberta pela Nova Carreira" variant="warning">
+                <p>
+                  A pendência <strong>{initialIssue}</strong> está em foco. Corrija os dados e volte
+                  para recalcular a disponibilidade do clube.
+                </p>
+              </Status>
+            )}
             <div
               className="studio-module-toolbar"
               role="toolbar"
@@ -577,7 +719,7 @@ export function DataStudio({
                   Editar
                 </Button>
               )}
-              {canMutate && (
+              {canDuplicate && (
                 <Button
                   onClick={() => {
                     const change = activeRecord && duplicateRecord(activeRecord, draftWorld);
@@ -588,7 +730,7 @@ export function DataStudio({
                   Duplicar
                 </Button>
               )}
-              {canMutate && (
+              {canDelete && (
                 <Button onClick={() => setConfirmDelete(true)} variant="secondary">
                   Excluir
                 </Button>
@@ -658,11 +800,19 @@ export function DataStudio({
                   >
                     Selecionar visíveis
                   </Button>
-                  <Button onClick={applyBulkDuplicate} variant="secondary">
+                  <Button
+                    disabled={duplicableSelectedRecords.length === 0}
+                    onClick={applyBulkDuplicate}
+                    variant="secondary"
+                  >
                     Duplicar selecionados
                   </Button>
                   {!bulkConfirm ? (
-                    <Button onClick={() => setBulkConfirm(true)} variant="secondary">
+                    <Button
+                      disabled={deletableSelectedRecords.length === 0}
+                      onClick={() => setBulkConfirm(true)}
+                      variant="secondary"
+                    >
                       Excluir selecionados
                     </Button>
                   ) : (
@@ -712,7 +862,8 @@ export function DataStudio({
                           />
                         </label>
                         <button
-                          onClick={() => {
+                          onClick={(event) => {
+                            inspectorTriggerRef.current = event.currentTarget;
                             setActiveId(item.id);
                             setEditorMode('edit');
                             setConfirmDelete(false);
@@ -757,6 +908,13 @@ export function DataStudio({
                   </Button>
                 </footer>
               </section>
+              <button
+                aria-label="Fechar inspector"
+                className="studio-inspector-backdrop"
+                data-open={Boolean(editorMode || activeRecord || confirmDelete)}
+                onClick={closeInspector}
+                type="button"
+              />
               <aside
                 className="studio-inspector"
                 aria-label="Inspector da entidade"
@@ -765,11 +923,7 @@ export function DataStudio({
                 <button
                   aria-label="Fechar inspector"
                   className="studio-inspector__close"
-                  onClick={() => {
-                    setEditorMode(null);
-                    setActiveId('');
-                    setConfirmDelete(false);
-                  }}
+                  onClick={closeInspector}
                   type="button"
                 >
                   Fechar
@@ -784,28 +938,50 @@ export function DataStudio({
                     <h3 id="delete-entity-heading">Excluir {activeRecord.name}?</h3>
                     <p>
                       {dependencies.length
-                        ? `${dependencies.length} dependência(s) precisam ser resolvidas antes da exportação.`
+                        ? `${dependencies.length} dependência(s) impedem esta exclusão. Resolva ou desvincule cada uma primeiro.`
                         : 'A remoção será registrada como patch e poderá ser desfeita.'}
                     </p>
                     <div>
                       <Button onClick={() => setConfirmDelete(false)} variant="secondary">
                         Cancelar
                       </Button>
-                      <Button onClick={applyDelete} variant="primary">
-                        Excluir do draft
-                      </Button>
+                      {dependencies.length ? (
+                        <Button
+                          onClick={() => {
+                            setConfirmDelete(false);
+                            setShowDependencies(true);
+                          }}
+                          variant="primary"
+                        >
+                          Ver dependências
+                        </Button>
+                      ) : (
+                        <Button onClick={applyDelete} variant="primary">
+                          Excluir do draft
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ) : editorMode && isEntityModule ? (
                   <StudioEntityEditor
+                    assets={changes.flatMap((change) => (change.asset ? [change.asset] : []))}
                     author={author}
                     key={`${module}:${editorMode}:${activeRecord?.id ?? 'new'}`}
                     mode={editorMode}
                     module={module as StudioModuleId}
                     onNavigate={(next, id) => navigate(next, id)}
+                    onRelatedUpsert={onUpsert}
                     onUpsert={(change) => {
                       onUpsert(change);
-                      setActiveId(change.targetId);
+                      setActiveId(
+                        module === 'registrations'
+                          ? change.id
+                          : module === 'contracts'
+                            ? `contract:${change.targetId}`
+                            : module === 'seasons'
+                              ? (activeRecord?.id ?? '')
+                              : change.targetId,
+                      );
                       setEditorMode('edit');
                     }}
                     record={editorMode === 'edit' ? activeRecord : null}
@@ -840,14 +1016,29 @@ export function DataStudio({
                 ) : (
                   <div className="studio-inspector-summary">
                     <span>Resumo do módulo</span>
-                    <h3>{moduleRecords.length.toLocaleString('pt-BR')} itens</h3>
+                    <h3>
+                      {moduleRecords.length > 0
+                        ? 'Nenhum item selecionado'
+                        : 'Nenhum item cadastrado'}
+                    </h3>
                     <p>
-                      Selecione um item para ver referências, mudanças, readiness e impacto de
-                      exclusão.
+                      {moduleRecords.length > 0
+                        ? 'Selecione um item da lista para ver relações, pendências e impacto.'
+                        : 'Crie um rascunho agora ou importe dados para começar.'}
                     </p>
-                    <Button onClick={() => setEditorMode('create')} variant="primary">
-                      Criar primeiro item
-                    </Button>
+                    <div className="studio-inspector-summary__actions">
+                      <Button onClick={() => setEditorMode('create')} variant="primary">
+                        Criar novo item
+                      </Button>
+                      <Button onClick={() => navigate('import')} variant="secondary">
+                        Importar
+                      </Button>
+                      {moduleRecords.some((item) => item.readiness?.issues.length) && (
+                        <Button onClick={() => setOnlyPending(true)} variant="secondary">
+                          Revisar pendências
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 )}
                 {showDependencies && activeRecord && (

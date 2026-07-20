@@ -174,8 +174,9 @@ export const chooseRivmodOpenPath = async (): Promise<string | null> =>
 export const exportRivmod = async (
   source: DataPackageAuthoringSource,
   destination: string,
+  projectId: string | null,
 ): Promise<PackageDistributionReceipt> =>
-  invoke<PackageDistributionReceipt>('export_rivmod', { source, destination });
+  invoke<PackageDistributionReceipt>('export_rivmod', { source, destination, projectId });
 
 export const inspectRivmod = async (path: string): Promise<RivmodInspection> =>
   invoke<RivmodInspection>('inspect_rivmod', { bundleLocation: path });

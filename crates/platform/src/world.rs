@@ -3,11 +3,12 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use rivallo_application::{
-    ContentPackage, DataPackageCatalogEntry, PackageManifest, PackagePatch,
+    AssetReference, ContentPackage, DataPackageCatalogEntry, PackageManifest, PackagePatch,
     PackageValidationReport, PackageVisibility, ResolvedWorldDatabase, WorldDatabaseService,
     WorldEntityKind, WorldPackageData, WorldPackageRepository,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 const MAX_MANIFEST_BYTES: u64 = 256 * 1024;
@@ -476,6 +477,34 @@ impl WorldDatabaseCoordinator {
         self.service.catalog()
     }
 
+    pub fn runtime_asset_location(&self, asset: &AssetReference) -> Option<(String, String)> {
+        let repository = FileWorldPackageRepository::new(&self.user_packages_root);
+        let packages = repository.available_user_packages().ok()?;
+        for package in packages.into_iter().rev() {
+            if !package
+                .manifest
+                .assets
+                .iter()
+                .any(|candidate| candidate.id == asset.id)
+            {
+                continue;
+            }
+            let path = self
+                .user_packages_root
+                .join(&package.manifest.package_id)
+                .join(&asset.path);
+            if path.is_file()
+                && ensure_real_descendant(&self.user_packages_root, &path, "runtimeAsset").is_ok()
+            {
+                return Some((
+                    package.manifest.package_id,
+                    path.to_string_lossy().into_owned(),
+                ));
+            }
+        }
+        None
+    }
+
     pub fn resolve_selection(
         &self,
         package_ids: &[String],
@@ -627,6 +656,32 @@ impl WorldDatabaseCoordinator {
                 .map_err(|error| io_report(&target, "creator.project_delete_failed", error))?;
         }
         Ok(())
+    }
+
+    pub fn mark_creator_project_exported(
+        &self,
+        project_id: &str,
+        package_id: &str,
+        version: &str,
+    ) -> Result<CreatorProjectRecord, PackageValidationReport> {
+        ensure_creator_id(project_id, "projectId")?;
+        let target = self
+            .creator_projects_root
+            .join(format!("{project_id}.json"));
+        let mut record = self.read_creator_project_file(&target)?;
+        if record.package_id != package_id || record.version != version {
+            return Err(creator_report(
+                "creator.export_project_identity_mismatch",
+                "projectId",
+                "O bundle exportado não corresponde ao projeto de autoria aberto.",
+            ));
+        }
+        let now = unix_ms();
+        record.status = CreatorProjectStatus::Exported;
+        record.last_exported_at = Some(now);
+        record.updated_at = now;
+        write_json_atomic(&self.creator_projects_root, &target, &record)?;
+        Ok(record)
     }
 
     pub fn fork_installed_package(
@@ -936,7 +991,7 @@ impl WorldDatabaseCoordinator {
     ) -> Result<CreatorProjectRecord, PackageValidationReport> {
         ensure_real_descendant(&self.creator_projects_root, path, "projectFile")?;
         let bytes = read_bounded(&self.creator_projects_root, path, MAX_RIVMOD_BYTES)?;
-        let record: CreatorProjectRecord =
+        let mut record: CreatorProjectRecord =
             parse_json(&bytes, &display_path(path), "creator.project_json_invalid")?;
         if record.schema_version != CREATOR_PROJECT_SCHEMA_VERSION {
             return Err(creator_report(
@@ -944,6 +999,17 @@ impl WorldDatabaseCoordinator {
                 "schemaVersion",
                 "O projeto precisa ser migrado antes de continuar a edição.",
             ));
+        }
+        if migrate_verified_new_entity_operations(&mut record)? {
+            let backup = path.with_extension("pre-origin-migration.bak");
+            if !backup.exists() {
+                fs::copy(path, &backup)
+                    .map_err(|error| io_report(&backup, "creator.project_backup_failed", error))?;
+            }
+            record.status = CreatorProjectStatus::Modified;
+            record.updated_at = unix_ms();
+            record.revision = record.revision.saturating_add(1);
+            write_json_atomic(&self.creator_projects_root, path, &record)?;
         }
         Ok(record)
     }
@@ -1051,6 +1117,43 @@ fn project_status(validation: &PackageValidationReport) -> CreatorProjectStatus 
     } else {
         CreatorProjectStatus::ValidWithWarnings
     }
+}
+
+fn migrate_verified_new_entity_operations(
+    record: &mut CreatorProjectRecord,
+) -> Result<bool, PackageValidationReport> {
+    let Some(patches_json) = record.source.patches_json.as_deref() else {
+        return Ok(false);
+    };
+    let mut patches: Vec<Value> = serde_json::from_str(patches_json)
+        .map_err(|error| serialization_report("data/patches.json", error))?;
+    let verified = [
+        ("community.example.city.sao-paulo", "city"),
+        ("community.example.stadium.Estádio Horizonte", "stadium"),
+        (
+            "community.example.club.sao-paulo-futebol-clube",
+            "club",
+        ),
+    ];
+    let mut changed = false;
+    for patch in &mut patches {
+        let target_id = patch.get("targetId").and_then(Value::as_str);
+        let entity_kind = patch.get("entityKind").and_then(Value::as_str);
+        let is_verified = verified
+            .iter()
+            .any(|(id, kind)| target_id == Some(*id) && entity_kind == Some(*kind));
+        if is_verified && patch.get("operation").and_then(Value::as_str) == Some("replace") {
+            patch["operation"] = Value::String("add".to_owned());
+            changed = true;
+        }
+    }
+    if changed {
+        record.source.patches_json = Some(
+            serde_json::to_string_pretty(&patches)
+                .map_err(|error| serialization_report("data/patches.json", error))?,
+        );
+    }
+    Ok(changed)
 }
 
 fn project_summary(record: &CreatorProjectRecord) -> CreatorProjectSummary {
@@ -1780,6 +1883,52 @@ mod tests {
     }
 
     #[test]
+    fn verified_legacy_draft_entities_migrate_from_replace_to_add_only() {
+        let mut source = empty_mod_source("community.example.brasileirao", "1.0.0");
+        source.patches_json = Some(
+            serde_json::json!([
+                {
+                    "operation": "replace",
+                    "entityKind": "stadium",
+                    "targetId": "community.example.stadium.Estádio Horizonte",
+                    "entity": { "kind": "stadium", "value": {} },
+                    "reason": "legacy"
+                },
+                {
+                    "operation": "replace",
+                    "entityKind": "competition",
+                    "targetId": "competition.official.brasileirao",
+                    "entity": { "kind": "competition", "value": {} },
+                    "reason": "legitimate base edit"
+                }
+            ])
+            .to_string(),
+        );
+        let mut record = CreatorProjectRecord {
+            schema_version: CREATOR_PROJECT_SCHEMA_VERSION,
+            project_id: "project.community.example.brasileirao".to_owned(),
+            name: "Brasileirão".to_owned(),
+            mode: CreatorProjectMode::DataStudio,
+            status: CreatorProjectStatus::Blocked,
+            base_package_id: "official.rivallo.foundation".to_owned(),
+            package_id: "community.example.brasileirao".to_owned(),
+            version: "1.0.0".to_owned(),
+            created_at: 1,
+            updated_at: 1,
+            last_exported_at: None,
+            revision: 1,
+            source,
+        };
+        assert!(migrate_verified_new_entity_operations(&mut record).expect("migration"));
+        let patches: Vec<Value> =
+            serde_json::from_str(record.source.patches_json.as_deref().expect("patches"))
+                .expect("valid patches");
+        assert_eq!(patches[0]["operation"], "add");
+        assert_eq!(patches[1]["operation"], "replace");
+        assert!(!migrate_verified_new_entity_operations(&mut record).expect("idempotent"));
+    }
+
+    #[test]
     fn creator_project_bundle_update_and_rollback_are_separate_atomic_lifecycles() {
         let root = temporary_root("creator-lifecycle");
         let packages = root.join("packages");
@@ -1802,6 +1951,15 @@ mod tests {
         coordinator
             .export_rivmod(&v1, &bundle_v1)
             .expect("export v1 bundle");
+        let exported = coordinator
+            .mark_creator_project_exported(
+                &project.project_id,
+                "community.example.lifecycle",
+                "1.0.0",
+            )
+            .expect("record project export");
+        assert_eq!(exported.status, CreatorProjectStatus::Exported);
+        assert!(exported.last_exported_at.is_some());
         coordinator
             .install_rivmod(&bundle_v1)
             .expect("install v1 bundle");
@@ -1860,6 +2018,15 @@ mod tests {
         )
         .expect("manifest schema");
         assert_eq!(persisted_manifest.assets[0].checksum, expected_checksum);
+        let coordinator = WorldDatabaseCoordinator::new(&root);
+        let (source_package_id, runtime_path) = coordinator
+            .runtime_asset_location(&persisted_manifest.assets[0])
+            .expect("installed asset has a validated runtime location");
+        assert_eq!(source_package_id, "community.example.authoring-png");
+        assert_eq!(
+            PathBuf::from(runtime_path),
+            package_root.join(&persisted_manifest.assets[0].path)
+        );
         fs::remove_dir_all(root).expect("cleanup fixture");
     }
 

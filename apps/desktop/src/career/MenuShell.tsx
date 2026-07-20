@@ -17,7 +17,7 @@ export function MenuShell({ children, title, description, onBack, actions }: Men
       <header className="menu-shell__bar" data-tauri-drag-region>
         <div className="menu-shell__brand">
           <RivalloBrand />
-          <span>0.1.0 · fase 06.6</span>
+          <span>0.1.0</span>
         </div>
         <div className="menu-shell__bar-actions">{actions}</div>
         <WindowControls />

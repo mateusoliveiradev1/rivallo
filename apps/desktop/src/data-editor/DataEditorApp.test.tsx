@@ -115,7 +115,7 @@ describe('DataEditorApp', () => {
   it('lists the package catalog and exposes complete validation diagnostics', async () => {
     render(<DataEditorApp />);
     expect(await screen.findByText('Rivallo Foundation')).toBeInstanceOf(HTMLElement);
-    expect(screen.getByText(/Base · v1.0.0/u)).toBeInstanceOf(HTMLElement);
+    expect(screen.getByText(/Base imutável · v1.0.0/u)).toBeInstanceOf(HTMLElement);
     expect(screen.queryByRole('textbox', { name: /manifest.json/u })).toBeNull();
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Seu nome ou apelido' }), {
@@ -223,6 +223,49 @@ describe('DataEditorApp', () => {
     expect(screen.getByRole('menuitem', { name: 'Ver histórico e rollback' })).toBeInstanceOf(
       HTMLElement,
     );
+  });
+
+  it('rejects a custom mod version that is not higher than the installed version', async () => {
+    const user = userEvent.setup();
+    clientMock.loadDataPackageCatalog.mockResolvedValue([
+      {
+        manifest: {
+          packageId: 'official.rivallo.foundation',
+          name: 'Rivallo Foundation',
+          version: '1.0.0',
+          contentType: 'base',
+        },
+        active: true,
+        validation: validReport,
+      },
+      {
+        manifest: {
+          packageId: 'community.lia.meu-mod',
+          name: 'Meu mod instalado',
+          version: '1.2.0',
+          contentType: 'mod',
+        },
+        active: false,
+        validation: validReport,
+      },
+    ]);
+
+    render(<DataEditorApp />);
+    await screen.findByText('Meu mod instalado');
+    await user.click(screen.getByRole('button', { name: 'Ações de Meu mod instalado' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Criar nova versão' }));
+    await user.click(screen.getByRole('radio', { name: /Personalizada/u }));
+    await user.type(screen.getByRole('textbox', { name: 'Nova versão' }), '1.2.0');
+    await user.type(
+      screen.getByRole('textbox', { name: 'Notas da versão' }),
+      'Correções internas.',
+    );
+    await user.click(screen.getByRole('button', { name: 'Criar projeto da nova versão' }));
+
+    expect(await screen.findByText('A nova versão precisa ser superior a 1.2.0.')).toBeInstanceOf(
+      HTMLElement,
+    );
+    expect(clientMock.forkCreatorPackage).not.toHaveBeenCalled();
   });
 
   it('suppresses the browser prompt on a confirmed branded exit', async () => {

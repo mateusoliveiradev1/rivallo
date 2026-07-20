@@ -987,7 +987,10 @@ test.beforeEach(async ({ page }) => {
 
       const bridge = {
         invoke: async (command: string, args: Record<string, unknown> = {}) => {
-          if (command === 'world_reference_catalog') {
+          if (
+            command === 'world_reference_catalog' ||
+            command === 'world_reference_catalog_for_selection'
+          ) {
             return structuredClone(worldReferenceCatalog);
           }
           if (command === 'lifecycle_status' || command === 'retry_lifecycle') {
@@ -1938,6 +1941,14 @@ test('keeps Creator Studio tools reachable across desktop widths and 200% zoom',
     { width: 1920, height: 1080 },
   ]) {
     await page.setViewportSize(viewport);
+    await expect(
+      page.getByRole('button', {
+        name:
+          viewport.width <= 1180
+            ? 'Expandir biblioteca de projetos'
+            : 'Recolher biblioteca de projetos',
+      }),
+    ).toBeVisible();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
@@ -1991,7 +2002,10 @@ test('authors geography, staff and incomplete competition drafts without JSON', 
   await page.locator('.studio-module-toolbar').getByRole('button', { name: 'Criar novo' }).click();
   await page.getByRole('textbox', { name: 'Nome' }).fill('Nova Esperanca');
   await page.getByRole('combobox', { name: /^Na..o$/u }).selectOption({ index: 1 });
-  await page.getByRole('button', { name: 'Salvar rascunho' }).click();
+  await page
+    .getByLabel('Inspector da entidade')
+    .getByRole('button', { name: 'Salvar rascunho' })
+    .click();
   await expect(page.getByText('Nova Esperanca', { exact: true }).first()).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('creator-city.png'), fullPage: true });
 
@@ -2000,7 +2014,10 @@ test('authors geography, staff and incomplete competition drafts without JSON', 
   await page.getByRole('textbox', { name: 'Nome' }).fill('Arena Nova Esperanca');
   await page.getByRole('combobox', { name: 'Cidade' }).selectOption({ label: 'Nova Esperanca' });
   await page.getByRole('spinbutton', { name: 'Capacidade' }).fill('24500');
-  await page.getByRole('button', { name: 'Salvar rascunho' }).click();
+  await page
+    .getByLabel('Inspector da entidade')
+    .getByRole('button', { name: 'Salvar rascunho' })
+    .click();
   await expect(page.getByText('Arena Nova Esperanca', { exact: true }).first()).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('creator-stadium.png'), fullPage: true });
 

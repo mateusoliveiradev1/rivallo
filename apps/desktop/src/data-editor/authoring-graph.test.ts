@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   projectAuthoringWorld,
+  reconcileAuthoringChange,
   readinessForEntity,
   recordsForModule,
   removalChange,
@@ -113,5 +114,180 @@ describe('Creator Studio authoring graph', () => {
     expect(remove.operation).toBe('delete');
     expect(remove.patches[0]?.operation).toBe('remove');
     expect(projectAuthoringWorld(projected, [remove]).nations).toHaveLength(0);
+  });
+
+  it('keeps Add while editing a new entity projected into the draft world', () => {
+    const created = change('city', 'city', 'city.nova', {
+      id: 'city.nova',
+      name: 'Nova',
+      nationId: 'nation.br',
+      regionId: null,
+    });
+    const edited: CommunityChange = {
+      ...created,
+      operation: 'edit',
+      patches: [
+        {
+          ...created.patches[0]!,
+          operation: 'replace',
+          entity: {
+            kind: 'city',
+            value: {
+              id: 'city.nova',
+              name: 'Nova Esperança',
+              nationId: 'nation.br',
+              regionId: null,
+            },
+          },
+        },
+      ],
+    };
+    const reconciled = reconcileAuthoringChange(world, [created], edited);
+    expect(reconciled).toHaveLength(1);
+    expect(reconciled[0]?.operation).toBe('create');
+    expect(reconciled[0]?.patches[0]?.operation).toBe('add');
+  });
+
+  it('drops a new entity entirely when it is deleted', () => {
+    const created = change('city', 'city', 'city.nova', {
+      id: 'city.nova',
+      name: 'Nova',
+      nationId: 'nation.br',
+      regionId: null,
+    });
+    const projected = projectAuthoringWorld(world, [created]);
+    const record = recordsForModule(projected, [created], 'cities')[0]!;
+    expect(reconcileAuthoringChange(world, [created], removalChange(record, projected)!)).toEqual(
+      [],
+    );
+  });
+
+  it('uses Replace and Remove only for entities owned by the base composition', () => {
+    const editedNation: CommunityChange = {
+      ...change('nation', 'city', 'nation.br', {}),
+      kind: 'nation',
+      patches: [
+        {
+          operation: 'add',
+          entityKind: 'nation',
+          targetId: 'nation.br',
+          entity: {
+            kind: 'nation',
+            value: { id: 'nation.br', name: 'Brasil', iso2: 'BR', iso3: 'BRA' },
+          },
+          reason: 'Teste',
+        },
+      ],
+    };
+    const edited = reconcileAuthoringChange(world, [], editedNation);
+    expect(edited).toEqual([]);
+
+    const changed = reconcileAuthoringChange(world, [], {
+      ...editedNation,
+      patches: [
+        {
+          ...editedNation.patches[0]!,
+          entity: {
+            kind: 'nation',
+            value: { id: 'nation.br', name: 'Brasil Atualizado', iso2: 'BR', iso3: 'BRA' },
+          },
+        },
+      ],
+    });
+    expect(changed[0]?.patches[0]?.operation).toBe('replace');
+    const nation = recordsForModule(world, [], 'nations')[0]!;
+    const removed = reconcileAuthoringChange(world, changed, removalChange(nation, world)!);
+    expect(removed[0]?.patches[0]?.operation).toBe('remove');
+  });
+
+  it('edits nested data canonically when seasons, registrations, contracts and labels are deleted', () => {
+    const nestedWorld = {
+      ...world,
+      nations: [{ ...world.nations[0], aliases: ['Brasil', 'Brazil'] }],
+      playerProfiles: [
+        {
+          identity: {
+            entityId: 'player.one',
+            fullName: 'Jogador Um',
+            knownName: 'Jogador Um',
+            nationality: 'Brasil',
+            birthDate: '2000-01-01',
+            age: 26,
+            clubId: 'club.draft',
+            clubName: 'Clube Rascunho',
+            clubShortName: 'CR',
+            clubPrimaryColor: '#237a57',
+          },
+          shirtNumber: 10,
+          heightCm: 180,
+          weightKg: 75,
+          preferredFoot: 'right',
+          squadRole: 'Titular',
+          naturalPosition: 'CM',
+          attributes: {},
+          internalPotential: 70,
+          contract: {
+            clubId: 'club.draft',
+            startedAt: '2026-01-01',
+            expiresAt: '2027-12-31',
+            squadStatus: 'Ativo',
+          },
+        },
+      ],
+      competitions: [
+        {
+          id: 'competition.one',
+          name: 'Liga Um',
+          shortName: 'Liga',
+          nationId: 'nation.br',
+          baseSeasonId: 'season.one',
+          seasons: [
+            {
+              id: 'season.one',
+              competitionId: 'competition.one',
+              label: '2026',
+              startDate: '2026-01-01',
+              endDate: '2026-12-31',
+              participantClubIds: ['club.draft'],
+              stages: [],
+              rules: {},
+              registrationWindows: [],
+              calendarConstraints: {},
+              playerRegistrations: [
+                {
+                  playerId: 'player.one',
+                  clubId: 'club.draft',
+                  shirtNumber: 10,
+                  contractReference: null,
+                  eligible: true,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    } as unknown as ModAuthoringWorld;
+
+    const registration = recordsForModule(nestedWorld, [], 'registrations')[0]!;
+    expect(registration.id).toBe('registration:season.one:player.one');
+    const withoutRegistration = projectAuthoringWorld(nestedWorld, [
+      removalChange(registration, nestedWorld)!,
+    ]);
+    expect(withoutRegistration.competitions?.[0]?.seasons[0]?.playerRegistrations).toHaveLength(0);
+
+    const contract = recordsForModule(nestedWorld, [], 'contracts')[0]!;
+    const withoutContract = projectAuthoringWorld(nestedWorld, [
+      removalChange(contract, nestedWorld)!,
+    ]);
+    expect(withoutContract.playerProfiles[0]?.contract).toBeNull();
+
+    const labels = recordsForModule(nestedWorld, [], 'translations')[0]!;
+    const withoutLabels = projectAuthoringWorld(nestedWorld, [removalChange(labels, nestedWorld)!]);
+    expect(withoutLabels.nations[0]?.aliases).toEqual([]);
+
+    const season = recordsForModule(nestedWorld, [], 'seasons')[0]!;
+    const withoutSeason = projectAuthoringWorld(nestedWorld, [removalChange(season, nestedWorld)!]);
+    expect(withoutSeason.competitions?.[0]?.seasons).toHaveLength(0);
+    expect(withoutSeason.competitions?.[0]?.baseSeasonId).toBeNull();
   });
 });

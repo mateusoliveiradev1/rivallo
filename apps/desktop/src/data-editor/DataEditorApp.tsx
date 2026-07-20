@@ -28,6 +28,7 @@ import {
 } from './client.js';
 import { CommunityEntityEditor } from './CommunityEntityEditor.js';
 import { DataStudio } from './DataStudio.js';
+import { projectAuthoringWorld, reconcileAuthoringChange } from './authoring-graph.js';
 import { PackageValidationSummary } from './PackageValidationSummary.js';
 import type {
   CommunityChange,
@@ -81,6 +82,99 @@ const nextPatchVersion = (version: string) => {
   const [major = 1, minor = 0, patch = 0] = version.split('.').map(Number);
   return `${major}.${minor}.${patch + 1}`;
 };
+const nextVersionFor = (version: string, bump: 'patch' | 'minor' | 'major') => {
+  const [major = 1, minor = 0, patch = 0] = (version.split('-', 1)[0] ?? '1.0.0')
+    .split('.')
+    .map(Number);
+  if (bump === 'major') return `${major + 1}.0.0`;
+  if (bump === 'minor') return `${major}.${minor + 1}.0`;
+  return `${major}.${minor}.${patch + 1}`;
+};
+
+const isHigherVersion = (candidate: string, current: string): boolean => {
+  const parse = (version: string) => {
+    const [core, prerelease] = version.split('-', 2);
+    return {
+      parts: core?.split('.').map(Number) ?? [],
+      prerelease: prerelease ?? null,
+    };
+  };
+  const next = parse(candidate);
+  const previous = parse(current);
+  for (let index = 0; index < 3; index += 1) {
+    const difference = (next.parts[index] ?? 0) - (previous.parts[index] ?? 0);
+    if (difference !== 0) return difference > 0;
+  }
+  return previous.prerelease !== null && next.prerelease === null;
+};
+
+function CreatorProjectItem({
+  project,
+  onOpen,
+  onDelete,
+  onNewVersion,
+}: {
+  readonly project: CreatorProjectSummary;
+  readonly onOpen: (surface?: 'quick' | 'studio') => void;
+  readonly onDelete: () => void;
+  readonly onNewVersion?: () => void;
+}) {
+  return (
+    <li>
+      <button className="creator-library-entry" onClick={() => onOpen()} type="button">
+        <strong>{project.name}</strong>
+        <span>
+          {project.mode === 'quickMod' ? 'Mod rápido' : 'Data Studio'} · v{project.version} ·{' '}
+          {new Date(project.updatedAt).toLocaleDateString('pt-BR')} · {project.entityCount} itens
+        </span>
+        <em data-status={project.status}>
+          {project.status === 'blocked'
+            ? 'Bloqueado'
+            : project.status === 'validWithWarnings'
+              ? 'Válido com avisos'
+              : project.status === 'valid'
+                ? 'Válido'
+                : project.status === 'exported'
+                  ? 'Exportado'
+                  : 'Rascunho'}
+        </em>
+      </button>
+      <Menu
+        items={[
+          {
+            id: `${project.projectId}.continue`,
+            label: 'Continuar edição',
+            onSelect: () => onOpen('quick'),
+            type: 'command',
+          },
+          {
+            id: `${project.projectId}.studio`,
+            label: 'Abrir no Data Studio',
+            onSelect: () => onOpen('studio'),
+            type: 'command',
+          },
+          {
+            id: `${project.projectId}.delete`,
+            label: 'Excluir projeto',
+            onSelect: onDelete,
+            type: 'command',
+          },
+          ...(onNewVersion
+            ? [
+                {
+                  id: `${project.projectId}.new-version`,
+                  label: 'Criar nova versão',
+                  onSelect: onNewVersion,
+                  type: 'command' as const,
+                },
+              ]
+            : []),
+        ]}
+        triggerLabel={`Ações de ${project.name}`}
+      />
+    </li>
+  );
+}
 
 const changesFromProject = (record: CreatorProjectRecord): CommunityChange[] => {
   const patches = record.source.patchesJson
@@ -90,7 +184,7 @@ const changesFromProject = (record: CreatorProjectRecord): CommunityChange[] => 
   for (const patch of patches) {
     groups.set(patch.targetId, [...(groups.get(patch.targetId) ?? []), patch]);
   }
-  return [...groups.entries()].map(([targetId, entityPatches]) => {
+  const restored = [...groups.entries()].map(([targetId, entityPatches]): CommunityChange => {
     const entityKind = entityPatches[0]?.entityKind ?? 'club';
     const asset = record.source.assets.find((item) => item.entityId === targetId) ?? null;
     const value = entityPatches[0]?.entity?.value as
@@ -117,6 +211,24 @@ const changesFromProject = (record: CreatorProjectRecord): CommunityChange[] => 
       asset,
     };
   });
+  const attachedAssetIds = new Set(
+    restored.flatMap((change) => (change.asset ? [change.asset.id] : [])),
+  );
+  return [
+    ...restored,
+    ...record.source.assets
+      .filter((asset) => !attachedAssetIds.has(asset.id))
+      .map((asset): CommunityChange => ({
+        id: `asset:${asset.id}`,
+        kind: 'asset',
+        operation: 'create',
+        targetId: asset.entityId,
+        label: asset.path.split('/').at(-1) ?? asset.entityId,
+        summary: `${asset.kind} · restaurado do projeto`,
+        patches: [],
+        asset,
+      })),
+  ];
 };
 
 const signatureFor = (
@@ -131,7 +243,15 @@ const signatureFor = (
     baseId,
     changes: changes.map(({ asset, ...change }) => ({
       ...change,
-      asset: asset ? { ...asset, bytes: asset.bytes.length } : null,
+      asset: asset
+        ? {
+            ...asset,
+            bytes: asset.bytes.reduce(
+              (hash, byte) => Math.imul(hash ^ byte, 16_777_619) >>> 0,
+              2_166_136_261,
+            ),
+          }
+        : null,
     })),
   });
 
@@ -151,11 +271,13 @@ export function DataEditorApp() {
   const [step, setStep] = useState(0);
   const requestedModule = new URLSearchParams(window.location.search).get('module');
   const requestedEntity = new URLSearchParams(window.location.search).get('entity');
+  const requestedIssue = new URLSearchParams(window.location.search).get('issue');
   const requestedReturn = new URLSearchParams(window.location.search).get('return');
   const [studioModule, setStudioModule] = useState(requestedModule);
   const [surface, setSurface] = useState<'quick' | 'studio'>(() =>
     requestedModule ? 'studio' : 'quick',
   );
+  const [catalogCollapsed, setCatalogCollapsed] = useState(() => window.innerWidth <= 1180);
   const [projectId, setProjectId] = useState('');
   const [inspection, setInspection] = useState<RivmodInspection | null>(null);
   const [distributionPath, setDistributionPath] = useState('');
@@ -163,6 +285,14 @@ export function DataEditorApp() {
     packageId: string;
     entries: readonly PackageHistoryEntry[];
   } | null>(null);
+  const [versionIntent, setVersionIntent] = useState<
+    | { readonly source: 'installed'; readonly entry: DataPackageCatalogEntry }
+    | { readonly source: 'project'; readonly project: CreatorProjectSummary }
+    | null
+  >(null);
+  const [versionBump, setVersionBump] = useState<'patch' | 'minor' | 'major' | 'custom'>('patch');
+  const [customVersion, setCustomVersion] = useState('');
+  const [versionNotes, setVersionNotes] = useState('');
   const [report, setReport] = useState<PackageValidationReport | null>(null);
   const [busy, setBusy] = useState<
     'validate' | 'export' | 'save' | 'distribution' | 'install' | null
@@ -214,6 +344,13 @@ export function DataEditorApp() {
     return () => {
       active = false;
     };
+  }, []);
+
+  useEffect(() => {
+    const followViewport = () => setCatalogCollapsed(window.innerWidth <= 1180);
+    followViewport();
+    window.addEventListener('resize', followViewport);
+    return () => window.removeEventListener('resize', followViewport);
   }, []);
 
   useEffect(() => {
@@ -317,6 +454,10 @@ export function DataEditorApp() {
     () => changes.flatMap((change) => (change.asset ? [change.asset] : [])),
     [changes],
   );
+  const draftAuthoringWorld = useMemo(
+    () => (authoringWorld ? projectAuthoringWorld(authoringWorld, changes) : null),
+    [authoringWorld, changes],
+  );
   const source = useMemo<DataPackageAuthoringSource>(
     () => ({ manifestJson, worldJson: null, patchesJson, assets }),
     [assets, manifestJson, patchesJson],
@@ -357,10 +498,8 @@ export function DataEditorApp() {
   };
 
   const upsertChange = (change: CommunityChange) => {
-    commitChanges((current) => [
-      ...current.filter((candidate) => candidate.id !== change.id),
-      change,
-    ]);
+    if (!authoringWorld) return;
+    commitChanges((current) => reconcileAuthoringChange(authoringWorld, current, change));
     setReport(null);
     setDraftSaveState('pending');
     setMessage(`${change.label} foi adicionado ao mod.`);
@@ -475,11 +614,17 @@ export function DataEditorApp() {
     }
   };
 
-  const forkPackage = async (entry: DataPackageCatalogEntry, duplicate: boolean) => {
+  const forkPackage = async (
+    entry: DataPackageCatalogEntry,
+    duplicate: boolean,
+    requestedVersion?: string,
+  ) => {
     setBusy('save');
     setError('');
     try {
-      const nextVersion = duplicate ? '1.0.0' : nextPatchVersion(entry.manifest.version);
+      const nextVersion = duplicate
+        ? '1.0.0'
+        : (requestedVersion ?? nextPatchVersion(entry.manifest.version));
       const duplicateId = duplicate
         ? `${entry.manifest.packageId}.copy-${Date.now().toString(36)}`
         : null;
@@ -493,6 +638,10 @@ export function DataEditorApp() {
       });
       setProjects(await loadCreatorProjects());
       await openProject(record.projectId, 'studio');
+      if (!duplicate && versionNotes.trim()) {
+        setDetails((current) => ({ ...current, changelog: versionNotes.trim() }));
+        setDraftSaveState('pending');
+      }
     } catch {
       setError(
         'Este pacote não pôde originar um novo projeto. Bases oficiais permanecem imutáveis.',
@@ -502,13 +651,60 @@ export function DataEditorApp() {
     }
   };
 
+  const confirmNewVersion = async () => {
+    if (!versionIntent) return;
+    const currentVersion =
+      versionIntent.source === 'installed'
+        ? versionIntent.entry.manifest.version
+        : versionIntent.project.version;
+    const nextVersion =
+      versionBump === 'custom' ? customVersion.trim() : nextVersionFor(currentVersion, versionBump);
+    if (!/^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/u.test(nextVersion)) {
+      setError('Informe uma versão válida, como 1.0.1.');
+      return;
+    }
+    if (!isHigherVersion(nextVersion, currentVersion)) {
+      setError(`A nova versão precisa ser superior a ${currentVersion}.`);
+      return;
+    }
+    setVersionIntent(null);
+    if (versionIntent.source === 'installed') {
+      await forkPackage(versionIntent.entry, false, nextVersion);
+      return;
+    }
+    setBusy('save');
+    try {
+      const previous = await loadCreatorProject(versionIntent.project.projectId);
+      const manifest = JSON.parse(previous.source.manifestJson) as Record<string, unknown> & {
+        provenance?: Record<string, unknown>;
+      };
+      manifest.version = nextVersion;
+      manifest.provenance = { ...(manifest.provenance ?? {}), notes: versionNotes.trim() || null };
+      const record = await saveCreatorProject({
+        projectId: `${previous.projectId}.${nextVersion}.${Date.now().toString(36)}`,
+        name: previous.name,
+        mode: 'dataStudio',
+        basePackageId: previous.basePackageId,
+        source: { ...previous.source, manifestJson: JSON.stringify(manifest, null, 2) },
+      });
+      setProjects(await loadCreatorProjects());
+      await openProject(record.projectId, 'studio');
+    } catch {
+      setError('Não foi possível criar a nova versão; o projeto anterior foi preservado.');
+    } finally {
+      setBusy(null);
+      setVersionNotes('');
+      setCustomVersion('');
+    }
+  };
+
   const exportSharedBundle = async () => {
     setBusy('distribution');
     setError('');
     try {
       const path = await chooseRivmodSavePath();
       if (!path) return;
-      const receipt = await exportRivmod(source, path);
+      const receipt = await exportRivmod(source, path, projectId || null);
       setDistributionPath(receipt.path);
       setMessage(
         `${receipt.name} ${receipt.version} exportado · ${(receipt.size / 1024).toFixed(1)} KB · SHA-256 ${receipt.sha256.slice(0, 16)}…`,
@@ -681,7 +877,7 @@ export function DataEditorApp() {
             onClick={() => void saveProject()}
             variant="secondary"
           >
-            Salvar
+            Salvar rascunho
           </Button>
           <Button disabled={undoStack.length === 0} onClick={undo} variant="secondary">
             Desfazer
@@ -728,8 +924,26 @@ export function DataEditorApp() {
         </div>
       </header>
 
-      <div className="data-editor-layout">
-        <aside aria-labelledby="catalog-heading" className="data-editor-catalog">
+      <div className="data-editor-layout" data-catalog-collapsed={catalogCollapsed || undefined}>
+        <aside
+          aria-labelledby="catalog-heading"
+          className="data-editor-catalog"
+          data-collapsed={catalogCollapsed || undefined}
+        >
+          <button
+            aria-expanded={!catalogCollapsed}
+            aria-label={
+              catalogCollapsed
+                ? 'Expandir biblioteca de projetos'
+                : 'Recolher biblioteca de projetos'
+            }
+            className="data-editor-catalog__toggle"
+            onClick={() => setCatalogCollapsed((value) => !value)}
+            title={catalogCollapsed ? 'Expandir projetos' : 'Recolher projetos'}
+            type="button"
+          >
+            <Icon name="columns" size={20} />
+          </button>
           <div>
             <span>Biblioteca local</span>
             <h2 id="catalog-heading">Projetos e pacotes</h2>
@@ -745,111 +959,134 @@ export function DataEditorApp() {
             <>
               <section className="creator-library-group">
                 <h3>
-                  Rascunhos <span>{projects.length}</span>
+                  Rascunhos{' '}
+                  <span>{projects.filter((project) => !project.lastExportedAt).length}</span>
                 </h3>
-                {projects.length === 0 ? (
+                {projects.filter((project) => !project.lastExportedAt).length === 0 ? (
                   <p>Nenhum projeto salvo ainda.</p>
                 ) : (
                   <ul>
-                    {projects.map((project) => (
-                      <li key={project.projectId}>
-                        <button
-                          className="creator-library-entry"
-                          onClick={() => void openProject(project.projectId)}
-                          type="button"
-                        >
-                          <strong>{project.name}</strong>
-                          <span>
-                            {project.mode === 'quickMod' ? 'Mod rápido' : 'Data Studio'} · v
-                            {project.version} · {project.packageId.slice(0, 28)} ·{' '}
-                            {new Date(project.updatedAt).toLocaleDateString('pt-BR')} ·{' '}
-                            {project.entityCount} itens
-                          </span>
-                          <em data-status={project.status}>
-                            {project.status === 'blocked'
-                              ? 'Bloqueado'
-                              : project.status === 'validWithWarnings'
-                                ? 'Válido com avisos'
-                                : project.status === 'valid'
-                                  ? 'Válido'
-                                  : 'Rascunho'}
-                          </em>
-                        </button>
-                        <Menu
-                          items={[
-                            {
-                              id: `${project.projectId}.continue`,
-                              label: 'Continuar edição',
-                              onSelect: () => void openProject(project.projectId, 'quick'),
-                              type: 'command',
-                            },
-                            {
-                              id: `${project.projectId}.studio`,
-                              label: 'Abrir no Data Studio',
-                              onSelect: () => void openProject(project.projectId, 'studio'),
-                              type: 'command',
-                            },
-                            {
-                              id: `${project.projectId}.delete`,
-                              label: 'Excluir rascunho',
-                              onSelect: () =>
-                                void deleteCreatorProject(project.projectId).then(async () =>
-                                  setProjects(await loadCreatorProjects()),
-                                ),
-                              type: 'command',
-                            },
-                          ]}
-                          triggerLabel={`Ações de ${project.name}`}
+                    {projects
+                      .filter((project) => !project.lastExportedAt)
+                      .map((project) => (
+                        <CreatorProjectItem
+                          key={project.projectId}
+                          onDelete={() =>
+                            void deleteCreatorProject(project.projectId).then(async () =>
+                              setProjects(await loadCreatorProjects()),
+                            )
+                          }
+                          onNewVersion={
+                            project.lastExportedAt
+                              ? () => setVersionIntent({ source: 'project', project })
+                              : undefined
+                          }
+                          onOpen={(nextSurface) => void openProject(project.projectId, nextSurface)}
+                          project={project}
                         />
-                      </li>
-                    ))}
+                      ))}
                   </ul>
                 )}
               </section>
               <section className="creator-library-group">
                 <h3>
-                  Instalados e bases <span>{catalog.length}</span>
+                  Exportados{' '}
+                  <span>{projects.filter((project) => project.lastExportedAt).length}</span>
+                </h3>
+                {projects.filter((project) => project.lastExportedAt).length === 0 ? (
+                  <p>Nenhum bundle exportado ainda.</p>
+                ) : (
+                  <ul>
+                    {projects
+                      .filter((project) => project.lastExportedAt)
+                      .map((project) => (
+                        <CreatorProjectItem
+                          key={project.projectId}
+                          onDelete={() =>
+                            void deleteCreatorProject(project.projectId).then(async () =>
+                              setProjects(await loadCreatorProjects()),
+                            )
+                          }
+                          onNewVersion={() => setVersionIntent({ source: 'project', project })}
+                          onOpen={(nextSurface) => void openProject(project.projectId, nextSurface)}
+                          project={project}
+                        />
+                      ))}
+                  </ul>
+                )}
+              </section>
+              <section className="creator-library-group">
+                <h3>
+                  Instalados{' '}
+                  <span>
+                    {catalog.filter((entry) => entry.manifest.contentType === 'mod').length}
+                  </span>
                 </h3>
                 <ul>
-                  {catalog.map((entry) => (
-                    <li key={entry.manifest.packageId}>
-                      <div>
-                        <strong>{entry.manifest.name}</strong>
-                        <span>
-                          {entry.manifest.contentType === 'base' ? 'Base' : 'Mod instalado'} · v
-                          {entry.manifest.version} · {entry.manifest.packageId.slice(0, 32)}
-                        </span>
-                        <em data-valid={entry.validation.valid || undefined}>
-                          {entry.validation.valid ? 'Pronto' : 'Requer atenção'}
-                        </em>
-                      </div>
-                      {entry.manifest.contentType === 'mod' && (
-                        <Menu
-                          items={[
-                            {
-                              id: `${entry.manifest.packageId}.new-version`,
-                              label: 'Criar nova versão',
-                              onSelect: () => void forkPackage(entry, false),
-                              type: 'command',
-                            },
-                            {
-                              id: `${entry.manifest.packageId}.duplicate`,
-                              label: 'Duplicar como novo mod',
-                              onSelect: () => void forkPackage(entry, true),
-                              type: 'command',
-                            },
-                            {
-                              id: `${entry.manifest.packageId}.history`,
-                              label: 'Ver histórico e rollback',
-                              onSelect: () => void showHistory(entry.manifest.packageId),
-                              type: 'command',
-                            },
-                          ]}
-                          triggerLabel={`Ações de ${entry.manifest.name}`}
-                        />
-                      )}
-                    </li>
-                  ))}
+                  {catalog
+                    .filter((entry) => entry.manifest.contentType === 'mod')
+                    .map((entry) => (
+                      <li key={entry.manifest.packageId}>
+                        <div>
+                          <strong>{entry.manifest.name}</strong>
+                          <span>
+                            {entry.manifest.contentType === 'base' ? 'Base' : 'Mod instalado'} · v
+                            {entry.manifest.version} · {entry.manifest.packageId.slice(0, 32)}
+                          </span>
+                          <em data-valid={entry.validation.valid || undefined}>
+                            {entry.validation.valid ? 'Pronto' : 'Requer atenção'}
+                          </em>
+                        </div>
+                        {entry.manifest.contentType === 'mod' && (
+                          <Menu
+                            items={[
+                              {
+                                id: `${entry.manifest.packageId}.new-version`,
+                                label: 'Criar nova versão',
+                                onSelect: () => setVersionIntent({ source: 'installed', entry }),
+                                type: 'command',
+                              },
+                              {
+                                id: `${entry.manifest.packageId}.duplicate`,
+                                label: 'Duplicar como novo mod',
+                                onSelect: () => void forkPackage(entry, true),
+                                type: 'command',
+                              },
+                              {
+                                id: `${entry.manifest.packageId}.history`,
+                                label: 'Ver histórico e rollback',
+                                onSelect: () => void showHistory(entry.manifest.packageId),
+                                type: 'command',
+                              },
+                            ]}
+                            triggerLabel={`Ações de ${entry.manifest.name}`}
+                          />
+                        )}
+                      </li>
+                    ))}
+                </ul>
+              </section>
+              <section className="creator-library-group">
+                <h3>
+                  Bases{' '}
+                  <span>
+                    {catalog.filter((entry) => entry.manifest.contentType === 'base').length}
+                  </span>
+                </h3>
+                <ul>
+                  {catalog
+                    .filter((entry) => entry.manifest.contentType === 'base')
+                    .map((entry) => (
+                      <li key={entry.manifest.packageId}>
+                        <div>
+                          <strong>{entry.manifest.name}</strong>
+                          <span>Base imutável · v{entry.manifest.version}</span>
+                          <em data-valid={entry.validation.valid || undefined}>
+                            {entry.validation.valid ? 'Pronta' : 'Requer atenção'}
+                          </em>
+                        </div>
+                      </li>
+                    ))}
                 </ul>
               </section>
             </>
@@ -946,7 +1183,7 @@ export function DataEditorApp() {
                 onClick={() => void saveProject()}
                 variant="secondary"
               >
-                Salvar
+                Salvar rascunho
               </Button>
               <Button onClick={() => void runValidation()} variant="secondary">
                 Validar
@@ -977,33 +1214,47 @@ export function DataEditorApp() {
                 Exportar .rivmod
               </Button>
             </div>
-            {surface === 'studio' && worldState === 'ready' && authoringWorld && (
-              <DataStudio
-                author={details.author}
-                changes={changes}
-                initialEntity={requestedEntity}
-                initialModule={studioModule}
-                key={`${studioModule ?? 'overview'}:${requestedEntity ?? ''}`}
-                onBatch={(batch) => {
-                  const batchIds = new Set(batch.map((change) => change.id));
-                  commitChanges((current) => [
-                    ...current.filter((change) => !batchIds.has(change.id)),
-                    ...batch,
-                  ]);
-                  setReport(null);
-                  setDraftSaveState('pending');
-                  setMessage(
-                    `${batch.length.toLocaleString('pt-BR')} registros foram preparados no projeto.`,
-                  );
-                }}
-                onRollback={(ids) =>
-                  commitChanges((current) => current.filter((change) => !ids.includes(change.id)))
-                }
-                onUpsert={upsertChange}
-                onValidate={runValidation}
-                report={report}
-                world={authoringWorld}
-              />
+            {worldState === 'ready' && authoringWorld && (
+              <div hidden={surface !== 'studio'}>
+                <DataStudio
+                  advancedConfig={{
+                    packageId,
+                    version: details.version,
+                    basePackageId: selectedBaseId,
+                    changelog: details.changelog,
+                  }}
+                  author={details.author}
+                  changes={changes}
+                  initialEntity={requestedEntity}
+                  initialIssue={requestedIssue}
+                  initialModule={studioModule}
+                  key={projectId || 'unsaved-project'}
+                  onBatch={(batch) => {
+                    commitChanges((current) =>
+                      batch.reduce(
+                        (state, change) => reconcileAuthoringChange(authoringWorld, state, change),
+                        current,
+                      ),
+                    );
+                    setReport(null);
+                    setDraftSaveState('pending');
+                    setMessage(
+                      `${batch.length.toLocaleString('pt-BR')} registros foram preparados no projeto.`,
+                    );
+                  }}
+                  onAdvancedUpdate={(update) => {
+                    setDetails((current) => ({ ...current, ...update }));
+                    setDraftSaveState('pending');
+                  }}
+                  onRollback={(ids) =>
+                    commitChanges((current) => current.filter((change) => !ids.includes(change.id)))
+                  }
+                  onUpsert={upsertChange}
+                  onValidate={runValidation}
+                  report={report}
+                  world={authoringWorld}
+                />
+              </div>
             )}
             {surface === 'studio' && worldState === 'loading' && <Skeleton lines={8} />}
             {surface === 'quick' && step === 0 && (
@@ -1134,11 +1385,12 @@ export function DataEditorApp() {
                   </Status>
                 )}
 
-                {worldState === 'ready' && authoringWorld && (
+                {worldState === 'ready' && draftAuthoringWorld && (
                   <CommunityEntityEditor
+                    assets={assets}
                     author={details.author}
                     onUpsert={upsertChange}
-                    world={authoringWorld}
+                    world={draftAuthoringWorld}
                   />
                 )}
 
@@ -1426,6 +1678,75 @@ export function DataEditorApp() {
             <div>
               <Button onClick={() => setHistory(null)} variant="secondary">
                 Fechar
+              </Button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {versionIntent && (
+        <div className="data-editor-leave-overlay" role="presentation">
+          <section
+            aria-labelledby="new-version-heading"
+            className="data-editor-leave-dialog distribution-dialog creator-version-dialog"
+            role="dialog"
+          >
+            <span>Nova versão do mesmo mod</span>
+            <h2 id="new-version-heading">O que mudou nesta versão?</h2>
+            <p>
+              O identificador e todos os IDs serão preservados. A versão precisa ser superior à
+              atual.
+            </p>
+            <div aria-label="Tipo de versão" className="creator-version-options" role="radiogroup">
+              {(
+                [
+                  ['patch', 'Correção', 'Ajustes e correções compatíveis'],
+                  ['minor', 'Recurso compatível', 'Novos dados sem quebrar compatibilidade'],
+                  ['major', 'Versão principal', 'Mudança ampla que pode exigir revisão'],
+                  ['custom', 'Personalizada', 'Defina a versão manualmente'],
+                ] as const
+              ).map(([value, label, help]) => (
+                <button
+                  aria-checked={versionBump === value}
+                  key={value}
+                  onClick={() => setVersionBump(value)}
+                  role="radio"
+                  type="button"
+                >
+                  <strong>{label}</strong>
+                  <span>{help}</span>
+                </button>
+              ))}
+            </div>
+            {versionBump === 'custom' && (
+              <label>
+                Nova versão
+                <input
+                  onChange={(event) => setCustomVersion(event.target.value)}
+                  placeholder="Ex.: 2.1.0"
+                  value={customVersion}
+                />
+              </label>
+            )}
+            <label>
+              Notas da versão
+              <textarea
+                maxLength={1200}
+                onChange={(event) => setVersionNotes(event.target.value)}
+                placeholder="Explique em linguagem simples o que mudou."
+                value={versionNotes}
+              />
+            </label>
+            <div>
+              <Button onClick={() => setVersionIntent(null)} variant="secondary">
+                Cancelar
+              </Button>
+              <Button
+                disabled={!versionNotes.trim()}
+                onClick={() => void confirmNewVersion()}
+                variant="primary"
+              >
+                Criar projeto da nova versão
               </Button>
             </div>
           </section>

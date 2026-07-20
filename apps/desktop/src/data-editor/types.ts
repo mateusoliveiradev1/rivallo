@@ -206,6 +206,14 @@ export interface StudioCompetitionStage {
   readonly neutralVenue: boolean;
 }
 
+export interface StudioPlayerRegistration {
+  readonly playerId: string;
+  readonly clubId: string;
+  readonly shirtNumber: number | null;
+  readonly contractReference: string | null;
+  readonly eligible: boolean;
+}
+
 export interface StudioCompetition {
   readonly id: string;
   readonly name: string;
@@ -216,6 +224,7 @@ export interface StudioCompetition {
   readonly description?: string | null;
   readonly primaryColor?: string | null;
   readonly secondaryColor?: string | null;
+  readonly logoAssetId?: string | null;
   readonly baseSeasonId?: string | null;
   readonly seasons: readonly {
     readonly id: string;
@@ -231,7 +240,7 @@ export interface StudioCompetition {
       readonly endDate: string;
     }[];
     readonly calendarConstraints: Readonly<Record<string, unknown>>;
-    readonly playerRegistrations: readonly unknown[];
+    readonly playerRegistrations: readonly StudioPlayerRegistration[];
   }[];
 }
 import type { Club, Player } from '../matchday/types.js';

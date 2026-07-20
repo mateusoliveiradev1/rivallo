@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '../ui/primitives/actions.js';
 import type {
@@ -104,8 +104,14 @@ export function CompetitionBuilder({
   readonly initialCompetition?: StudioCompetition | null;
 }) {
   const initialSeason = initialCompetition?.seasons[0];
+  const initialRules = initialSeason?.rules ?? {};
+  const ruleNumber = (key: string, fallback: number) =>
+    typeof initialRules[key] === 'number' ? Number(initialRules[key]) : fallback;
   const [name, setName] = useState(initialCompetition?.name ?? 'Nova competição');
   const [shortName, setShortName] = useState(initialCompetition?.shortName ?? 'NC');
+  const [description, setDescription] = useState(initialCompetition?.description ?? '');
+  const [category, setCategory] = useState(initialCompetition?.category ?? 'league');
+  const [level, setLevel] = useState(initialCompetition?.level ?? 1);
   const [nationId, setNationId] = useState(
     initialCompetition?.nationId ?? world.nations[0]?.id ?? '',
   );
@@ -113,18 +119,34 @@ export function CompetitionBuilder({
   const [participants, setParticipants] = useState<string[]>([
     ...(initialSeason?.participantClubIds ?? []),
   ]);
+  const previousParticipantCount = useRef(participants.length);
   const [stages, setStages] = useState<StudioCompetitionStage[]>(() =>
-    initialSeason?.stages.length ? [...initialSeason.stages] : templateStages('doubleLeague', 20),
+    initialSeason?.stages.length ? [...initialSeason.stages] : templateStages('doubleLeague', 0),
   );
+  const [seasonLabel, setSeasonLabel] = useState(initialSeason?.label ?? '2026');
   const [startDate, setStartDate] = useState(initialSeason?.startDate ?? '2026-08-01');
   const [endDate, setEndDate] = useState(initialSeason?.endDate ?? '2027-05-31');
   const [participantSearch, setParticipantSearch] = useState('');
-  const [pointsForWin, setPointsForWin] = useState(3);
-  const [pointsForDraw, setPointsForDraw] = useState(1);
-  const [promotionSlots, setPromotionSlots] = useState(0);
-  const [relegationSlots, setRelegationSlots] = useState(0);
-  const [benchSize, setBenchSize] = useState(7);
-  const [substitutions, setSubstitutions] = useState(5);
+  const [pointsForWin, setPointsForWin] = useState(ruleNumber('pointsForWin', 3));
+  const [pointsForDraw, setPointsForDraw] = useState(ruleNumber('pointsForDraw', 1));
+  const [promotionSlots, setPromotionSlots] = useState(ruleNumber('promotionSlots', 0));
+  const [relegationSlots, setRelegationSlots] = useState(ruleNumber('relegationSlots', 0));
+  const [benchSize, setBenchSize] = useState(ruleNumber('benchSize', 7));
+  const [substitutions, setSubstitutions] = useState(ruleNumber('substitutions', 5));
+
+  useEffect(() => {
+    const previous = previousParticipantCount.current;
+    const next = participants.length;
+    previousParticipantCount.current = next;
+    if (previous === next) return;
+    setStages((current) =>
+      current.map((item, index) =>
+        index === 0 && item.participantCount === previous
+          ? { ...item, participantCount: next }
+          : item,
+      ),
+    );
+  }, [participants.length]);
   const visibleClubs = world.clubs.filter((club) =>
     `${club.name} ${club.shortName} ${club.city}`
       .toLocaleLowerCase('pt-BR')
@@ -157,7 +179,7 @@ export function CompetitionBuilder({
   ];
   const applyTemplate = (next: Template) => {
     setTemplate(next);
-    setStages(templateStages(next, participants.length || 20));
+    setStages(templateStages(next, participants.length));
   };
   const save = () => {
     const id =
@@ -168,22 +190,25 @@ export function CompetitionBuilder({
       name: name.trim(),
       shortName: shortName.trim(),
       nationId,
-      category: 'league',
-      level: 1,
-      description: 'Competição criada no Rivallo Creator Studio.',
-      primaryColor: '#36d39a',
-      secondaryColor: '#123b32',
+      category,
+      level,
+      description: description.trim() || null,
+      primaryColor: initialCompetition?.primaryColor ?? '#36d39a',
+      secondaryColor: initialCompetition?.secondaryColor ?? '#123b32',
+      logoAssetId: initialCompetition?.logoAssetId ?? null,
       baseSeasonId: seasonId,
       seasons: [
         {
+          ...initialSeason,
           id: seasonId,
           competitionId: id,
-          label: '2026/27',
+          label: seasonLabel.trim(),
           startDate,
           endDate,
           participantClubIds: participants,
           stages,
           rules: {
+            ...initialRules,
             pointsForWin,
             pointsForDraw,
             pointsForLoss: 0,
@@ -203,16 +228,19 @@ export function CompetitionBuilder({
             promotionSlots,
             relegationSlots,
           },
-          registrationWindows: [{ startDate, endDate }],
-          calendarConstraints: {
+          registrationWindows: initialSeason?.registrationWindows.length
+            ? initialSeason.registrationWindows
+            : [{ startDate, endDate }],
+          calendarConstraints: initialSeason?.calendarConstraints ?? {
             preferredWeekdays: [3, 6, 7],
             kickoffTimes: ['16:00', '19:30'],
             minimumRestDays: 2,
             blockedDates: [],
             neutralVenue: false,
           },
-          playerRegistrations: [],
+          playerRegistrations: initialSeason?.playerRegistrations ?? [],
         },
+        ...(initialCompetition?.seasons.slice(1) ?? []),
       ],
     };
     onUpsert({
@@ -241,7 +269,7 @@ export function CompetitionBuilder({
         <div>
           <span>Competition Builder</span>
           <h2 id="competition-builder-title">Modele o regulamento, não as partidas</h2>
-          <p>Esta definição será consumida pela Fase 06.7. Nenhuma fixture é gerada aqui.</p>
+          <p>Defina identidade, participantes e regulamento. Nenhuma partida é agendada aqui.</p>
         </div>
         <Button
           disabled={!name.trim() || !shortName.trim() || !nationId}
@@ -309,6 +337,42 @@ export function CompetitionBuilder({
                     </option>
                   ))}
                 </select>
+              </label>
+              <label>
+                Categoria
+                <select onChange={(event) => setCategory(event.target.value)} value={category}>
+                  <option value="league">Liga</option>
+                  <option value="cup">Copa</option>
+                  <option value="continental">Continental</option>
+                  <option value="youth">Base</option>
+                  <option value="women">Feminina</option>
+                  <option value="other">Outra</option>
+                </select>
+              </label>
+              <label>
+                Nível
+                <input
+                  min={1}
+                  onChange={(event) => setLevel(Number(event.target.value))}
+                  type="number"
+                  value={level}
+                />
+              </label>
+              <label>
+                Temporada
+                <input
+                  maxLength={32}
+                  onChange={(event) => setSeasonLabel(event.target.value)}
+                  value={seasonLabel}
+                />
+              </label>
+              <label className="studio-form-grid__wide">
+                Descrição
+                <textarea
+                  maxLength={1000}
+                  onChange={(event) => setDescription(event.target.value)}
+                  value={description}
+                />
               </label>
               <label>
                 Início
@@ -492,7 +556,7 @@ export function CompetitionBuilder({
             <div className="studio-panel__heading">
               <div>
                 <h3>Regulamento</h3>
-                <p>Defina a estrutura que a Fase 06.7 consumirá; nenhum motor roda aqui.</p>
+                <p>Configure somente as regras da competição; a simulação não roda neste editor.</p>
               </div>
             </div>
             <div className="studio-form-grid competition-rules-grid">
@@ -574,8 +638,8 @@ export function CompetitionBuilder({
               <dd>{totals.rounds}</dd>
             </div>
             <div>
-              <dt>Fixtures</dt>
-              <dd>não geradas</dd>
+              <dt>Partidas agendadas</dt>
+              <dd>Nenhuma</dd>
             </div>
           </dl>
           {warnings.length > 0 && (

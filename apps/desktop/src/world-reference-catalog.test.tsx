@@ -6,6 +6,7 @@ import { CoachFace } from './profiles/CoachFace.js';
 import {
   configureWorldReferenceCatalog,
   loadWorldReferenceCatalog,
+  loadWorldReferenceCatalogForSelection,
   resolveWorldEntityAsset,
   type WorldReferenceCatalog,
 } from './world-reference-catalog.js';
@@ -84,5 +85,23 @@ describe('world reference catalog', () => {
     Object.assign(window, { __TAURI_INTERNALS__: { invoke } });
     await expect(loadWorldReferenceCatalog()).resolves.toEqual(catalog);
     expect(invoke).toHaveBeenCalledWith('world_reference_catalog', {}, undefined);
+  });
+
+  it('loads assets for the package composition selected in New Career', async () => {
+    const invoke = vi.fn().mockResolvedValue(catalog);
+    Object.assign(window, { __TAURI_INTERNALS__: { invoke } });
+    await expect(
+      loadWorldReferenceCatalogForSelection([
+        'official.rivallo.foundation',
+        'community.example.portraits',
+      ]),
+    ).resolves.toEqual(catalog);
+    expect(invoke).toHaveBeenCalledWith(
+      'world_reference_catalog_for_selection',
+      {
+        packageIds: ['official.rivallo.foundation', 'community.example.portraits'],
+      },
+      undefined,
+    );
   });
 });

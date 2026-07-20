@@ -27,9 +27,9 @@ describe('CompetitionBuilder', () => {
   it('models a 20-team double round robin as 38 rounds and 380 expected matches', () => {
     const onUpsert = vi.fn();
     render(<CompetitionBuilder author="Lia" onUpsert={onUpsert} world={world} />);
+    for (const checkbox of screen.getAllByRole('checkbox')) fireEvent.click(checkbox);
     expect(screen.getByText('380')).toBeInstanceOf(HTMLElement);
     expect(screen.getByText('38')).toBeInstanceOf(HTMLElement);
-    for (const checkbox of screen.getAllByRole('checkbox')) fireEvent.click(checkbox);
     fireEvent.click(screen.getByRole('button', { name: 'Salvar competição' }));
     const change = onUpsert.mock.calls[0]?.[0] as {
       patches: Array<{

@@ -1686,21 +1686,38 @@ fn world_reference_catalog(
     world: State<'_, Arc<WorldDatabaseCoordinator>>,
 ) -> Result<WorldReferenceCatalogDto, PackageValidationReport> {
     let resolved = world.resolved()?;
-    let source_package_id =
-        (resolved.packages.len() == 1).then(|| resolved.packages[0].package_id.clone());
-    Ok(WorldReferenceCatalogDto {
+    Ok(world_reference_catalog_dto(resolved, &world))
+}
+
+#[tauri::command]
+fn world_reference_catalog_for_selection(
+    package_ids: Vec<String>,
+    world: State<'_, Arc<WorldDatabaseCoordinator>>,
+) -> Result<WorldReferenceCatalogDto, PackageValidationReport> {
+    let resolved = world.resolve_selection(&package_ids)?;
+    Ok(world_reference_catalog_dto(resolved, &world))
+}
+
+fn world_reference_catalog_dto(
+    resolved: ResolvedWorldDatabase,
+    world: &WorldDatabaseCoordinator,
+) -> WorldReferenceCatalogDto {
+    WorldReferenceCatalogDto {
         assets: resolved
             .world
             .assets
             .into_iter()
-            .map(|asset| WorldAssetReferenceDto {
-                asset,
-                source_package_id: source_package_id.clone(),
-                runtime_source: None,
+            .map(|asset| {
+                let runtime = world.runtime_asset_location(&asset);
+                WorldAssetReferenceDto {
+                    asset,
+                    source_package_id: runtime.as_ref().map(|(package_id, _)| package_id.clone()),
+                    runtime_source: runtime.map(|(_, path)| path),
+                }
             })
             .collect(),
         nations: resolved.world.nations,
-    })
+    }
 }
 
 #[tauri::command]
@@ -1818,9 +1835,14 @@ fn creator_choose_open_path() -> Result<Option<String>, String> {
 fn export_rivmod(
     source: DataPackageAuthoringSource,
     destination: String,
+    project_id: Option<String>,
     world: State<'_, Arc<WorldDatabaseCoordinator>>,
 ) -> Result<PackageDistributionReceipt, PackageValidationReport> {
-    world.export_rivmod(&source, creator_file_location(&destination))
+    let receipt = world.export_rivmod(&source, creator_file_location(&destination))?;
+    if let Some(project_id) = project_id {
+        world.mark_creator_project_exported(&project_id, &receipt.package_id, &receipt.version)?;
+    }
+    Ok(receipt)
 }
 
 #[tauri::command]
@@ -2112,6 +2134,7 @@ fn main() {
             search_profiles,
             world_database_status,
             world_reference_catalog,
+            world_reference_catalog_for_selection,
             data_package_catalog,
             validate_data_package,
             export_data_package,
@@ -2162,6 +2185,9 @@ fn main() {
             let data_packages_path = app.path().app_data_dir()?.join("data-packages");
             let careers_path = app.path().app_data_dir()?.join("careers");
             let world = Arc::new(WorldDatabaseCoordinator::new(data_packages_path));
+            // Best-effort startup pass keeps legacy Creator projects ready before the editor opens.
+            // The editor command repeats the idempotent migration and returns any diagnostics in-band.
+            let _ = world.list_creator_projects();
             let bootstrap = world.resolved().map_err(|report| {
                 io::Error::other(format!(
                     "the active world package failed validation: {:?}",

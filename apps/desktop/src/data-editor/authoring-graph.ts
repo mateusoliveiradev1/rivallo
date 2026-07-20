@@ -34,6 +34,16 @@ export interface StudioEntityRecord {
   readonly readiness?: AuthoringReadiness;
 }
 
+export interface StudioSeasonRecordValue {
+  readonly competition: StudioCompetition;
+  readonly season: StudioCompetition['seasons'][number];
+}
+
+export interface StudioRegistrationRecordValue extends StudioSeasonRecordValue {
+  readonly registration: StudioCompetition['seasons'][number]['playerRegistrations'][number];
+  readonly index: number;
+}
+
 export interface AuthoringIssue {
   readonly code: string;
   readonly label: string;
@@ -59,6 +69,78 @@ const replaceById = <T>(items: readonly T[], id: string, value: T, getId: (item:
 
 const removeById = <T>(items: readonly T[], id: string, getId: (item: T) => string) =>
   items.filter((item) => getId(item) !== id);
+
+const baseEntityForPatch = (base: ModAuthoringWorld, patch: GeneratedPackagePatch): unknown => {
+  switch (patch.entityKind) {
+    case 'club':
+      return base.clubs.find((item) => item.id === patch.targetId);
+    case 'matchdayPlayer':
+      return base.players.find((item) => item.id === patch.targetId);
+    case 'playerProfile':
+      return base.playerProfiles.find((item) => item.identity.entityId === patch.targetId);
+    case 'externalPlayer': {
+      const profile = base.playerProfiles.find((item) => item.identity.entityId === patch.targetId);
+      return profile ? { profile } : undefined;
+    }
+    case 'coach':
+      return base.coaches.find((item) => item.identity.entityId === patch.targetId);
+    case 'nation':
+      return base.nations.find((item) => item.id === patch.targetId);
+    case 'region':
+      return base.regions?.find((item) => item.id === patch.targetId);
+    case 'city':
+      return base.cities?.find((item) => item.id === patch.targetId);
+    case 'stadium':
+      return base.stadiums?.find((item) => item.id === patch.targetId);
+    case 'competition':
+      return base.competitions?.find((item) => item.id === patch.targetId);
+    case 'asset':
+      return undefined;
+  }
+};
+
+const sameValue = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
+
+/**
+ * Serializes one semantic change against the immutable authoring composition.
+ * Forms may describe their visual create/edit mode, but never own patch origin.
+ */
+export function reconcileAuthoringChange(
+  base: ModAuthoringWorld,
+  current: readonly CommunityChange[],
+  incoming: CommunityChange,
+): readonly CommunityChange[] {
+  const existing = current.find((candidate) => candidate.targetId === incoming.targetId);
+  const asset =
+    incoming.kind === 'asset' && incoming.operation === 'delete'
+      ? null
+      : (incoming.asset ?? existing?.asset ?? null);
+  const submittedPatches =
+    incoming.patches.length === 0 && existing ? existing.patches : incoming.patches;
+  const patches = submittedPatches.flatMap((patch): GeneratedPackagePatch[] => {
+    const baseEntity = baseEntityForPatch(base, patch);
+    const existsInBase = baseEntity !== undefined;
+    if (patch.operation === 'remove') {
+      return existsInBase ? [{ ...patch, operation: 'remove' }] : [];
+    }
+    const value = patch.entity?.value;
+    if (existsInBase && sameValue(baseEntity, value)) return [];
+    return [{ ...patch, operation: existsInBase ? 'replace' : 'add' }];
+  });
+
+  const withoutTarget = current.filter((candidate) => candidate.targetId !== incoming.targetId);
+  if (patches.length === 0 && !asset) return withoutTarget;
+  const operation: CommunityChange['operation'] =
+    patches.length > 0 && patches.every((patch) => patch.operation === 'remove')
+      ? 'delete'
+      : patches.some((patch) => patch.operation === 'add')
+        ? existing?.operation === 'duplicate'
+          ? 'duplicate'
+          : 'create'
+        : 'edit';
+  const semantic = incoming.patches.length === 0 && existing ? existing : incoming;
+  return [...withoutTarget, { ...semantic, summary: incoming.summary, operation, patches, asset }];
+}
 
 const playerFromExternalProfile = (profile: AuthoringPlayerProfile): Player => ({
   id: profile.identity.entityId,
@@ -370,8 +452,12 @@ export function recordsForModule(
       ...(world.cities ?? []).map((item) => ({
         id: item.id,
         name: item.name,
-        detail:
+        detail: [
+          world.regions?.find((region) => region.id === item.regionId)?.name,
           world.nations.find((nation) => nation.id === item.nationId)?.name ?? 'Nação pendente',
+        ]
+          .filter(Boolean)
+          .join(' · '),
         module,
         value: item,
       })),
@@ -468,11 +554,13 @@ export function recordsForModule(
       ...(world.competitions ?? []).flatMap((competition) =>
         competition.seasons.flatMap((season) =>
           season.playerRegistrations.map((item, index) => ({
-            id: `${season.id}:registration:${index}`,
-            name: `Inscrição ${index + 1}`,
-            detail: `${competition.shortName} · ${season.label}`,
+            id: `registration:${season.id}:${item.playerId}`,
+            name:
+              world.playerProfiles.find((profile) => profile.identity.entityId === item.playerId)
+                ?.identity.knownName ?? `Inscrição ${index + 1}`,
+            detail: `${competition.shortName} · ${season.label} · ${item.eligible ? 'Elegível' : 'Inelegível'}`,
             module,
-            value: item,
+            value: { competition, season, registration: item, index },
           })),
         ),
       ),
@@ -488,6 +576,16 @@ export function recordsForModule(
           module,
           value: item.asset,
         })),
+    );
+  if (module === 'translations')
+    records.push(
+      ...world.nations.map((item) => ({
+        id: item.id,
+        name: item.name,
+        detail: `${item.aliases?.length ?? 0} nomes alternativos`,
+        module,
+        value: item,
+      })),
     );
   if (module === 'patches')
     records.push(
@@ -506,6 +604,128 @@ export function removalChange(
   record: StudioEntityRecord,
   world?: ModAuthoringWorld,
 ): CommunityChange | null {
+  if (record.module === 'seasons') {
+    const context = record.value as StudioSeasonRecordValue;
+    const competition =
+      world?.competitions?.find((item) => item.id === context.competition.id) ??
+      context.competition;
+    const seasons = competition.seasons.filter((season) => season.id !== context.season.id);
+    const next: StudioCompetition = {
+      ...competition,
+      baseSeasonId:
+        competition.baseSeasonId === context.season.id
+          ? (seasons[0]?.id ?? null)
+          : competition.baseSeasonId,
+      seasons,
+    };
+    return {
+      id: `delete:season:${context.season.id}`,
+      kind: 'season',
+      operation: 'delete',
+      targetId: competition.id,
+      label: context.season.label,
+      summary: 'Temporada removida da competição',
+      patches: [
+        {
+          operation: 'replace',
+          entityKind: 'competition',
+          targetId: competition.id,
+          entity: { kind: 'competition', value: next },
+          reason: `Remoção revisada da temporada ${context.season.label}`,
+        },
+      ],
+      asset: null,
+    };
+  }
+  if (record.module === 'registrations') {
+    const context = record.value as StudioRegistrationRecordValue;
+    const competition =
+      world?.competitions?.find((item) => item.id === context.competition.id) ??
+      context.competition;
+    const next: StudioCompetition = {
+      ...competition,
+      seasons: competition.seasons.map((season) =>
+        season.id === context.season.id
+          ? {
+              ...season,
+              playerRegistrations: season.playerRegistrations.filter(
+                (registration, index) =>
+                  index !== context.index ||
+                  registration.playerId !== context.registration.playerId,
+              ),
+            }
+          : season,
+      ),
+    };
+    return {
+      id: `delete:${record.id}`,
+      kind: 'registration',
+      operation: 'delete',
+      targetId: competition.id,
+      label: record.name,
+      summary: 'Inscrição removida da temporada',
+      patches: [
+        {
+          operation: 'replace',
+          entityKind: 'competition',
+          targetId: competition.id,
+          entity: { kind: 'competition', value: next },
+          reason: `Remoção revisada da inscrição de ${record.name}`,
+        },
+      ],
+      asset: null,
+    };
+  }
+  if (record.module === 'contracts') {
+    const person = record.value as AuthoringPlayerProfile | AuthoringCoachProfile;
+    const next = { ...person, contract: null };
+    const coach = world?.coaches.some(
+      (item) => item.identity.entityId === person.identity.entityId,
+    );
+    const external = !coach && person.identity.clubId !== world?.activeClubId;
+    const entityKind = coach ? 'coach' : external ? 'externalPlayer' : 'playerProfile';
+    return {
+      id: `delete:contract:${person.identity.entityId}`,
+      kind: 'contract',
+      operation: 'delete',
+      targetId: person.identity.entityId,
+      label: record.name,
+      summary: 'Contrato removido; a pessoa permanece no projeto',
+      patches: [
+        {
+          operation: 'replace',
+          entityKind,
+          targetId: person.identity.entityId,
+          entity: { kind: entityKind, value: external ? { profile: next } : next },
+          reason: `Remoção revisada do contrato de ${record.name}`,
+        },
+      ],
+      asset: null,
+    };
+  }
+  if (record.module === 'translations') {
+    const nation = record.value as ModAuthoringWorld['nations'][number];
+    if (!nation.aliases?.length) return null;
+    const next = { ...nation, aliases: [] };
+    return {
+      id: `delete:translation:nation:${nation.id}`,
+      kind: 'translation',
+      operation: 'delete',
+      targetId: nation.id,
+      label: record.name,
+      summary: 'Nomes alternativos removidos',
+      patches: [
+        {
+          operation: 'replace',
+          entityKind: 'nation',
+          targetId: nation.id,
+          entity: { kind: 'nation', value: next },
+          reason: `Remoção revisada das traduções de ${record.name}`,
+        },
+      ],
+      asset: null,
+    };
+  }
   const kindMap: Partial<Record<StudioModuleId, GeneratedPackagePatch['entityKind']>> = {
     nations: 'nation',
     regions: 'region',
@@ -591,7 +811,14 @@ export function dependentRecords(
       ...world.clubs
         .filter((item) => item.nationId === record.id)
         .map((item) => ({ label: item.name, module: 'clubs' as const, id: item.id })),
+      ...(world.competitions ?? [])
+        .filter((item) => item.nationId === record.id)
+        .map((item) => ({ label: item.name, module: 'competitions' as const, id: item.id })),
     ];
+  if (record.module === 'regions')
+    return (world.cities ?? [])
+      .filter((item) => item.regionId === record.id)
+      .map((item) => ({ label: item.name, module: 'cities' as const, id: item.id }));
   if (record.module === 'cities')
     return [
       ...(world.stadiums ?? [])
@@ -601,6 +828,10 @@ export function dependentRecords(
         .filter((item) => item.cityId === record.id)
         .map((item) => ({ label: item.name, module: 'clubs' as const, id: item.id })),
     ];
+  if (record.module === 'stadiums')
+    return world.clubs
+      .filter((item) => item.stadiumId === record.id)
+      .map((item) => ({ label: item.name, module: 'clubs' as const, id: item.id }));
   if (record.module === 'clubs')
     return [
       ...world.playerProfiles
@@ -617,6 +848,44 @@ export function dependentRecords(
           module: 'staff' as const,
           id: item.identity.entityId,
         })),
+      ...(world.stadiums ?? [])
+        .filter((item) => item.ownerClubId === record.id)
+        .map((item) => ({ label: item.name, module: 'stadiums' as const, id: item.id })),
+      ...(world.competitions ?? []).flatMap((competition) =>
+        competition.seasons
+          .filter((season) => season.participantClubIds.includes(record.id))
+          .map((season) => ({
+            label: `${competition.shortName} · ${season.label}`,
+            module: 'seasons' as const,
+            id: season.id,
+          })),
+      ),
     ];
+  if (record.module === 'players')
+    return (world.competitions ?? []).flatMap((competition) =>
+      competition.seasons.flatMap((season) =>
+        season.playerRegistrations
+          .filter((registration) => registration.playerId === record.id)
+          .map((registration) => ({
+            label: `${competition.shortName} · ${season.label}`,
+            module: 'registrations' as const,
+            id: `registration:${season.id}:${registration.playerId}`,
+          })),
+      ),
+    );
+  if (record.module === 'competitions')
+    return world.clubs
+      .filter((item) => item.competitionId === record.id)
+      .map((item) => ({ label: item.name, module: 'clubs' as const, id: item.id }));
+  if (record.module === 'seasons') {
+    const context = record.value as StudioSeasonRecordValue;
+    return context.season.playerRegistrations.map((registration) => ({
+      label:
+        world.playerProfiles.find((profile) => profile.identity.entityId === registration.playerId)
+          ?.identity.knownName ?? registration.playerId,
+      module: 'registrations' as const,
+      id: `registration:${context.season.id}:${registration.playerId}`,
+    }));
+  }
   return [];
 }

@@ -2,9 +2,17 @@ import { Icon } from '@rivallo/icons';
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 
 import type { DataPackageCatalogEntry } from '../data-editor/types.js';
+import type { Club } from '../matchday/types.js';
 import { renderPortraitUpload } from '../portrait/PortraitEngine.js';
 import { Button } from '../ui/primitives/actions.js';
 import { Skeleton, Status } from '../ui/primitives/feedback.js';
+import {
+  getWorldReferenceCatalog,
+  loadWorldReferenceCatalogForSelection,
+  resolveAssetByIdFromCatalog,
+  resolveEntityAssetFromCatalog,
+  type WorldReferenceCatalog,
+} from '../world-reference-catalog.js';
 import { CoachCreator, defaultCoachDraft, isCoachDraftReady } from './CoachCreator.js';
 import {
   createCareer,
@@ -33,6 +41,28 @@ const steps = [
   'Revisão',
   'Criação',
 ] as const;
+
+function CareerClubCrest({
+  club,
+  className,
+  catalog,
+}: {
+  readonly club: Club;
+  readonly className: string;
+  readonly catalog: WorldReferenceCatalog;
+}) {
+  const source = club.crestAssetId
+    ? resolveAssetByIdFromCatalog(catalog, club.crestAssetId)
+    : resolveEntityAssetFromCatalog(catalog, club.id, 'clubCrest');
+  return (
+    <span
+      className={className}
+      style={{ '--career-club-color': club.primaryColor } as CSSProperties}
+    >
+      {source ? <img alt={`Escudo de ${club.name}`} src={source} /> : club.shortName}
+    </span>
+  );
+}
 
 interface NewCareerWizardProps {
   readonly catalog: readonly DataPackageCatalogEntry[];
@@ -72,6 +102,9 @@ export function NewCareerWizard({ catalog, onCancel, onCreated, onExit }: NewCar
   const [selectedBaseId, setSelectedBaseId] = useState(defaultBase?.manifest.packageId ?? '');
   const [selectedMods, setSelectedMods] = useState<string[]>([]);
   const [composition, setComposition] = useState<ResolvedWorldDatabase | null>(null);
+  const [referenceCatalog, setReferenceCatalog] = useState<WorldReferenceCatalog>(() =>
+    getWorldReferenceCatalog(),
+  );
   const [compositionBusy, setCompositionBusy] = useState(false);
   const [compositionError, setCompositionError] = useState<CareerFailure | null>(null);
   const [readiness, setReadiness] = useState<readonly ClubReadinessProjection[]>([]);
@@ -101,11 +134,17 @@ export function NewCareerWizard({ catalog, onCancel, onCreated, onExit }: NewCar
         selectedMods?: string[];
         seasonRef?: string;
         clubId?: string;
+        displayName?: string;
+        clubSearch?: string;
+        clubStatusFilter?: 'all' | 'available' | 'blocked';
       };
       if (value.selectedBaseId) setSelectedBaseId(value.selectedBaseId);
       if (Array.isArray(value.selectedMods)) setSelectedMods(value.selectedMods);
       if (value.seasonRef) setSeasonRef(value.seasonRef);
       if (value.clubId) setClubId(value.clubId);
+      if (value.displayName) setDisplayName(value.displayName);
+      if (value.clubSearch) setClubSearch(value.clubSearch);
+      if (value.clubStatusFilter) setClubStatusFilter(value.clubStatusFilter);
       setStep(2);
     } catch {
       // A sessão inválida é descartada; o wizard continua com defaults seguros.
@@ -126,10 +165,14 @@ export function NewCareerWizard({ catalog, onCancel, onCreated, onExit }: NewCar
     setCompositionBusy(true);
     setCompositionError(null);
     const timer = window.setTimeout(() => {
-      void previewCareerComposition(selectedPackageIds)
-        .then((resolved) => {
+      void Promise.all([
+        previewCareerComposition(selectedPackageIds),
+        loadWorldReferenceCatalogForSelection(selectedPackageIds),
+      ])
+        .then(([resolved, selectedCatalog]) => {
           if (operation !== compositionOperation.current) return;
           setComposition(resolved);
+          setReferenceCatalog(selectedCatalog);
           const seasons = resolved.world.competitions.flatMap((competition) => competition.seasons);
           setSeasonRef((current) =>
             seasons.some((season) => season.id === current) ? current : (seasons[0]?.id ?? ''),
@@ -368,8 +411,8 @@ export function NewCareerWizard({ catalog, onCancel, onCreated, onExit }: NewCar
                   <span>Data inicial</span>
                   <strong>{season?.startDate ?? 'Indisponível'}</strong>
                   <small>
-                    A 06.6 registra esta referência; calendário, rodadas e classificação continuam
-                    aguardando a 06.7.
+                    A data define o ponto de partida; nenhuma partida ou classificação é criada
+                    nesta etapa.
                   </small>
                 </div>
               </div>
@@ -422,12 +465,11 @@ export function NewCareerWizard({ catalog, onCancel, onCreated, onExit }: NewCar
                       role="option"
                       type="button"
                     >
-                      <span
+                      <CareerClubCrest
+                        catalog={referenceCatalog}
                         className="club-option__crest"
-                        style={{ '--career-club-color': option.club.primaryColor } as CSSProperties}
-                      >
-                        {option.club.shortName}
-                      </span>
+                        club={option.club}
+                      />
                       <span>
                         <strong>{option.club.name}</strong>
                         <small>
@@ -445,16 +487,11 @@ export function NewCareerWizard({ catalog, onCancel, onCreated, onExit }: NewCar
                   {selectedClub ? (
                     <>
                       <div>
-                        <span
+                        <CareerClubCrest
+                          catalog={referenceCatalog}
                           className="club-preview__crest"
-                          style={
-                            {
-                              '--career-club-color': selectedClub.club.primaryColor,
-                            } as CSSProperties
-                          }
-                        >
-                          {selectedClub.club.shortName}
-                        </span>
+                          club={selectedClub.club}
+                        />
                         <div>
                           <h3>{selectedClub.club.name}</h3>
                           <p>{selectedClub.club.city}</p>
@@ -513,10 +550,31 @@ export function NewCareerWizard({ catalog, onCancel, onCreated, onExit }: NewCar
                                   selectedMods,
                                   seasonRef,
                                   clubId: selectedClub.club.id,
+                                  displayName,
+                                  clubSearch,
+                                  clubStatusFilter,
                                 }),
                               );
-                              const module = selectedClub.reasons[0]?.editorModule ?? 'clubs';
-                              window.location.href = `/data-editor?module=${module}&entity=${encodeURIComponent(selectedClub.club.id)}&return=new-career`;
+                              const issue = selectedClub.reasons[0];
+                              const module = issue?.editorModule ?? 'clubs';
+                              const competition = composition?.world.competitions.find((item) =>
+                                item.seasons.some((candidate) => candidate.id === seasonRef),
+                              );
+                              const exactEntity =
+                                module === 'clubs'
+                                  ? selectedClub.club.id
+                                  : module === 'competitions'
+                                    ? competition?.id
+                                    : module === 'seasons'
+                                      ? seasonRef
+                                      : undefined;
+                              const parameters = new URLSearchParams({
+                                module,
+                                return: 'new-career',
+                                issue: issue?.code ?? '',
+                              });
+                              if (exactEntity) parameters.set('entity', exactEntity);
+                              window.location.href = `/data-editor?${parameters.toString()}`;
                             }}
                             variant="secondary"
                           >

@@ -14,6 +14,7 @@ import type {
 
 interface CommunityEntityEditorProps {
   readonly world: ModAuthoringWorld;
+  readonly assets?: readonly AuthoringAssetUpload[];
   readonly author: string;
   readonly onUpsert: (change: CommunityChange) => void;
   readonly initialKind?: EntityKind;
@@ -26,6 +27,7 @@ interface CommunityEntityEditorProps {
 type EntityKind = 'club' | 'player' | 'coach';
 type EditorMode = 'create' | 'edit';
 
+const EMPTY_ASSETS: readonly AuthoringAssetUpload[] = [];
 const positions: readonly Position[] = ['GK', 'RB', 'CB', 'LB', 'DM', 'CM', 'AM', 'RW', 'LW', 'ST'];
 const coachAttributeLabels: Readonly<Record<string, string>> = {
   tactical: 'Tática',
@@ -354,6 +356,7 @@ function AttributeGrid({
 
 export function CommunityEntityEditor({
   world,
+  assets = EMPTY_ASSETS,
   author,
   onUpsert,
   initialKind = 'club',
@@ -401,8 +404,8 @@ export function CommunityEntityEditor({
   }, [canEditKind, mode]);
 
   useEffect(() => {
-    setAsset(null);
     if (mode === 'create') {
+      setAsset(null);
       setClub(defaultClub());
       setPlayer(defaultPlayer(world.activeClubId));
       setCoach(defaultCoach(world.activeClubId, staffMode));
@@ -414,6 +417,9 @@ export function CommunityEntityEditor({
     const nextCoach = world.coaches.find(
       (candidate) => candidate.identity.entityId === selectedCoachId,
     );
+    const selectedId =
+      kind === 'club' ? selectedClubId : kind === 'player' ? selectedPlayerId : selectedCoachId;
+    setAsset(assets.find((candidate) => candidate.entityId === selectedId) ?? null);
     if (kind === 'club' && nextClub) setClub(nextClub);
     if (kind === 'player' && nextPlayer) {
       const nextProfile = world.playerProfiles.find(
@@ -426,7 +432,7 @@ export function CommunityEntityEditor({
       setCoach(coachDraftFrom(nextCoach));
       setIncludeContract(Boolean(nextCoach.contract));
     }
-  }, [kind, mode, selectedClubId, selectedCoachId, selectedPlayerId, staffMode, world]);
+  }, [assets, kind, mode, selectedClubId, selectedCoachId, selectedPlayerId, staffMode, world]);
 
   const selectedClub = (clubId: string) => world.clubs.find((candidate) => candidate.id === clubId);
   const entityId =
@@ -439,11 +445,13 @@ export function CommunityEntityEditor({
       : `community.${slug(author, 'autor')}.${kind}.${slug(kind === 'club' ? club.name : kind === 'player' ? player.knownName : coach.knownName)}`;
 
   const addClub = () => {
+    const crestAssetId = asset ? `asset.${slug(entityId)}.clubCrest` : (club.crestAssetId ?? null);
     const next = {
       ...club,
       id: entityId,
       shortName: club.shortName.trim().toUpperCase(),
       historySummary: club.historySummary?.trim() || null,
+      crestAssetId,
     };
     onUpsert({
       id: `club:${entityId}`,
@@ -459,7 +467,7 @@ export function CommunityEntityEditor({
         ? {
             ...asset,
             entityId,
-            id: `asset.${slug(entityId)}.clubCrest`,
+            id: crestAssetId!,
             path: `assets/clubCrest/${slug(entityId)}.${asset.mediaType === 'image/png' ? 'png' : asset.mediaType === 'image/jpeg' ? 'jpeg' : 'webp'}`,
           }
         : null,

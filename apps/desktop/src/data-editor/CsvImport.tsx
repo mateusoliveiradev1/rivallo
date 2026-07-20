@@ -5,6 +5,7 @@ import type { CommunityChange, ModAuthoringWorld } from './types.js';
 
 type CsvEntity =
   | 'nation'
+  | 'region'
   | 'city'
   | 'stadium'
   | 'club'
@@ -18,6 +19,7 @@ type CsvEntity =
 
 const templates: Record<CsvEntity, string[]> = {
   nation: ['internalId', 'name', 'iso2', 'iso3'],
+  region: ['internalId', 'name', 'nationId'],
   city: ['internalId', 'name', 'nationId', 'regionId'],
   stadium: ['internalId', 'name', 'cityId', 'capacity', 'ownerClubId'],
   club: [
@@ -170,6 +172,24 @@ const toChange = (
       ],
     };
   }
+  if (entity === 'region') {
+    const value = { id, name: row.name, nationId: row.nationId };
+    return {
+      ...common,
+      kind: 'region',
+      label: value.name,
+      summary: `Divisão administrativa · ${value.nationId}`,
+      patches: [
+        {
+          operation: 'add',
+          entityKind: 'region',
+          targetId: id,
+          entity: { kind: 'region', value },
+          reason: 'Importação CSV revisada pelo autor',
+        },
+      ],
+    };
+  }
   if (entity === 'city') {
     const value = { id, name: row.name, nationId: row.nationId, regionId: row.regionId || null };
     return {
@@ -276,14 +296,7 @@ const toChange = (
         recruitment: 40,
       },
       specialties: [],
-      contract: club
-        ? {
-            clubId: club.id,
-            startedAt: '2026-01-01',
-            expiresAt: '2028-12-31',
-            squadStatus: row.role || 'Ativo',
-          }
-        : null,
+      contract: null,
     };
     return {
       ...common,
@@ -499,12 +512,7 @@ const toChange = (
             pace: rating,
           },
     internalPotential: numeric(row.potential, Math.min(100, rating + 5)),
-    contract: {
-      clubId: club?.id ?? row.clubId,
-      startedAt: '2026-07-01',
-      expiresAt: '2029-06-30',
-      squadStatus: 'rotation',
-    },
+    contract: null,
   };
   const value = {
     profile,
@@ -622,6 +630,7 @@ export function CsvImport({
             value={entity}
           >
             <option value="nation">Nações</option>
+            <option value="region">Divisões administrativas</option>
             <option value="city">Cidades</option>
             <option value="stadium">Estádios</option>
             <option value="club">Clubes</option>
