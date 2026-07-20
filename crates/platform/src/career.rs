@@ -17,6 +17,7 @@ use sha2::{Digest, Sha256};
 use crate::{MatchdayCoordinator, ProfileCoordinator, WorldDatabaseCoordinator};
 
 const INDEX_SCHEMA_VERSION: u16 = 1;
+const LEGACY_LOCAL_MIGRATION_OPERATION: &str = "migration:legacy-local:v1";
 const MAX_BACKUPS: usize = 5;
 const MAX_PORTRAIT_BYTES: u64 = 5 * 1024 * 1024;
 const INITIAL_CONDITION: u8 = 100;
@@ -225,7 +226,7 @@ impl CareerCoordinator {
     ) -> Result<CareerSlotSummary, CareerFailure> {
         let _guard = self.lock()?;
         let mut index = self.read_index()?;
-        let operation_id = "migration:legacy-local:v1";
+        let operation_id = LEGACY_LOCAL_MIGRATION_OPERATION;
         if let Some(career_id) = index.operations.get(operation_id) {
             let slot = self.read_slot(career_id)?;
             return Ok(CareerSlotSummary::from_slot(
@@ -927,8 +928,17 @@ impl CareerCoordinator {
                 "A integridade do save não pôde ser confirmada.",
             ));
         }
-        let envelope: SlotEnvelope = serde_json::from_slice(&bytes)
-            .map_err(|error| CareerFailure::new("career.slot_corrupt", error.to_string()))?;
+        let envelope: SlotEnvelope = match serde_json::from_slice(&bytes) {
+            Ok(envelope) => envelope,
+            Err(original_error) => {
+                let patched =
+                    legacy_envelope_with_unknown_people_count(&persisted).ok_or_else(|| {
+                        CareerFailure::new("career.slot_corrupt", original_error.to_string())
+                    })?;
+                serde_json::from_value(patched)
+                    .map_err(|error| CareerFailure::new("career.slot_corrupt", error.to_string()))?
+            }
+        };
         Ok(envelope)
     }
 
@@ -1378,6 +1388,31 @@ fn raw_slot_checksum(raw: &[u8]) -> String {
     format!("sha256:{}", hex(&Sha256::digest(compact)))
 }
 
+/// Restores only the one field absent from saves created by the legacy-local migration.
+///
+/// A zero coverage count means that the historical count was not recorded. It is not a
+/// readiness signal and does not modify the persisted world or its people. The original raw
+/// payload is checksum-verified before this in-memory compatibility view is considered.
+fn legacy_envelope_with_unknown_people_count(
+    persisted: &serde_json::Value,
+) -> Option<serde_json::Value> {
+    let mut patched = persisted.clone();
+    let slot = patched.get_mut("slot")?.as_object_mut()?;
+    if slot.get("operationId")?.as_str()? != LEGACY_LOCAL_MIGRATION_OPERATION {
+        return None;
+    }
+    let coverage = slot
+        .get_mut("baseSnapshot")?
+        .get_mut("resolved")?
+        .get_mut("coverage")?
+        .as_object_mut()?;
+    if coverage.contains_key("people") {
+        return None;
+    }
+    coverage.insert("people".to_owned(), serde_json::Value::from(0_u64));
+    Some(patched)
+}
+
 fn atomic_write_json<T: Serialize>(
     path: &Path,
     value: &T,
@@ -1528,6 +1563,93 @@ mod tests {
         }
     }
 
+    fn synthetic_person_json() -> serde_json::Value {
+        serde_json::json!({
+            "personId": "synthetic.person.compatibility",
+            "externalIds": [{
+                "source": "synthetic-source",
+                "externalId": "record-compatibility"
+            }],
+            "fullName": "Pessoa Sintética de Compatibilidade",
+            "knownName": "Compatibilidade",
+            "birthDate": null,
+            "heightCm": null,
+            "weightKg": null,
+            "preferredFoot": null,
+            "nationalityId": null,
+            "secondNationalityId": null,
+            "detailedPosition": null,
+            "shirtNumber": null,
+            "contract": null,
+            "roles": [{
+                "roleId": "synthetic.role.compatibility",
+                "kind": "staffMember",
+                "clubId": null,
+                "title": "Função sintética"
+            }],
+            "provenance": [{
+                "source": "synthetic-source",
+                "sourceRecordId": "record-compatibility",
+                "observedAt": null,
+                "verificationStatus": "pending",
+                "fields": ["fullName"]
+            }],
+            "readiness": {
+                "identity": "partialFactualIdentity",
+                "structural": "structurallyValid",
+                "runtimeProfile": "runtimeProfileBlocked",
+                "evaluation": "awaitingEvaluation",
+                "gameplay": "gameplayBlocked",
+                "blockers": ["person.runtime_profile_blocked"]
+            }
+        })
+    }
+
+    fn compatibility_fixture(
+        label: &str,
+    ) -> (PathBuf, CareerCoordinator, ResolvedWorldDatabase, String) {
+        let root = std::env::temp_dir().join(format!(
+            "rivallo-career-compatibility-{}-{}-{label}",
+            std::process::id(),
+            now_ms()
+        ));
+        let world = WorldDatabaseCoordinator::new(root.join("packages"))
+            .resolved()
+            .expect("bundled world resolves");
+        let coordinator = CareerCoordinator::new(root.join("careers"));
+        let summary = coordinator
+            .migrate_legacy(&world, &world.world.matchday, &world.world.profiles)
+            .expect("creates synthetic legacy slot");
+        rewrite_slot_json(&coordinator, &summary.career_id, |slot| {
+            slot.pointer_mut("/baseSnapshot/resolved/world/people")
+                .and_then(serde_json::Value::as_array_mut)
+                .expect("world people")
+                .push(synthetic_person_json());
+            *slot
+                .pointer_mut("/baseSnapshot/resolved/coverage/people")
+                .expect("people coverage") = serde_json::Value::from(1_u64);
+        });
+        (root, coordinator, world, summary.career_id)
+    }
+
+    fn rewrite_slot_json(
+        coordinator: &CareerCoordinator,
+        career_id: &str,
+        mutate: impl FnOnce(&mut serde_json::Value),
+    ) -> Vec<u8> {
+        let path = coordinator.slot_path(career_id);
+        let mut envelope: serde_json::Value =
+            serde_json::from_slice(&fs::read(&path).expect("reads synthetic slot"))
+                .expect("parses synthetic envelope");
+        let slot = envelope.get_mut("slot").expect("slot payload");
+        mutate(slot);
+        let raw_slot = serde_json::to_vec(slot).expect("serializes mutated slot");
+        envelope["checksum"] = serde_json::Value::String(raw_slot_checksum(&raw_slot));
+        let bytes = serde_json::to_vec_pretty(&envelope).expect("serializes mutated envelope");
+        fs::write(path, &bytes).expect("writes synthetic slot");
+        bytes
+    }
+
     #[test]
     fn context_rejects_path_traversal_and_caps_scroll() {
         let sanitized = sanitize_context(CareerRouteContext {
@@ -1589,6 +1711,150 @@ mod tests {
 
         assert_eq!(raw_slot_checksum(raw), expected);
         assert_ne!(evolved_checksum, expected);
+    }
+
+    #[test]
+    fn legacy_missing_people_is_read_only_deterministic_and_preserves_people_readiness() {
+        let (root, coordinator, world, career_id) = compatibility_fixture("legacy-missing");
+        let original = coordinator
+            .read_slot(&career_id)
+            .expect("reads current slot");
+        let expected_people = original.base_snapshot.resolved.world.people.clone();
+        let expected_readiness = expected_people[0].readiness.clone();
+        let before = rewrite_slot_json(&coordinator, &career_id, |slot| {
+            slot.pointer_mut("/baseSnapshot/resolved/coverage")
+                .and_then(serde_json::Value::as_object_mut)
+                .expect("coverage object")
+                .remove("people");
+        });
+
+        let first = coordinator
+            .migrate_legacy(&world, &world.world.matchday, &world.world.profiles)
+            .expect("loads legacy slot");
+        let second = coordinator
+            .migrate_legacy(&world, &world.world.matchday, &world.world.profiles)
+            .expect("loads legacy slot deterministically");
+        let loaded = coordinator
+            .read_slot(&career_id)
+            .expect("reads compatible slot");
+        let after = fs::read(coordinator.slot_path(&career_id)).expect("reads slot after load");
+
+        assert_eq!(first, second);
+        assert_eq!(
+            before, after,
+            "compatibility reads must not rewrite the save"
+        );
+        assert_eq!(loaded.base_snapshot.resolved.coverage.people, 0);
+        assert_eq!(loaded.base_snapshot.resolved.world.people, expected_people);
+        assert_eq!(
+            loaded.base_snapshot.resolved.world.people[0].readiness, expected_readiness,
+            "unknown historical coverage must not fabricate readiness"
+        );
+        assert!(
+            loaded.base_snapshot.resolved.world.people[0]
+                .readiness
+                .blockers
+                .iter()
+                .any(|blocker| blocker == "person.runtime_profile_blocked")
+        );
+
+        fs::remove_dir_all(root).expect("removes compatibility fixture");
+    }
+
+    #[test]
+    fn current_people_coverage_remains_authoritative() {
+        let (root, coordinator, _world, career_id) = compatibility_fixture("current");
+        rewrite_slot_json(&coordinator, &career_id, |slot| {
+            *slot
+                .pointer_mut("/baseSnapshot/resolved/coverage/people")
+                .expect("people coverage") = serde_json::Value::from(37_u64);
+        });
+
+        let loaded = coordinator
+            .read_slot(&career_id)
+            .expect("reads current slot");
+        assert_eq!(loaded.base_snapshot.resolved.coverage.people, 37);
+        fs::remove_dir_all(root).expect("removes compatibility fixture");
+    }
+
+    #[test]
+    fn invalid_people_type_and_unrelated_missing_fields_remain_errors() {
+        let (root, coordinator, _world, career_id) = compatibility_fixture("invalid-type");
+        rewrite_slot_json(&coordinator, &career_id, |slot| {
+            *slot
+                .pointer_mut("/baseSnapshot/resolved/coverage/people")
+                .expect("people coverage") = serde_json::Value::String("unknown".to_owned());
+        });
+        assert_eq!(
+            coordinator
+                .read_slot(&career_id)
+                .expect_err("invalid people type must fail")
+                .code,
+            "career.slot_corrupt"
+        );
+
+        rewrite_slot_json(&coordinator, &career_id, |slot| {
+            let coverage = slot
+                .pointer_mut("/baseSnapshot/resolved/coverage")
+                .and_then(serde_json::Value::as_object_mut)
+                .expect("coverage object");
+            coverage.insert("people".to_owned(), serde_json::Value::from(1_u64));
+            coverage.remove("players");
+        });
+        assert_eq!(
+            coordinator
+                .read_slot(&career_id)
+                .expect_err("unrelated required field must fail")
+                .code,
+            "career.slot_corrupt"
+        );
+        fs::remove_dir_all(root).expect("removes compatibility fixture");
+    }
+
+    #[test]
+    fn missing_people_is_not_accepted_for_nonlegacy_slots() {
+        let (root, coordinator, _world, career_id) = compatibility_fixture("nonlegacy");
+        rewrite_slot_json(&coordinator, &career_id, |slot| {
+            slot["operationId"] = serde_json::Value::String("create:synthetic".to_owned());
+            slot.pointer_mut("/baseSnapshot/resolved/coverage")
+                .and_then(serde_json::Value::as_object_mut)
+                .expect("coverage object")
+                .remove("people");
+        });
+        assert_eq!(
+            coordinator
+                .read_slot(&career_id)
+                .expect_err("current schema must stay strict")
+                .code,
+            "career.slot_corrupt"
+        );
+        fs::remove_dir_all(root).expect("removes compatibility fixture");
+    }
+
+    #[test]
+    fn truncated_json_and_incompatible_coverage_fail_explicitly() {
+        let (root, coordinator, _world, career_id) = compatibility_fixture("corruption");
+        let path = coordinator.slot_path(&career_id);
+        let bytes = fs::read(&path).expect("reads synthetic slot");
+        fs::write(&path, &bytes[..bytes.len() / 2]).expect("writes truncated JSON");
+        assert_eq!(
+            coordinator
+                .read_slot(&career_id)
+                .expect_err("truncated JSON must fail")
+                .code,
+            "career.slot_corrupt"
+        );
+
+        fs::write(&path, br#"{"checksum":"sha256:invalid","slot":[]}"#)
+            .expect("writes incompatible envelope");
+        assert_eq!(
+            coordinator
+                .read_slot(&career_id)
+                .expect_err("incompatible structure must fail")
+                .code,
+            "career.slot_corrupt"
+        );
+        fs::remove_dir_all(root).expect("removes compatibility fixture");
     }
 
     #[test]

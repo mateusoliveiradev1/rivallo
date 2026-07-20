@@ -33,6 +33,8 @@ use tauri::{AppHandle, Manager, RunEvent, State};
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 
+mod runtime_paths;
+
 const PROBE_IO_TIMEOUT: Duration = Duration::from_millis(400);
 const OWNED_READINESS_INTERVAL: Duration = Duration::from_secs(1);
 const COOPERATIVE_SHUTDOWN_WAIT: Duration = Duration::from_millis(750);
@@ -2193,14 +2195,18 @@ fn main() {
                 let _ = window.set_decorations(false);
                 let _ = window.set_fullscreen(true);
             }
-            let matchday_path = app.path().app_data_dir()?.join("first-playable.json");
-            let profiles_path = app
-                .path()
-                .app_data_dir()?
-                .join("player-coach-profiles.json");
-            let table_views_path = app.path().app_data_dir()?.join("table-views.json");
-            let data_packages_path = app.path().app_data_dir()?.join("data-packages");
-            let careers_path = app.path().app_data_dir()?.join("careers");
+            let normal_app_data_dir = app.path().app_data_dir()?;
+            let isolated_app_data_dir =
+                runtime_paths::isolated_app_data_dir_from_environment(&normal_app_data_dir)?;
+            let app_data_dir = isolated_app_data_dir.clone().unwrap_or(normal_app_data_dir);
+            let matchday_path = app_data_dir.join("first-playable.json");
+            let profiles_path = app_data_dir.join("player-coach-profiles.json");
+            let table_views_path = match isolated_app_data_dir {
+                Some(path) => path.join("table-views.json"),
+                None => app.path().app_data_dir()?.join("table-views.json"),
+            };
+            let data_packages_path = app_data_dir.join("data-packages");
+            let careers_path = app_data_dir.join("careers");
             let public_world = WorldDatabaseCoordinator::new(data_packages_path.clone());
             let world = match PrivateCatalogConfig::from_environment() {
                 Some(config) => public_world
