@@ -743,38 +743,92 @@ export function CommunityEntityEditor({ world, author, onUpsert }: CommunityEnti
                 </label>
                 <label>
                   Cidade
-                  <input
-                    onChange={(event) => setClub({ ...club, city: event.target.value })}
-                    value={club.city}
-                  />
+                  <select
+                    onChange={(event) => {
+                      const city = world.cities?.find((item) => item.id === event.target.value);
+                      setClub({
+                        ...club,
+                        cityId: city?.id ?? null,
+                        city: city?.name ?? '',
+                        nationId: city?.nationId ?? club.nationId,
+                      });
+                    }}
+                    value={club.cityId ?? ''}
+                  >
+                    <option value="">Selecione uma cidade</option>
+                    {(world.cities ?? []).map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label>
                   País
-                  <input
-                    maxLength={3}
-                    onChange={(event) =>
-                      setClub({ ...club, countryCode: event.target.value.toUpperCase() || null })
-                    }
-                    value={club.countryCode ?? ''}
-                  />
+                  <select
+                    onChange={(event) => {
+                      const nation = world.nations.find((item) => item.id === event.target.value);
+                      setClub({
+                        ...club,
+                        nationId: nation?.id ?? null,
+                        countryCode: nation?.iso2 ?? null,
+                      });
+                    }}
+                    value={club.nationId ?? ''}
+                  >
+                    <option value="">Selecione um país</option>
+                    {world.nations.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label>
                   Competição
-                  <input
-                    onChange={(event) =>
-                      setClub({ ...club, competitionName: event.target.value || null })
-                    }
-                    value={club.competitionName ?? ''}
-                  />
+                  <select
+                    onChange={(event) => {
+                      const competition = world.competitions?.find(
+                        (item) => item.id === event.target.value,
+                      );
+                      setClub({
+                        ...club,
+                        competitionId: competition?.id ?? null,
+                        competitionName: competition?.name ?? null,
+                      });
+                    }}
+                    value={club.competitionId ?? ''}
+                  >
+                    <option value="">Selecione uma competição</option>
+                    {(world.competitions ?? []).map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label>
                   Estádio
-                  <input
-                    onChange={(event) =>
-                      setClub({ ...club, stadiumName: event.target.value || null })
-                    }
-                    value={club.stadiumName ?? ''}
-                  />
+                  <select
+                    onChange={(event) => {
+                      const stadium = world.stadiums?.find(
+                        (item) => item.id === event.target.value,
+                      );
+                      setClub({
+                        ...club,
+                        stadiumId: stadium?.id ?? null,
+                        stadiumName: stadium?.name ?? null,
+                      });
+                    }}
+                    value={club.stadiumId ?? ''}
+                  >
+                    <option value="">Selecione um estádio</option>
+                    {(world.stadiums ?? []).map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label>
                   Cor principal

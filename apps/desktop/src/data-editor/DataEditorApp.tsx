@@ -8,19 +8,36 @@ import { Button } from '../ui/primitives/actions.js';
 import { Skeleton, Status } from '../ui/primitives/feedback.js';
 import {
   exportDataPackageSource,
+  chooseRivmodOpenPath,
+  chooseRivmodSavePath,
+  deleteCreatorProject,
+  exportRivmod,
+  forkCreatorPackage,
+  inspectRivmod,
+  installRivmod,
   loadDataPackageCatalog,
+  loadCreatorProject,
+  loadCreatorProjects,
   loadModAuthoringWorld,
+  loadPackageHistory,
   loadWorldDatabaseSummary,
+  rollbackPackage,
+  saveCreatorProject,
   validateDataPackageSource,
 } from './client.js';
 import { CommunityEntityEditor } from './CommunityEntityEditor.js';
+import { DataStudio } from './DataStudio.js';
 import { PackageValidationSummary } from './PackageValidationSummary.js';
 import type {
   CommunityChange,
+  CreatorProjectRecord,
+  CreatorProjectSummary,
   DataPackageAuthoringSource,
   DataPackageCatalogEntry,
   ModAuthoringWorld,
   PackageValidationReport,
+  PackageHistoryEntry,
+  RivmodInspection,
   WorldDatabaseSummary,
 } from './types.js';
 
@@ -57,6 +74,43 @@ const cleanIdPart = (value: string, fallback: string) => {
 const generatedPackageId = (details: ModDetails) =>
   `community.${cleanIdPart(details.author, 'autor')}.${cleanIdPart(details.name, 'mod')}`;
 
+const nextPatchVersion = (version: string) => {
+  const [major = 1, minor = 0, patch = 0] = version.split('.').map(Number);
+  return `${major}.${minor}.${patch + 1}`;
+};
+
+const changesFromProject = (record: CreatorProjectRecord): CommunityChange[] => {
+  const patches = record.source.patchesJson
+    ? (JSON.parse(record.source.patchesJson) as CommunityChange['patches'])
+    : [];
+  const groups = new Map<string, CommunityChange['patches'][number][]>();
+  for (const patch of patches) {
+    groups.set(patch.targetId, [...(groups.get(patch.targetId) ?? []), patch]);
+  }
+  return [...groups.entries()].map(([targetId, entityPatches]) => {
+    const entityKind = entityPatches[0]?.entityKind ?? 'club';
+    const asset = record.source.assets.find((item) => item.entityId === targetId) ?? null;
+    const value = entityPatches[0]?.entity.value as
+      { name?: string; shortName?: string } | undefined;
+    const kind =
+      entityKind === 'matchdayPlayer' ||
+      entityKind === 'playerProfile' ||
+      entityKind === 'externalPlayer'
+        ? 'player'
+        : entityKind;
+    return {
+      id: `${kind}:${targetId}`,
+      kind: kind as CommunityChange['kind'],
+      operation: entityPatches[0]?.operation === 'replace' ? 'edit' : 'create',
+      targetId,
+      label: value?.name ?? value?.shortName ?? targetId,
+      summary: 'Projeto de autoria reaberto',
+      patches: entityPatches,
+      asset,
+    };
+  });
+};
+
 const signatureFor = (
   details: ModDetails,
   packageIdOverride: string,
@@ -75,6 +129,7 @@ const signatureFor = (
 
 export function DataEditorApp() {
   const [catalog, setCatalog] = useState<readonly DataPackageCatalogEntry[]>([]);
+  const [projects, setProjects] = useState<readonly CreatorProjectSummary[]>([]);
   const [catalogState, setCatalogState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [worldSummary, setWorldSummary] = useState<WorldDatabaseSummary | null>(null);
   const [authoringWorld, setAuthoringWorld] = useState<ModAuthoringWorld | null>(null);
@@ -84,8 +139,21 @@ export function DataEditorApp() {
   const [selectedBaseId, setSelectedBaseId] = useState('');
   const [changes, setChanges] = useState<readonly CommunityChange[]>([]);
   const [step, setStep] = useState(0);
+  const requestedModule = new URLSearchParams(window.location.search).get('module');
+  const [surface, setSurface] = useState<'quick' | 'studio'>(() =>
+    requestedModule ? 'studio' : 'quick',
+  );
+  const [projectId, setProjectId] = useState('');
+  const [inspection, setInspection] = useState<RivmodInspection | null>(null);
+  const [distributionPath, setDistributionPath] = useState('');
+  const [history, setHistory] = useState<{
+    packageId: string;
+    entries: readonly PackageHistoryEntry[];
+  } | null>(null);
   const [report, setReport] = useState<PackageValidationReport | null>(null);
-  const [busy, setBusy] = useState<'validate' | 'export' | null>(null);
+  const [busy, setBusy] = useState<
+    'validate' | 'export' | 'save' | 'distribution' | 'install' | null
+  >(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [leaveIntent, setLeaveIntent] = useState<'menu' | 'exit' | null>(null);
@@ -109,11 +177,12 @@ export function DataEditorApp() {
 
   useEffect(() => {
     let active = true;
-    void Promise.all([loadDataPackageCatalog(), loadWorldDatabaseSummary()])
-      .then(([entries, summary]) => {
+    void Promise.all([loadDataPackageCatalog(), loadWorldDatabaseSummary(), loadCreatorProjects()])
+      .then(([entries, summary, creatorProjects]) => {
         if (!active) return;
         setCatalog(entries);
         setWorldSummary(summary);
+        setProjects(creatorProjects);
         const base = entries.find(
           (entry) => entry.manifest.contentType === 'base' && entry.validation.valid,
         );
@@ -289,6 +358,165 @@ export function DataEditorApp() {
     }
   };
 
+  const saveProject = async (
+    mode: 'quickMod' | 'dataStudio' = surface === 'studio' ? 'dataStudio' : 'quickMod',
+  ) => {
+    setBusy('save');
+    setError('');
+    try {
+      const id = projectId || `project.${packageId}`;
+      const record = await saveCreatorProject({
+        projectId: id,
+        name: details.name.trim(),
+        mode,
+        basePackageId: selectedBaseId,
+        source,
+      });
+      setProjectId(record.projectId);
+      setProjects(await loadCreatorProjects());
+      setCleanSignature(currentSignature);
+      setMessage(`Projeto salvo · revisão ${record.revision}.`);
+    } catch {
+      setError('Não foi possível salvar o projeto de autoria. Os dados continuam nesta sessão.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const openProject = async (id: string, openSurface?: 'quick' | 'studio') => {
+    setError('');
+    try {
+      const record = await loadCreatorProject(id);
+      const manifest = JSON.parse(record.source.manifestJson) as {
+        name: string;
+        author: string;
+        description: string;
+        version: string;
+        packageId: string;
+      };
+      const restoredChanges = changesFromProject(record);
+      setProjectId(record.projectId);
+      setDetails({
+        name: manifest.name,
+        author: manifest.author,
+        description: manifest.description,
+        version: manifest.version,
+      });
+      setPackageIdOverride(manifest.packageId);
+      setSelectedBaseId(record.basePackageId);
+      setChanges(restoredChanges);
+      setSurface(openSurface ?? (record.mode === 'dataStudio' ? 'studio' : 'quick'));
+      setStep(record.mode === 'quickMod' ? 1 : 0);
+      setMessage(`${record.name} reaberto para continuar a edição.`);
+    } catch {
+      setError('O projeto não pôde ser reaberto com segurança.');
+    }
+  };
+
+  const forkPackage = async (entry: DataPackageCatalogEntry, duplicate: boolean) => {
+    setBusy('save');
+    setError('');
+    try {
+      const nextVersion = duplicate ? '1.0.0' : nextPatchVersion(entry.manifest.version);
+      const duplicateId = duplicate
+        ? `${entry.manifest.packageId}.copy-${Date.now().toString(36)}`
+        : null;
+      const record = await forkCreatorPackage({
+        packageId: entry.manifest.packageId,
+        projectId: `project.${entry.manifest.packageId}.${Date.now().toString(36)}`,
+        name: duplicate ? `${entry.manifest.name} — cópia` : entry.manifest.name,
+        mode: 'dataStudio',
+        nextVersion,
+        duplicatePackageId: duplicateId,
+      });
+      setProjects(await loadCreatorProjects());
+      await openProject(record.projectId, 'studio');
+    } catch {
+      setError(
+        'Este pacote não pôde originar um novo projeto. Bases oficiais permanecem imutáveis.',
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const exportSharedBundle = async () => {
+    setBusy('distribution');
+    setError('');
+    try {
+      const path = await chooseRivmodSavePath();
+      if (!path) return;
+      const receipt = await exportRivmod(source, path);
+      setDistributionPath(receipt.path);
+      setMessage(
+        `${receipt.name} ${receipt.version} exportado · ${(receipt.size / 1024).toFixed(1)} KB · SHA-256 ${receipt.sha256.slice(0, 16)}…`,
+      );
+      setProjects(await loadCreatorProjects());
+    } catch {
+      setError('A exportação .rivmod foi bloqueada; nenhum arquivo incompleto foi mantido.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const chooseBundleToInstall = async () => {
+    setBusy('install');
+    setError('');
+    try {
+      const path = await chooseRivmodOpenPath();
+      if (!path) return;
+      setDistributionPath(path);
+      setInspection(await inspectRivmod(path));
+    } catch {
+      setError('O arquivo não passou pela inspeção de segurança do Rivallo.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const confirmBundleInstall = async () => {
+    if (!inspection) return;
+    setBusy('install');
+    try {
+      const receipt = await installRivmod(distributionPath);
+      setInspection(null);
+      setCatalog(await loadDataPackageCatalog());
+      setMessage(
+        `${receipt.name} ${receipt.version} foi instalado. Nenhuma carreira existente foi alterada.`,
+      );
+    } catch {
+      setInspection(null);
+      setError('A instalação foi bloqueada por versão, conflito ou validação.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const showHistory = async (packageId: string) => {
+    setError('');
+    try {
+      setHistory({ packageId, entries: await loadPackageHistory(packageId) });
+    } catch {
+      setError('Não foi possível abrir o histórico seguro deste pacote.');
+    }
+  };
+
+  const runRollback = async (version: string) => {
+    if (!history) return;
+    setBusy('install');
+    try {
+      const receipt = await rollbackPackage(history.packageId, version);
+      setHistory(null);
+      setCatalog(await loadDataPackageCatalog());
+      setMessage(`${receipt.name} voltou com segurança para a versão ${receipt.version}.`);
+    } catch {
+      setHistory(null);
+      setError('O rollback foi bloqueado e a versão instalada foi preservada.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const goToMenu = () => {
     allowUnload.current = true;
     window.location.href = '/main-menu';
@@ -304,12 +532,38 @@ export function DataEditorApp() {
       <header className="data-editor-header" data-tauri-drag-region>
         <div className="data-editor-header__brand">
           <RivalloBrand />
-          <span>Editor de mods</span>
+          <span>Creator Studio</span>
         </div>
         <div className="data-editor-header__actions">
-          <button onClick={() => (dirty ? setLeaveIntent('menu') : goToMenu())} type="button">
-            Voltar ao Menu Principal
+          <button
+            aria-label="Voltar ao Menu Principal"
+            className="data-editor-header__back"
+            onClick={() => (dirty ? setLeaveIntent('menu') : goToMenu())}
+            title="Voltar ao Menu Principal"
+            type="button"
+          >
+            <Icon name="previous" size={20} />
           </button>
+          <Button loading={busy === 'save'} onClick={() => void saveProject()} variant="secondary">
+            Salvar
+          </Button>
+          <Button onClick={() => void runValidation()} variant="secondary">
+            Validar
+          </Button>
+          <Button
+            loading={busy === 'distribution'}
+            onClick={() => void exportSharedBundle()}
+            variant="primary"
+          >
+            Exportar .rivmod
+          </Button>
+          <Button
+            loading={busy === 'install'}
+            onClick={() => void chooseBundleToInstall()}
+            variant="secondary"
+          >
+            Instalar arquivo
+          </Button>
           <WindowControls />
         </div>
       </header>
@@ -318,8 +572,8 @@ export function DataEditorApp() {
         <aside aria-labelledby="catalog-heading" className="data-editor-catalog">
           <div>
             <span>Biblioteca local</span>
-            <h2 id="catalog-heading">Seus pacotes</h2>
-            <p>Mods exportados aparecem aqui e ficam disponíveis para novas carreiras.</p>
+            <h2 id="catalog-heading">Projetos e pacotes</h2>
+            <p>Rascunhos são editáveis. Bundles exportados e pacotes instalados são imutáveis.</p>
           </div>
           {catalogState === 'loading' && <Skeleton lines={4} />}
           {catalogState === 'error' && (
@@ -328,22 +582,106 @@ export function DataEditorApp() {
             </Status>
           )}
           {catalogState === 'ready' && (
-            <ul>
-              {catalog.map((entry) => (
-                <li key={entry.manifest.packageId}>
-                  <div>
-                    <strong>{entry.manifest.name}</strong>
-                    <span>
-                      {entry.manifest.contentType === 'base' ? 'Base' : 'Mod'} · v
-                      {entry.manifest.version}
-                    </span>
-                  </div>
-                  <em data-valid={entry.validation.valid || undefined}>
-                    {entry.validation.valid ? 'Pronto' : 'Requer atenção'}
-                  </em>
-                </li>
-              ))}
-            </ul>
+            <>
+              <section className="creator-library-group">
+                <h3>
+                  Rascunhos <span>{projects.length}</span>
+                </h3>
+                {projects.length === 0 ? (
+                  <p>Nenhum projeto salvo ainda.</p>
+                ) : (
+                  <ul>
+                    {projects.map((project) => (
+                      <li key={project.projectId}>
+                        <button onClick={() => void openProject(project.projectId)} type="button">
+                          <strong>{project.name}</strong>
+                          <span>
+                            {project.mode === 'quickMod' ? 'Mod rápido' : 'Data Studio'} · v
+                            {project.version} · {project.entityCount} itens
+                          </span>
+                          <em data-status={project.status}>
+                            {project.status === 'blocked'
+                              ? 'Bloqueado'
+                              : project.status === 'validWithWarnings'
+                                ? 'Válido com avisos'
+                                : project.status === 'valid'
+                                  ? 'Válido'
+                                  : 'Rascunho'}
+                          </em>
+                        </button>
+                        <details>
+                          <summary aria-label={`Ações de ${project.name}`}>•••</summary>
+                          <div>
+                            <button
+                              onClick={() => void openProject(project.projectId, 'quick')}
+                              type="button"
+                            >
+                              Continuar edição
+                            </button>
+                            <button
+                              onClick={() => void openProject(project.projectId, 'studio')}
+                              type="button"
+                            >
+                              Abrir no Data Studio
+                            </button>
+                            <button
+                              onClick={() =>
+                                void deleteCreatorProject(project.projectId).then(async () =>
+                                  setProjects(await loadCreatorProjects()),
+                                )
+                              }
+                              type="button"
+                            >
+                              Excluir rascunho
+                            </button>
+                          </div>
+                        </details>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+              <section className="creator-library-group">
+                <h3>
+                  Instalados e bases <span>{catalog.length}</span>
+                </h3>
+                <ul>
+                  {catalog.map((entry) => (
+                    <li key={entry.manifest.packageId}>
+                      <div>
+                        <strong>{entry.manifest.name}</strong>
+                        <span>
+                          {entry.manifest.contentType === 'base' ? 'Base' : 'Mod instalado'} · v
+                          {entry.manifest.version}
+                        </span>
+                        <em data-valid={entry.validation.valid || undefined}>
+                          {entry.validation.valid ? 'Pronto' : 'Requer atenção'}
+                        </em>
+                      </div>
+                      {entry.manifest.contentType === 'mod' && (
+                        <details>
+                          <summary aria-label={`Ações de ${entry.manifest.name}`}>•••</summary>
+                          <div>
+                            <button onClick={() => void forkPackage(entry, false)} type="button">
+                              Criar nova versão
+                            </button>
+                            <button onClick={() => void forkPackage(entry, true)} type="button">
+                              Duplicar como novo mod
+                            </button>
+                            <button
+                              onClick={() => void showHistory(entry.manifest.packageId)}
+                              type="button"
+                            >
+                              Ver histórico e rollback
+                            </button>
+                          </div>
+                        </details>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            </>
           )}
           {worldSummary && (
             <details className="data-editor-runtime-details">
@@ -369,33 +707,82 @@ export function DataEditorApp() {
         <section aria-labelledby="authoring-heading" className="data-editor-workspace">
           <header className="data-editor-workspace__heading">
             <div>
-              <span>Criação guiada</span>
-              <h1 id="authoring-heading">Crie um mod sem editar arquivos</h1>
-              <p>Escolha o que mudar; o Rivallo monta, valida e exporta o pacote por você.</p>
+              <span>{surface === 'quick' ? 'Mod rápido' : 'Data Studio'}</span>
+              <h1 id="authoring-heading">
+                {surface === 'quick' ? 'Crie um mod sem editar arquivos' : details.name}
+              </h1>
+              <p>
+                {surface === 'quick'
+                  ? 'Escolha o que mudar; o Rivallo monta, valida e exporta o pacote por você.'
+                  : `${details.version} · ${selectedBaseId || 'Escolha uma base'} · autoria completa e escalável`}
+              </p>
             </div>
-            <span className="data-editor-draft-state" data-dirty={dirty || undefined}>
-              {dirty ? 'Alterações ainda não exportadas' : 'Rascunho em dia'}
-            </span>
+            <div className="data-editor-workspace__tools">
+              <div aria-label="Modo de autoria" className="creator-mode-switch" role="radiogroup">
+                <button
+                  aria-checked={surface === 'quick'}
+                  onClick={() => setSurface('quick')}
+                  role="radio"
+                  type="button"
+                >
+                  Mod rápido
+                </button>
+                <button
+                  aria-checked={surface === 'studio'}
+                  onClick={() => setSurface('studio')}
+                  role="radio"
+                  type="button"
+                >
+                  Data Studio
+                </button>
+              </div>
+              <span className="data-editor-draft-state" data-dirty={dirty || undefined}>
+                {dirty ? 'Modificado' : 'Salvo'}
+              </span>
+            </div>
           </header>
 
-          <nav aria-label="Etapas do Editor de mods" className="data-editor-stepper">
-            {editorSteps.map((label, index) => (
-              <button
-                aria-current={step === index ? 'step' : undefined}
-                data-complete={index < step || undefined}
-                disabled={index > step}
-                key={label}
-                onClick={() => setStep(index)}
-                type="button"
-              >
-                <span>{index < step ? <Icon name="check" size={16} /> : index + 1}</span>
-                {label}
-              </button>
-            ))}
-          </nav>
+          {surface === 'quick' && (
+            <nav aria-label="Etapas do Editor de mods" className="data-editor-stepper">
+              {editorSteps.map((label, index) => (
+                <button
+                  aria-current={step === index ? 'step' : undefined}
+                  data-complete={index < step || undefined}
+                  disabled={index > step}
+                  key={label}
+                  onClick={() => setStep(index)}
+                  type="button"
+                >
+                  <span>{index < step ? <Icon name="check" size={16} /> : index + 1}</span>
+                  {label}
+                </button>
+              ))}
+            </nav>
+          )}
 
           <div className="data-editor-stage">
-            {step === 0 && (
+            {surface === 'studio' && worldState === 'ready' && authoringWorld && (
+              <DataStudio
+                author={details.author}
+                changes={changes}
+                initialModule={requestedModule}
+                onBatch={(batch) => {
+                  batch.forEach(upsertChange);
+                  setMessage(
+                    `${batch.length.toLocaleString('pt-BR')} registros foram preparados no projeto.`,
+                  );
+                }}
+                onRollback={(ids) =>
+                  setChanges((current) => current.filter((change) => !ids.includes(change.id)))
+                }
+                onUpsert={upsertChange}
+                onValidate={runValidation}
+                report={report}
+                world={authoringWorld}
+              />
+            )}
+            {surface === 'studio' && worldState === 'loading' && <Skeleton lines={8} />}
+            {surface === 'quick' && step === 0 && (
               <section aria-labelledby="mod-details-heading" className="data-editor-stage__section">
                 <header>
                   <h2 id="mod-details-heading">Conte um pouco sobre o seu mod</h2>
@@ -484,7 +871,7 @@ export function DataEditorApp() {
               </section>
             )}
 
-            {step === 1 && (
+            {surface === 'quick' && step === 1 && (
               <section aria-labelledby="changes-heading" className="data-editor-stage__section">
                 <header>
                   <h2 id="changes-heading">O que você quer mudar?</h2>
@@ -542,7 +929,7 @@ export function DataEditorApp() {
               </section>
             )}
 
-            {step === 2 && (
+            {surface === 'quick' && step === 2 && (
               <section
                 aria-labelledby="review-heading"
                 className="data-editor-stage__section data-editor-review"
@@ -624,33 +1011,35 @@ export function DataEditorApp() {
             )}
           </div>
 
-          <footer className="data-editor-footer">
-            <Button
-              disabled={step === 0 || busy !== null}
-              onClick={() => setStep((current) => current - 1)}
-              variant="secondary"
-            >
-              Voltar
-            </Button>
-            <span>
-              Etapa {step + 1} de {editorSteps.length} · {editorSteps[step]}
-            </span>
-            {step < editorSteps.length - 1 ? (
+          {surface === 'quick' && (
+            <footer className="data-editor-footer">
               <Button
-                disabled={
-                  (step === 0 && !detailsValid) ||
-                  (step === 1 && changes.length === 0) ||
-                  worldState === 'loading'
-                }
-                onClick={() => setStep((current) => current + 1)}
-                variant="primary"
+                disabled={step === 0 || busy !== null}
+                onClick={() => setStep((current) => current - 1)}
+                variant="secondary"
               >
-                Continuar
+                Voltar
               </Button>
-            ) : (
-              <span />
-            )}
-          </footer>
+              <span>
+                Etapa {step + 1} de {editorSteps.length} · {editorSteps[step]}
+              </span>
+              {step < editorSteps.length - 1 ? (
+                <Button
+                  disabled={
+                    (step === 0 && !detailsValid) ||
+                    (step === 1 && changes.length === 0) ||
+                    worldState === 'loading'
+                  }
+                  onClick={() => setStep((current) => current + 1)}
+                  variant="primary"
+                >
+                  Continuar
+                </Button>
+              ) : (
+                <span />
+              )}
+            </footer>
+          )}
         </section>
       </div>
 
@@ -689,6 +1078,109 @@ export function DataEditorApp() {
           >
             <Icon name="close" size={16} />
           </button>
+        </div>
+      )}
+
+      {inspection && (
+        <div className="data-editor-leave-overlay" role="presentation">
+          <section
+            aria-labelledby="install-mod-heading"
+            className="data-editor-leave-dialog distribution-dialog"
+            role="dialog"
+          >
+            <span>Inspeção de segurança concluída</span>
+            <h2 id="install-mod-heading">Instalar {inspection.receipt.name}?</h2>
+            <p>
+              {inspection.receipt.packageId} · v{inspection.receipt.version} ·{' '}
+              {(inspection.receipt.size / 1024).toFixed(1)} KB
+            </p>
+            <dl>
+              <div>
+                <dt>Validação</dt>
+                <dd>{inspection.validation.valid ? 'Válido' : 'Bloqueado'}</dd>
+              </div>
+              <div>
+                <dt>Dependências</dt>
+                <dd>{inspection.dependencies.length || 'Nenhuma'}</dd>
+              </div>
+              <div>
+                <dt>Conflitos</dt>
+                <dd>{inspection.conflicts.length || 'Nenhum'}</dd>
+              </div>
+              <div>
+                <dt>Atualização</dt>
+                <dd>
+                  {inspection.updateFromVersion
+                    ? `${inspection.updateFromVersion} → ${inspection.receipt.version}`
+                    : 'Nova instalação'}
+                </dd>
+              </div>
+              <div>
+                <dt>SHA-256</dt>
+                <dd>{inspection.receipt.sha256}</dd>
+              </div>
+            </dl>
+            {inspection.downgrade && (
+              <Status label="Downgrade bloqueado" variant="danger">
+                <p>Escolha uma versão superior ou use o histórico seguro para rollback.</p>
+              </Status>
+            )}
+            <p>Instalar atualiza o catálogo, mas não ativa o mod em nenhuma carreira existente.</p>
+            <div>
+              <Button onClick={() => setInspection(null)} variant="secondary">
+                Cancelar
+              </Button>
+              <Button
+                disabled={!inspection.validation.valid || inspection.downgrade}
+                loading={busy === 'install'}
+                onClick={() => void confirmBundleInstall()}
+                variant="primary"
+              >
+                Confirmar instalação
+              </Button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {history && (
+        <div className="data-editor-leave-overlay" role="presentation">
+          <section
+            aria-labelledby="package-history-heading"
+            className="data-editor-leave-dialog distribution-dialog"
+            role="dialog"
+          >
+            <span>Histórico local preservado</span>
+            <h2 id="package-history-heading">Versões anteriores</h2>
+            {history.entries.length === 0 ? (
+              <p>Nenhuma versão anterior foi preservada para este pacote.</p>
+            ) : (
+              <ul className="package-history-list">
+                {history.entries.map((entry) => (
+                  <li key={entry.version}>
+                    <span>
+                      <strong>
+                        {entry.name} {entry.version}
+                      </strong>
+                      <small>{new Date(entry.archivedAt).toLocaleString('pt-BR')}</small>
+                    </span>
+                    <Button
+                      loading={busy === 'install'}
+                      onClick={() => void runRollback(entry.version)}
+                      variant="secondary"
+                    >
+                      Restaurar
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div>
+              <Button onClick={() => setHistory(null)} variant="secondary">
+                Fechar
+              </Button>
+            </div>
+          </section>
         </div>
       )}
 

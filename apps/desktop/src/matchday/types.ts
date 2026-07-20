@@ -33,6 +33,11 @@ export interface Club {
   readonly countryCode?: string | null;
   readonly competitionName?: string | null;
   readonly stadiumName?: string | null;
+  readonly nationId?: string | null;
+  readonly cityId?: string | null;
+  readonly competitionId?: string | null;
+  readonly stadiumId?: string | null;
+  readonly crestAssetId?: string | null;
   readonly historySummary?: string | null;
 }
 

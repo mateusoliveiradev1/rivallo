@@ -7,6 +7,7 @@ import type {
   CareerPortrait,
   CareerSlot,
   CareerSlotSummary,
+  ClubReadinessProjection,
   CoachCreationEvaluation,
   CoachCreatorDraft,
   CreateCareerRequest,
@@ -57,6 +58,12 @@ export const loadCareerBoot = async (
 
 export const previewCareerComposition = (packageIds: readonly string[]) =>
   call<ResolvedWorldDatabase>('preview_career_composition', { packageIds: [...packageIds] });
+
+export const previewClubReadiness = (packageIds: readonly string[], seasonId: string) =>
+  call<ClubReadinessProjection[]>('preview_club_readiness', {
+    packageIds: [...packageIds],
+    seasonId,
+  });
 
 export const createCareer = (request: CreateCareerRequest) =>
   call<CareerSlot>('create_career', { request });

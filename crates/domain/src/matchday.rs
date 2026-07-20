@@ -149,6 +149,16 @@ pub struct Club {
     #[serde(default)]
     pub stadium_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nation_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub city_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub competition_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stadium_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub crest_asset_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub history_summary: Option<String>,
 }
 
@@ -772,6 +782,11 @@ fn legacy_hardcoded_matchday_fixture() -> MatchdayState {
             country_code: Some("BRA".to_owned()),
             competition_name: Some("Liga Horizonte".to_owned()),
             stadium_name: None,
+            nation_id: Some("nation.bra".to_owned()),
+            city_id: Some("city.porto-claro".to_owned()),
+            competition_id: Some("competition.horizonte".to_owned()),
+            stadium_id: None,
+            crest_asset_id: None,
             history_summary: None,
         },
         opponent: Club {
@@ -783,6 +798,11 @@ fn legacy_hardcoded_matchday_fixture() -> MatchdayState {
             country_code: Some("BRA".to_owned()),
             competition_name: Some("Liga Horizonte".to_owned()),
             stadium_name: None,
+            nation_id: Some("nation.bra".to_owned()),
+            city_id: Some("city.vale-do-norte".to_owned()),
+            competition_id: Some("competition.horizonte".to_owned()),
+            stadium_id: None,
+            crest_asset_id: None,
             history_summary: None,
         },
         round: 1,

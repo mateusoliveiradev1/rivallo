@@ -164,6 +164,126 @@ pub struct CompetitionRules {
     pub legs: u8,
     #[serde(default)]
     pub tie_breakers: Vec<String>,
+    #[serde(default = "default_minimum_roster_size")]
+    pub minimum_roster_size: u16,
+    #[serde(default = "default_minimum_goalkeepers")]
+    pub minimum_goalkeepers: u8,
+    #[serde(default = "default_starters")]
+    pub starters: u8,
+    #[serde(default = "default_bench_size")]
+    pub bench_size: u8,
+    #[serde(default = "default_substitutions")]
+    pub substitutions: u8,
+    #[serde(default)]
+    pub extra_time: bool,
+    #[serde(default)]
+    pub penalties: bool,
+    #[serde(default)]
+    pub foreign_player_limit: Option<u8>,
+    #[serde(default)]
+    pub minimum_homegrown_players: Option<u8>,
+    #[serde(default)]
+    pub promotion_slots: u8,
+    #[serde(default)]
+    pub relegation_slots: u8,
+}
+
+const fn default_minimum_roster_size() -> u16 {
+    18
+}
+
+const fn default_minimum_goalkeepers() -> u8 {
+    2
+}
+
+const fn default_starters() -> u8 {
+    11
+}
+
+const fn default_bench_size() -> u8 {
+    7
+}
+
+const fn default_substitutions() -> u8 {
+    5
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CompetitionStageKind {
+    #[default]
+    RoundRobin,
+    DoubleRoundRobin,
+    Groups,
+    Knockout,
+    TwoLeggedKnockout,
+    SingleFinal,
+    Qualifying,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CompetitionStageDefinition {
+    pub id: String,
+    pub name: String,
+    pub order: u16,
+    #[serde(default)]
+    pub kind: CompetitionStageKind,
+    pub participant_count: u16,
+    #[serde(default)]
+    pub group_count: u16,
+    #[serde(default = "default_stage_legs")]
+    pub legs: u8,
+    #[serde(default)]
+    pub advance_count: u16,
+    #[serde(default)]
+    pub eliminate_count: u16,
+    #[serde(default)]
+    pub points_for_win: Option<u8>,
+    #[serde(default)]
+    pub points_for_draw: Option<u8>,
+    #[serde(default)]
+    pub points_for_loss: Option<u8>,
+    #[serde(default)]
+    pub tie_breakers: Vec<String>,
+    #[serde(default)]
+    pub extra_time: bool,
+    #[serde(default)]
+    pub penalties: bool,
+    #[serde(default)]
+    pub neutral_venue: bool,
+}
+
+const fn default_stage_legs() -> u8 {
+    1
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CompetitionCalendarConstraints {
+    #[serde(default)]
+    pub preferred_weekdays: Vec<u8>,
+    #[serde(default)]
+    pub kickoff_times: Vec<String>,
+    #[serde(default)]
+    pub minimum_rest_days: u8,
+    #[serde(default)]
+    pub blocked_dates: Vec<String>,
+    #[serde(default)]
+    pub neutral_venue: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SeasonPlayerRegistration {
+    pub player_id: String,
+    pub club_id: String,
+    #[serde(default)]
+    pub shirt_number: Option<u8>,
+    #[serde(default)]
+    pub contract_reference: Option<String>,
+    #[serde(default)]
+    pub eligible: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -177,6 +297,21 @@ pub struct CompetitionSeasonDefinition {
     pub rules: CompetitionRules,
     #[serde(default)]
     pub participant_club_ids: Vec<String>,
+    #[serde(default)]
+    pub stages: Vec<CompetitionStageDefinition>,
+    #[serde(default)]
+    pub registration_windows: Vec<DateWindow>,
+    #[serde(default)]
+    pub calendar_constraints: CompetitionCalendarConstraints,
+    #[serde(default)]
+    pub player_registrations: Vec<SeasonPlayerRegistration>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DateWindow {
+    pub start_date: String,
+    pub end_date: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -188,6 +323,20 @@ pub struct Competition {
     pub nation_id: String,
     #[serde(default)]
     pub logo_asset_id: Option<String>,
+    #[serde(default)]
+    pub region_id: Option<String>,
+    #[serde(default)]
+    pub category: Option<String>,
+    #[serde(default)]
+    pub level: Option<u8>,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub primary_color: Option<String>,
+    #[serde(default)]
+    pub secondary_color: Option<String>,
+    #[serde(default)]
+    pub base_season_id: Option<String>,
     #[serde(default)]
     pub seasons: Vec<CompetitionSeasonDefinition>,
 }
@@ -301,7 +450,7 @@ pub enum WorldEntity {
     MatchdayPlayer(Player),
     PlayerProfile(PlayerSportingProfile),
     ExternalPlayer(ExternalPlayerState),
-    Coach(CoachSportingProfile),
+    Coach(Box<CoachSportingProfile>),
     Nation(Nation),
     Region(Region),
     City(City),
@@ -520,6 +669,254 @@ pub struct ResolvedWorldDatabase {
     pub fingerprint: WorldDatabaseFingerprint,
     pub coverage: PackageCoverageReport,
     pub validation: PackageValidationReport,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ClubReadinessStatus {
+    Available,
+    AvailableWithWarnings,
+    Blocked,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClubReadinessRequirement {
+    pub code: String,
+    pub label: String,
+    pub satisfied: bool,
+    pub blocking: bool,
+    pub current: Option<u16>,
+    pub required: Option<u16>,
+    pub editor_module: String,
+    pub suggestion: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClubReadinessProjection {
+    pub club_id: String,
+    pub season_id: String,
+    pub status: ClubReadinessStatus,
+    pub requirements: Vec<ClubReadinessRequirement>,
+}
+
+pub fn project_club_readiness(
+    world: &WorldPackageData,
+    season_id: &str,
+) -> Vec<ClubReadinessProjection> {
+    let season_context = world.competitions.iter().find_map(|competition| {
+        competition
+            .seasons
+            .iter()
+            .find(|season| season.id == season_id)
+            .map(|season| (competition, season))
+    });
+    world
+        .clubs
+        .iter()
+        .map(|club| {
+            let profiles = world
+                .profiles
+                .players
+                .iter()
+                .filter(|player| player.identity.club_id == club.id)
+                .collect::<Vec<_>>();
+            let loadable_player_ids = world
+                .matchday
+                .players
+                .iter()
+                .map(|player| player.id.as_str())
+                .collect::<HashSet<_>>();
+            let loadable_profiles = profiles
+                .iter()
+                .filter(|player| loadable_player_ids.contains(player.identity.entity_id.as_str()))
+                .copied()
+                .collect::<Vec<_>>();
+            let active_coaches = world
+                .profiles
+                .coaches
+                .iter()
+                .filter(|coach| {
+                    coach.identity.club_id == club.id
+                        && coach.role == "Treinador principal"
+                        && coach.contract.as_ref().is_none_or(|contract| {
+                            contract.club_id == club.id
+                                && contract.squad_status == "Treinador principal"
+                        })
+                })
+                .count();
+            let (minimum_roster, minimum_goalkeepers, participates) =
+                season_context.map_or((18, 2, false), |(_, season)| {
+                    (
+                        season.rules.minimum_roster_size.max(11),
+                        season.rules.minimum_goalkeepers.max(1),
+                        season.participant_club_ids.iter().any(|id| id == &club.id),
+                    )
+                });
+            let goalkeepers = loadable_profiles
+                .iter()
+                .filter(|player| player.natural_position == Position::Gk)
+                .count();
+            let nation_exists = club.nation_id.as_ref().map_or_else(
+                || {
+                    club.country_code.as_ref().is_some_and(|code| {
+                        world.nations.iter().any(|nation| {
+                            nation.iso2.eq_ignore_ascii_case(code)
+                                || nation.iso3.eq_ignore_ascii_case(code)
+                        })
+                    })
+                },
+                |id| world.nations.iter().any(|nation| nation.id == *id),
+            );
+            let city_exists = club
+                .city_id
+                .as_ref()
+                .map_or(!club.city.trim().is_empty(), |id| {
+                    world.cities.iter().any(|city| city.id == *id)
+                });
+            let competition_matches = season_context.is_some_and(|(competition, _)| {
+                club.competition_id
+                    .as_ref()
+                    .is_none_or(|id| id == &competition.id)
+            });
+            let mut requirements = vec![
+                readiness_requirement(
+                    "club.identity",
+                    "Identidade do clube",
+                    !club.name.trim().is_empty() && !club.short_name.trim().is_empty(),
+                    true,
+                    None,
+                    None,
+                    "clubs",
+                    "Preencha nome e sigla no módulo Clubes.",
+                ),
+                readiness_requirement(
+                    "club.nation",
+                    "Nação válida",
+                    nation_exists,
+                    true,
+                    None,
+                    None,
+                    "clubs",
+                    "Selecione uma nação existente pelo picker do clube.",
+                ),
+                readiness_requirement(
+                    "club.city",
+                    "Cidade válida",
+                    city_exists,
+                    true,
+                    None,
+                    None,
+                    "clubs",
+                    "Selecione ou crie uma cidade antes de vincular o clube.",
+                ),
+                readiness_requirement(
+                    "club.competition",
+                    "Competição da temporada",
+                    competition_matches && season_context.is_some(),
+                    true,
+                    None,
+                    None,
+                    "competitions",
+                    "Vincule o clube à competição desta temporada.",
+                ),
+                readiness_requirement(
+                    "club.registration",
+                    "Inscrição na temporada",
+                    participates,
+                    true,
+                    None,
+                    None,
+                    "seasons",
+                    "Adicione o clube aos participantes da temporada.",
+                ),
+                readiness_requirement(
+                    "club.roster",
+                    "Elenco mínimo",
+                    loadable_profiles.len() >= usize::from(minimum_roster),
+                    true,
+                    Some(loadable_profiles.len().try_into().unwrap_or(u16::MAX)),
+                    Some(minimum_roster),
+                    "players",
+                    "Crie ou importe jogadores vinculados a este clube.",
+                ),
+                readiness_requirement(
+                    "club.goalkeepers",
+                    "Goleiros mínimos",
+                    goalkeepers >= usize::from(minimum_goalkeepers),
+                    true,
+                    Some(goalkeepers.try_into().unwrap_or(u16::MAX)),
+                    Some(minimum_goalkeepers.into()),
+                    "players",
+                    "Adicione goleiros ao elenco conforme o regulamento.",
+                ),
+                readiness_requirement(
+                    "club.head_coach",
+                    "Treinador principal",
+                    active_coaches == 1,
+                    true,
+                    Some(active_coaches.try_into().unwrap_or(u16::MAX)),
+                    Some(1),
+                    "coaches",
+                    "Defina exatamente um treinador principal ativo.",
+                ),
+            ];
+            if club.city_id.is_none() || club.nation_id.is_none() || club.competition_id.is_none() {
+                requirements.push(readiness_requirement(
+                    "club.legacy_references",
+                    "Referências legadas por texto",
+                    false,
+                    false,
+                    None,
+                    None,
+                    "clubs",
+                    "Converta cidade, nação e competição para referências por ID estável.",
+                ));
+            }
+            let has_blocker = requirements
+                .iter()
+                .any(|requirement| requirement.blocking && !requirement.satisfied);
+            let has_warning = requirements
+                .iter()
+                .any(|requirement| !requirement.blocking && !requirement.satisfied);
+            ClubReadinessProjection {
+                club_id: club.id.clone(),
+                season_id: season_id.to_owned(),
+                status: if has_blocker {
+                    ClubReadinessStatus::Blocked
+                } else if has_warning {
+                    ClubReadinessStatus::AvailableWithWarnings
+                } else {
+                    ClubReadinessStatus::Available
+                },
+                requirements,
+            }
+        })
+        .collect()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn readiness_requirement(
+    code: &str,
+    label: &str,
+    satisfied: bool,
+    blocking: bool,
+    current: Option<u16>,
+    required: Option<u16>,
+    editor_module: &str,
+    suggestion: &str,
+) -> ClubReadinessRequirement {
+    ClubReadinessRequirement {
+        code: code.to_owned(),
+        label: label.to_owned(),
+        satisfied,
+        blocking,
+        current,
+        required,
+        editor_module: editor_module.to_owned(),
+        suggestion: suggestion.to_owned(),
+    }
 }
 
 fn valid_stable_id(value: &str) -> bool {
@@ -911,7 +1308,7 @@ fn world_entities(world: &WorldPackageData) -> Vec<WorldEntity> {
             .coaches
             .iter()
             .cloned()
-            .map(WorldEntity::Coach),
+            .map(|coach| WorldEntity::Coach(Box::new(coach))),
     );
     entities.extend(world.nations.iter().cloned().map(WorldEntity::Nation));
     entities.extend(world.regions.iter().cloned().map(WorldEntity::Region));
@@ -1482,7 +1879,7 @@ fn insert_entity(world: &mut WorldPackageData, entity: WorldEntity) {
         WorldEntity::MatchdayPlayer(value) => world.matchday.players.push(value),
         WorldEntity::PlayerProfile(value) => world.profiles.players.push(value),
         WorldEntity::ExternalPlayer(value) => world.profiles.external_players.push(value),
-        WorldEntity::Coach(value) => world.profiles.coaches.push(value),
+        WorldEntity::Coach(value) => world.profiles.coaches.push(*value),
         WorldEntity::Nation(value) => world.nations.push(value),
         WorldEntity::Region(value) => world.regions.push(value),
         WorldEntity::City(value) => world.cities.push(value),
@@ -1567,6 +1964,37 @@ mod tests {
         assert_eq!(first.world.profiles.players.len(), 18);
         assert_eq!(first.world.nations.len(), 4);
         assert_eq!(first.world.competitions.len(), 1);
+    }
+
+    #[test]
+    fn club_readiness_uses_season_rules_and_returns_actionable_blockers() {
+        let mut world = bundled_official_world();
+        let season_id = "official.rivallo.competition.liga-horizonte.season.demo";
+        let ready = project_club_readiness(&world, season_id);
+        let active = ready
+            .iter()
+            .find(|entry| entry.club_id == "aurora-fc")
+            .expect("active club readiness");
+        assert_ne!(active.status, ClubReadinessStatus::Blocked);
+        assert!(active.requirements.iter().all(|requirement| {
+            !requirement.editor_module.is_empty() && !requirement.suggestion.is_empty()
+        }));
+
+        world
+            .profiles
+            .coaches
+            .retain(|coach| coach.identity.club_id != "aurora-fc");
+        let blocked = project_club_readiness(&world, season_id);
+        let active = blocked
+            .iter()
+            .find(|entry| entry.club_id == "aurora-fc")
+            .expect("blocked club readiness");
+        assert_eq!(active.status, ClubReadinessStatus::Blocked);
+        assert!(
+            active.requirements.iter().any(|requirement| {
+                requirement.code == "club.head_coach" && requirement.blocking
+            })
+        );
     }
 
     #[test]

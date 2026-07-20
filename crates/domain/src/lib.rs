@@ -2,6 +2,7 @@
 
 mod career;
 mod matchday;
+mod portrait;
 mod profiles;
 mod tactics;
 mod world;
@@ -20,6 +21,7 @@ pub use matchday::{
     TacticalPlanSnapshot, TacticalPlanUpdate, TacticalPlayerPlacement, TacticalSide,
     TacticalVariationLibrarySnapshot, TacticalZone,
 };
+pub use portrait::{PORTRAIT_RENDERER_VERSION, PortraitFeatureLocks, PortraitRecipe};
 pub use profiles::{
     ASSESSMENT_VERSION, AttributeGroupProjection, AttributeProjection, AttributeSnapshot,
     ClubProfileProjection, ClubTacticalIdentityProjection, CoachAttributeSet,
@@ -50,14 +52,16 @@ pub use tactics::{
     resolve_tactical_model, tactical_strategy_preset_catalog,
 };
 pub use world::{
-    AssetReference, AttributeDefinition, City, Competition, CompetitionRules,
-    CompetitionSeasonDefinition, ContentPackage, DataPackageType, ExternalIdentifier, Nation,
-    PackageConflict, PackageCoverageReport, PackageDependency, PackageEntrypoints, PackageManifest,
-    PackagePatch, PackagePatchOperation, PackageProvenance, PackageValidationDiagnostic,
-    PackageValidationReport, PackageVisibility, PositionDefinition, Region, ResolvedWorldDatabase,
-    RoleDefinition, Stadium, TraitDefinition, ValidationSeverity, WORLD_DATABASE_SCHEMA_VERSION,
-    WorldDatabaseFingerprint, WorldEntity, WorldEntityKind, WorldPackageData,
-    resolve_world_packages, validate_package,
+    AssetReference, AttributeDefinition, City, ClubReadinessProjection, ClubReadinessRequirement,
+    ClubReadinessStatus, Competition, CompetitionCalendarConstraints, CompetitionRules,
+    CompetitionSeasonDefinition, CompetitionStageDefinition, CompetitionStageKind, ContentPackage,
+    DataPackageType, DateWindow, ExternalIdentifier, Nation, PackageConflict,
+    PackageCoverageReport, PackageDependency, PackageEntrypoints, PackageManifest, PackagePatch,
+    PackagePatchOperation, PackageProvenance, PackageValidationDiagnostic, PackageValidationReport,
+    PackageVisibility, PositionDefinition, Region, ResolvedWorldDatabase, RoleDefinition,
+    SeasonPlayerRegistration, Stadium, TraitDefinition, ValidationSeverity,
+    WORLD_DATABASE_SCHEMA_VERSION, WorldDatabaseFingerprint, WorldEntity, WorldEntityKind,
+    WorldPackageData, project_club_readiness, resolve_world_packages, validate_package,
 };
 
 /// A neutral identifier for a module participating in contract preparation.

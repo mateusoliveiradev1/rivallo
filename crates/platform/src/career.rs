@@ -7,9 +7,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use rivallo_application::{
     AssistanceProfile, CAREER_SCHEMA_VERSION, CareerIntegrity, CareerRouteContext, CareerSaveState,
-    CareerSlot, CareerWorldSnapshot, CoachCreatorDraft, DataPackageType, KnowledgeLevel,
-    MatchdayState, PackageVisibility, ProfileWorld, ResolvedWorldDatabase, ScoutingAssessment,
-    SeasonRecord, project_coach_profile,
+    CareerSlot, CareerWorldSnapshot, ClubReadinessStatus, CoachCreatorDraft, DataPackageType,
+    KnowledgeLevel, MatchdayState, PackageVisibility, ProfileWorld, ResolvedWorldDatabase,
+    ScoutingAssessment, SeasonRecord, project_club_readiness, project_coach_profile,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -420,19 +420,6 @@ impl CareerCoordinator {
                     "O clube selecionado não existe na base.",
                 )
             })?;
-        let roster_count = resolved
-            .world
-            .profiles
-            .players
-            .iter()
-            .filter(|player| player.identity.club_id == club.id)
-            .count();
-        if roster_count < 11 || resolved.world.matchday.club.id != club.id {
-            return Err(CareerFailure::new(
-                "career.club_roster_incomplete",
-                "O clube não possui um elenco inicial completo e carregável nesta base.",
-            ));
-        }
         let season_exists = resolved.world.competitions.iter().any(|competition| {
             competition.seasons.iter().any(|season| {
                 season.id == request.season_ref
@@ -446,6 +433,27 @@ impl CareerCoordinator {
             return Err(CareerFailure::new(
                 "career.season_invalid",
                 "A definição de início não inclui o clube selecionado.",
+            ));
+        }
+        let readiness = project_club_readiness(&resolved.world, &request.season_ref)
+            .into_iter()
+            .find(|projection| projection.club_id == club.id)
+            .ok_or_else(|| {
+                CareerFailure::new(
+                    "career.club_readiness_missing",
+                    "A disponibilidade do clube não pôde ser calculada.",
+                )
+            })?;
+        if readiness.status == ClubReadinessStatus::Blocked {
+            return Err(CareerFailure::with_details(
+                "career.club_blocked",
+                "O clube ainda possui requisitos pendentes para iniciar uma carreira.",
+                readiness
+                    .requirements
+                    .into_iter()
+                    .filter(|requirement| requirement.blocking && !requirement.satisfied)
+                    .map(|requirement| format!("{}: {}", requirement.label, requirement.suggestion))
+                    .collect(),
             ));
         }
 
@@ -550,6 +558,15 @@ impl CareerCoordinator {
 
         let mut matchday = resolved.world.matchday.clone();
         matchday.club = club.clone();
+        let club_player_ids = profiles
+            .players
+            .iter()
+            .filter(|profile| profile.identity.club_id == club.id)
+            .map(|profile| profile.identity.entity_id.as_str())
+            .collect::<std::collections::HashSet<_>>();
+        matchday
+            .players
+            .retain(|player| club_player_ids.contains(player.id.as_str()));
         matchday.round = 0;
         for (index, player) in matchday.players.iter_mut().enumerate() {
             player.appearances = 0;

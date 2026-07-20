@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     Club, CoachAttributeSet, CoachSportingProfile, ContractSummary, MatchdayState, PersonIdentity,
-    ProfileWorld, ResolvedWorldDatabase,
+    PortraitRecipe, ProfileWorld, ResolvedWorldDatabase,
 };
 
 pub const CAREER_SCHEMA_VERSION: u16 = 1;
@@ -131,25 +131,7 @@ pub struct CoachCreationEvaluation {
     pub errors: Vec<String>,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct CoachAppearance {
-    #[serde(default)]
-    pub seed: u64,
-    #[serde(default = "default_portrait_renderer_version")]
-    pub renderer_version: u16,
-    pub skin_tone: u8,
-    pub face_shape: String,
-    pub hair_style: String,
-    pub hair_color: String,
-    pub facial_hair: String,
-    pub glasses: bool,
-    pub clothing: String,
-}
-
-const fn default_portrait_renderer_version() -> u16 {
-    1
-}
+pub type CoachAppearance = PortraitRecipe;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -218,8 +200,8 @@ impl CoachCreatorDraft {
         if self.specialties.len() > 2 {
             errors.push("selecione no máximo duas especialidades".to_owned());
         }
-        if self.appearance.skin_tone > 7 {
-            errors.push("tom de pele fora da faixa suportada".to_owned());
+        if let Err(error) = self.appearance.validate() {
+            errors.push(error);
         }
 
         errors.extend(evaluate_coach_creation(self).errors);
@@ -273,6 +255,7 @@ impl CoachCreatorDraft {
                 squad_status: "Treinador principal".to_owned(),
             }),
             portrait_asset_id,
+            appearance: Some(self.appearance),
         }
     }
 }
@@ -769,7 +752,7 @@ mod tests {
             attributes: attributes(40),
             appearance: CoachAppearance {
                 seed: 1,
-                renderer_version: 1,
+                renderer_version: 2,
                 skin_tone: 3,
                 face_shape: "oval".to_owned(),
                 hair_style: "curto".to_owned(),
@@ -777,6 +760,7 @@ mod tests {
                 facial_hair: "nenhuma".to_owned(),
                 glasses: false,
                 clothing: "social".to_owned(),
+                ..CoachAppearance::default()
             },
             portrait: None,
         }

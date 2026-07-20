@@ -16,6 +16,9 @@ const MAX_PATCH_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_ASSET_BYTES: u64 = 16 * 1024 * 1024;
 const MAX_AUTHORING_ASSETS: usize = 128;
 const MAX_AUTHORING_ASSET_TOTAL_BYTES: usize = 64 * 1024 * 1024;
+const MAX_RIVMOD_BYTES: u64 = 128 * 1024 * 1024;
+const CREATOR_PROJECT_SCHEMA_VERSION: u16 = 1;
+const RIVMOD_FORMAT_VERSION: u16 = 1;
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -28,6 +31,120 @@ pub struct AuthoringAssetUpload {
     pub bytes: Vec<u8>,
     pub provenance: String,
     pub rights: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CreatorProjectMode {
+    QuickMod,
+    DataStudio,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CreatorProjectStatus {
+    Draft,
+    Modified,
+    Valid,
+    ValidWithWarnings,
+    Blocked,
+    Exported,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DataPackageAuthoringSource {
+    pub manifest_json: String,
+    pub world_json: Option<String>,
+    pub patches_json: Option<String>,
+    #[serde(default)]
+    pub assets: Vec<AuthoringAssetUpload>,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CreatorProjectDraft {
+    pub project_id: String,
+    pub name: String,
+    pub mode: CreatorProjectMode,
+    pub base_package_id: String,
+    pub source: DataPackageAuthoringSource,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CreatorProjectRecord {
+    pub schema_version: u16,
+    pub project_id: String,
+    pub name: String,
+    pub mode: CreatorProjectMode,
+    pub status: CreatorProjectStatus,
+    pub base_package_id: String,
+    pub package_id: String,
+    pub version: String,
+    pub created_at: u64,
+    pub updated_at: u64,
+    pub last_exported_at: Option<u64>,
+    pub revision: u64,
+    pub source: DataPackageAuthoringSource,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreatorProjectSummary {
+    pub project_id: String,
+    pub name: String,
+    pub mode: CreatorProjectMode,
+    pub status: CreatorProjectStatus,
+    pub base_package_id: String,
+    pub package_id: String,
+    pub version: String,
+    pub updated_at: u64,
+    pub last_exported_at: Option<u64>,
+    pub entity_count: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RivmodBundle {
+    format_version: u16,
+    exported_at: u64,
+    manifest_json: String,
+    world_json: Option<String>,
+    patches_json: Option<String>,
+    assets: Vec<AuthoringAssetUpload>,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackageDistributionReceipt {
+    pub package_id: String,
+    pub name: String,
+    pub version: String,
+    pub path: String,
+    pub size: u64,
+    pub sha256: String,
+    pub status: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RivmodInspection {
+    pub receipt: PackageDistributionReceipt,
+    pub validation: PackageValidationReport,
+    pub dependencies: Vec<String>,
+    pub conflicts: Vec<String>,
+    pub update_from_version: Option<String>,
+    pub downgrade: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackageHistoryEntry {
+    pub package_id: String,
+    pub version: String,
+    pub name: String,
+    pub archived_at: u64,
 }
 
 const OFFICIAL_MANIFEST: &str =
@@ -330,16 +447,24 @@ impl WorldPackageRepository for FileWorldPackageRepository {
 pub struct WorldDatabaseCoordinator {
     service: WorldDatabaseService<FileWorldPackageRepository>,
     user_packages_root: PathBuf,
+    creator_projects_root: PathBuf,
+    package_history_root: PathBuf,
 }
 
 impl WorldDatabaseCoordinator {
     pub fn new(user_packages_root: impl Into<PathBuf>) -> Self {
         let user_packages_root = user_packages_root.into();
+        let app_data_root = user_packages_root
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| user_packages_root.clone());
         Self {
             service: WorldDatabaseService::new(FileWorldPackageRepository::new(
                 user_packages_root.clone(),
             )),
             user_packages_root,
+            creator_projects_root: app_data_root.join("creator-projects"),
+            package_history_root: app_data_root.join("package-history"),
         }
     }
 
@@ -398,6 +523,775 @@ impl WorldDatabaseCoordinator {
             .write_package_with_assets(&package, assets)?;
         Ok(validation)
     }
+
+    pub fn list_creator_projects(
+        &self,
+    ) -> Result<Vec<CreatorProjectSummary>, PackageValidationReport> {
+        if !self.creator_projects_root.exists() {
+            return Ok(Vec::new());
+        }
+        let mut records = fs::read_dir(&self.creator_projects_root)
+            .map_err(|error| {
+                io_report(
+                    &self.creator_projects_root,
+                    "creator.projects_read_failed",
+                    error,
+                )
+            })?
+            .filter_map(Result::ok)
+            .filter(|entry| {
+                entry
+                    .path()
+                    .extension()
+                    .is_some_and(|value| value == "json")
+            })
+            .map(|entry| self.read_creator_project_file(&entry.path()))
+            .collect::<Result<Vec<_>, _>>()?;
+        records.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
+        Ok(records.iter().map(project_summary).collect())
+    }
+
+    pub fn load_creator_project(
+        &self,
+        project_id: &str,
+    ) -> Result<CreatorProjectRecord, PackageValidationReport> {
+        ensure_creator_id(project_id, "projectId")?;
+        self.read_creator_project_file(
+            &self
+                .creator_projects_root
+                .join(format!("{project_id}.json")),
+        )
+    }
+
+    pub fn save_creator_project(
+        &self,
+        draft: CreatorProjectDraft,
+    ) -> Result<CreatorProjectRecord, PackageValidationReport> {
+        ensure_creator_id(&draft.project_id, "projectId")?;
+        if draft.name.trim().is_empty() || draft.name.chars().count() > 120 {
+            return Err(creator_report(
+                "creator.project_name_invalid",
+                "name",
+                "Informe um nome de projeto com até 120 caracteres.",
+            ));
+        }
+        let package = prepare_authoring_package(
+            &draft.source.manifest_json,
+            draft.source.world_json.as_deref(),
+            draft.source.patches_json.as_deref(),
+            &draft.source.assets,
+        )?;
+        let validation = self.service.validate_candidate(&package);
+        let status = project_status(&validation);
+        let now = unix_ms();
+        fs::create_dir_all(&self.creator_projects_root).map_err(|error| {
+            io_report(
+                &self.creator_projects_root,
+                "creator.projects_create_failed",
+                error,
+            )
+        })?;
+        let target = self
+            .creator_projects_root
+            .join(format!("{}.json", draft.project_id));
+        let existing = target
+            .exists()
+            .then(|| self.read_creator_project_file(&target))
+            .transpose()?;
+        let record = CreatorProjectRecord {
+            schema_version: CREATOR_PROJECT_SCHEMA_VERSION,
+            project_id: draft.project_id,
+            name: draft.name.trim().to_owned(),
+            mode: draft.mode,
+            status,
+            base_package_id: draft.base_package_id,
+            package_id: package.manifest.package_id,
+            version: package.manifest.version,
+            created_at: existing.as_ref().map_or(now, |value| value.created_at),
+            updated_at: now,
+            last_exported_at: existing.as_ref().and_then(|value| value.last_exported_at),
+            revision: existing.as_ref().map_or(1, |value| value.revision + 1),
+            source: draft.source,
+        };
+        write_json_atomic(&self.creator_projects_root, &target, &record)?;
+        Ok(record)
+    }
+
+    pub fn delete_creator_project(&self, project_id: &str) -> Result<(), PackageValidationReport> {
+        ensure_creator_id(project_id, "projectId")?;
+        let target = self
+            .creator_projects_root
+            .join(format!("{project_id}.json"));
+        if target.exists() {
+            fs::remove_file(&target)
+                .map_err(|error| io_report(&target, "creator.project_delete_failed", error))?;
+        }
+        Ok(())
+    }
+
+    pub fn fork_installed_package(
+        &self,
+        package_id: &str,
+        project_id: &str,
+        name: &str,
+        mode: CreatorProjectMode,
+        next_version: Option<&str>,
+        duplicate_package_id: Option<&str>,
+    ) -> Result<CreatorProjectRecord, PackageValidationReport> {
+        ensure_creator_id(package_id, "packageId")?;
+        ensure_creator_id(project_id, "projectId")?;
+        let repository = FileWorldPackageRepository::new(&self.user_packages_root);
+        let package_root = self.user_packages_root.join(package_id);
+        if !package_root.exists() {
+            return Err(creator_report(
+                "creator.package_not_editable",
+                "packageId",
+                "Somente bundles locais exportados ou instalados podem originar uma nova versão.",
+            ));
+        }
+        ensure_real_descendant(&self.user_packages_root, &package_root, "packageRoot")?;
+        let mut package = repository.read_package(&package_root)?;
+        if let Some(version) = next_version {
+            let Some(next) = semver_tuple(version) else {
+                return Err(creator_report(
+                    "creator.version_invalid",
+                    "version",
+                    "Informe uma versão semântica válida no formato major.minor.patch.",
+                ));
+            };
+            let Some(current) = semver_tuple(&package.manifest.version) else {
+                return Err(creator_report(
+                    "creator.installed_version_invalid",
+                    "version",
+                    "A versão instalada é inválida e não pode originar uma atualização.",
+                ));
+            };
+            if next <= current {
+                return Err(creator_report(
+                    "creator.version_not_greater",
+                    "version",
+                    "A nova versão precisa ser superior à versão instalada.",
+                ));
+            }
+            package.manifest.version = version.to_owned();
+        }
+        if let Some(duplicate_id) = duplicate_package_id {
+            ensure_creator_id(duplicate_id, "packageId")?;
+            if duplicate_id == package.manifest.package_id {
+                return Err(creator_report(
+                    "creator.duplicate_id_unchanged",
+                    "packageId",
+                    "A duplicação precisa usar um novo packageId.",
+                ));
+            }
+            package.manifest.package_id = duplicate_id.to_owned();
+            package.manifest.version = next_version.unwrap_or("1.0.0").to_owned();
+        }
+        package.manifest.name = name.trim().to_owned();
+        let source = source_from_installed_package(&package_root, &package)?;
+        self.save_creator_project(CreatorProjectDraft {
+            project_id: project_id.to_owned(),
+            name: name.to_owned(),
+            mode,
+            base_package_id: package
+                .manifest
+                .dependencies
+                .first()
+                .map_or_else(String::new, |dependency| dependency.package_id.clone()),
+            source,
+        })
+    }
+
+    pub fn export_rivmod(
+        &self,
+        source: &DataPackageAuthoringSource,
+        destination: &Path,
+    ) -> Result<PackageDistributionReceipt, PackageValidationReport> {
+        let package = prepare_authoring_package(
+            &source.manifest_json,
+            source.world_json.as_deref(),
+            source.patches_json.as_deref(),
+            &source.assets,
+        )?;
+        let validation = self.service.validate_candidate(&package);
+        if !validation.valid {
+            return Err(validation);
+        }
+        if destination
+            .extension()
+            .is_none_or(|value| value != "rivmod")
+        {
+            return Err(creator_report(
+                "creator.bundle_extension_invalid",
+                "destination",
+                "O arquivo compartilhável precisa usar a extensão .rivmod.",
+            ));
+        }
+        let parent = destination.parent().ok_or_else(|| {
+            creator_report(
+                "creator.bundle_destination_invalid",
+                "destination",
+                "Escolha uma pasta válida para exportar o mod.",
+            )
+        })?;
+        fs::create_dir_all(parent)
+            .map_err(|error| io_report(parent, "creator.bundle_prepare_failed", error))?;
+        let normalized = normalized_authoring_source(package.clone(), &source.assets)?;
+        let bundle = RivmodBundle {
+            format_version: RIVMOD_FORMAT_VERSION,
+            exported_at: unix_ms(),
+            manifest_json: normalized.manifest_json,
+            world_json: normalized.world_json,
+            patches_json: normalized.patches_json,
+            assets: normalized.assets,
+        };
+        let bytes = serde_json::to_vec_pretty(&bundle)
+            .map_err(|error| serialization_report("bundle.rivmod", error))?;
+        if bytes.len() as u64 > MAX_RIVMOD_BYTES {
+            return Err(creator_report(
+                "creator.bundle_too_large",
+                "bundle",
+                "O bundle excede o limite seguro de 128 MB.",
+            ));
+        }
+        write_single_file_atomic(destination, &bytes)?;
+        Ok(distribution_receipt(
+            &package.manifest,
+            destination,
+            &bytes,
+            "Exportado",
+        ))
+    }
+
+    pub fn inspect_rivmod(&self, path: &Path) -> Result<RivmodInspection, PackageValidationReport> {
+        let (_bundle, bytes, package) = self.read_rivmod(path)?;
+        let validation = self.service.validate_candidate(&package);
+        let installed = self
+            .service
+            .catalog()?
+            .into_iter()
+            .find(|entry| entry.manifest.package_id == package.manifest.package_id);
+        let installed_version = installed
+            .as_ref()
+            .map(|entry| entry.manifest.version.clone());
+        let downgrade = installed_version
+            .as_ref()
+            .is_some_and(|version| semver_tuple(&package.manifest.version) < semver_tuple(version));
+        Ok(RivmodInspection {
+            receipt: distribution_receipt(&package.manifest, path, &bytes, "Inspecionado"),
+            validation,
+            dependencies: package
+                .manifest
+                .dependencies
+                .iter()
+                .map(|value| format!("{} {}", value.package_id, value.version_requirement))
+                .collect(),
+            conflicts: package
+                .manifest
+                .conflicts
+                .iter()
+                .map(|value| format!("{} · {}", value.package_id, value.reason))
+                .collect(),
+            update_from_version: installed_version,
+            downgrade,
+        })
+    }
+
+    pub fn install_rivmod(
+        &self,
+        path: &Path,
+    ) -> Result<PackageDistributionReceipt, PackageValidationReport> {
+        let (bundle, bytes, package) = self.read_rivmod(path)?;
+        let inspection = self.inspect_rivmod(path)?;
+        if !inspection.validation.valid || inspection.downgrade {
+            return Err(creator_report(
+                "creator.bundle_install_blocked",
+                "bundle",
+                "A instalação foi bloqueada por validação ou tentativa de downgrade.",
+            ));
+        }
+        self.backup_installed_package(&package.manifest.package_id)?;
+        FileWorldPackageRepository::new(&self.user_packages_root)
+            .write_package_with_assets(&package, &bundle.assets)?;
+        Ok(distribution_receipt(
+            &package.manifest,
+            path,
+            &bytes,
+            "Instalado",
+        ))
+    }
+
+    pub fn package_history(
+        &self,
+        package_id: &str,
+    ) -> Result<Vec<PackageHistoryEntry>, PackageValidationReport> {
+        ensure_creator_id(package_id, "packageId")?;
+        let root = self.package_history_root.join(package_id);
+        if !root.exists() {
+            return Ok(Vec::new());
+        }
+        ensure_real_descendant(&self.package_history_root, &root, "historyRoot")?;
+        let repository = FileWorldPackageRepository::new(&self.package_history_root);
+        let mut history = Vec::new();
+        for entry in fs::read_dir(&root)
+            .map_err(|error| io_report(&root, "creator.history_read_failed", error))?
+        {
+            let entry =
+                entry.map_err(|error| io_report(&root, "creator.history_read_failed", error))?;
+            let metadata = fs::symlink_metadata(entry.path())
+                .map_err(|error| io_report(&entry.path(), "creator.history_read_failed", error))?;
+            if is_link_or_reparse(&metadata) || !metadata.is_dir() {
+                continue;
+            }
+            let package = repository.read_package(&entry.path())?;
+            let archived_at = metadata
+                .modified()
+                .ok()
+                .and_then(|value| value.duration_since(std::time::UNIX_EPOCH).ok())
+                .map_or(0, |value| value.as_millis().try_into().unwrap_or(u64::MAX));
+            history.push(PackageHistoryEntry {
+                package_id: package.manifest.package_id,
+                version: package.manifest.version,
+                name: package.manifest.name,
+                archived_at,
+            });
+        }
+        history
+            .sort_by(|left, right| semver_tuple(&right.version).cmp(&semver_tuple(&left.version)));
+        Ok(history)
+    }
+
+    pub fn rollback_installed_package(
+        &self,
+        package_id: &str,
+        version: &str,
+    ) -> Result<PackageDistributionReceipt, PackageValidationReport> {
+        ensure_creator_id(package_id, "packageId")?;
+        ensure_creator_id(version, "version")?;
+        let history = self.package_history_root.join(package_id).join(version);
+        if !history.exists() {
+            return Err(creator_report(
+                "creator.history_version_missing",
+                "version",
+                "A versão solicitada não existe no histórico seguro.",
+            ));
+        }
+        ensure_real_descendant(&self.package_history_root, &history, "historyVersion")?;
+        let historical =
+            FileWorldPackageRepository::new(&self.package_history_root).read_package(&history)?;
+        if historical.manifest.package_id != package_id || historical.manifest.version != version {
+            return Err(creator_report(
+                "creator.history_identity_mismatch",
+                "version",
+                "O histórico não corresponde ao packageId e versão solicitados.",
+            ));
+        }
+        let validation = self.service.validate_candidate(&historical);
+        if !validation.valid {
+            return Err(validation);
+        }
+        self.backup_installed_package(package_id)?;
+        let target = self.user_packages_root.join(package_id);
+        let temporary = self
+            .user_packages_root
+            .join(format!(".{package_id}.rollback.tmp"));
+        let backup = self
+            .user_packages_root
+            .join(format!(".{package_id}.rollback.bak"));
+        for stale in [&temporary, &backup] {
+            if stale.exists() {
+                fs::remove_dir_all(stale)
+                    .map_err(|error| io_report(stale, "creator.rollback_cleanup_failed", error))?;
+            }
+        }
+        copy_package_directory(&history, &temporary)?;
+        if target.exists() {
+            ensure_real_descendant(&self.user_packages_root, &target, "rollbackTarget")?;
+            fs::rename(&target, &backup)
+                .map_err(|error| io_report(&target, "creator.rollback_backup_failed", error))?;
+        }
+        if let Err(error) = fs::rename(&temporary, &target) {
+            if backup.exists() && !target.exists() {
+                let _ = fs::rename(&backup, &target);
+            }
+            return Err(io_report(&target, "creator.rollback_replace_failed", error));
+        }
+        if backup.exists() {
+            fs::remove_dir_all(&backup)
+                .map_err(|error| io_report(&backup, "creator.rollback_cleanup_failed", error))?;
+        }
+        let manifest_bytes = fs::read(target.join("manifest.json"))
+            .map_err(|error| io_report(&target, "creator.rollback_receipt_failed", error))?;
+        Ok(distribution_receipt(
+            &historical.manifest,
+            &target,
+            &manifest_bytes,
+            "Rollback concluído",
+        ))
+    }
+
+    fn read_creator_project_file(
+        &self,
+        path: &Path,
+    ) -> Result<CreatorProjectRecord, PackageValidationReport> {
+        ensure_real_descendant(&self.creator_projects_root, path, "projectFile")?;
+        let bytes = read_bounded(&self.creator_projects_root, path, MAX_RIVMOD_BYTES)?;
+        let record: CreatorProjectRecord =
+            parse_json(&bytes, &display_path(path), "creator.project_json_invalid")?;
+        if record.schema_version != CREATOR_PROJECT_SCHEMA_VERSION {
+            return Err(creator_report(
+                "creator.project_schema_unsupported",
+                "schemaVersion",
+                "O projeto precisa ser migrado antes de continuar a edição.",
+            ));
+        }
+        Ok(record)
+    }
+
+    fn read_rivmod(
+        &self,
+        path: &Path,
+    ) -> Result<(RivmodBundle, Vec<u8>, ContentPackage), PackageValidationReport> {
+        if path.extension().is_none_or(|value| value != "rivmod") {
+            return Err(creator_report(
+                "creator.bundle_extension_invalid",
+                "bundle",
+                "Selecione um arquivo .rivmod.",
+            ));
+        }
+        let metadata = fs::symlink_metadata(path)
+            .map_err(|error| io_report(path, "creator.bundle_read_failed", error))?;
+        if is_link_or_reparse(&metadata) || !metadata.is_file() || metadata.len() > MAX_RIVMOD_BYTES
+        {
+            return Err(creator_report(
+                "creator.bundle_file_unsafe",
+                "bundle",
+                "O bundle é inválido, excessivo ou usa um link inseguro.",
+            ));
+        }
+        let bytes =
+            fs::read(path).map_err(|error| io_report(path, "creator.bundle_read_failed", error))?;
+        let bundle: RivmodBundle =
+            parse_json(&bytes, &display_path(path), "creator.bundle_json_invalid")?;
+        if bundle.format_version != RIVMOD_FORMAT_VERSION {
+            return Err(creator_report(
+                "creator.bundle_version_unsupported",
+                "formatVersion",
+                "A versão deste bundle ainda não é suportada.",
+            ));
+        }
+        let package = prepare_authoring_package(
+            &bundle.manifest_json,
+            bundle.world_json.as_deref(),
+            bundle.patches_json.as_deref(),
+            &bundle.assets,
+        )?;
+        verify_authoring_checksum(
+            &package,
+            bundle.world_json.as_deref(),
+            bundle.patches_json.as_deref(),
+        )?;
+        Ok((bundle, bytes, package))
+    }
+
+    fn backup_installed_package(&self, package_id: &str) -> Result<(), PackageValidationReport> {
+        let source = self.user_packages_root.join(package_id);
+        if !source.exists() {
+            return Ok(());
+        }
+        let repository = FileWorldPackageRepository::new(&self.user_packages_root);
+        let package = repository.read_package(&source)?;
+        let destination = self
+            .package_history_root
+            .join(package_id)
+            .join(&package.manifest.version);
+        if destination.exists() {
+            return Ok(());
+        }
+        copy_package_directory(&source, &destination)
+    }
+}
+
+fn ensure_creator_id(value: &str, field: &str) -> Result<(), PackageValidationReport> {
+    let valid = !value.is_empty()
+        && value.len() <= 160
+        && !value.contains("..")
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_' | b':'));
+    if valid {
+        Ok(())
+    } else {
+        Err(creator_report(
+            "creator.identifier_invalid",
+            field,
+            "Use um identificador estável sem espaços, barras ou caminhos relativos.",
+        ))
+    }
+}
+
+fn creator_report(code: &str, field: &str, message: &str) -> PackageValidationReport {
+    PackageValidationReport::blocking(
+        "<creator-studio>".to_owned(),
+        code,
+        None,
+        Some(field.to_owned()),
+        None,
+        None,
+        message,
+        None,
+    )
+}
+
+fn project_status(validation: &PackageValidationReport) -> CreatorProjectStatus {
+    if !validation.valid {
+        CreatorProjectStatus::Blocked
+    } else if validation.diagnostics.is_empty() {
+        CreatorProjectStatus::Valid
+    } else {
+        CreatorProjectStatus::ValidWithWarnings
+    }
+}
+
+fn project_summary(record: &CreatorProjectRecord) -> CreatorProjectSummary {
+    let patch_count = record
+        .source
+        .patches_json
+        .as_deref()
+        .and_then(|value| serde_json::from_str::<Vec<PackagePatch>>(value).ok())
+        .map_or(0, |patches| patches.len());
+    CreatorProjectSummary {
+        project_id: record.project_id.clone(),
+        name: record.name.clone(),
+        mode: record.mode,
+        status: record.status,
+        base_package_id: record.base_package_id.clone(),
+        package_id: record.package_id.clone(),
+        version: record.version.clone(),
+        updated_at: record.updated_at,
+        last_exported_at: record.last_exported_at,
+        entity_count: patch_count + record.source.assets.len(),
+    }
+}
+
+fn unix_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .try_into()
+        .unwrap_or(u64::MAX)
+}
+
+fn semver_tuple(value: &str) -> Option<(u32, u32, u32)> {
+    let core = value.split_once('-').map_or(value, |(core, _)| core);
+    let mut parts = core.split('.');
+    let result = (
+        parts.next()?.parse().ok()?,
+        parts.next()?.parse().ok()?,
+        parts.next()?.parse().ok()?,
+    );
+    parts.next().is_none().then_some(result)
+}
+
+fn normalized_authoring_source(
+    mut package: ContentPackage,
+    assets: &[AuthoringAssetUpload],
+) -> Result<DataPackageAuthoringSource, PackageValidationReport> {
+    let world_json = package
+        .world
+        .as_ref()
+        .map(serde_json::to_string_pretty)
+        .transpose()
+        .map_err(|error| serialization_report("data/world.json", error))?;
+    let patches_json = (!package.patches.is_empty())
+        .then(|| serde_json::to_string_pretty(&package.patches))
+        .transpose()
+        .map_err(|error| serialization_report("data/patches.json", error))?;
+    let mut content = world_json
+        .as_deref()
+        .unwrap_or_default()
+        .as_bytes()
+        .to_vec();
+    content.extend_from_slice(patches_json.as_deref().unwrap_or_default().as_bytes());
+    package.manifest.checksum = format!("sha256:{:x}", Sha256::digest(&content));
+    let manifest_json = serde_json::to_string_pretty(&package.manifest)
+        .map_err(|error| serialization_report("manifest.json", error))?;
+    Ok(DataPackageAuthoringSource {
+        manifest_json,
+        world_json,
+        patches_json,
+        assets: assets.to_vec(),
+    })
+}
+
+fn source_from_installed_package(
+    package_root: &Path,
+    package: &ContentPackage,
+) -> Result<DataPackageAuthoringSource, PackageValidationReport> {
+    let assets = package
+        .manifest
+        .assets
+        .iter()
+        .map(|asset| {
+            let path = resolve_entrypoint(package_root, &asset.path)?;
+            let bytes = read_bounded(package_root, &path, MAX_ASSET_BYTES)?;
+            Ok(AuthoringAssetUpload {
+                id: asset.id.clone(),
+                entity_id: asset.entity_id.clone().unwrap_or_default(),
+                kind: asset.kind.clone(),
+                path: asset.path.clone(),
+                media_type: asset.media_type.clone(),
+                bytes,
+                provenance: asset.provenance.clone(),
+                rights: asset.rights.clone(),
+            })
+        })
+        .collect::<Result<Vec<_>, PackageValidationReport>>()?;
+    normalized_authoring_source(package.clone(), &assets)
+}
+
+fn verify_authoring_checksum(
+    package: &ContentPackage,
+    world_json: Option<&str>,
+    patches_json: Option<&str>,
+) -> Result<(), PackageValidationReport> {
+    let mut content = world_json.unwrap_or_default().as_bytes().to_vec();
+    content.extend_from_slice(patches_json.unwrap_or_default().as_bytes());
+    let expected = package
+        .manifest
+        .checksum
+        .strip_prefix("sha256:")
+        .unwrap_or(&package.manifest.checksum);
+    let actual = format!("{:x}", Sha256::digest(&content));
+    if expected == actual {
+        Ok(())
+    } else {
+        Err(creator_report(
+            "creator.bundle_checksum_mismatch",
+            "manifest.checksum",
+            "O checksum do conteúdo não corresponde ao manifesto do bundle.",
+        ))
+    }
+}
+
+fn distribution_receipt(
+    manifest: &PackageManifest,
+    path: &Path,
+    bytes: &[u8],
+    status: &str,
+) -> PackageDistributionReceipt {
+    PackageDistributionReceipt {
+        package_id: manifest.package_id.clone(),
+        name: manifest.name.clone(),
+        version: manifest.version.clone(),
+        path: display_path(path),
+        size: bytes.len() as u64,
+        sha256: format!("{:X}", Sha256::digest(bytes)),
+        status: status.to_owned(),
+    }
+}
+
+fn write_json_atomic<T: Serialize>(
+    root: &Path,
+    target: &Path,
+    value: &T,
+) -> Result<(), PackageValidationReport> {
+    fs::create_dir_all(root)
+        .map_err(|error| io_report(root, "creator.write_prepare_failed", error))?;
+    ensure_direct_child(root, target)?;
+    let bytes = serde_json::to_vec_pretty(value)
+        .map_err(|error| serialization_report(&display_path(target), error))?;
+    write_single_file_atomic(target, &bytes)
+}
+
+fn write_single_file_atomic(target: &Path, bytes: &[u8]) -> Result<(), PackageValidationReport> {
+    let parent = target.parent().ok_or_else(|| {
+        creator_report(
+            "creator.write_target_invalid",
+            "target",
+            "O destino de gravação é inválido.",
+        )
+    })?;
+    let name = target
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| {
+            creator_report(
+                "creator.write_target_invalid",
+                "target",
+                "O nome do arquivo de destino é inválido.",
+            )
+        })?;
+    let temporary = parent.join(format!(".{name}.tmp"));
+    let backup = parent.join(format!(".{name}.bak"));
+    for stale in [&temporary, &backup] {
+        if stale.exists() {
+            fs::remove_file(stale)
+                .map_err(|error| io_report(stale, "creator.write_cleanup_failed", error))?;
+        }
+    }
+    if target.exists() {
+        let metadata = fs::symlink_metadata(target)
+            .map_err(|error| io_report(target, "creator.write_target_inspection_failed", error))?;
+        if is_link_or_reparse(&metadata) || !metadata.is_file() {
+            return Err(creator_report(
+                "creator.write_target_unsafe",
+                "target",
+                "O destino existente é um link, diretório ou reparse point inseguro.",
+            ));
+        }
+    }
+    write_synced(&temporary, bytes)?;
+    if target.exists() {
+        fs::rename(target, &backup)
+            .map_err(|error| io_report(target, "creator.write_backup_failed", error))?;
+    }
+    if let Err(error) = fs::rename(&temporary, target) {
+        if backup.exists() && !target.exists() {
+            let _ = fs::rename(&backup, target);
+        }
+        return Err(io_report(target, "creator.write_replace_failed", error));
+    }
+    if backup.exists() {
+        let _ = fs::remove_file(backup);
+    }
+    Ok(())
+}
+
+fn copy_package_directory(
+    source: &Path,
+    destination: &Path,
+) -> Result<(), PackageValidationReport> {
+    if let Some(parent) = destination.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| io_report(parent, "creator.history_prepare_failed", error))?;
+    }
+    fs::create_dir_all(destination)
+        .map_err(|error| io_report(destination, "creator.history_prepare_failed", error))?;
+    for entry in fs::read_dir(source)
+        .map_err(|error| io_report(source, "creator.history_read_failed", error))?
+    {
+        let entry =
+            entry.map_err(|error| io_report(source, "creator.history_read_failed", error))?;
+        let metadata = fs::symlink_metadata(entry.path())
+            .map_err(|error| io_report(&entry.path(), "creator.history_read_failed", error))?;
+        if is_link_or_reparse(&metadata) {
+            return Err(creator_report(
+                "creator.history_link_rejected",
+                "package",
+                "O pacote contém um link inseguro e não pode entrar no histórico.",
+            ));
+        }
+        let target = destination.join(entry.file_name());
+        if metadata.is_dir() {
+            copy_package_directory(&entry.path(), &target)?;
+        } else if metadata.is_file() {
+            fs::copy(entry.path(), &target)
+                .map_err(|error| io_report(&target, "creator.history_write_failed", error))?;
+        }
+    }
+    Ok(())
 }
 
 fn prepare_authoring_package(
@@ -865,6 +1759,72 @@ mod tests {
             provenance: "Community test".to_owned(),
             rights: "Original content".to_owned(),
         }
+    }
+
+    fn empty_mod_source(package_id: &str, version: &str) -> DataPackageAuthoringSource {
+        let mut manifest: PackageManifest =
+            serde_json::from_str(OFFICIAL_MANIFEST).expect("manifest fixture");
+        manifest.package_id = package_id.to_owned();
+        manifest.name = "Creator lifecycle fixture".to_owned();
+        manifest.version = version.to_owned();
+        manifest.content_type = DataPackageType::Mod;
+        manifest.checksum =
+            "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_owned();
+        manifest.assets.clear();
+        DataPackageAuthoringSource {
+            manifest_json: serde_json::to_string_pretty(&manifest).expect("manifest json"),
+            world_json: None,
+            patches_json: None,
+            assets: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn creator_project_bundle_update_and_rollback_are_separate_atomic_lifecycles() {
+        let root = temporary_root("creator-lifecycle");
+        let packages = root.join("packages");
+        let coordinator = WorldDatabaseCoordinator::new(&packages);
+        let v1 = empty_mod_source("community.example.lifecycle", "1.0.0");
+
+        let project = coordinator
+            .save_creator_project(CreatorProjectDraft {
+                project_id: "project.community.example.lifecycle".to_owned(),
+                name: "Lifecycle project".to_owned(),
+                mode: CreatorProjectMode::DataStudio,
+                base_package_id: "official.rivallo.foundation".to_owned(),
+                source: v1.clone(),
+            })
+            .expect("save authoring project");
+        assert_eq!(project.revision, 1);
+        assert!(!packages.join("community.example.lifecycle").exists());
+
+        let bundle_v1 = root.join("lifecycle-1.0.0.rivmod");
+        coordinator
+            .export_rivmod(&v1, &bundle_v1)
+            .expect("export v1 bundle");
+        coordinator
+            .install_rivmod(&bundle_v1)
+            .expect("install v1 bundle");
+
+        let v2 = empty_mod_source("community.example.lifecycle", "1.0.1");
+        let bundle_v2 = root.join("lifecycle-1.0.1.rivmod");
+        coordinator
+            .export_rivmod(&v2, &bundle_v2)
+            .expect("export v2 bundle");
+        coordinator
+            .install_rivmod(&bundle_v2)
+            .expect("install v2 bundle");
+
+        let history = coordinator
+            .package_history("community.example.lifecycle")
+            .expect("list package history");
+        assert!(history.iter().any(|entry| entry.version == "1.0.0"));
+        let receipt = coordinator
+            .rollback_installed_package("community.example.lifecycle", "1.0.0")
+            .expect("rollback to preserved v1");
+        assert_eq!(receipt.version, "1.0.0");
+        assert_eq!(receipt.status, "Rollback concluído");
+        fs::remove_dir_all(root).expect("cleanup fixture");
     }
 
     #[test]

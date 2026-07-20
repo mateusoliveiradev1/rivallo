@@ -52,6 +52,64 @@ export interface DataPackageCatalogEntry {
   readonly validation: PackageValidationReport;
 }
 
+export type CreatorProjectMode = 'quickMod' | 'dataStudio';
+export type CreatorProjectStatus =
+  'draft' | 'modified' | 'valid' | 'validWithWarnings' | 'blocked' | 'exported';
+
+export interface CreatorProjectSummary {
+  readonly projectId: string;
+  readonly name: string;
+  readonly mode: CreatorProjectMode;
+  readonly status: CreatorProjectStatus;
+  readonly basePackageId: string;
+  readonly packageId: string;
+  readonly version: string;
+  readonly updatedAt: number;
+  readonly lastExportedAt: number | null;
+  readonly entityCount: number;
+}
+
+export interface CreatorProjectDraft {
+  readonly projectId: string;
+  readonly name: string;
+  readonly mode: CreatorProjectMode;
+  readonly basePackageId: string;
+  readonly source: DataPackageAuthoringSource;
+}
+
+export interface CreatorProjectRecord extends CreatorProjectSummary {
+  readonly schemaVersion: number;
+  readonly createdAt: number;
+  readonly revision: number;
+  readonly source: DataPackageAuthoringSource;
+}
+
+export interface PackageDistributionReceipt {
+  readonly packageId: string;
+  readonly name: string;
+  readonly version: string;
+  readonly path: string;
+  readonly size: number;
+  readonly sha256: string;
+  readonly status: string;
+}
+
+export interface RivmodInspection {
+  readonly receipt: PackageDistributionReceipt;
+  readonly validation: PackageValidationReport;
+  readonly dependencies: readonly string[];
+  readonly conflicts: readonly string[];
+  readonly updateFromVersion: string | null;
+  readonly downgrade: boolean;
+}
+
+export interface PackageHistoryEntry {
+  readonly packageId: string;
+  readonly version: string;
+  readonly name: string;
+  readonly archivedAt: number;
+}
+
 export interface DataPackageAuthoringSource {
   readonly manifestJson: string;
   readonly worldJson: string | null;
@@ -62,7 +120,14 @@ export interface DataPackageAuthoringSource {
 export interface AuthoringAssetUpload {
   readonly id: string;
   readonly entityId: string;
-  readonly kind: 'clubCrest' | 'playerPortrait' | 'coachPortrait';
+  readonly kind:
+    | 'clubCrest'
+    | 'playerPortrait'
+    | 'coachPortrait'
+    | 'staffPortrait'
+    | 'competitionLogo'
+    | 'nationFlag'
+    | 'stadiumImage';
   readonly path: string;
   readonly mediaType: 'image/png' | 'image/jpeg' | 'image/webp';
   readonly bytes: readonly number[];
@@ -88,7 +153,82 @@ export interface ModAuthoringWorld {
     readonly name: string;
     readonly iso2: string;
   }[];
+  readonly regions?: readonly {
+    readonly id: string;
+    readonly nationId: string;
+    readonly name: string;
+  }[];
+  readonly cities?: readonly {
+    readonly id: string;
+    readonly nationId: string;
+    readonly regionId?: string | null;
+    readonly name: string;
+  }[];
+  readonly stadiums?: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly cityId: string;
+    readonly ownerClubId?: string | null;
+    readonly capacity: number;
+    readonly assetId?: string | null;
+  }[];
+  readonly competitions?: readonly StudioCompetition[];
   readonly activeClubId: string;
+}
+
+export interface StudioCompetitionStage {
+  readonly id: string;
+  readonly name: string;
+  readonly order: number;
+  readonly kind:
+    | 'roundRobin'
+    | 'doubleRoundRobin'
+    | 'groups'
+    | 'knockout'
+    | 'twoLeggedKnockout'
+    | 'singleFinal'
+    | 'qualifying';
+  readonly participantCount: number;
+  readonly groupCount: number;
+  readonly legs: number;
+  readonly advanceCount: number;
+  readonly eliminateCount: number;
+  readonly pointsForWin?: number | null;
+  readonly pointsForDraw?: number | null;
+  readonly pointsForLoss?: number | null;
+  readonly tieBreakers: readonly string[];
+  readonly extraTime: boolean;
+  readonly penalties: boolean;
+  readonly neutralVenue: boolean;
+}
+
+export interface StudioCompetition {
+  readonly id: string;
+  readonly name: string;
+  readonly shortName: string;
+  readonly nationId: string;
+  readonly category?: string | null;
+  readonly level?: number | null;
+  readonly description?: string | null;
+  readonly primaryColor?: string | null;
+  readonly secondaryColor?: string | null;
+  readonly baseSeasonId?: string | null;
+  readonly seasons: readonly {
+    readonly id: string;
+    readonly competitionId: string;
+    readonly label: string;
+    readonly startDate: string;
+    readonly endDate: string;
+    readonly participantClubIds: readonly string[];
+    readonly stages: readonly StudioCompetitionStage[];
+    readonly rules: Readonly<Record<string, unknown>>;
+    readonly registrationWindows: readonly {
+      readonly startDate: string;
+      readonly endDate: string;
+    }[];
+    readonly calendarConstraints: Readonly<Record<string, unknown>>;
+    readonly playerRegistrations: readonly unknown[];
+  }[];
 }
 import type { Club, Player } from '../matchday/types.js';
 import type { PlayerAttributeSet } from '../profiles/types.js';
@@ -139,7 +279,18 @@ export interface AuthoringCoachProfile {
 
 export interface GeneratedPackagePatch {
   readonly operation: 'add' | 'replace';
-  readonly entityKind: 'club' | 'matchdayPlayer' | 'playerProfile' | 'externalPlayer' | 'coach';
+  readonly entityKind:
+    | 'club'
+    | 'matchdayPlayer'
+    | 'playerProfile'
+    | 'externalPlayer'
+    | 'coach'
+    | 'nation'
+    | 'region'
+    | 'city'
+    | 'stadium'
+    | 'competition'
+    | 'asset';
   readonly targetId: string;
   readonly entity: { readonly kind: string; readonly value: unknown };
   readonly reason: string;
@@ -147,7 +298,18 @@ export interface GeneratedPackagePatch {
 
 export interface CommunityChange {
   readonly id: string;
-  readonly kind: 'club' | 'player' | 'coach';
+  readonly kind:
+    | 'club'
+    | 'player'
+    | 'coach'
+    | 'nation'
+    | 'region'
+    | 'city'
+    | 'stadium'
+    | 'competition'
+    | 'season'
+    | 'registration'
+    | 'asset';
   readonly operation: 'create' | 'edit';
   readonly targetId: string;
   readonly label: string;

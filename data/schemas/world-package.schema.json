@@ -39,6 +39,13 @@
           "countryCode": { "type": ["string", "null"], "maxLength": 3 },
           "competitionName": { "type": ["string", "null"], "maxLength": 160 },
           "stadiumName": { "type": ["string", "null"], "maxLength": 160 },
+          "nationId": { "oneOf": [{ "$ref": "#/$defs/stableId" }, { "type": "null" }] },
+          "cityId": { "oneOf": [{ "$ref": "#/$defs/stableId" }, { "type": "null" }] },
+          "competitionId": {
+            "oneOf": [{ "$ref": "#/$defs/stableId" }, { "type": "null" }]
+          },
+          "stadiumId": { "oneOf": [{ "$ref": "#/$defs/stableId" }, { "type": "null" }] },
+          "crestAssetId": { "oneOf": [{ "$ref": "#/$defs/stableId" }, { "type": "null" }] },
           "historySummary": { "type": ["string", "null"], "maxLength": 1200 }
         }
       }
@@ -187,7 +194,14 @@
         "name": { "$ref": "#/$defs/name" },
         "shortName": { "$ref": "#/$defs/name" },
         "nationId": { "$ref": "#/$defs/stableId" },
+        "regionId": { "oneOf": [{ "$ref": "#/$defs/stableId" }, { "type": "null" }] },
         "logoAssetId": { "oneOf": [{ "$ref": "#/$defs/stableId" }, { "type": "null" }] },
+        "category": { "type": ["string", "null"], "maxLength": 80 },
+        "level": { "type": ["integer", "null"], "minimum": 1, "maximum": 20 },
+        "description": { "type": ["string", "null"], "maxLength": 1200 },
+        "primaryColor": { "type": ["string", "null"], "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "secondaryColor": { "type": ["string", "null"], "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "baseSeasonId": { "oneOf": [{ "$ref": "#/$defs/stableId" }, { "type": "null" }] },
         "seasons": { "type": "array", "items": { "$ref": "#/$defs/season" } }
       }
     },
@@ -215,6 +229,13 @@
           "minItems": 2,
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/stableId" }
+        },
+        "stages": { "type": "array", "items": { "$ref": "#/$defs/competitionStage" } },
+        "registrationWindows": { "type": "array", "items": { "$ref": "#/$defs/dateWindow" } },
+        "calendarConstraints": { "$ref": "#/$defs/calendarConstraints" },
+        "playerRegistrations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/playerRegistration" }
         }
       }
     },
@@ -240,7 +261,94 @@
         "tieBreakers": {
           "type": "array",
           "items": { "type": "string", "minLength": 1, "maxLength": 80 }
-        }
+        },
+        "minimumRosterSize": { "type": "integer", "minimum": 11, "maximum": 100 },
+        "minimumGoalkeepers": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "starters": { "type": "integer", "minimum": 5, "maximum": 15 },
+        "benchSize": { "type": "integer", "minimum": 0, "maximum": 30 },
+        "substitutions": { "type": "integer", "minimum": 0, "maximum": 15 },
+        "extraTime": { "type": "boolean" },
+        "penalties": { "type": "boolean" },
+        "foreignPlayerLimit": { "type": ["integer", "null"], "minimum": 0, "maximum": 99 },
+        "minimumHomegrownPlayers": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "maximum": 99
+        },
+        "promotionSlots": { "type": "integer", "minimum": 0, "maximum": 99 },
+        "relegationSlots": { "type": "integer", "minimum": 0, "maximum": 99 }
+      }
+    },
+    "competitionStage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "order", "kind", "participantCount"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "name": { "$ref": "#/$defs/name" },
+        "order": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "kind": {
+          "enum": [
+            "roundRobin",
+            "doubleRoundRobin",
+            "groups",
+            "knockout",
+            "twoLeggedKnockout",
+            "singleFinal",
+            "qualifying"
+          ]
+        },
+        "participantCount": { "type": "integer", "minimum": 2, "maximum": 512 },
+        "groupCount": { "type": "integer", "minimum": 0, "maximum": 128 },
+        "legs": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "advanceCount": { "type": "integer", "minimum": 0, "maximum": 512 },
+        "eliminateCount": { "type": "integer", "minimum": 0, "maximum": 512 },
+        "pointsForWin": { "type": ["integer", "null"], "minimum": 0, "maximum": 10 },
+        "pointsForDraw": { "type": ["integer", "null"], "minimum": 0, "maximum": 10 },
+        "pointsForLoss": { "type": ["integer", "null"], "minimum": 0, "maximum": 10 },
+        "tieBreakers": { "type": "array", "items": { "type": "string", "maxLength": 80 } },
+        "extraTime": { "type": "boolean" },
+        "penalties": { "type": "boolean" },
+        "neutralVenue": { "type": "boolean" }
+      }
+    },
+    "dateWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["startDate", "endDate"],
+      "properties": {
+        "startDate": { "type": "string", "format": "date" },
+        "endDate": { "type": "string", "format": "date" }
+      }
+    },
+    "calendarConstraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "preferredWeekdays": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "integer", "minimum": 1, "maximum": 7 }
+        },
+        "kickoffTimes": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[0-2][0-9]:[0-5][0-9]$" }
+        },
+        "minimumRestDays": { "type": "integer", "minimum": 0, "maximum": 30 },
+        "blockedDates": { "type": "array", "items": { "type": "string", "format": "date" } },
+        "neutralVenue": { "type": "boolean" }
+      }
+    },
+    "playerRegistration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["playerId", "clubId", "eligible"],
+      "properties": {
+        "playerId": { "$ref": "#/$defs/stableId" },
+        "clubId": { "$ref": "#/$defs/stableId" },
+        "shirtNumber": { "type": ["integer", "null"], "minimum": 1, "maximum": 999 },
+        "contractReference": { "type": ["string", "null"], "maxLength": 160 },
+        "eligible": { "type": "boolean" }
       }
     },
     "asset": {

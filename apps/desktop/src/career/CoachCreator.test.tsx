@@ -67,7 +67,9 @@ describe('CoachCreator', () => {
       screen.getByLabelText('Importar retrato local'),
       new File(['portrait'], 'lia.webp', { type: 'image/webp' }),
     );
-    expect(screen.getByRole('button', { name: 'Trocar foto' })).toBeInstanceOf(HTMLButtonElement);
+    expect(screen.getByRole('button', { name: 'Trocar retrato importado' })).toBeInstanceOf(
+      HTMLButtonElement,
+    );
     await waitFor(() => {
       expect(
         screen.getByRole('img', { name: 'Retrato de Lia Torres' }).querySelector('img'),

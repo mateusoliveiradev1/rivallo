@@ -1,19 +1,23 @@
 use std::io::{self, Read, Write};
 use std::net::{SocketAddr, TcpStream};
+use std::path::Path as FsPath;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use rivallo_platform::{
-    AssetReference, AuthoringAssetUpload, CareerCoordinator, CareerFailure, CareerPortrait,
-    CareerSlot, CareerSlotSummary, ClubProfileProjection, CoachCreationEvaluation,
+    AssetReference, CareerCoordinator, CareerFailure, CareerPortrait, CareerSlot,
+    CareerSlotSummary, ClubProfileProjection, ClubReadinessProjection, CoachCreationEvaluation,
     CoachCreatorDraft, CoachProfileProjection, ColumnId, ColumnPinning, ColumnPinningSide,
-    ContentPackage, CreateCareerRequest, DataPackageCatalogEntry, FilterGroupId, FilterGroupLogic,
-    FilterId, FilterOperator, FilterValue, Formation, GlobalProfileSearchResult, LOCAL_API_ADDRESS,
-    LegacyImportOutcome, LegacyImportReceipt, LegacyTableViewImport, LineupSelection,
-    MatchdayCoordinator, MatchdayState, Nation, NationProfileProjection, NullOrder, OwnerScope,
-    PackageValidationReport, PlayerProfileProjection, ProfileCoordinator, READINESS_POLL_INTERVAL,
-    READINESS_TIMEOUT, ReadinessDiagnostic, ResolvedWorldDatabase, SHUTDOWN_CONTROL_MESSAGE,
+    ContentPackage, CreateCareerRequest, CreatorProjectDraft, CreatorProjectMode,
+    CreatorProjectRecord, CreatorProjectSummary, DataPackageAuthoringSource,
+    DataPackageCatalogEntry, FilterGroupId, FilterGroupLogic, FilterId, FilterOperator,
+    FilterValue, Formation, GlobalProfileSearchResult, LOCAL_API_ADDRESS, LegacyImportOutcome,
+    LegacyImportReceipt, LegacyTableViewImport, LineupSelection, MatchdayCoordinator,
+    MatchdayState, Nation, NationProfileProjection, NullOrder, OwnerScope,
+    PackageDistributionReceipt, PackageHistoryEntry, PackageValidationReport,
+    PlayerProfileProjection, ProfileCoordinator, READINESS_POLL_INTERVAL, READINESS_TIMEOUT,
+    ReadinessDiagnostic, ResolvedWorldDatabase, RivmodInspection, SHUTDOWN_CONTROL_MESSAGE,
     SaveCareerRequest, SavedTableView, SortDirection, TableColumnState, TableDataWindow,
     TableDensity, TableFilterClause, TableFilterGroup, TableFilterNode, TableId, TableSort,
     TableViewCoordinator, TableViewEnvelopeMetadata, TableViewLoadOutcome, TableViewPolicyError,
@@ -21,7 +25,8 @@ use rivallo_platform::{
     TableViewValidationError, TacticalApproach, TacticalLibraryCommand, TacticalMatchSnapshot,
     TacticalPlanPreview, TacticalPlanProposal, TacticalPlanUpdate, TacticalStrategyPresetSummary,
     ViewId, ViewMutability, ViewProvenance, WindowId, WorldDatabaseCoordinator,
-    evaluate_coach_creation, squad_system_default_repository_state, validate_readiness_response,
+    evaluate_coach_creation, project_club_readiness, squad_system_default_repository_state,
+    validate_readiness_response,
 };
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, RunEvent, State};
@@ -33,6 +38,142 @@ const OWNED_READINESS_INTERVAL: Duration = Duration::from_secs(1);
 const COOPERATIVE_SHUTDOWN_WAIT: Duration = Duration::from_millis(750);
 const MAX_READINESS_RESPONSE_BYTES: u64 = 8 * 1024;
 const INVALID_TABLE_VIEW_DTO: &str = "table_view.invalid_dto";
+
+#[cfg(target_os = "windows")]
+#[repr(C)]
+#[allow(non_snake_case)]
+struct OpenFileNameW {
+    lStructSize: u32,
+    hwndOwner: *mut std::ffi::c_void,
+    hInstance: *mut std::ffi::c_void,
+    lpstrFilter: *const u16,
+    lpstrCustomFilter: *mut u16,
+    nMaxCustFilter: u32,
+    nFilterIndex: u32,
+    lpstrFile: *mut u16,
+    nMaxFile: u32,
+    lpstrFileTitle: *mut u16,
+    nMaxFileTitle: u32,
+    lpstrInitialDir: *const u16,
+    lpstrTitle: *const u16,
+    Flags: u32,
+    nFileOffset: u16,
+    nFileExtension: u16,
+    lpstrDefExt: *const u16,
+    lCustData: isize,
+    lpfnHook: *mut std::ffi::c_void,
+    lpTemplateName: *const u16,
+    pvReserved: *mut std::ffi::c_void,
+    dwReserved: u32,
+    FlagsEx: u32,
+}
+
+#[cfg(target_os = "windows")]
+#[link(name = "comdlg32")]
+unsafe extern "system" {
+    fn GetOpenFileNameW(dialog: *mut OpenFileNameW) -> i32;
+    fn GetSaveFileNameW(dialog: *mut OpenFileNameW) -> i32;
+    fn CommDlgExtendedError() -> u32;
+}
+
+#[cfg(target_os = "windows")]
+fn native_rivmod_dialog(save: bool) -> Result<Option<String>, String> {
+    use std::os::windows::ffi::OsStringExt;
+
+    const OFN_OVERWRITEPROMPT: u32 = 0x0000_0002;
+    const OFN_NOCHANGEDIR: u32 = 0x0000_0008;
+    const OFN_PATHMUSTEXIST: u32 = 0x0000_0800;
+    const OFN_FILEMUSTEXIST: u32 = 0x0000_1000;
+    const OFN_EXPLORER: u32 = 0x0008_0000;
+
+    let filter = "Mod Rivallo (*.rivmod)\0*.rivmod\0Todos os arquivos\0*.*\0\0"
+        .encode_utf16()
+        .collect::<Vec<_>>();
+    let title = if save {
+        "Exportar mod Rivallo"
+    } else {
+        "Instalar mod Rivallo"
+    }
+    .encode_utf16()
+    .chain(std::iter::once(0))
+    .collect::<Vec<_>>();
+    let extension = "rivmod\0".encode_utf16().collect::<Vec<_>>();
+    let mut file = vec![0_u16; 32_768];
+    if save {
+        for (target, value) in file.iter_mut().zip("meu-mod.rivmod\0".encode_utf16()) {
+            *target = value;
+        }
+    }
+    let mut dialog = OpenFileNameW {
+        lStructSize: std::mem::size_of::<OpenFileNameW>() as u32,
+        hwndOwner: std::ptr::null_mut(),
+        hInstance: std::ptr::null_mut(),
+        lpstrFilter: filter.as_ptr(),
+        lpstrCustomFilter: std::ptr::null_mut(),
+        nMaxCustFilter: 0,
+        nFilterIndex: 1,
+        lpstrFile: file.as_mut_ptr(),
+        nMaxFile: file.len() as u32,
+        lpstrFileTitle: std::ptr::null_mut(),
+        nMaxFileTitle: 0,
+        lpstrInitialDir: std::ptr::null(),
+        lpstrTitle: title.as_ptr(),
+        Flags: OFN_EXPLORER
+            | OFN_NOCHANGEDIR
+            | OFN_PATHMUSTEXIST
+            | if save {
+                OFN_OVERWRITEPROMPT
+            } else {
+                OFN_FILEMUSTEXIST
+            },
+        nFileOffset: 0,
+        nFileExtension: 0,
+        lpstrDefExt: extension.as_ptr(),
+        lCustData: 0,
+        lpfnHook: std::ptr::null_mut(),
+        lpTemplateName: std::ptr::null(),
+        pvReserved: std::ptr::null_mut(),
+        dwReserved: 0,
+        FlagsEx: 0,
+    };
+    // SAFETY: every pointer references a live UTF-16 buffer for the duration of the synchronous
+    // common-dialog call, the writable file buffer has nMaxFile elements, and all optional
+    // pointers are null. The Win32 API does not retain any pointer after returning.
+    let accepted = unsafe {
+        if save {
+            GetSaveFileNameW(&raw mut dialog)
+        } else {
+            GetOpenFileNameW(&raw mut dialog)
+        }
+    };
+    if accepted == 0 {
+        // SAFETY: this parameterless function only reads the calling thread's common-dialog error.
+        let code = unsafe { CommDlgExtendedError() };
+        return if code == 0 {
+            Ok(None)
+        } else {
+            Err(format!("O diálogo nativo falhou (Win32 0x{code:08X})."))
+        };
+    }
+    let length = file
+        .iter()
+        .position(|value| *value == 0)
+        .unwrap_or(file.len());
+    Ok(Some(
+        std::ffi::OsString::from_wide(&file[..length])
+            .to_string_lossy()
+            .into_owned(),
+    ))
+}
+
+fn creator_file_location(value: &str) -> &FsPath {
+    FsPath::new(value)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn native_rivmod_dialog(_save: bool) -> Result<Option<String>, String> {
+    Err("O diálogo nativo .rivmod ainda está disponível somente no build Windows.".to_owned())
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -201,16 +342,6 @@ struct TableViewRepositoryStateDto {
 #[serde(rename_all = "camelCase")]
 struct SaveTableViewsRequestDto {
     state: TableViewRepositoryStateDto,
-}
-
-#[derive(Clone, Debug, PartialEq, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct DataPackageAuthoringDto {
-    manifest_json: String,
-    world_json: Option<String>,
-    patches_json: Option<String>,
-    #[serde(default)]
-    assets: Vec<AuthoringAssetUpload>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -1597,7 +1728,7 @@ fn export_data_package(
 
 #[tauri::command]
 fn validate_data_package_source(
-    source: DataPackageAuthoringDto,
+    source: DataPackageAuthoringSource,
     world: State<'_, Arc<WorldDatabaseCoordinator>>,
 ) -> PackageValidationReport {
     world.validate_authoring(
@@ -1610,7 +1741,7 @@ fn validate_data_package_source(
 
 #[tauri::command]
 fn export_data_package_source(
-    source: DataPackageAuthoringDto,
+    source: DataPackageAuthoringSource,
     world: State<'_, Arc<WorldDatabaseCoordinator>>,
 ) -> Result<PackageValidationReport, PackageValidationReport> {
     world.export_authoring(
@@ -1622,11 +1753,125 @@ fn export_data_package_source(
 }
 
 #[tauri::command]
+fn creator_projects(
+    world: State<'_, Arc<WorldDatabaseCoordinator>>,
+) -> Result<Vec<CreatorProjectSummary>, PackageValidationReport> {
+    world.list_creator_projects()
+}
+
+#[tauri::command]
+fn creator_project(
+    project_id: String,
+    world: State<'_, Arc<WorldDatabaseCoordinator>>,
+) -> Result<CreatorProjectRecord, PackageValidationReport> {
+    world.load_creator_project(&project_id)
+}
+
+#[tauri::command]
+fn save_creator_project(
+    draft: CreatorProjectDraft,
+    world: State<'_, Arc<WorldDatabaseCoordinator>>,
+) -> Result<CreatorProjectRecord, PackageValidationReport> {
+    world.save_creator_project(draft)
+}
+
+#[tauri::command]
+fn delete_creator_project(
+    project_id: String,
+    world: State<'_, Arc<WorldDatabaseCoordinator>>,
+) -> Result<(), PackageValidationReport> {
+    world.delete_creator_project(&project_id)
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+fn fork_creator_package(
+    package_id: String,
+    project_id: String,
+    name: String,
+    mode: CreatorProjectMode,
+    next_version: Option<String>,
+    duplicate_package_id: Option<String>,
+    world: State<'_, Arc<WorldDatabaseCoordinator>>,
+) -> Result<CreatorProjectRecord, PackageValidationReport> {
+    world.fork_installed_package(
+        &package_id,
+        &project_id,
+        &name,
+        mode,
+        next_version.as_deref(),
+        duplicate_package_id.as_deref(),
+    )
+}
+
+#[tauri::command]
+fn creator_choose_save_path() -> Result<Option<String>, String> {
+    native_rivmod_dialog(true)
+}
+
+#[tauri::command]
+fn creator_choose_open_path() -> Result<Option<String>, String> {
+    native_rivmod_dialog(false)
+}
+
+#[tauri::command]
+fn export_rivmod(
+    source: DataPackageAuthoringSource,
+    destination: String,
+    world: State<'_, Arc<WorldDatabaseCoordinator>>,
+) -> Result<PackageDistributionReceipt, PackageValidationReport> {
+    world.export_rivmod(&source, creator_file_location(&destination))
+}
+
+#[tauri::command]
+fn inspect_rivmod(
+    bundle_location: String,
+    world: State<'_, Arc<WorldDatabaseCoordinator>>,
+) -> Result<RivmodInspection, PackageValidationReport> {
+    world.inspect_rivmod(creator_file_location(&bundle_location))
+}
+
+#[tauri::command]
+fn install_rivmod(
+    bundle_location: String,
+    world: State<'_, Arc<WorldDatabaseCoordinator>>,
+) -> Result<PackageDistributionReceipt, PackageValidationReport> {
+    world.install_rivmod(creator_file_location(&bundle_location))
+}
+
+#[tauri::command]
+fn creator_package_history(
+    package_id: String,
+    world: State<'_, Arc<WorldDatabaseCoordinator>>,
+) -> Result<Vec<PackageHistoryEntry>, PackageValidationReport> {
+    world.package_history(&package_id)
+}
+
+#[tauri::command]
+fn rollback_creator_package(
+    package_id: String,
+    version: String,
+    world: State<'_, Arc<WorldDatabaseCoordinator>>,
+) -> Result<PackageDistributionReceipt, PackageValidationReport> {
+    world.rollback_installed_package(&package_id, &version)
+}
+
+#[tauri::command]
 fn preview_career_composition(
     package_ids: Vec<String>,
     world: State<'_, Arc<WorldDatabaseCoordinator>>,
 ) -> Result<ResolvedWorldDatabase, PackageValidationReport> {
     world.resolve_selection(&package_ids)
+}
+
+#[tauri::command]
+fn preview_club_readiness(
+    package_ids: Vec<String>,
+    season_id: String,
+    world: State<'_, Arc<WorldDatabaseCoordinator>>,
+) -> Result<Vec<ClubReadinessProjection>, PackageValidationReport> {
+    let resolved = world.resolve_selection(&package_ids)?;
+    Ok(project_club_readiness(&resolved.world, &season_id))
 }
 
 fn ensure_legacy_career(
@@ -1872,7 +2117,20 @@ fn main() {
             export_data_package,
             validate_data_package_source,
             export_data_package_source,
+            creator_projects,
+            creator_project,
+            save_creator_project,
+            delete_creator_project,
+            fork_creator_package,
+            creator_choose_save_path,
+            creator_choose_open_path,
+            export_rivmod,
+            inspect_rivmod,
+            install_rivmod,
+            creator_package_history,
+            rollback_creator_package,
             preview_career_composition,
+            preview_club_readiness,
             career_slots,
             last_valid_career,
             career_portrait,

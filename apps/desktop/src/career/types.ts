@@ -128,13 +128,84 @@ export interface WorldCompetition {
   readonly name: string;
   readonly shortName: string;
   readonly nationId: string;
+  readonly regionId?: string | null;
+  readonly category?: string | null;
+  readonly level?: number | null;
+  readonly description?: string | null;
+  readonly primaryColor?: string | null;
+  readonly secondaryColor?: string | null;
+  readonly baseSeasonId?: string | null;
   readonly seasons: readonly {
     readonly id: string;
     readonly label: string;
     readonly startDate: string;
     readonly endDate: string;
     readonly participantClubIds: readonly string[];
+    readonly rules?: CompetitionRules;
+    readonly stages?: readonly CompetitionStage[];
+    readonly registrationWindows?: readonly {
+      readonly startDate: string;
+      readonly endDate: string;
+    }[];
+    readonly calendarConstraints?: {
+      readonly preferredWeekdays: readonly number[];
+      readonly kickoffTimes: readonly string[];
+      readonly minimumRestDays: number;
+      readonly blockedDates: readonly string[];
+      readonly neutralVenue: boolean;
+    };
+    readonly playerRegistrations?: readonly {
+      readonly playerId: string;
+      readonly clubId: string;
+      readonly shirtNumber?: number | null;
+      readonly contractReference?: string | null;
+      readonly eligible: boolean;
+    }[];
   }[];
+}
+
+export interface CompetitionRules {
+  readonly pointsForWin: number;
+  readonly pointsForDraw: number;
+  readonly pointsForLoss: number;
+  readonly participantCount: number;
+  readonly rounds: number;
+  readonly legs: number;
+  readonly tieBreakers: readonly string[];
+  readonly minimumRosterSize?: number;
+  readonly minimumGoalkeepers?: number;
+  readonly starters?: number;
+  readonly benchSize?: number;
+  readonly substitutions?: number;
+  readonly extraTime?: boolean;
+  readonly penalties?: boolean;
+  readonly foreignPlayerLimit?: number | null;
+  readonly minimumHomegrownPlayers?: number | null;
+  readonly promotionSlots?: number;
+  readonly relegationSlots?: number;
+}
+
+export interface CompetitionStage {
+  readonly id: string;
+  readonly name: string;
+  readonly order: number;
+  readonly kind:
+    | 'roundRobin'
+    | 'doubleRoundRobin'
+    | 'groups'
+    | 'knockout'
+    | 'twoLeggedKnockout'
+    | 'singleFinal'
+    | 'qualifying';
+  readonly participantCount: number;
+  readonly groupCount?: number;
+  readonly legs?: number;
+  readonly advanceCount?: number;
+  readonly eliminateCount?: number;
+  readonly tieBreakers?: readonly string[];
+  readonly extraTime?: boolean;
+  readonly penalties?: boolean;
+  readonly neutralVenue?: boolean;
 }
 
 export interface ResolvedWorldDatabase {
@@ -165,6 +236,22 @@ export interface ResolvedWorldDatabase {
       readonly coaches: readonly WorldCoach[];
     };
   };
+}
+
+export interface ClubReadinessProjection {
+  readonly clubId: string;
+  readonly seasonId: string;
+  readonly status: 'available' | 'availableWithWarnings' | 'blocked';
+  readonly requirements: readonly {
+    readonly code: string;
+    readonly label: string;
+    readonly satisfied: boolean;
+    readonly blocking: boolean;
+    readonly current: number | null;
+    readonly required: number | null;
+    readonly editorModule: string;
+    readonly suggestion: string;
+  }[];
 }
 
 export interface CoachAttributes {
@@ -260,18 +347,49 @@ export interface CoachCreatorDraft {
   preferredFormations: string[];
   specialties: string[];
   attributes: CoachAttributes;
-  appearance: {
-    seed: number;
-    rendererVersion: number;
-    skinTone: number;
-    faceShape: string;
-    hairStyle: string;
-    hairColor: string;
-    facialHair: string;
-    glasses: boolean;
-    clothing: string;
-  };
+  appearance: PortraitRecipe;
   portrait: PortraitUpload | null;
+}
+
+export interface PortraitFeatureLocks {
+  face: boolean;
+  hair: boolean;
+  clothing: boolean;
+  accessories: boolean;
+  background: boolean;
+}
+
+export interface PortraitRecipe {
+  seed: number;
+  rendererVersion: number;
+  presentation: string;
+  ageBand: string;
+  skinTone: number;
+  faceShape: string;
+  faceWidth: number;
+  jaw: string;
+  chin: string;
+  eyeShape: string;
+  eyeColor: string;
+  eyebrowStyle: string;
+  noseStyle: string;
+  mouthStyle: string;
+  earStyle: string;
+  hairStyle: string;
+  hairColor: string;
+  facialHair: string;
+  moustache: string;
+  bodyHairColor: string;
+  wrinkles: number;
+  marks: string;
+  glasses: boolean;
+  accessories: string[];
+  clothing: string;
+  clothingColor: string;
+  background: string;
+  lighting: string;
+  preset: string;
+  locks: PortraitFeatureLocks;
 }
 
 export type CareerCoachChoice =

@@ -1,5 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
+import {
+  defaultPortraitRecipe,
+  PortraitAvatar,
+  PortraitStudio,
+} from '../portrait/PortraitEngine.js';
 import { Button } from '../ui/primitives/actions.js';
 import { previewCoachCreation } from './client.js';
 import type {
@@ -259,17 +264,7 @@ export const defaultCoachDraft = (nationality = 'Brasil'): CoachCreatorDraft => 
   preferredFormations: ['4-3-3'],
   specialties: [],
   attributes: baseAttributes(),
-  appearance: {
-    seed: 1,
-    rendererVersion: 1,
-    skinTone: 3,
-    faceShape: 'oval',
-    hairStyle: 'curto',
-    hairColor: 'castanho',
-    facialHair: 'nenhuma',
-    glasses: false,
-    clothing: 'social escuro',
-  },
+  appearance: defaultPortraitRecipe(),
   portrait: null,
 });
 
@@ -308,35 +303,14 @@ function CoachDraftPortrait({
       aria-hidden={decorative || undefined}
       aria-label={decorative ? undefined : `Retrato de ${draft.knownName || 'novo treinador'}`}
       className="coach-avatar-preview"
-      data-glasses={draft.appearance.glasses || undefined}
       data-photo={portraitUrl ? true : undefined}
       data-size={size}
       role={decorative ? undefined : 'img'}
-      style={
-        {
-          '--coach-skin': 0.54 + draft.appearance.skinTone * 0.035,
-          '--coach-hair':
-            {
-              preto: 'oklch(0.2 0.015 70)',
-              castanho: 'oklch(0.3 0.045 55)',
-              grisalho: 'oklch(0.58 0.012 190)',
-              ruivo: 'oklch(0.46 0.11 42)',
-            }[draft.appearance.hairColor] ?? 'oklch(0.3 0.045 55)',
-          '--coach-clothing': draft.appearance.clothing.includes('clube')
-            ? 'oklch(0.45 0.11 160)'
-            : draft.appearance.clothing.includes('esportiva')
-              ? 'oklch(0.35 0.06 225)'
-              : 'oklch(0.24 0.02 190)',
-        } as CSSProperties
-      }
     >
       {portraitUrl ? (
         <img alt="" src={portraitUrl} />
       ) : (
-        <>
-          <span>{draft.knownName.slice(0, 2).toUpperCase() || 'RV'}</span>
-          <small>{draft.appearance.hairStyle}</small>
-        </>
+        <PortraitAvatar recipe={draft.appearance} />
       )}
     </div>
   );
@@ -405,24 +379,6 @@ export function CoachCreator({ draft, nations, onChange, onEvaluation }: CoachCr
       attributes: Object.fromEntries(
         Object.entries(preset.attributes).map(([key, value]) => [key, Math.min(value, cap)]),
       ) as unknown as CoachAttributes,
-    });
-  };
-
-  const randomizeAppearance = () => {
-    const random = new Uint32Array(4);
-    globalThis.crypto?.getRandomValues(random);
-    patch({
-      appearance: {
-        seed: random[3] ?? Date.now(),
-        rendererVersion: 1,
-        skinTone: (random[0] ?? Date.now()) % 8,
-        faceShape: ['oval', 'quadrado', 'angular'][(random[1] ?? 0) % 3]!,
-        hairStyle: ['curto', 'raspado', 'ondulado', 'cacheado'][(random[2] ?? 0) % 4]!,
-        hairColor: ['preto', 'castanho', 'grisalho', 'ruivo'][(random[3] ?? 0) % 4]!,
-        facialHair: ['nenhuma', 'barba curta', 'bigode'][(random[0] ?? 0) % 3]!,
-        glasses: (random[1] ?? 0) % 3 === 0,
-        clothing: ['social escuro', 'agasalho do clube', 'camisa esportiva'][(random[2] ?? 0) % 3]!,
-      },
     });
   };
 
@@ -611,11 +567,17 @@ export function CoachCreator({ draft, nations, onChange, onEvaluation }: CoachCr
           <>
             <header>
               <h3 id="coach-stage-title">Aparência</h3>
-              <p>Uma identidade local, sem serviços externos. O retrato é opcional e protegido.</p>
+              <p>
+                Crie uma identidade ilustrada original e consistente, ou importe uma foto opcional.
+              </p>
             </header>
             <div className="appearance-editor">
-              <div className="appearance-preview-column">
-                <CoachDraftPortrait draft={draft} />
+              <PortraitStudio
+                onChange={(appearance) => patch({ appearance, portrait: null })}
+                recipe={draft.appearance}
+              />
+              <div className="appearance-import-row">
+                {draft.portrait && <CoachDraftPortrait draft={draft} size="compact" />}
                 <input
                   accept="image/png,image/jpeg,image/webp"
                   aria-label="Importar retrato local"
@@ -625,82 +587,18 @@ export function CoachCreator({ draft, nations, onChange, onEvaluation }: CoachCr
                   type="file"
                 />
                 <Button onClick={() => fileRef.current?.click()} variant="secondary">
-                  {draft.portrait ? 'Trocar foto' : 'Usar foto'}
+                  {draft.portrait ? 'Trocar retrato importado' : 'Importar retrato'}
                 </Button>
                 {draft.portrait && (
                   <Button onClick={() => patch({ portrait: null })} variant="secondary">
-                    Remover foto
+                    Voltar ao avatar criado
                   </Button>
                 )}
                 <small>PNG, JPEG ou WebP · até 5 MB</small>
               </div>
-              <div className="coach-form-grid">
-                <label>
-                  Tom de pele
-                  <input
-                    max={7}
-                    min={0}
-                    onChange={(event) =>
-                      patch({
-                        appearance: { ...draft.appearance, skinTone: Number(event.target.value) },
-                      })
-                    }
-                    type="range"
-                    value={draft.appearance.skinTone}
-                  />
-                </label>
-                {(
-                  [
-                    ['faceShape', 'Formato do rosto', ['oval', 'quadrado', 'angular']],
-                    ['hairStyle', 'Cabelo', ['curto', 'raspado', 'ondulado', 'cacheado']],
-                    ['hairColor', 'Cor do cabelo', ['preto', 'castanho', 'grisalho', 'ruivo']],
-                    ['facialHair', 'Barba', ['nenhuma', 'barba curta', 'bigode']],
-                    [
-                      'clothing',
-                      'Roupa',
-                      ['social escuro', 'agasalho do clube', 'camisa esportiva'],
-                    ],
-                  ] as const
-                ).map(([key, label, options]) => (
-                  <label key={key}>
-                    {label}
-                    <select
-                      onChange={(event) =>
-                        patch({ appearance: { ...draft.appearance, [key]: event.target.value } })
-                      }
-                      value={draft.appearance[key]}
-                    >
-                      {options.map((option) => (
-                        <option key={option}>{option}</option>
-                      ))}
-                    </select>
-                  </label>
-                ))}
-                <label className="checkbox-label">
-                  <input
-                    checked={draft.appearance.glasses}
-                    onChange={(event) =>
-                      patch({ appearance: { ...draft.appearance, glasses: event.target.checked } })
-                    }
-                    type="checkbox"
-                  />
-                  Óculos
-                </label>
-              </div>
-              <div className="appearance-actions">
-                <Button leadingIcon="retry" onClick={randomizeAppearance} variant="secondary">
-                  Randomizar
-                </Button>
-                <Button
-                  onClick={() => patch({ appearance: defaultCoachDraft().appearance })}
-                  variant="secondary"
-                >
-                  Restaurar
-                </Button>
-              </div>
               {portraitError && <p className="field-error">{portraitError}</p>}
               <p className="appearance-privacy-note">
-                A foto é opcional, fica dentro do save e não é enviada para serviços externos.
+                A receita e o retrato ficam no save. Nada é enviado para serviços externos.
               </p>
             </div>
           </>

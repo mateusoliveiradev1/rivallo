@@ -715,6 +715,8 @@ pub struct CoachSportingProfile {
     pub contract: Option<ContractSummary>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub portrait_asset_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub appearance: Option<crate::PortraitRecipe>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -754,6 +756,7 @@ pub struct CoachProfileProjection {
     pub specialties: Vec<String>,
     pub contract: Option<ContractSummary>,
     pub portrait_asset_id: Option<String>,
+    pub appearance: Option<crate::PortraitRecipe>,
     pub career_history: Vec<String>,
     pub rating_history: Vec<RatingSnapshot>,
     pub development: CoachDevelopmentProfile,
@@ -1230,6 +1233,7 @@ fn coach(
             squad_status: "Treinador principal".to_owned(),
         }),
         portrait_asset_id: None,
+        appearance: None,
     }
 }
 
@@ -2846,6 +2850,7 @@ pub fn project_coach_profile(
         specialties: coach.specialties.clone(),
         contract: coach.contract,
         portrait_asset_id: coach.portrait_asset_id,
+        appearance: coach.appearance,
         career_history: vec![
             format!("Atual · {}", coach.identity.club_name),
             "Histórico anterior não disponível nesta base inicial.".to_owned(),

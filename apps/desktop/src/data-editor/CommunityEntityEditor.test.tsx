@@ -44,6 +44,9 @@ const world: ModAuthoringWorld = {
   playerProfiles: [],
   coaches: [],
   nations: [{ id: 'nation.brazil', name: 'Brasil', iso2: 'BRA' }],
+  cities: [{ id: 'city.vale-verde', nationId: 'nation.brazil', name: 'Vale Verde' }],
+  stadiums: [],
+  competitions: [],
   activeClubId: 'aurora-fc',
 };
 
@@ -98,8 +101,8 @@ describe('CommunityEntityEditor', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Sigla' }), {
       target: { value: 'CDV' },
     });
-    fireEvent.change(screen.getByRole('textbox', { name: 'Cidade' }), {
-      target: { value: 'Vale Verde' },
+    fireEvent.change(screen.getByRole('combobox', { name: 'Cidade' }), {
+      target: { value: 'city.vale-verde' },
     });
     fireEvent.change(screen.getByRole('textbox', { name: 'História do clube' }), {
       target: { value: 'Fundado pela comunidade ferroviária, representa a identidade do vale.' },

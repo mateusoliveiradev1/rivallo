@@ -2,15 +2,22 @@ import { Icon } from '@rivallo/icons';
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 
 import type { DataPackageCatalogEntry } from '../data-editor/types.js';
+import { renderPortraitUpload } from '../portrait/PortraitEngine.js';
 import { Button } from '../ui/primitives/actions.js';
 import { Skeleton, Status } from '../ui/primitives/feedback.js';
 import { CoachCreator, defaultCoachDraft, isCoachDraftReady } from './CoachCreator.js';
-import { createCareer, operationId, previewCareerComposition } from './client.js';
+import {
+  createCareer,
+  operationId,
+  previewCareerComposition,
+  previewClubReadiness,
+} from './client.js';
 import { MenuShell } from './MenuShell.js';
 import type {
   AssistanceProfile,
   CareerFailure,
   CareerSlot,
+  ClubReadinessProjection,
   CoachCreationEvaluation,
   CoachCreatorDraft,
   ResolvedWorldDatabase,
@@ -67,6 +74,7 @@ export function NewCareerWizard({ catalog, onCancel, onCreated, onExit }: NewCar
   const [composition, setComposition] = useState<ResolvedWorldDatabase | null>(null);
   const [compositionBusy, setCompositionBusy] = useState(false);
   const [compositionError, setCompositionError] = useState<CareerFailure | null>(null);
+  const [readiness, setReadiness] = useState<readonly ClubReadinessProjection[]>([]);
   const [displayName, setDisplayName] = useState('Minha carreira');
   const [seasonRef, setSeasonRef] = useState('');
   const [clubId, setClubId] = useState('');
@@ -82,6 +90,27 @@ export function NewCareerWizard({ catalog, onCancel, onCreated, onExit }: NewCar
   const [cancelIntent, setCancelIntent] = useState<'menu' | 'exit' | null>(null);
   const compositionOperation = useRef(0);
   const creationOperationId = useRef(operationId('career-create'));
+
+  useEffect(() => {
+    const stored = window.sessionStorage.getItem('rivallo:new-career-return');
+    if (!stored) return;
+    window.sessionStorage.removeItem('rivallo:new-career-return');
+    try {
+      const value = JSON.parse(stored) as {
+        selectedBaseId?: string;
+        selectedMods?: string[];
+        seasonRef?: string;
+        clubId?: string;
+      };
+      if (value.selectedBaseId) setSelectedBaseId(value.selectedBaseId);
+      if (Array.isArray(value.selectedMods)) setSelectedMods(value.selectedMods);
+      if (value.seasonRef) setSeasonRef(value.seasonRef);
+      if (value.clubId) setClubId(value.clubId);
+      setStep(2);
+    } catch {
+      // A sessão inválida é descartada; o wizard continua com defaults seguros.
+    }
+  }, []);
 
   const selectedPackageIds = useMemo(
     () => [selectedBaseId, ...selectedMods].filter(Boolean),
@@ -139,6 +168,23 @@ export function NewCareerWizard({ catalog, onCancel, onCreated, onExit }: NewCar
   const season = composition?.world.competitions
     .flatMap((competition) => competition.seasons)
     .find((candidate) => candidate.id === seasonRef);
+  useEffect(() => {
+    if (!seasonRef || selectedPackageIds.length === 0) {
+      setReadiness([]);
+      return;
+    }
+    let active = true;
+    void previewClubReadiness(selectedPackageIds, seasonRef)
+      .then((value) => {
+        if (active) setReadiness(value);
+      })
+      .catch(() => {
+        if (active) setReadiness([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [seasonRef, selectedPackageIds]);
   const clubOptions = useMemo(
     () =>
       (composition?.world.clubs ?? []).map((club) => {
@@ -148,23 +194,15 @@ export function NewCareerWizard({ catalog, onCancel, onCreated, onExit }: NewCar
         const coach = composition?.world.profiles.coaches.find(
           (candidate) => candidate.identity.clubId === club.id,
         );
-        const participates = season?.participantClubIds.includes(club.id) ?? false;
-        const available =
-          playerCount >= 11 &&
-          Boolean(coach) &&
-          participates &&
-          composition?.world.matchday.club.id === club.id;
-        const reasons = [
-          ...(playerCount < 11 ? [`Somente ${playerCount} jogadores cadastrados`] : []),
-          ...(!coach ? ['Treinador principal ausente'] : []),
-          ...(!participates ? ['Clube fora da definição de início'] : []),
-          ...(composition?.world.matchday.club.id !== club.id
-            ? ['Snapshot inicial do elenco ainda não está disponível para este clube']
-            : []),
-        ];
-        return { club, playerCount, coach, available, reasons };
+        const projection = readiness.find((candidate) => candidate.clubId === club.id);
+        const available = Boolean(projection && projection.status !== 'blocked');
+        const reasons =
+          projection?.requirements.filter(
+            (requirement) => requirement.blocking && !requirement.satisfied,
+          ) ?? [];
+        return { club, playerCount, coach, available, reasons, projection };
       }),
-    [composition, season],
+    [composition, readiness],
   );
   const selectedClub = clubOptions.find((option) => option.club.id === clubId);
   const visibleClubs = clubOptions.filter((option) => {
@@ -220,6 +258,10 @@ export function NewCareerWizard({ catalog, onCancel, onCreated, onExit }: NewCar
     setCreationError(null);
     setStep(6);
     try {
+      const createdCoachDraft =
+        coachMode === 'created' && !coachDraft.portrait
+          ? { ...coachDraft, portrait: await renderPortraitUpload(coachDraft.appearance) }
+          : coachDraft;
       const slot = await createCareer({
         displayName: displayName.trim(),
         selectedPackageIds,
@@ -230,12 +272,22 @@ export function NewCareerWizard({ catalog, onCancel, onCreated, onExit }: NewCar
         coach:
           coachMode === 'existing'
             ? { mode: 'existing', coachId: existingCoachId }
-            : { mode: 'created', draft: coachDraft },
+            : { mode: 'created', draft: createdCoachDraft },
         operationId: creationOperationId.current,
       });
       onCreated(slot);
     } catch (error) {
-      setCreationError(error as CareerFailure);
+      const failure = error as Partial<CareerFailure>;
+      setCreationError({
+        code: typeof failure.code === 'string' ? failure.code : 'career.unexpected_failure',
+        message:
+          typeof failure.message === 'string'
+            ? failure.message
+            : 'Não foi possível criar a carreira agora.',
+        details: Array.isArray(failure.details)
+          ? failure.details.filter((item): item is string => typeof item === 'string')
+          : [],
+      });
       setCreating(false);
     }
   };
@@ -362,7 +414,6 @@ export function NewCareerWizard({ catalog, onCancel, onCreated, onExit }: NewCar
                     <button
                       aria-selected={clubId === option.club.id}
                       className="club-option"
-                      disabled={!option.available}
                       key={option.club.id}
                       onClick={() => {
                         setClubId(option.club.id);
@@ -439,8 +490,38 @@ export function NewCareerWizard({ catalog, onCancel, onCreated, onExit }: NewCar
                       </section>
                       {!selectedClub.available && (
                         <Status headingLevel={3} label="Clube indisponível" variant="warning">
-                          <p>{selectedClub.reasons.join(' · ')}</p>
-                          <small>Corrija os dados no Editor de Dados e valide novamente.</small>
+                          <p>{selectedClub.reasons.length} requisitos pendentes:</p>
+                          <ul className="club-readiness-list">
+                            {selectedClub.reasons.map((reason) => (
+                              <li key={reason.code}>
+                                <strong>{reason.label}</strong>
+                                <span>
+                                  {reason.current !== null && reason.required !== null
+                                    ? `${reason.current} de ${reason.required} · `
+                                    : ''}
+                                  {reason.suggestion}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                          <Button
+                            onClick={() => {
+                              window.sessionStorage.setItem(
+                                'rivallo:new-career-return',
+                                JSON.stringify({
+                                  selectedBaseId,
+                                  selectedMods,
+                                  seasonRef,
+                                  clubId: selectedClub.club.id,
+                                }),
+                              );
+                              const module = selectedClub.reasons[0]?.editorModule ?? 'clubs';
+                              window.location.href = `/data-editor?module=${module}&entity=${encodeURIComponent(selectedClub.club.id)}&return=new-career`;
+                            }}
+                            variant="secondary"
+                          >
+                            Corrigir no Editor
+                          </Button>
                         </Status>
                       )}
                       <p className="honest-state">
@@ -915,7 +996,8 @@ interface ClubReviewOption {
   readonly playerCount: number;
   readonly coach: WorldCoach | undefined;
   readonly available: boolean;
-  readonly reasons: readonly string[];
+  readonly reasons: ClubReadinessProjection['requirements'];
+  readonly projection?: ClubReadinessProjection;
 }
 
 function ReviewStep({

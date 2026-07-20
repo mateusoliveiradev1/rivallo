@@ -4,10 +4,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataEditorApp } from './DataEditorApp.js';
 
 const clientMock = vi.hoisted(() => ({
+  chooseRivmodOpenPath: vi.fn(),
+  chooseRivmodSavePath: vi.fn(),
+  deleteCreatorProject: vi.fn(),
+  exportRivmod: vi.fn(),
   exportDataPackageSource: vi.fn(),
+  forkCreatorPackage: vi.fn(),
+  inspectRivmod: vi.fn(),
+  installRivmod: vi.fn(),
   loadDataPackageCatalog: vi.fn(),
+  loadCreatorProject: vi.fn(),
+  loadCreatorProjects: vi.fn(),
   loadModAuthoringWorld: vi.fn(),
+  loadPackageHistory: vi.fn(),
   loadWorldDatabaseSummary: vi.fn(),
+  rollbackPackage: vi.fn(),
+  saveCreatorProject: vi.fn(),
   validateDataPackageSource: vi.fn(),
 }));
 const careerClientMock = vi.hoisted(() => ({ exitApplication: vi.fn() }));
@@ -21,6 +33,7 @@ describe('DataEditorApp', () => {
   beforeEach(() => {
     careerClientMock.exitApplication.mockReset().mockResolvedValue(undefined);
     clientMock.exportDataPackageSource.mockReset().mockResolvedValue(validReport);
+    clientMock.loadCreatorProjects.mockReset().mockResolvedValue([]);
     clientMock.loadDataPackageCatalog.mockReset().mockResolvedValue([
       {
         manifest: {

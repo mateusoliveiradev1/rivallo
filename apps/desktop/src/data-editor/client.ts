@@ -3,9 +3,16 @@ import { invoke } from '@tauri-apps/api/core';
 import type {
   DataPackageAuthoringSource,
   DataPackageCatalogEntry,
+  CreatorProjectDraft,
+  CreatorProjectMode,
+  CreatorProjectRecord,
+  CreatorProjectSummary,
   ModAuthoringWorld,
   PackageValidationDiagnostic,
   PackageValidationReport,
+  PackageDistributionReceipt,
+  PackageHistoryEntry,
+  RivmodInspection,
   WorldDatabaseSummary,
 } from './types.js';
 
@@ -83,6 +90,10 @@ export const loadModAuthoringWorld = async (packageId: string): Promise<ModAutho
     playerProfiles: profiles.players,
     coaches: profiles.coaches,
     nations: world.nations,
+    regions: Array.isArray(world.regions) ? world.regions : [],
+    cities: Array.isArray(world.cities) ? world.cities : [],
+    stadiums: Array.isArray(world.stadiums) ? world.stadiums : [],
+    competitions: Array.isArray(world.competitions) ? world.competitions : [],
     activeClubId: record(matchday.club)?.id,
   } as ModAuthoringWorld;
 };
@@ -131,3 +142,54 @@ export const exportDataPackageSource = async (
     }
   }
 };
+
+export const loadCreatorProjects = async (): Promise<readonly CreatorProjectSummary[]> =>
+  invoke<CreatorProjectSummary[]>('creator_projects');
+
+export const loadCreatorProject = async (projectId: string): Promise<CreatorProjectRecord> =>
+  invoke<CreatorProjectRecord>('creator_project', { projectId });
+
+export const saveCreatorProject = async (
+  draft: CreatorProjectDraft,
+): Promise<CreatorProjectRecord> => invoke<CreatorProjectRecord>('save_creator_project', { draft });
+
+export const deleteCreatorProject = async (projectId: string): Promise<void> =>
+  invoke<void>('delete_creator_project', { projectId });
+
+export const forkCreatorPackage = async (options: {
+  readonly packageId: string;
+  readonly projectId: string;
+  readonly name: string;
+  readonly mode: CreatorProjectMode;
+  readonly nextVersion?: string | null;
+  readonly duplicatePackageId?: string | null;
+}): Promise<CreatorProjectRecord> => invoke<CreatorProjectRecord>('fork_creator_package', options);
+
+export const chooseRivmodSavePath = async (): Promise<string | null> =>
+  invoke<string | null>('creator_choose_save_path');
+
+export const chooseRivmodOpenPath = async (): Promise<string | null> =>
+  invoke<string | null>('creator_choose_open_path');
+
+export const exportRivmod = async (
+  source: DataPackageAuthoringSource,
+  destination: string,
+): Promise<PackageDistributionReceipt> =>
+  invoke<PackageDistributionReceipt>('export_rivmod', { source, destination });
+
+export const inspectRivmod = async (path: string): Promise<RivmodInspection> =>
+  invoke<RivmodInspection>('inspect_rivmod', { bundleLocation: path });
+
+export const installRivmod = async (path: string): Promise<PackageDistributionReceipt> =>
+  invoke<PackageDistributionReceipt>('install_rivmod', { bundleLocation: path });
+
+export const loadPackageHistory = async (
+  packageId: string,
+): Promise<readonly PackageHistoryEntry[]> =>
+  invoke<PackageHistoryEntry[]>('creator_package_history', { packageId });
+
+export const rollbackPackage = async (
+  packageId: string,
+  version: string,
+): Promise<PackageDistributionReceipt> =>
+  invoke<PackageDistributionReceipt>('rollback_creator_package', { packageId, version });

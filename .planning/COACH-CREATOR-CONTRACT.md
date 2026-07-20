@@ -26,9 +26,15 @@ Review states how choices affect reputation, staff/player interactions, tactical
 
 Keyboard-complete controls, visible focus, labelled visual alternatives, non-colour-only selection, zoom/long-text support and reduced motion. Avatar/assets use validated package IDs/provenance; missing assets have deterministic fallback.
 
+The primary appearance path is the local procedural Avatar Studio. It persists a versioned
+`PortraitRecipe` (seed, editable traits, palette, clothing, background and locks) independently from
+the derived PNGs. The same recipe renders the same portrait without nationality-based inference and
+produces 512, 256, 128 and 64 pixel derivatives for profile, cards and sidebar. PNG, JPEG and WebP
+upload remains optional; external SVG and remote generation are not accepted.
+
 ## Validation and persistence
 
-Coach domain owns age/date consistency, enum/reference validity, point budget, prerequisites, incompatible advantages and attribute ranges. Persist stable coach ID, creator schema version, choices, derived starting values and explanation snapshot. Migration is explicit and tested.
+Coach domain owns age/date consistency, enum/reference validity, point budget, prerequisites, incompatible advantages and attribute ranges. Persist stable coach ID, creator schema version, choices, portrait recipe/renderer version, derived starting values and explanation snapshot. Migration is explicit and tested.
 
 ## Tests and acceptance
 

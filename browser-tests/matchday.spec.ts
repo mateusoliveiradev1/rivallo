@@ -994,6 +994,7 @@ test.beforeEach(async ({ page }) => {
             return { state: 'ready', ownership: 'owned' };
           }
           if (command === 'data_package_catalog') return structuredClone(catalog);
+          if (command === 'creator_projects') return [];
           if (command === 'world_database_status') {
             return {
               schemaVersion: composition.schemaVersion,
@@ -1017,6 +1018,16 @@ test.beforeEach(async ({ page }) => {
             return { ...structuredClone(careerSlot), matchday: structuredClone(state) };
           }
           if (command === 'preview_career_composition') return structuredClone(composition);
+          if (command === 'preview_club_readiness') {
+            return [
+              {
+                clubId: 'aurora-fc',
+                seasonId: String(args.seasonId ?? 'season-2026'),
+                status: 'available',
+                requirements: [],
+              },
+            ];
+          }
           if (command === 'preview_coach_creation') {
             const draft = args.draft as {
               background: string;
@@ -1907,6 +1918,63 @@ test('creates and exports a guided mod without exposing JSON editors', async ({
   await leaveDialog.getByRole('button', { name: 'Descartar e voltar' }).click();
   await expect(page).toHaveURL(mainMenuUrl);
   expect(nativeDialogs).toEqual([]);
+});
+
+test('keeps Creator Studio tools reachable across desktop widths and 200% zoom', async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(60_000);
+  test.skip(
+    testInfo.project.name !== 'desktop-1366x768',
+    'Creator Studio responsive evidence is captured once from the canonical desktop project.',
+  );
+
+  await page.goto(dataEditorUrl);
+  await page.getByRole('radio', { name: 'Data Studio' }).click();
+  await expect(page.getByRole('heading', { name: 'Sua base, de ponta a ponta' })).toBeVisible();
+
+  for (const viewport of [
+    { width: 1024, height: 768 },
+    { width: 1920, height: 1080 },
+  ]) {
+    await page.setViewportSize(viewport);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    await page.screenshot({
+      path: testInfo.outputPath(`creator-studio-${viewport.width}x${viewport.height}.png`),
+      fullPage: true,
+    });
+  }
+
+  await page.getByRole('button', { name: 'Criar competição' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Modele o regulamento, não as partidas' }),
+  ).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('competition-builder.png'), fullPage: true });
+
+  await page.getByRole('button', { name: 'Assets', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Imagens ligadas por identidade estável' }),
+  ).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('asset-manager.png'), fullPage: true });
+
+  await page.getByRole('button', { name: 'Importar CSV', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'CSV com preview, identidade e rollback' }),
+  ).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('csv-import.png'), fullPage: true });
+
+  // Browser zoom reduces the CSS viewport: 512×384 represents 1024×768 at 200%.
+  await page.setViewportSize({ width: 512, height: 384 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  await expect(page.getByRole('button', { name: 'Visão geral' })).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath('creator-studio-zoom-200.png'),
+    fullPage: true,
+  });
 });
 
 test('opens Elenco as a dedicated table workspace without rendering the tactical field', async ({
