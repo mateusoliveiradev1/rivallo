@@ -10,10 +10,10 @@ Make consequential football-management decisions deep, dependable and explainabl
 
 ## Current stable baseline
 
-- Checkpoint: `b813f0a5523f0d473ca33bac36369dda43b2015e`.
-- Completed history remains completed: Phases 1–6 and 06.1.
-- Current executable product: deterministic fictional matchday plus durable table views.
-- Next phase: 06.2, **planned and not started by this documentation checkpoint**.
+- Input checkpoint for this execution: `e8412d29a770bf0e400e2f72ec16e47f7e95f31f` (Fase 06.2 final).
+- Completed history remains completed: Phases 1–6, 06.1, 06.2 and 06.3.
+- Current executable product: deterministic fictional matchday, durable table views, free tactical field, independent variations and a versioned/explainable tactical model with familiarity and future-engine snapshot.
+- Next phase: 06.4, **not started by this checkpoint**.
 
 ## Requirements
 
@@ -43,4 +43,4 @@ Make consequential football-management decisions deep, dependable and explainabl
 
 ---
 
-Last updated: 2026-07-16 for the planning-only MVP1/MVP2 checkpoint.
+Last updated: 2026-07-17 for the completed Phase 06.3 checkpoint.

@@ -16,8 +16,11 @@ import type {
   MatchdayState,
   TacticalApproach,
   TacticalLibraryCommand,
+  TacticalMatchSnapshot,
+  TacticalPlanPreview,
   TacticalPlanProposal,
   TacticalPlanUpdate,
+  TacticalStrategyPresetSummary,
 } from './types.js';
 
 export const loadMatchday = () => invoke<MatchdayState>('matchday_state');
@@ -35,6 +38,15 @@ export const saveMatchdayLineup = (
 
 export const saveTacticalPlan = (proposal: TacticalPlanProposal) =>
   invoke<TacticalPlanUpdate>('update_tactical_plan', { proposal });
+
+export const previewTacticalPlan = (proposal: TacticalPlanProposal) =>
+  invoke<TacticalPlanPreview>('preview_tactical_plan', { proposal });
+
+export const loadTacticalStrategyCatalog = () =>
+  invoke<readonly TacticalStrategyPresetSummary[]>('tactical_strategy_catalog');
+
+export const loadTacticalMatchSnapshot = (variationId: string) =>
+  invoke<TacticalMatchSnapshot>('tactical_match_snapshot', { variationId });
 
 export const updateTacticalLibrary = (command: TacticalLibraryCommand) =>
   invoke<TacticalPlanUpdate>('update_tactical_library', { request: command });

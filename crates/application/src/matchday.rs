@@ -1,6 +1,7 @@
 use rivallo_domain::{
     LineupSelection, MatchResult, MatchdayError, MatchdayState, TacticalLibraryCommand,
-    TacticalPlanProposal, TacticalPlanUpdate,
+    TacticalMatchSnapshot, TacticalPlanPreview, TacticalPlanProposal, TacticalPlanUpdate,
+    TacticalStrategyPresetSummary, tactical_strategy_preset_catalog,
 };
 
 pub trait MatchdayRepository {
@@ -131,6 +132,28 @@ impl<R: MatchdayRepository> MatchdayService<R> {
         Ok(TacticalPlanUpdate { state, event })
     }
 
+    pub fn preview_tactical_plan(
+        &self,
+        proposal: TacticalPlanProposal,
+    ) -> Result<TacticalPlanPreview, MatchdayServiceError> {
+        self.state()?
+            .preview_tactical_plan(proposal)
+            .map_err(Into::into)
+    }
+
+    pub fn tactical_match_snapshot(
+        &self,
+        variation_id: &str,
+    ) -> Result<TacticalMatchSnapshot, MatchdayServiceError> {
+        self.state()?
+            .tactical_match_snapshot(variation_id)
+            .map_err(Into::into)
+    }
+
+    pub fn tactical_strategy_catalog(&self) -> Vec<TacticalStrategyPresetSummary> {
+        tactical_strategy_preset_catalog()
+    }
+
     pub fn update_tactical_library(
         &self,
         command: TacticalLibraryCommand,
@@ -167,6 +190,12 @@ mod tests {
             .find(|variation| variation.variation_id == library.active_variation_id)
             .cloned()
             .expect("active tactical variation");
+        let tactical_config = plan
+            .tactical_model
+            .as_ref()
+            .expect("tactical model")
+            .config
+            .clone();
         TacticalPlanProposal {
             expected_revision: plan.revision,
             variation_id: plan.variation_id,
@@ -177,6 +206,7 @@ mod tests {
             bench: plan.bench,
             custom_formation: plan.custom_formation,
             approach: state.approach,
+            tactical_config,
         }
     }
 
@@ -252,6 +282,26 @@ mod tests {
             })
         ));
         assert_eq!(service.state().expect("state after conflict"), update.state);
+    }
+
+    #[test]
+    fn previews_and_reads_a_match_snapshot_without_persisting_the_proposal() {
+        let service = MatchdayService::new(MemoryRepository::default());
+        let state = service.state().expect("state");
+        let mut proposal = proposal_from(&state);
+        proposal.tactical_config.strategy = rivallo_domain::TacticalStrategyConfig::for_preset(
+            rivallo_domain::TacticalStrategyPresetId::Compact,
+        );
+        let preview = service
+            .preview_tactical_plan(proposal)
+            .expect("preview plan");
+        assert_eq!(preview.model.match_snapshot.revision, 1);
+        assert_eq!(service.state().expect("unchanged state"), state);
+        let snapshot = service
+            .tactical_match_snapshot("tactical-variation.primary")
+            .expect("saved snapshot");
+        assert_eq!(snapshot.revision, 0);
+        assert_eq!(service.tactical_strategy_catalog().len(), 3);
     }
 
     #[test]

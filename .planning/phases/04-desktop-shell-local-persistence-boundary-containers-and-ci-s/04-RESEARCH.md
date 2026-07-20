@@ -325,7 +325,7 @@ Each job should call real existing atomic commands wherever possible, preserve `
 |---|---|---:|---|---|
 | Node.js | Tauri/Vite and CI scripts | ✓ | v24.16.0 | — |
 | pnpm.cmd | package management | ✓ | 11.8.0 | Use `pnpm.cmd` on this Windows host; CI uses its native runner command. |
-| Rust/Cargo | Axum/Tauri build | ✗ on current PATH | — | `C:\Users\Liiiraa\.cargo\bin\cargo.exe` is installed and was used for registry verification; planner must preserve the existing PATH/toolchain validation approach. |
+| Rust/Cargo | Axum/Tauri build | ✗ on current PATH | — | `<local-user>\.cargo\bin\cargo.exe` is installed and was used for registry verification; planner must preserve the existing PATH/toolchain validation approach. |
 | Docker Compose | Local PostgreSQL | ✗ | — | Blocking for exercising D-09/D-10 locally; configuration/docs can be written, but Docker Desktop/Compose must be installed before runtime verification. |
 | cargo-tauri | desktop build | ✗ on current PATH | — | Installed through audited project dependency/CLI during implementation, subject to human checkpoint. |
 

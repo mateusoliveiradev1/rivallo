@@ -55,13 +55,13 @@ The executable Definition of Done is authoritative in `MVP-1-DEFINITION.md` and 
 
 ## Traceability
 
-| Group                                   | Phase range | Status                    |
-| --------------------------------------- | ----------: | ------------------------- |
-| Foundation / first playable             |         1–6 | Complete                  |
-| Durable table views                     |        06.1 | Complete                  |
-| Sports-management and career foundation |   06.2–06.8 | Planned; 06.2 not started |
-| Match Day                               |   07.1–07.5 | Planned                   |
-| MVP1 Operations                         |   08.1–08.6 | Planned                   |
-| MVP2 Sustainable Career                 |   09.1–09.8 | Planned                   |
+| Group                                   | Phase range | Status                                        |
+| --------------------------------------- | ----------: | --------------------------------------------- |
+| Foundation / first playable             |         1–6 | Complete                                      |
+| Durable table views                     |        06.1 | Complete                                      |
+| Sports-management and career foundation |   06.2–06.8 | 06.2–06.3 complete; 06.4 next and not started |
+| Match Day                               |   07.1–07.5 | Planned                                       |
+| MVP1 Operations                         |   08.1–08.6 | Planned                                       |
+| MVP2 Sustainable Career                 |   09.1–09.8 | Planned                                       |
 
 The former SM-6 owner `06.5` is renumbered to `06.8`; the migration is recorded in `ROADMAP.md` and `STATE.md` without erasing history.

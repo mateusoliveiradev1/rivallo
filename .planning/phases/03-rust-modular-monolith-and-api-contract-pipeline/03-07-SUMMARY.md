@@ -50,7 +50,7 @@ status: complete
 ## Verification
 
 - `pnpm typecheck`, focused Vitest pipeline/scope/architecture tests, `pnpm lint`, and `pnpm format:check` passed.
-- `pnpm check` passed twice with `C:\Users\Liiiraa\.cargo\bin` on PATH.
+- `pnpm check` passed twice with `<local-user>\.cargo\bin` on PATH.
 - Both aggregate runs left the tracked OpenAPI document and generated client unchanged.
 - `git diff --check` passed.
 

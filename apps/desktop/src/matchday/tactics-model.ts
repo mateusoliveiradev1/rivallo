@@ -593,7 +593,7 @@ export const createTacticalPlan = (
   const presetDefinition = getFormationPreset(formation);
   const createdAt = Date.now();
   const initial: TacticalPlanSnapshot = {
-    schemaVersion: 3,
+    schemaVersion: 4,
     variationId: 'tactical-variation.primary',
     name: formation,
     sourcePresetId: formation,
@@ -904,7 +904,7 @@ export const validateTacticalDraft = (
   const warnings: string[] = [];
   const playerById = new Map(players.map((player) => [player.id, player] as const));
   const allIds = [...selectedIdsFromPlan(draft), ...draft.bench];
-  if (draft.schemaVersion !== 3) errors.push('Versão do plano incompatível.');
+  if (draft.schemaVersion !== 4) errors.push('Versão do plano incompatível.');
   if (draft.placements.length !== 11) errors.push('O campo precisa de exatamente 11 titulares.');
   if (draft.bench.length > 7) errors.push('O banco excede o limite de 7 jogadores.');
   if (new Set(allIds).size !== allIds.length)
@@ -942,6 +942,7 @@ export const toTacticalPlanProposal = (
   placements: draft.placements,
   bench: draft.bench,
   customFormation: draft.customFormation,
+  tacticalConfig: draft.tacticalModel?.config,
   approach,
 });
 

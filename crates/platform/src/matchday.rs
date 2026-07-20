@@ -4,7 +4,8 @@ use std::sync::{Mutex, MutexGuard};
 
 use rivallo_application::{
     LineupSelection, MatchdayRepository, MatchdayService, MatchdayState, TacticalLibraryCommand,
-    TacticalPlanProposal, TacticalPlanUpdate,
+    TacticalMatchSnapshot, TacticalPlanPreview, TacticalPlanProposal, TacticalPlanUpdate,
+    TacticalStrategyPresetSummary,
 };
 
 pub struct FileMatchdayRepository {
@@ -150,6 +151,28 @@ impl MatchdayCoordinator {
             .map_err(|error| error.to_string())
     }
 
+    pub fn preview_tactical_plan(
+        &self,
+        proposal: TacticalPlanProposal,
+    ) -> Result<TacticalPlanPreview, String> {
+        self.service()?
+            .preview_tactical_plan(proposal)
+            .map_err(|error| error.to_string())
+    }
+
+    pub fn tactical_match_snapshot(
+        &self,
+        variation_id: &str,
+    ) -> Result<TacticalMatchSnapshot, String> {
+        self.service()?
+            .tactical_match_snapshot(variation_id)
+            .map_err(|error| error.to_string())
+    }
+
+    pub fn tactical_strategy_catalog(&self) -> Result<Vec<TacticalStrategyPresetSummary>, String> {
+        Ok(self.service()?.tactical_strategy_catalog())
+    }
+
     pub fn update_tactical_library(
         &self,
         command: TacticalLibraryCommand,
@@ -202,12 +225,42 @@ mod tests {
     }
 
     #[test]
+    fn tactical_match_snapshot_round_trips_through_the_approved_json_seam() {
+        let path = temporary_path("tactical-match-snapshot-round-trip");
+        let coordinator = MatchdayCoordinator::new(&path);
+        let state = coordinator.state().expect("initial career");
+        let variation_id = &state
+            .tactical_library
+            .as_ref()
+            .expect("tactical library")
+            .variations[0]
+            .variation_id;
+        let snapshot = coordinator
+            .tactical_match_snapshot(variation_id)
+            .expect("canonical tactical snapshot");
+
+        let json = serde_json::to_string(&snapshot).expect("serialize tactical snapshot");
+        let reopened: TacticalMatchSnapshot =
+            serde_json::from_str(&json).expect("deserialize tactical snapshot");
+
+        assert_eq!(reopened, snapshot);
+        assert!(reopened.valid);
+        cleanup(&FileMatchdayRepository::new(path));
+    }
+
+    #[test]
     fn coordinator_reopens_multiple_independent_variations_from_disk() {
         let path = temporary_path("variation-library-round-trip");
         let coordinator = MatchdayCoordinator::new(&path);
         let initial = coordinator.state().expect("initial career");
         let library = initial.tactical_library.as_ref().expect("tactical library");
         let original = library.variations[0].clone();
+        let original_tactical_config = original
+            .tactical_model
+            .as_ref()
+            .expect("tactical model")
+            .config
+            .clone();
         let first_id = original.variation_id.clone();
         let mut first = TacticalPlanProposal {
             expected_revision: original.revision,
@@ -219,8 +272,12 @@ mod tests {
             bench: original.bench.clone(),
             custom_formation: original.custom_formation.clone(),
             approach: initial.approach,
+            tactical_config: original_tactical_config,
         };
         first.placements[5].normalized_x = 0.58;
+        first.tactical_config.strategy = rivallo_application::TacticalStrategyConfig::for_preset(
+            rivallo_application::TacticalStrategyPresetId::Protagonist,
+        );
         let saved_first = coordinator
             .update_tactical_plan(first)
             .expect("save first variation");
@@ -241,9 +298,18 @@ mod tests {
             bench: first_snapshot.bench.clone(),
             custom_formation: first_snapshot.custom_formation.clone(),
             approach: saved_first.state.approach,
+            tactical_config: first_snapshot
+                .tactical_model
+                .as_ref()
+                .expect("tactical model")
+                .config
+                .clone(),
         };
         second.placements[1].normalized_x = 0.43;
         second.placements[4].normalized_x = 0.43;
+        second.tactical_config.strategy = rivallo_application::TacticalStrategyConfig::for_preset(
+            rivallo_application::TacticalStrategyPresetId::Compact,
+        );
         coordinator
             .update_tactical_plan(second)
             .expect("save second variation");
@@ -272,6 +338,20 @@ mod tests {
         assert_ne!(
             first.placements[1].normalized_x,
             second.placements[1].normalized_x
+        );
+        assert_ne!(
+            first
+                .tactical_model
+                .as_ref()
+                .expect("first tactical model")
+                .config
+                .strategy,
+            second
+                .tactical_model
+                .as_ref()
+                .expect("second tactical model")
+                .config
+                .strategy
         );
 
         cleanup(&FileMatchdayRepository::new(path));

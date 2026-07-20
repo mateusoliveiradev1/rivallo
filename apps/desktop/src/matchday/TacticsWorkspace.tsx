@@ -5,19 +5,20 @@ import type { CSSProperties, KeyboardEvent, PointerEvent as ReactPointerEvent } 
 
 import { Button } from '../ui/primitives/actions.js';
 import { Popover } from '../ui/primitives/disclosure.js';
-import { approachCopy, positionLabels, type PitchMode, type TacticalTool } from './matchday-ui.js';
+import { loadTacticalStrategyCatalog, previewTacticalPlan } from './client.js';
+import { positionLabels, type PitchMode, type TacticalTool } from './matchday-ui.js';
 import { PlayerFace } from './PlayerFace.js';
 import {
   applyPresetToPlan,
   findNearestStarter,
   formationPresets,
-  getPositionFamiliarity,
   movePlayerFreely,
   previewPresetApplication,
   reorderBench,
   substitutePlayers,
   swapStarters,
   validateTacticalDraft,
+  toTacticalPlanProposal,
   type FormationFamily,
 } from './tactics-model.js';
 import type {
@@ -25,7 +26,15 @@ import type {
   MatchdayState,
   Player,
   TacticalApproach,
+  TacticalGamePhase,
+  TacticalInstruction,
+  TacticalInstructionCategory,
+  TacticalInstructionScope,
+  TacticalModelConfig,
+  TacticalPlanPreview,
   TacticalPlanSnapshot,
+  TacticalStrategyPresetId,
+  TacticalStrategyPresetSummary,
   TacticalVariationLibrarySnapshot,
 } from './types.js';
 
@@ -33,7 +42,6 @@ interface TacticsWorkspaceProps {
   readonly state: MatchdayState;
   readonly library: TacticalVariationLibrarySnapshot;
   readonly draft: TacticalPlanSnapshot;
-  readonly approach: TacticalApproach;
   readonly pitchMode: PitchMode;
   readonly activeTool: TacticalTool;
   readonly focusedPlayerId: string | null;
@@ -126,52 +134,27 @@ const recordDragMetric = (metric: keyof TacticalDragMetrics, amount = 1) => {
   if (metrics) metrics[metric] += amount;
 };
 
-interface TeamInstructions {
-  readonly buildUp: boolean;
-  readonly counterPress: boolean;
-  readonly compactBlock: boolean;
-  readonly overlap: boolean;
-}
+const phaseOptions: readonly { readonly id: TacticalGamePhase; readonly label: string }[] = [
+  { id: 'base', label: 'Posição base' },
+  { id: 'inPossession', label: 'Com posse' },
+  { id: 'outOfPossession', label: 'Sem posse' },
+  { id: 'offensiveTransition', label: 'Transição +' },
+  { id: 'defensiveTransition', label: 'Transição −' },
+];
 
-const TEAM_INSTRUCTIONS_KEY = 'rivallo.team-instructions.v1';
-const defaultInstructions: TeamInstructions = {
-  buildUp: true,
-  counterPress: true,
-  compactBlock: true,
-  overlap: false,
+const presetApproach: Record<TacticalStrategyPresetId, TacticalApproach> = {
+  balanced: 'balanced',
+  protagonist: 'frontFoot',
+  compact: 'compact',
 };
 
-const instructionOptions: readonly {
-  readonly id: keyof TeamInstructions;
-  readonly phase: string;
-  readonly title: string;
-  readonly description: string;
-}[] = [
-  {
-    id: 'buildUp',
-    phase: 'Com bola',
-    title: 'Construção apoiada',
-    description: 'Preferência visual preservada; o efeito esportivo pertence à Fase 06.3.',
-  },
-  {
-    id: 'overlap',
-    phase: 'Com bola',
-    title: 'Ultrapassagem dos laterais',
-    description: 'Preferência visual preservada; ainda não é consumida pelo motor.',
-  },
-  {
-    id: 'counterPress',
-    phase: 'Transição',
-    title: 'Pressão após perda',
-    description: 'Preferência visual preservada; ainda não é consumida pelo motor.',
-  },
-  {
-    id: 'compactBlock',
-    phase: 'Sem bola',
-    title: 'Bloco compacto',
-    description: 'Preferência visual preservada; ainda não é consumida pelo motor.',
-  },
-];
+const presetLabels: Record<TacticalStrategyPresetId, string> = {
+  balanced: 'Equilibrada',
+  protagonist: 'Protagonista',
+  compact: 'Compacta',
+};
+
+const scoreOptions = [30, 45, 60, 75, 90] as const;
 
 const tacticalTools: readonly [TacticalTool, TacticalTool, string][] = [
   ['analysis', 'analysis', 'Análise'],
@@ -185,28 +168,6 @@ const POINTER_DRAG_THRESHOLD = 4;
 const clamp = (value: number, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 const average = (values: readonly number[]) =>
   Math.round(values.reduce((total, value) => total + value, 0) / Math.max(values.length, 1));
-
-const readInstructions = (): TeamInstructions => {
-  try {
-    const stored = JSON.parse(
-      window.localStorage.getItem(TEAM_INSTRUCTIONS_KEY) ?? '{}',
-    ) as Partial<TeamInstructions>;
-    return {
-      buildUp: typeof stored.buildUp === 'boolean' ? stored.buildUp : defaultInstructions.buildUp,
-      counterPress:
-        typeof stored.counterPress === 'boolean'
-          ? stored.counterPress
-          : defaultInstructions.counterPress,
-      compactBlock:
-        typeof stored.compactBlock === 'boolean'
-          ? stored.compactBlock
-          : defaultInstructions.compactBlock,
-      overlap: typeof stored.overlap === 'boolean' ? stored.overlap : defaultInstructions.overlap,
-    };
-  } catch {
-    return defaultInstructions;
-  }
-};
 
 const pitchPlayerName = (player: Player) => {
   const parts = player.name.trim().split(/\s+/u);
@@ -224,7 +185,6 @@ export function TacticsWorkspace({
   state,
   library,
   draft,
-  approach,
   pitchMode,
   activeTool,
   focusedPlayerId,
@@ -260,7 +220,20 @@ export function TacticsWorkspace({
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [interactionMessage, setInteractionMessage] = useState('');
   const [interactionError, setInteractionError] = useState('');
-  const [instructions, setInstructions] = useState<TeamInstructions>(readInstructions);
+  const [selectedPhase, setSelectedPhase] = useState<TacticalGamePhase>('base');
+  const [advancedStrategyOpen, setAdvancedStrategyOpen] = useState(false);
+  const [strategyCatalog, setStrategyCatalog] = useState<readonly TacticalStrategyPresetSummary[]>(
+    [],
+  );
+  const [pendingStrategyPreset, setPendingStrategyPreset] =
+    useState<TacticalStrategyPresetSummary | null>(null);
+  const [semanticPreview, setSemanticPreview] = useState<TacticalPlanPreview | null>(null);
+  const [semanticBusy, setSemanticBusy] = useState(false);
+  const semanticOperationRef = useRef(0);
+  const [instructionScope, setInstructionScope] = useState<TacticalInstructionScope>('collective');
+  const [instructionCategory, setInstructionCategory] =
+    useState<TacticalInstructionCategory>('circulation');
+  const [instructionValue, setInstructionValue] = useState('supported');
   const pitchRef = useRef<HTMLOListElement>(null);
   const benchRef = useRef<HTMLElement>(null);
   const pointerSessionRef = useRef<PointerDragSession | null>(null);
@@ -290,28 +263,35 @@ export function TacticsWorkspace({
     ).includes(normalizedFormationQuery);
   });
   const focusedPlayer =
-    state.players.find((player) => player.id === focusedPlayerId) ??
-    playerById.get(draft.placements[0]?.playerId ?? '') ??
-    state.players[0];
+    selectedPlayerId && focusedPlayerId === selectedPlayerId
+      ? playerById.get(selectedPlayerId)
+      : undefined;
   const selectedPlayer = selectedPlayerId ? playerById.get(selectedPlayerId) : undefined;
-  const fitScores = draft.placements.map((placement) => {
-    const player = playerById.get(placement.playerId);
-    return player ? getPositionFamiliarity(player.position, placement).score : 0;
-  });
-  const formationFit = average(fitScores);
   const averageCondition = average(
     draft.placements.map(({ playerId }) => playerById.get(playerId)?.condition ?? 0),
   );
-  const readiness = Math.round(formationFit * 0.45 + averageCondition * 0.55);
-  recordDragMetric('readinessCalculations');
+  const model = semanticPreview?.model ?? draft.tacticalModel;
+  if (!model) throw new Error('O plano tático não possui a projeção autoritativa da Fase 06.3.');
+  const readiness = model.diagnostic.readiness;
+  const activePhase =
+    model.structures.find(({ phase }) => phase === selectedPhase) ?? model.structures[0];
+  const phasePlayerById = new Map(
+    activePhase?.players.map((player) => [player.playerId, player] as const) ?? [],
+  );
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem(TEAM_INSTRUCTIONS_KEY, JSON.stringify(instructions));
-    } catch {
-      // The preference remains active for the session when storage is unavailable.
-    }
-  }, [instructions]);
+    let active = true;
+    void loadTacticalStrategyCatalog()
+      .then((catalog) => {
+        if (active) setStrategyCatalog(catalog);
+      })
+      .catch(() => {
+        if (active) setInteractionError('O catálogo de estratégia não pôde ser carregado.');
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(
     () => () => {
@@ -320,9 +300,147 @@ export function TacticsWorkspace({
     [],
   );
 
+  useEffect(() => {
+    semanticOperationRef.current += 1;
+    setSemanticPreview(null);
+    setSemanticBusy(false);
+    setSelectedPhase('base');
+  }, [draft.variationId]);
+
+  useEffect(() => {
+    if (!dirty) {
+      semanticOperationRef.current += 1;
+      setSemanticPreview(null);
+      setSemanticBusy(false);
+    }
+  }, [dirty, draft.revision]);
+
   const announce = (text: string, rejected = false) => {
     setInteractionMessage(rejected ? '' : text);
     setInteractionError(rejected ? text : '');
+  };
+
+  const invalidateSemanticPreview = () => {
+    semanticOperationRef.current += 1;
+    setSemanticPreview(null);
+    setSemanticBusy(false);
+  };
+
+  const applyTacticalConfig = async (tacticalConfig: TacticalModelConfig, text: string) => {
+    const operation = ++semanticOperationRef.current;
+    setSemanticBusy(true);
+    setInteractionError('');
+    try {
+      const nextApproach = presetApproach[tacticalConfig.strategy.presetId];
+      const candidate = {
+        ...draft,
+        tacticalModel: { ...model, config: tacticalConfig },
+      };
+      const preview = await previewTacticalPlan(toTacticalPlanProposal(candidate, nextApproach));
+      if (operation !== semanticOperationRef.current) return;
+      setSemanticPreview(preview);
+      onApproachChange(nextApproach);
+      onDraftChange({ ...draft, tacticalModel: preview.model });
+      announce(text);
+    } catch (reason) {
+      if (operation !== semanticOperationRef.current) return;
+      announce(reason instanceof Error ? reason.message : String(reason), true);
+    } finally {
+      if (operation === semanticOperationRef.current) setSemanticBusy(false);
+    }
+  };
+
+  const refreshTacticalProjection = async (candidate: TacticalPlanSnapshot, text: string) => {
+    const operation = ++semanticOperationRef.current;
+    const candidateModel = candidate.tacticalModel ?? model;
+    const nextApproach = presetApproach[candidateModel.config.strategy.presetId];
+    setSemanticBusy(true);
+    setInteractionError('');
+    try {
+      const preview = await previewTacticalPlan(
+        toTacticalPlanProposal({ ...candidate, tacticalModel: candidateModel }, nextApproach),
+      );
+      if (operation !== semanticOperationRef.current) return;
+      setSemanticPreview(preview);
+      announce(`${text} Diagnóstico e familiaridade recalculados.`);
+    } catch (reason) {
+      if (operation !== semanticOperationRef.current) return;
+      const detail = reason instanceof Error ? reason.message : String(reason);
+      announce(
+        `A alteração foi mantida, mas o diagnóstico não pôde ser atualizado: ${detail}`,
+        true,
+      );
+    } finally {
+      if (operation === semanticOperationRef.current) setSemanticBusy(false);
+    }
+  };
+
+  const updateStrategyScore = (
+    section: 'inPossession' | 'outOfPossession' | 'transitions',
+    field: string,
+    value: number,
+  ) => {
+    const strategy = model.config.strategy;
+    const nextSection = { ...strategy[section], [field]: value };
+    void applyTacticalConfig(
+      {
+        ...model.config,
+        strategy: { ...strategy, customized: true, [section]: nextSection },
+      },
+      'Estratégia personalizada; consequências recalculadas pelo modelo tático.',
+    );
+  };
+
+  const toggleInstruction = (instruction: TacticalInstruction) => {
+    void applyTacticalConfig(
+      {
+        ...model.config,
+        instructions: model.config.instructions.filter(
+          ({ instructionId }) => instructionId !== instruction.instructionId,
+        ),
+      },
+      `${instruction.description} removida desta variação.`,
+    );
+  };
+
+  const addInstruction = () => {
+    const placement = selectedPlayerId
+      ? draft.placements.find(({ playerId }) => playerId === selectedPlayerId)
+      : undefined;
+    const target =
+      instructionScope === 'collective'
+        ? 'team'
+        : instructionScope === 'sector'
+          ? 'midfield'
+          : instructionScope === 'position'
+            ? (placement?.positionId ?? 'CM')
+            : instructionScope === 'role'
+              ? (placement?.roleId ?? 'default')
+              : selectedPlayerId;
+    if (!target) {
+      announce('Selecione um jogador antes de criar uma instrução individual.', true);
+      return;
+    }
+    const ordinal = model.config.instructions.length + 1;
+    const instruction: TacticalInstruction = {
+      instructionId: `${instructionScope}.${instructionCategory}.${draft.revision}.${ordinal}`,
+      category: instructionCategory,
+      scope: instructionScope,
+      target,
+      value: instructionValue.trim() || 'balanced',
+      intensity: 60,
+      description: `${instructionCategory} em escopo ${instructionScope} para ${target}`,
+      expectedEffects: ['comportamento resolvido conforme escopo e precedência'],
+      requirements: [],
+      incompatibilities: [],
+      precedence: 0,
+      familiarityImpact: -2,
+      revision: draft.revision,
+    };
+    void applyTacticalConfig(
+      { ...model.config, instructions: [...model.config.instructions, instruction] },
+      `Instrução ${instruction.instructionId} adicionada à variação.`,
+    );
   };
 
   const commit = (next: TacticalPlanSnapshot, text: string, preserveSelection = false) => {
@@ -332,9 +450,11 @@ export function TacticsWorkspace({
       announce(nextValidation.errors[0] ?? 'Esse destino não é válido.', true);
       return false;
     }
+    invalidateSemanticPreview();
     onDraftChange(next);
     if (!preserveSelection) setSelectedPlayerId(null);
     announce(text);
+    void refreshTacticalProjection(next, text);
     return true;
   };
 
@@ -586,7 +706,13 @@ export function TacticsWorkspace({
     playerId: string,
     origin: 'field' | 'bench',
   ) => {
-    if (saving || !event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    if (
+      saving ||
+      selectedPhase !== 'base' ||
+      !event.isPrimary ||
+      (event.pointerType === 'mouse' && event.button !== 0)
+    )
+      return;
     event.preventDefault();
     event.currentTarget.focus();
     pointerCleanupRef.current();
@@ -747,6 +873,7 @@ export function TacticsWorkspace({
       announce('Movimento cancelado.');
       return;
     }
+    if (selectedPhase !== 'base') return;
     if (!event.altKey || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key))
       return;
     const placement = draft.placements.find((item) => item.playerId === playerId);
@@ -878,6 +1005,7 @@ export function TacticsWorkspace({
         return;
       }
     } else {
+      invalidateSemanticPreview();
       onDiscard();
     }
     const switched = await onSwitchVariation(pendingVariationId);
@@ -1209,6 +1337,27 @@ export function TacticsWorkspace({
           </Popover>
           <small title={activePreset?.description}>{activePreset?.description}</small>
         </div>
+        <fieldset className="phase-selector">
+          <legend>Fase do jogo</legend>
+          {phaseOptions.map((phase) => (
+            <button
+              aria-pressed={selectedPhase === phase.id}
+              key={phase.id}
+              onClick={() => {
+                setSelectedPhase(phase.id);
+                setSelectedPlayerId(null);
+                announce(
+                  phase.id === 'base'
+                    ? 'Posição base editável restaurada.'
+                    : `${phase.label}: projeção derivada; a posição base não foi alterada.`,
+                );
+              }}
+              type="button"
+            >
+              {phase.label}
+            </button>
+          ))}
+        </fieldset>
         <label className="tactics-select">
           <span>Leitura do campo</span>
           <select
@@ -1218,10 +1367,10 @@ export function TacticsWorkspace({
           >
             <option value="roles">Posição nominal</option>
             <option value="condition">Condição</option>
-            <option value="familiarity">Encaixe</option>
+            <option value="familiarity">Familiaridade</option>
           </select>
         </label>
-        <div className="tactics-readiness" aria-label={`Prontidão combinada ${readiness}%`}>
+        <div className="tactics-readiness" aria-label={`Prontidão tática ${readiness}%`}>
           <div>
             <span>Prontidão do plano</span>
             <strong>{readiness}%</strong>
@@ -1234,7 +1383,10 @@ export function TacticsWorkspace({
         <button
           className="toolbar-action"
           disabled={!canUndo || saving}
-          onClick={onUndo}
+          onClick={() => {
+            invalidateSemanticPreview();
+            onUndo();
+          }}
           type="button"
         >
           <Icon name="retry" size={16} /> Desfazer última
@@ -1242,7 +1394,10 @@ export function TacticsWorkspace({
         <button
           className="toolbar-action"
           disabled={!dirty || saving}
-          onClick={onDiscard}
+          onClick={() => {
+            invalidateSemanticPreview();
+            onDiscard();
+          }}
           type="button"
         >
           Restaurar salvo
@@ -1514,7 +1669,12 @@ export function TacticsWorkspace({
               className="tactics-pitch"
               data-pitch-mode={pitchMode}
               onClick={(event) => {
-                if (!selectedPlayerId || event.target !== event.currentTarget) return;
+                if (
+                  selectedPhase !== 'base' ||
+                  !selectedPlayerId ||
+                  event.target !== event.currentTarget
+                )
+                  return;
                 const point = pointFromClient(event.clientX, event.clientY);
                 if (point) applyFieldPoint(selectedPlayerId, point);
               }}
@@ -1539,25 +1699,31 @@ export function TacticsWorkspace({
                   recordDragMetric('draggedCardRenders');
                 }
                 const playerIndex = state.players.findIndex(({ id }) => id === player.id);
-                const fit = getPositionFamiliarity(player.position, placement);
+                const playerFamiliarity = model.familiarity.individuals.find(
+                  ({ playerId }) => playerId === player.id,
+                );
+                const phasePoint =
+                  selectedPhase === 'base' ? undefined : phasePlayerById.get(player.id);
                 const style = {
-                  '--slot-x': `${placement.normalizedX * 100}%`,
-                  '--slot-y': `${placement.normalizedY * 100}%`,
+                  '--slot-x': `${(phasePoint?.normalizedX ?? placement.normalizedX) * 100}%`,
+                  '--slot-y': `${(phasePoint?.normalizedY ?? placement.normalizedY) * 100}%`,
                 } as CSSProperties;
                 const secondary =
                   pitchMode === 'condition'
                     ? `Físico ${player.condition}%`
                     : pitchMode === 'familiarity'
-                      ? `${fit.score}% ${fit.label}`
+                      ? `${playerFamiliarity?.contextual ?? 0}% plano`
                       : positionLabels[player.position];
-                const meterValue = pitchMode === 'condition' ? player.condition : fit.score;
+                const meterValue =
+                  pitchMode === 'condition'
+                    ? player.condition
+                    : (playerFamiliarity?.contextual ?? 0);
                 return (
                   <li
                     className="pitch-slot"
                     data-condition-attention={
                       pitchMode === 'condition' && player.condition < 90 ? true : undefined
                     }
-                    data-fit={pitchMode === 'familiarity' ? fit.tone : undefined}
                     key={player.id}
                     style={style}
                   >
@@ -1565,12 +1731,12 @@ export function TacticsWorkspace({
                       {positionLabels[placement.positionId]}
                     </span>
                     <button
-                      aria-label={`${positionLabels[placement.positionId]}: ${player.name}, OVR ${player.rating}, condição ${player.condition}%, ${fit.label}. Selecione para mover.`}
+                      aria-label={`${positionLabels[placement.positionId]}: ${player.name}, OVR ${player.rating}, condição ${player.condition}%, familiaridade ${playerFamiliarity?.contextual ?? 0}%. ${selectedPhase === 'base' ? 'Selecione para mover.' : 'Projeção derivada, somente leitura.'}`}
                       aria-pressed={selectedPlayerId === player.id}
                       className="pitch-player-card"
                       data-tactical-player-id={player.id}
                       data-tactical-player-origin="field"
-                      disabled={saving}
+                      disabled={saving || semanticBusy}
                       onClick={(event) => {
                         event.stopPropagation();
                         if (suppressClickRef.current === player.id) return;
@@ -1685,19 +1851,21 @@ export function TacticsWorkspace({
             {activeTool === 'analysis' && (
               <>
                 <header className="inspector-heading">
-                  <span>Análise estrutural</span>
-                  <h2>{validation.valid ? 'Plano tecnicamente válido' : 'Correção necessária'}</h2>
+                  <span>Diagnóstico autoritativo</span>
+                  <h2>
+                    {model.diagnostic.valid ? 'Plano pronto para salvar' : 'Correção necessária'}
+                  </h2>
                   <p>
-                    Esta fase valida estrutura, escalação e geometria; leitura tática profunda chega
-                    na 06.3. Prontidão combinada: {readiness}% pronto.
+                    Prontidão {readiness}% · familiaridade {model.familiarity.overall}%. Estrutura,
+                    riscos e consequências vêm da mesma variação.
                   </p>
                 </header>
                 <dl className="diagnostic-metrics">
                   <div>
-                    <dt>Encaixe posicional</dt>
-                    <dd>{formationFit}%</dd>
+                    <dt>Familiaridade</dt>
+                    <dd>{model.familiarity.overall}%</dd>
                     <i>
-                      <b style={{ '--metric': `${formationFit}%` } as CSSProperties} />
+                      <b style={{ '--metric': `${model.familiarity.overall}%` } as CSSProperties} />
                     </i>
                   </div>
                   <div>
@@ -1707,9 +1875,19 @@ export function TacticsWorkspace({
                       <b style={{ '--metric': `${averageCondition}%` } as CSSProperties} />
                     </i>
                   </div>
+                  <div>
+                    <dt>Largura / profundidade</dt>
+                    <dd>
+                      {model.spatial.width} / {model.spatial.depth}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Compactação</dt>
+                    <dd>{model.spatial.compactness}%</dd>
+                  </div>
                 </dl>
                 <section className="diagnostic-list">
-                  <h3>Alertas técnicos</h3>
+                  <h3>Erros técnicos</h3>
                   {validation.errors.map((item) => (
                     <p className="tactical-alert" key={item}>
                       {item}
@@ -1719,70 +1897,342 @@ export function TacticsWorkspace({
                     <p key={item}>{item}</p>
                   ))}
                   {validation.errors.length === 0 && validation.warnings.length === 0 && (
-                    <p>Nenhum alerta estrutural.</p>
+                    <p>Nenhum erro técnico; riscos táticos não bloqueiam a criatividade.</p>
                   )}
                 </section>
+                <section className="diagnostic-list">
+                  <h3>Riscos e vulnerabilidades</h3>
+                  {[...model.diagnostic.risks, ...model.diagnostic.vulnerabilities].map((item) => (
+                    <p className="tactical-risk" key={item}>
+                      <strong>Risco salvável</strong> {item}
+                    </p>
+                  ))}
+                  {model.diagnostic.risks.length + model.diagnostic.vulnerabilities.length ===
+                    0 && <p>Nenhuma vulnerabilidade relevante identificada.</p>}
+                </section>
+                <section className="diagnostic-list">
+                  <h3>Pontos fortes</h3>
+                  {model.diagnostic.strengths.map((item) => (
+                    <p key={item}>{item}</p>
+                  ))}
+                </section>
+                {semanticPreview?.comparison && (
+                  <section className="tactical-comparison" aria-label="Comparação antes e depois">
+                    <h3>Antes e depois</h3>
+                    <p>
+                      Familiaridade: {semanticPreview.comparison.familiarityBefore}% →{' '}
+                      {semanticPreview.comparison.familiarityAfter}%
+                    </p>
+                    {semanticPreview.comparison.changes.map((change) => (
+                      <article key={change.changeId}>
+                        <strong>
+                          {change.label}: {change.before} → {change.after}
+                        </strong>
+                        <small>{change.cause}</small>
+                        {change.expectedConsequences.map((effect) => (
+                          <span key={effect}>{effect}</span>
+                        ))}
+                      </article>
+                    ))}
+                  </section>
+                )}
+                {model.recommendations.length > 0 && (
+                  <section className="tactical-recommendations">
+                    <h3>Recomendações da comissão</h3>
+                    {model.recommendations.map((recommendation) => (
+                      <article key={recommendation.recommendationId}>
+                        <strong>{recommendation.reason}</strong>
+                        <p>Benefício: {recommendation.benefit}</p>
+                        <p>
+                          Risco: {recommendation.risk} · confiança {recommendation.confidence}%
+                        </p>
+                        <button
+                          disabled={semanticBusy || recommendation.proposedChanges.length !== 1}
+                          onClick={() => {
+                            const change = recommendation.proposedChanges[0];
+                            if (change?.path === 'strategy.outOfPossession.compactness')
+                              updateStrategyScore('outOfPossession', 'compactness', change.to);
+                          }}
+                          type="button"
+                        >
+                          Aplicar recomendação
+                        </button>
+                      </article>
+                    ))}
+                  </section>
+                )}
               </>
             )}
             {activeTool === 'tactics' && (
               <>
                 <header className="inspector-heading">
-                  <span>Estratégia coletiva</span>
-                  <h2>{approachCopy[approach].title}</h2>
-                  <p>{approachCopy[approach].description}</p>
+                  <span>
+                    Estratégia coletiva{' '}
+                    {model.resolvedStrategy.customized ? 'personalizada' : 'por preset'}
+                  </span>
+                  <h2>{model.resolvedStrategy.mentality}</h2>
+                  <p>
+                    Risco {model.resolvedStrategy.risk}% · exigência{' '}
+                    {model.resolvedStrategy.physicalDemand}% · familiaridade{' '}
+                    {model.familiarity.overall}%.
+                  </p>
                 </header>
                 <fieldset className="strategy-options">
-                  <legend>Escolha a mentalidade</legend>
-                  {(Object.keys(approachCopy) as TacticalApproach[]).map((option) => (
-                    <label key={option}>
-                      <input
-                        checked={approach === option}
-                        disabled={saving}
-                        name="tactical-approach"
-                        onChange={() => onApproachChange(option)}
-                        type="radio"
-                      />
+                  <legend>Preset rápido e transparente</legend>
+                  {strategyCatalog.map((preset) => (
+                    <button
+                      aria-pressed={
+                        model.config.strategy.presetId === preset.presetId &&
+                        !model.config.strategy.customized
+                      }
+                      disabled={saving || semanticBusy}
+                      key={preset.presetId}
+                      onClick={() => setPendingStrategyPreset(preset)}
+                      type="button"
+                    >
                       <span>
-                        <strong>{approachCopy[option].title}</strong>
-                        <b>{approachCopy[option].mentality}</b>
-                        <small>{approachCopy[option].description}</small>
+                        <strong>{presetLabels[preset.presetId]}</strong>
+                        <b>
+                          Risco {preset.resolved.risk}% · exigência {preset.resolved.physicalDemand}
+                          %
+                        </b>
+                        <small>
+                          + {preset.resolved.strengths[0] ?? 'equilíbrio entre fases'} · −{' '}
+                          {preset.resolved.vulnerabilities[0] ?? 'sem vulnerabilidade dominante'}
+                        </small>
                       </span>
-                    </label>
+                    </button>
                   ))}
                 </fieldset>
+                {pendingStrategyPreset && (
+                  <section className="preset-impact" role="alert">
+                    <h3>Aplicar {presetLabels[pendingStrategyPreset.presetId]}?</h3>
+                    <p>
+                      Altera largura, ritmo, risco de passe, bloco, linha, pressão, compactação e
+                      transições. Sua personalização atual fica protegida até confirmar.
+                    </p>
+                    <dl>
+                      <div>
+                        <dt>Linha defensiva</dt>
+                        <dd>
+                          {model.config.strategy.outOfPossession.defensiveLine} →{' '}
+                          {pendingStrategyPreset.config.outOfPossession.defensiveLine}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Pressão</dt>
+                        <dd>
+                          {model.config.strategy.outOfPossession.pressure} →{' '}
+                          {pendingStrategyPreset.config.outOfPossession.pressure}
+                        </dd>
+                      </div>
+                    </dl>
+                    <div>
+                      <Button
+                        onClick={() => {
+                          const preset = pendingStrategyPreset;
+                          setPendingStrategyPreset(null);
+                          void applyTacticalConfig(
+                            { ...model.config, strategy: preset.config },
+                            `${presetLabels[preset.presetId]} aplicada; revise o impacto antes de salvar.`,
+                          );
+                        }}
+                        variant="primary"
+                      >
+                        Confirmar preset
+                      </Button>
+                      <Button onClick={() => setPendingStrategyPreset(null)} variant="secondary">
+                        Manter personalização
+                      </Button>
+                    </div>
+                  </section>
+                )}
+                <section className="strategy-summary">
+                  <h3>Consequências atuais</h3>
+                  {model.resolvedStrategy.strengths.map((item) => (
+                    <p key={item}>+ {item}</p>
+                  ))}
+                  {model.resolvedStrategy.vulnerabilities.map((item) => (
+                    <p key={item}>− {item}</p>
+                  ))}
+                </section>
+                <button
+                  className="advanced-strategy-toggle"
+                  aria-expanded={advancedStrategyOpen}
+                  onClick={() => setAdvancedStrategyOpen((open) => !open)}
+                  type="button"
+                >
+                  Personalizar estratégia
+                </button>
+                {advancedStrategyOpen && (
+                  <div className="advanced-strategy">
+                    {(
+                      [
+                        [
+                          'inPossession',
+                          'Com a bola',
+                          [
+                            ['width', 'Amplitude'],
+                            ['tempo', 'Ritmo'],
+                            ['passingRisk', 'Risco dos passes'],
+                            ['playersForward', 'Presença à frente'],
+                          ],
+                        ],
+                        [
+                          'outOfPossession',
+                          'Sem a bola',
+                          [
+                            ['blockHeight', 'Altura do bloco'],
+                            ['defensiveLine', 'Linha defensiva'],
+                            ['pressure', 'Pressão'],
+                            ['compactness', 'Compactação'],
+                            ['duelAggression', 'Duelos'],
+                          ],
+                        ],
+                        [
+                          'transitions',
+                          'Transições',
+                          [
+                            ['speed', 'Velocidade'],
+                            ['playersForward', 'Jogadores avançando'],
+                            ['defensiveSecurity', 'Segurança defensiva'],
+                          ],
+                        ],
+                      ] as const
+                    ).map(([section, title, controls]) => (
+                      <fieldset key={section}>
+                        <legend>{title}</legend>
+                        {controls.map(([field, label]) => (
+                          <label key={field}>
+                            <span>{label}</span>
+                            <select
+                              disabled={semanticBusy}
+                              onChange={(event) =>
+                                updateStrategyScore(section, field, Number(event.target.value))
+                              }
+                              value={
+                                (
+                                  model.config.strategy[section] as unknown as Record<
+                                    string,
+                                    number
+                                  >
+                                )[field]
+                              }
+                            >
+                              {scoreOptions.map((score) => (
+                                <option key={score} value={score}>
+                                  {score}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        ))}
+                      </fieldset>
+                    ))}
+                  </div>
+                )}
               </>
             )}
             {activeTool === 'instructions' && (
               <>
                 <header className="inspector-heading">
-                  <span>Preferências preservadas</span>
+                  <span>Precedência resolvida</span>
                   <h2>Instruções da equipe</h2>
                   <p>
-                    Os controles permanecem disponíveis, mas o efeito esportivo será formalizado na
-                    Fase 06.3.
+                    Individual → função → posição → setor → coletiva → preset. Conflitos nunca são
+                    silenciosos.
                   </p>
                 </header>
                 <div className="instruction-list">
-                  {instructionOptions.map((option) => (
-                    <label key={option.id}>
-                      <input
-                        checked={instructions[option.id]}
-                        onChange={() =>
-                          setInstructions((current) => ({
-                            ...current,
-                            [option.id]: !current[option.id],
-                          }))
-                        }
-                        type="checkbox"
-                      />
+                  {model.config.instructions.map((instruction) => (
+                    <button
+                      aria-pressed="true"
+                      disabled={semanticBusy}
+                      key={instruction.instructionId}
+                      onClick={() => toggleInstruction(instruction)}
+                      type="button"
+                    >
                       <span>
-                        <small>{option.phase}</small>
-                        <strong>{option.title}</strong>
-                        <b>{option.description}</b>
+                        <small>
+                          {instruction.scope} · {instruction.category}
+                        </small>
+                        <strong>{instruction.description}</strong>
+                        <em>{instruction.expectedEffects.join(' · ')}</em>
                       </span>
-                    </label>
+                      <i aria-hidden="true">
+                        <b />
+                      </i>
+                    </button>
                   ))}
                 </div>
+                <fieldset className="instruction-composer">
+                  <legend>Adicionar instrução</legend>
+                  <label>
+                    Escopo
+                    <select
+                      value={instructionScope}
+                      onChange={(event) =>
+                        setInstructionScope(event.target.value as TacticalInstructionScope)
+                      }
+                    >
+                      {(['collective', 'sector', 'position', 'role', 'individual'] as const).map(
+                        (scope) => (
+                          <option key={scope} value={scope}>
+                            {scope}
+                          </option>
+                        ),
+                      )}
+                    </select>
+                  </label>
+                  <label>
+                    Categoria
+                    <select
+                      value={instructionCategory}
+                      onChange={(event) =>
+                        setInstructionCategory(event.target.value as TacticalInstructionCategory)
+                      }
+                    >
+                      {(
+                        [
+                          'circulation',
+                          'risk',
+                          'pressure',
+                          'width',
+                          'compactness',
+                          'creativity',
+                          'marking',
+                        ] as const
+                      ).map((category) => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Comportamento
+                    <input
+                      value={instructionValue}
+                      onChange={(event) => setInstructionValue(event.target.value)}
+                    />
+                  </label>
+                  <Button
+                    disabled={
+                      semanticBusy || (instructionScope === 'individual' && !selectedPlayerId)
+                    }
+                    onClick={addInstruction}
+                    variant="secondary"
+                  >
+                    Adicionar sem aplicar silenciosamente
+                  </Button>
+                </fieldset>
+                {model.instructionConflicts.map((conflict) => (
+                  <article className="instruction-conflict" key={conflict.conflictId} role="alert">
+                    <strong>Conflito resolvido: {conflict.winnerId}</strong>
+                    <p>{conflict.reason}</p>
+                    <small>Comportamento final: {conflict.resolvedBehavior}</small>
+                  </article>
+                ))}
               </>
             )}
             {activeTool === 'opposition' && (
@@ -1791,18 +2241,44 @@ export function TacticsWorkspace({
                   <span>Próximo adversário</span>
                   <h2>{state.opponent.name}</h2>
                   <p>
-                    Oposição detalhada depende do módulo de observação e permanece fora da Fase
-                    06.2.
+                    Plano de oposição persistido nesta variação, com origem, confiança e expiração.
                   </p>
                 </header>
-                <p className="opposition-note">
-                  <Icon name="information" size={16} /> Nenhum relatório autoritativo disponível.
-                </p>
+                {model.opposition.knowledge ? (
+                  <section className="opposition-knowledge">
+                    <strong>Confiança {model.opposition.knowledge.confidence}%</strong>
+                    <p>Fonte: {model.opposition.knowledge.source}</p>
+                    <h3>Conhecido</h3>
+                    {model.opposition.knowledge.knownFacts.map((fact) => (
+                      <p key={fact}>{fact}</p>
+                    ))}
+                    <h3>Desconhecido</h3>
+                    {model.opposition.knowledge.unknownFacts.map((fact) => (
+                      <p key={fact}>{fact}</p>
+                    ))}
+                  </section>
+                ) : (
+                  <p className="opposition-note">
+                    <Icon name="information" size={16} /> Nenhum relatório autoritativo disponível.
+                    A informação chegará por scouting na Fase 06.4; nenhum dado foi inventado.
+                  </p>
+                )}
+                {model.opposition.instructions.map((instruction) => (
+                  <article className="opposition-instruction" key={instruction.instructionId}>
+                    <strong>
+                      {instruction.scope}: {instruction.targetId}
+                    </strong>
+                    <p>
+                      Pressão {instruction.pressure}% · marcação{' '}
+                      {instruction.tightMarking ? 'próxima' : 'normal'}
+                    </p>
+                  </article>
+                ))}
               </>
             )}
           </div>
           <footer className="tactics-focus-player">
-            {focusedPlayer && (
+            {focusedPlayer ? (
               <>
                 <PlayerFace
                   decorative
@@ -1814,10 +2290,33 @@ export function TacticsWorkspace({
                   <small>Jogador em foco</small>
                   <strong>{focusedPlayer.name}</strong>
                   <b>
-                    {positionLabels[focusedPlayer.position]} · Condição {focusedPlayer.condition}%
+                    {activeTool === 'analysis' &&
+                      `${positionLabels[focusedPlayer.position]} · familiaridade ${model.familiarity.individuals.find(({ playerId }) => playerId === focusedPlayer.id)?.contextual ?? 0}%`}
+                    {activeTool === 'tactics' &&
+                      `Condição ${focusedPlayer.condition}% · exigência ${model.resolvedStrategy.physicalDemand}%`}
+                    {activeTool === 'instructions' &&
+                      `${model.resolvedInstructions.filter(({ target }) => target === 'team' || target === focusedPlayer.id).length} instruções aplicadas`}
+                    {activeTool === 'opposition' &&
+                      `${model.opposition.instructions.filter(({ targetId }) => targetId === focusedPlayer.id).length} responsabilidades de oposição`}
                   </b>
                 </span>
               </>
+            ) : (
+              <span className="tactics-focus-team">
+                <small>Contexto da equipe</small>
+                <strong>Nenhum jogador selecionado</strong>
+                <b>
+                  {activeTool === 'analysis'
+                    ? `Familiaridade coletiva ${model.familiarity.overall}%`
+                    : activeTool === 'tactics'
+                      ? `${model.resolvedStrategy.mentality} · risco ${model.resolvedStrategy.risk}%`
+                      : activeTool === 'instructions'
+                        ? `${model.resolvedInstructions.length} instruções resolvidas`
+                        : model.opposition.knowledge
+                          ? `Relatório com ${model.opposition.knowledge.confidence}% de confiança`
+                          : 'Sem relatório de oposição'}
+                </b>
+              </span>
             )}
           </footer>
         </aside>

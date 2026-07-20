@@ -39,7 +39,7 @@ Canonical boundaries are defined in `.planning/COMPETITION-CALENDAR-ARCHITECTURE
 
 ## Content policy
 
-The public release uses an official fictional database. The private development package `dev.brasileirao-serie-a-2026` is isolated, never published or bundled by default, and starts a new 2026 season with all fixtures unplayed and every accumulated statistic zero. Factual identity data is separated from versioned, explainable Rivallo sporting evaluations.
+The public release uses an official fictional database. The private development package `dev.example.league-2026` is isolated, never published or bundled by default, and starts a new 2026 season with all fixtures unplayed and every accumulated statistic zero. Factual identity data is separated from versioned, explainable Rivallo sporting evaluations.
 
 ## Non-goals through MVP2 planning
 

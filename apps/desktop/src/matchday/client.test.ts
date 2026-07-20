@@ -4,9 +4,12 @@ import type { TableViewState } from '../table-view/table-view-engine.js';
 import { SQUAD_SYSTEM_VIEW } from './squad-table-schema.js';
 import {
   importLegacyTablePreferences,
+  loadTacticalMatchSnapshot,
+  loadTacticalStrategyCatalog,
   loadMatchday,
   loadTableViews,
   playNextMatch,
+  previewTacticalPlan,
   saveMatchdayLineup,
   saveTacticalPlan,
   saveTableViews,
@@ -164,6 +167,21 @@ describe('existing matchday client commands', () => {
     await updateTacticalLibrary(command);
 
     expect(invoke).toHaveBeenCalledWith('update_tactical_library', { request: command });
+  });
+
+  it('exposes authoritative preview, preset catalog and immutable match snapshot commands', async () => {
+    invoke.mockResolvedValue({});
+    const proposal = { variationId: 'tactical-variation.primary' } as TacticalPlanProposal;
+
+    await previewTacticalPlan(proposal);
+    await loadTacticalStrategyCatalog();
+    await loadTacticalMatchSnapshot('tactical-variation.primary');
+
+    expect(invoke.mock.calls).toEqual([
+      ['preview_tactical_plan', { proposal }],
+      ['tactical_strategy_catalog'],
+      ['tactical_match_snapshot', { variationId: 'tactical-variation.primary' }],
+    ]);
   });
 });
 

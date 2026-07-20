@@ -16,9 +16,11 @@ pub use rivallo_application::{
     TableViewEnvelopeMetadata, TableViewLoadOutcome, TableViewPolicyError, TableViewRecoveryReason,
     TableViewRepositoryError, TableViewRepositoryState, TableViewServiceError, TableViewState,
     TableViewValidationError, TacticalApproach, TacticalLibraryCommand, TacticalLine,
-    TacticalPlanEvent, TacticalPlanProposal, TacticalPlanSnapshot, TacticalPlanUpdate,
-    TacticalPlayerPlacement, TacticalSide, TacticalVariationLibrarySnapshot, TacticalZone, ViewId,
-    ViewMutability, ViewProvenance, WindowId, squad_system_default_repository_state,
+    TacticalMatchSnapshot, TacticalModelConfig, TacticalModelSnapshot, TacticalPlanEvent,
+    TacticalPlanPreview, TacticalPlanProposal, TacticalPlanSnapshot, TacticalPlanUpdate,
+    TacticalPlayerPlacement, TacticalSide, TacticalStrategyPresetSummary,
+    TacticalVariationLibrarySnapshot, TacticalZone, ViewId, ViewMutability, ViewProvenance,
+    WindowId, squad_system_default_repository_state,
 };
 pub use table_view::{FileTableViewRepository, TableViewCoordinator};
 

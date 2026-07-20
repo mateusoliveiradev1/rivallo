@@ -114,7 +114,7 @@ Each task was committed atomically using TDD test and implementation commits:
 
 ## Issues Encountered
 
-- Cargo was not initially discoverable on this Windows shell's `PATH`; verification used the already-installed `C:\Users\Liiiraa\.cargo\bin` location documented by phase research, with `RUSTUP_AUTO_INSTALL=0` preserved by project scripts.
+- Cargo was not initially discoverable on this Windows shell's `PATH`; verification used the already-installed `<local-user>\.cargo\bin` location documented by phase research, with `RUSTUP_AUTO_INSTALL=0` preserved by project scripts.
 
 ## User Setup Required
 

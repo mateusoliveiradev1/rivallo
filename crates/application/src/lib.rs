@@ -10,8 +10,10 @@ pub use rivallo_domain::{
     Club, CustomFormationIdentity, Formation, LineupSelection, MatchEvent, MatchResult,
     MatchdayState, Player, Position, PreferredFoot, SeasonRecord, SquadRole,
     TACTICAL_PLAN_SCHEMA_VERSION, TacticalApproach, TacticalLibraryCommand, TacticalLine,
-    TacticalPlanEvent, TacticalPlanProposal, TacticalPlanSnapshot, TacticalPlanUpdate,
-    TacticalPlayerPlacement, TacticalSide, TacticalVariationLibrarySnapshot, TacticalZone,
+    TacticalMatchSnapshot, TacticalModelConfig, TacticalModelSnapshot, TacticalPlanEvent,
+    TacticalPlanPreview, TacticalPlanProposal, TacticalPlanSnapshot, TacticalPlanUpdate,
+    TacticalPlayerPlacement, TacticalSide, TacticalStrategyConfig, TacticalStrategyPresetId,
+    TacticalStrategyPresetSummary, TacticalVariationLibrarySnapshot, TacticalZone,
 };
 pub use table_view::{
     CURRENT_ENVELOPE_VERSION, ColumnId, ColumnPinning, ColumnPinningSide, CreateTableViewRequest,

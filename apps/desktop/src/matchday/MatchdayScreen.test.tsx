@@ -15,6 +15,11 @@ import type {
 } from './client.js';
 import { SavedViewSelector } from './SavedViewSelector.js';
 import { createSquadDurableFilter, SQUAD_SYSTEM_VIEW } from './squad-table-schema.js';
+import { createTacticalPlan } from './tactics-model.js';
+import {
+  attachTacticalModelFixture,
+  tacticalStrategyCatalogFixture,
+} from './tactical-test-fixture.js';
 import type { MatchdayState, Player, TacticalPlanUpdate } from './types.js';
 
 const clientMock = vi.hoisted(() => ({
@@ -22,6 +27,9 @@ const clientMock = vi.hoisted(() => ({
   saveMatchdayLineup: vi.fn(),
   saveTacticalPlan: vi.fn(),
   updateTacticalLibrary: vi.fn(),
+  previewTacticalPlan: vi.fn(),
+  loadTacticalStrategyCatalog: vi.fn(),
+  loadTacticalMatchSnapshot: vi.fn(),
   playNextMatch: vi.fn(),
   loadTableViews: vi.fn(),
   saveTableViews: vi.fn(),
@@ -66,6 +74,8 @@ const players: Player[] = [
   selected: Boolean(selected),
 }));
 
+const initialTacticalPlan = attachTacticalModelFixture(createTacticalPlan(players, '4-3-3'));
+
 const state: MatchdayState = {
   club: {
     id: 'aurora',
@@ -85,6 +95,13 @@ const state: MatchdayState = {
   players,
   formation: '4-3-3',
   approach: 'balanced',
+  tacticalLibrary: {
+    schemaVersion: 1,
+    revision: 0,
+    activeVariationId: initialTacticalPlan.variationId,
+    primaryVariationId: initialTacticalPlan.variationId,
+    variations: [initialTacticalPlan],
+  },
   record: {
     played: 0,
     wins: 0,
@@ -281,6 +298,19 @@ describe('MatchdayScreen', () => {
         acceptedLibraryRevision: 1,
       },
     });
+    clientMock.loadTacticalStrategyCatalog
+      .mockReset()
+      .mockResolvedValue(tacticalStrategyCatalogFixture());
+    clientMock.previewTacticalPlan.mockReset().mockImplementation(async ({ tacticalConfig }) => ({
+      model: {
+        ...initialTacticalPlan.tacticalModel,
+        config: tacticalConfig ?? initialTacticalPlan.tacticalModel?.config,
+      },
+      comparison: null,
+    }));
+    clientMock.loadTacticalMatchSnapshot
+      .mockReset()
+      .mockResolvedValue(initialTacticalPlan.tacticalModel?.matchSnapshot);
     clientMock.playNextMatch.mockReset().mockResolvedValue(playedState);
     clientMock.loadTableViews.mockReset().mockResolvedValue({
       status: 'loaded',
@@ -627,6 +657,39 @@ describe('MatchdayScreen', () => {
     expect(selectedIds).not.toContain('p1');
   });
 
+  it('integrates phases, authoritative analysis, strategy, instructions and honest opposition', async () => {
+    const user = userEvent.setup();
+    render(<MatchdayScreen serviceOwnership="owned" />);
+    await screen.findByRole('heading', { name: 'Visão geral do elenco' });
+    await user.click(screen.getByRole('button', { name: 'Táticas' }));
+
+    expect(screen.getByText('Nenhum jogador selecionado')).toBeInstanceOf(HTMLElement);
+    await user.click(screen.getByRole('button', { name: 'Com posse' }));
+    expect(screen.getByText(/projeção derivada; a posição base não foi alterada/iu)).toBeInstanceOf(
+      HTMLElement,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Análise' }));
+    expect(screen.getByText('Diagnóstico autoritativo')).toBeInstanceOf(HTMLElement);
+    expect(screen.getByText(/Familiaridade coletiva 84%/u)).toBeInstanceOf(HTMLElement);
+
+    await user.click(screen.getByRole('button', { name: 'Estratégia' }));
+    await user.click(await screen.findByRole('button', { name: /Protagonista/u }));
+    expect(screen.getByRole('heading', { name: 'Aplicar Protagonista?' })).toBeInstanceOf(
+      HTMLHeadingElement,
+    );
+    await user.click(screen.getByRole('button', { name: 'Confirmar preset' }));
+    await waitFor(() => expect(clientMock.previewTacticalPlan).toHaveBeenCalledOnce());
+
+    await user.click(screen.getByRole('button', { name: 'Instruções' }));
+    expect(screen.getByText(/Individual → função → posição/u)).toBeInstanceOf(HTMLElement);
+    await user.click(screen.getByRole('button', { name: 'Adicionar sem aplicar silenciosamente' }));
+    await waitFor(() => expect(clientMock.previewTacticalPlan).toHaveBeenCalledTimes(2));
+
+    await user.click(screen.getByRole('button', { name: 'Oposição' }));
+    expect(screen.getByText(/nenhum dado foi inventado/iu)).toBeInstanceOf(HTMLElement);
+  });
+
   it('moves freely by keyboard, announces cancellation, allows an unusual goalkeeper drop and undoes', async () => {
     const user = userEvent.setup();
     render(<MatchdayScreen serviceOwnership="owned" />);
@@ -640,6 +703,7 @@ describe('MatchdayScreen', () => {
     expect(screen.getByText('Origem: 4-3-3')).toBeInstanceOf(HTMLElement);
     expect(goalkeeperSlot?.getAttribute('style')).not.toBe(originalStyle);
     expect(screen.getByText(/foi movido com o teclado/u)).toBeInstanceOf(HTMLElement);
+    await waitFor(() => expect(clientMock.previewTacticalPlan).toHaveBeenCalledOnce());
 
     await user.click(screen.getByRole('button', { name: 'Desfazer última' }));
     expect(goalkeeperSlot?.getAttribute('style')).toBe(originalStyle);
@@ -680,6 +744,7 @@ describe('MatchdayScreen', () => {
       pointerType: 'mouse',
     });
     expect(document.querySelector('.tactical-drag-overlay')).toBeInstanceOf(HTMLElement);
+    expect(clientMock.previewTacticalPlan).toHaveBeenCalledOnce();
     fireEvent.pointerUp(window, {
       clientX: 700,
       clientY: 300,
@@ -689,6 +754,7 @@ describe('MatchdayScreen', () => {
     });
     expect(screen.getByText(/foi movido para uma coordenada livre/u)).toBeInstanceOf(HTMLElement);
     expect(goalkeeperSlot?.getAttribute('style')).not.toBe(originalStyle);
+    await waitFor(() => expect(clientMock.previewTacticalPlan).toHaveBeenCalledTimes(2));
   });
 
   it('protects sidebar navigation while the tactical plan is being saved', async () => {
@@ -724,25 +790,33 @@ describe('MatchdayScreen', () => {
 
   it('uses the same drag session to swap starters and reorder the bench atomically', async () => {
     const user = userEvent.setup();
+    const expandedPlayers = [
+      ...state.players,
+      {
+        ...state.players[2]!,
+        id: 'p13',
+        name: 'Otávio Luz',
+        shortName: 'O. Luz',
+        shirtNumber: 13,
+        selected: false,
+      },
+    ];
+    const expandedPlan = attachTacticalModelFixture(createTacticalPlan(expandedPlayers, '4-3-3'));
     clientMock.loadMatchday.mockResolvedValue({
       ...state,
-      players: [
-        ...state.players,
-        {
-          ...state.players[2],
-          id: 'p13',
-          name: 'Otávio Luz',
-          shortName: 'O. Luz',
-          shirtNumber: 13,
-          selected: false,
-        },
-      ],
+      players: expandedPlayers,
+      tacticalLibrary: {
+        ...state.tacticalLibrary!,
+        activeVariationId: expandedPlan.variationId,
+        primaryVariationId: expandedPlan.variationId,
+        variations: [expandedPlan],
+      },
     });
     render(<MatchdayScreen serviceOwnership="owned" />);
     await screen.findByRole('heading', { name: 'Visão geral do elenco' });
     await user.click(screen.getByRole('button', { name: 'Táticas' }));
 
-    const moura = screen.getByRole('button', { name: /^LE: Davi Moura/u });
+    const moura = screen.getByRole('button', { name: /Davi Moura/u });
     const serpa = screen.getByRole('button', { name: /^ZAG.*Iago Serpa/u });
     const mouraStyle = moura.closest('li')?.getAttribute('style');
     const serpaStyle = serpa.closest('li')?.getAttribute('style');
@@ -772,6 +846,7 @@ describe('MatchdayScreen', () => {
       pointerId: 2,
       pointerType: 'mouse',
     });
+    await waitFor(() => expect(clientMock.previewTacticalPlan).toHaveBeenCalledOnce());
     expect(moura.closest('li')?.getAttribute('style')).toBe(serpaStyle);
     expect(serpa.closest('li')?.getAttribute('style')).toBe(mouraStyle);
 
@@ -803,6 +878,7 @@ describe('MatchdayScreen', () => {
       pointerId: 3,
       pointerType: 'mouse',
     });
+    await waitFor(() => expect(clientMock.previewTacticalPlan).toHaveBeenCalledTimes(2));
     const reserveButtons = screen.getAllByRole('button', { name: /^Selecionar reserva/u });
     expect(reserveButtons[0]?.getAttribute('aria-label')).toBe('Selecionar reserva Otávio Luz');
     expect(reserveButtons[1]?.getAttribute('aria-label')).toBe('Selecionar reserva Ícaro Reis');
@@ -875,6 +951,7 @@ describe('MatchdayScreen', () => {
       pointerId: 9,
       pointerType: 'mouse',
     });
+    await waitFor(() => expect(clientMock.previewTacticalPlan).toHaveBeenCalledOnce());
     expect(document.querySelector('.tactical-drag-overlay')).toBeNull();
     expect(
       Number.parseFloat(midfielderSlot?.style.getPropertyValue('--slot-x') ?? '') / 100,
@@ -970,6 +1047,7 @@ describe('MatchdayScreen', () => {
       pointerId: 10,
       pointerType: 'mouse',
     });
+    await waitFor(() => expect(clientMock.previewTacticalPlan).toHaveBeenCalledOnce());
     expect(midfielderSlot?.getAttribute('style')).toContain('--slot-x: 60%');
     expect(midfielderSlot?.getAttribute('style')).not.toBe(originalStyle);
     expect(screen.queryByText('Função livre')).toBeNull();
@@ -1001,6 +1079,7 @@ describe('MatchdayScreen', () => {
       pointerId: 11,
       pointerType: 'mouse',
     });
+    await waitFor(() => expect(clientMock.previewTacticalPlan).toHaveBeenCalledTimes(2));
     expect(midfielderSlot?.getAttribute('style')).not.toBe(movedStyle);
     expect(screen.getByText(/coordenada livre/u)).toBeInstanceOf(HTMLElement);
     movedStyle = midfielderSlot?.getAttribute('style');

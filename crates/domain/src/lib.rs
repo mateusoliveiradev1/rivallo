@@ -1,6 +1,7 @@
 //! Framework-independent primitives shared by the modular-monolith core.
 
 mod matchday;
+mod tactics;
 
 pub use matchday::{
     Club, CustomFormationIdentity, Formation, LineupSelection, MatchEvent, MatchResult,
@@ -9,6 +10,21 @@ pub use matchday::{
     TacticalLibraryCommand, TacticalLine, TacticalPlanEvent, TacticalPlanProposal,
     TacticalPlanSnapshot, TacticalPlanUpdate, TacticalPlayerPlacement, TacticalSide,
     TacticalVariationLibrarySnapshot, TacticalZone,
+};
+pub use tactics::{
+    FamiliarityChange, FamiliarityDimension, GoalkeeperDistribution, InPossessionStrategy,
+    OpponentKnowledge, OppositionInstruction, OutOfPossessionStrategy, PlayerTacticalFamiliarity,
+    ResolvedTacticalInstruction, ResolvedTacticalStrategy, TACTICAL_MATCH_SNAPSHOT_SCHEMA_VERSION,
+    TACTICAL_MODEL_SCHEMA_VERSION, TacticalBuildUp, TacticalComparison, TacticalComparisonChange,
+    TacticalConfigChange, TacticalDiagnostic, TacticalForceDirection, TacticalGamePhase,
+    TacticalInstruction, TacticalInstructionCategory, TacticalInstructionConflict,
+    TacticalInstructionScope, TacticalLossReaction, TacticalMatchSnapshot, TacticalModelConfig,
+    TacticalModelSnapshot, TacticalOppositionPlan, TacticalParameter, TacticalPhasePlayer,
+    TacticalPhaseStructure, TacticalPlanPreview, TacticalProgression, TacticalRecommendation,
+    TacticalRegainReaction, TacticalSpatialAnalysis, TacticalStrategyConfig,
+    TacticalStrategyPresetId, TacticalStrategyPresetSummary, TransitionStrategy,
+    UnitTacticalFamiliarity, compare_tactical_models, default_instructions, resolve_strategy,
+    resolve_tactical_model, tactical_strategy_preset_catalog,
 };
 
 /// A neutral identifier for a module participating in contract preparation.

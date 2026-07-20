@@ -39,7 +39,6 @@ import { SquadWorkspace } from './SquadWorkspace.js';
 import {
   addPlayerToFirstOpenSlot,
   createLineupSlots,
-  createTacticalPlan,
   forkTacticalVariation,
   hasSameSelectedPlayers,
   normalizeStoredSlots,
@@ -416,25 +415,27 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
         : stored && hasSameSelectedPlayers(stored, serverIds)
           ? stored
           : serverSlots;
-    const legacyPlan = (
-      nextState as MatchdayState & { readonly tacticalPlan?: TacticalPlanSnapshot }
-    ).tacticalPlan;
-    const fallbackPlan = legacyPlan ?? createTacticalPlan(nextState.players, nextState.formation);
-    const fallbackLibrary = {
-      schemaVersion: 1 as const,
-      revision: 0,
-      activeVariationId: fallbackPlan.variationId,
-      primaryVariationId: fallbackPlan.variationId,
-      variations: [fallbackPlan],
-    };
-    const library = nextState.tacticalLibrary ?? fallbackLibrary;
-    const basePlan =
+    const library = nextState.tacticalLibrary;
+    if (!library) {
+      setState(nextState);
+      setLineupSlots(legacyLayout);
+      setSavedLineupSlots(legacyLayout);
+      setTacticalDraft(null);
+      setSavedTacticalPlan(null);
+      setTacticalHistory([]);
+      setFormation(nextState.formation);
+      setApproach(nextState.approach);
+      setFocusedPlayerId(null);
+      setError('A carreira não possui uma biblioteca tática autoritativa. Recarregue para migrar.');
+      return;
+    }
+    const plan =
       library.variations.find(({ variationId }) => variationId === library.activeVariationId) ??
-      library.variations[0] ??
-      fallbackPlan;
-    const plan = nextState.tacticalLibrary
-      ? basePlan
-      : syncPlanWithLineupSlots(basePlan, legacyLayout, nextState.players);
+      library.variations[0];
+    if (!plan) {
+      setError('A biblioteca tática não possui variações válidas.');
+      return;
+    }
     const layout = plan.placements.map(({ playerId }) => playerId);
 
     setState({ ...nextState, tacticalLibrary: library });
@@ -1518,7 +1519,6 @@ export function MatchdayScreen({ serviceOwnership }: MatchdayScreenProps) {
           ) : tacticalDraft && savedTacticalPlan && state.tacticalLibrary ? (
             <TacticsWorkspace
               activeTool={activeTacticalTool}
-              approach={approach}
               canUndo={tacticalHistory.length > 0}
               draft={tacticalDraft}
               dirty={dirty}

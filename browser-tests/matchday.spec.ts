@@ -3,6 +3,10 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import type { TableViewRepositoryState } from '../apps/desktop/src/matchday/client.js';
 import { SQUAD_SYSTEM_VIEW } from '../apps/desktop/src/matchday/squad-table-schema.js';
 import { createTacticalPlan } from '../apps/desktop/src/matchday/tactics-model.js';
+import {
+  attachTacticalModelFixture,
+  tacticalStrategyCatalogFixture,
+} from '../apps/desktop/src/matchday/tactical-test-fixture.js';
 import type {
   MatchdayState,
   Player,
@@ -586,9 +590,8 @@ const initialStateBase: MatchdayState = {
   lastResult: null,
 };
 
-const initialTacticalVariation = createTacticalPlan(
-  initialStateBase.players,
-  initialStateBase.formation,
+const initialTacticalVariation = attachTacticalModelFixture(
+  createTacticalPlan(initialStateBase.players, initialStateBase.formation),
 );
 const initialState: MatchdayState = {
   ...initialStateBase,
@@ -603,7 +606,7 @@ const initialState: MatchdayState = {
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(
-    ({ seed, storageKey, tableSeed, tableStorageKey, tableControlKey }) => {
+    ({ seed, storageKey, strategyCatalog, tableSeed, tableStorageKey, tableControlKey }) => {
       let state: MatchdayState = structuredClone(seed);
       let tableState: TableViewRepositoryState = structuredClone(tableSeed);
       try {
@@ -776,6 +779,28 @@ test.beforeEach(async ({ page }) => {
             };
           }
           if (command === 'matchday_state') return state;
+          if (command === 'tactical_strategy_catalog') return structuredClone(strategyCatalog);
+          if (command === 'preview_tactical_plan') {
+            const proposal = args.proposal as TacticalPlanProposal;
+            const existing = state.tacticalLibrary?.variations.find(
+              ({ variationId }) => variationId === proposal.variationId,
+            );
+            if (!existing?.tacticalModel) throw new Error('Modelo tático ausente.');
+            return {
+              model: {
+                ...existing.tacticalModel,
+                config: proposal.tacticalConfig ?? existing.tacticalModel.config,
+              },
+              comparison: null,
+            };
+          }
+          if (command === 'tactical_match_snapshot') {
+            const variation = state.tacticalLibrary?.variations.find(
+              ({ variationId }) => variationId === args.variationId,
+            );
+            if (!variation?.tacticalModel) throw new Error('Snapshot tático ausente.');
+            return variation.tacticalModel.matchSnapshot;
+          }
           if (command === 'update_matchday_lineup') {
             const selected = new Set(args.playerIds as string[]);
             state = {
@@ -805,8 +830,8 @@ test.beforeEach(async ({ page }) => {
             const acceptedRevision = actualRevision + 1;
             const now = Date.now();
             const selected = new Set(proposal.placements.map(({ playerId }) => playerId));
-            const variation = {
-              schemaVersion: 3 as const,
+            const variationBase = {
+              schemaVersion: 4 as const,
               variationId: proposal.variationId,
               name: proposal.name,
               sourcePresetId: proposal.sourcePresetId,
@@ -823,6 +848,29 @@ test.beforeEach(async ({ page }) => {
               revision: acceptedRevision,
               createdAt: existing?.createdAt ?? now,
               updatedAt: now,
+            };
+            const baseModel =
+              existing?.tacticalModel ??
+              library?.variations.find(
+                ({ variationId }) => variationId === library.activeVariationId,
+              )?.tacticalModel;
+            if (!baseModel) throw new Error('Modelo tático ausente.');
+            const variation = {
+              ...variationBase,
+              tacticalModel: {
+                ...baseModel,
+                config: proposal.tacticalConfig ?? baseModel.config,
+                matchSnapshot: {
+                  ...baseModel.matchSnapshot,
+                  tacticalPlanId: proposal.variationId,
+                  variationId: proposal.variationId,
+                  revision: acceptedRevision,
+                  starters: proposal.placements.map(({ playerId }) => playerId),
+                  bench: proposal.bench,
+                  normalizedPlacements: variationBase.placements,
+                  createdAt: now,
+                },
+              },
             };
             const variations = library
               ? [
@@ -993,6 +1041,7 @@ test.beforeEach(async ({ page }) => {
     {
       seed: initialState,
       storageKey: bridgeStateKey,
+      strategyCatalog: tacticalStrategyCatalogFixture(),
       tableSeed: tableViewSeed,
       tableStorageKey: tableViewBridgeStateKey,
       tableControlKey: tableViewBridgeControlKey,
@@ -1032,7 +1081,8 @@ test('changes the dedicated tactical plan, plays the match, and reveals the resu
   await page.getByRole('button', { name: 'Táticas' }).click();
   await expect(page.getByRole('heading', { name: 'Plano de jogo' })).toBeVisible();
   await chooseFormation(page, '4-2-3-1');
-  await page.getByRole('radio', { name: /Protagonista/u }).check();
+  await page.getByRole('button', { name: /Protagonista/u }).click();
+  await page.getByRole('button', { name: 'Confirmar preset' }).click();
   const playButton = page.getByRole('button', { name: 'Continuar' });
   await playButton.click();
 
@@ -1304,7 +1354,7 @@ test('uses real squad filters and navigates between the separate workspaces', as
   await expect(page.getByRole('table')).toHaveCount(0);
   await expect(page.getByLabel('Escalação no 4-3-3')).toBeVisible();
   await page.getByRole('button', { name: 'Análise' }).click();
-  await expect(page.getByText(/% pronto/u)).toBeVisible();
+  await expect(page.getByText(/Prontidão 82%/u)).toBeVisible();
 
   await page.getByRole('button', { name: 'Elenco' }).click();
   await expect(page.getByRole('heading', { name: 'Visão geral do elenco' })).toBeVisible();
@@ -1329,7 +1379,8 @@ test('substitutes through the accessible field flow and persists the saved plan'
   await expect(page.getByRole('button', { name: 'Selecionar reserva Caio Brandão' })).toBeVisible();
 
   await chooseFormation(page, '4-2-3-1');
-  await page.getByRole('radio', { name: /Protagonista/u }).check();
+  await page.getByRole('button', { name: /Protagonista/u }).click();
+  await page.getByRole('button', { name: 'Confirmar preset' }).click();
   await page.getByRole('button', { name: 'Salvar plano' }).click();
   await expect(page.getByRole('button', { name: 'Salvar plano' })).toBeDisabled();
 
@@ -1337,7 +1388,10 @@ test('substitutes through the accessible field flow and persists the saved plan'
   await expect(page.getByRole('heading', { name: 'Plano de jogo' })).toBeVisible();
   await expect(page.getByLabel('Escalação no 4-2-3-1')).toBeVisible();
   await expect(page.getByRole('button', { name: /^GOL: Ícaro Reis/u })).toBeVisible();
-  await expect(page.getByRole('radio', { name: /Protagonista/u })).toBeChecked();
+  await expect(page.getByRole('button', { name: /Protagonista/u })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
 
   await page.getByRole('button', { name: 'Elenco' }).click();
   await expect(caioRow.locator('.squad-number')).toHaveText('1');
@@ -1812,6 +1866,32 @@ test('captures Elenco and Táticas at 1024, 1366, 1440, 1920 and 2560 pixels', a
       animations: 'disabled',
       path: testInfo.outputPath(`taticas-${viewport.width}x${viewport.height}.png`),
     });
+    if (viewport.width === 1920) {
+      for (const tab of ['Análise', 'Estratégia', 'Instruções', 'Oposição'] as const) {
+        await page.getByRole('button', { name: tab, exact: true }).click();
+        await expect(page.getByRole('button', { name: tab, exact: true })).toHaveAttribute(
+          'aria-pressed',
+          'true',
+        );
+        await page.evaluate(
+          () =>
+            new Promise<void>((resolve) => {
+              requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+            }),
+        );
+        await page.locator('.manager-shell').evaluate((shell) => shell.getBoundingClientRect());
+        await page.waitForTimeout(100);
+        await page.screenshot({
+          animations: 'disabled',
+          path: testInfo.outputPath(
+            `taticas-06-3-${tab
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .toLowerCase()}-1920x1080.png`,
+          ),
+        });
+      }
+    }
     if (viewport.width === 1024) {
       const bench = page.getByRole('heading', { name: 'Banco e reservas' });
       await bench.scrollIntoViewIfNeeded();

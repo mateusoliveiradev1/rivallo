@@ -2,7 +2,7 @@
 
 ## Regra de leitura
 
-Este documento é a autoridade para ordem, estado, dependências, gates e checkpoints. Os contratos especializados detalham comportamento sem alterar a sequência. Planejamento não é autorização de implementação: a próxima fase continua sendo 06.2 e permanece **não iniciada** neste checkpoint.
+Este documento é a autoridade para ordem, estado, dependências, gates e checkpoints. Os contratos especializados detalham comportamento sem alterar a sequência. As Fases 06.2 e 06.3 foram concluídas em checkpoints próprios; a próxima fase é 06.4 e permanece **não iniciada** neste checkpoint.
 
 ## Checkpoint de partida e histórico imutável
 
@@ -57,7 +57,7 @@ Nenhum status concluído é reaberto ou reclassificado por este roadmap.
 
 - Escopo e gates: [MVP1](MVP-1-DEFINITION.md), [MVP2](MVP-2-DEFINITION.md) e [checklist](MVP-GATE-CHECKLIST.md).
 - Rotas e shell: [matriz de prontidão](ROUTE-READINESS-MATRIX.md), [sidebar/menu](SIDEBAR-AND-MAIN-MENU-CONTRACT.md), [Home](HOME-COMMAND-CENTER.md) e [Inbox](INBOX-EVENT-CONTRACT.md).
-- Carreira e conteúdo: [lifecycle](CAREER-LIFECYCLE.md), [coach creator](COACH-CREATOR-CONTRACT.md), [database/mods](DATABASE-AND-MODDING-FOUNDATION.md) e [base privada](PRIVATE-DEV-DATABASE-POLICY.md).
+- Carreira e conteúdo: [lifecycle](CAREER-LIFECYCLE.md), [coach creator](COACH-CREATOR-CONTRACT.md), [database/mods](DATABASE-AND-MODDING-FOUNDATION.md) e [base privada](DATABASE-AND-MODDING-FOUNDATION.md).
 - Arquitetura: [grafo de dependências](PHASE-DEPENDENCY-GRAPH.md), [calendário/competições](COMPETITION-CALENDAR-ARCHITECTURE.md) e [limites do motor de partidas](MATCH-ENGINE-BOUNDARIES.md).
 
 ## Contrato comum de fase
@@ -74,23 +74,23 @@ Cada fase abaixo registra objetivo, problema, dependências, entradas, saídas, 
 - **Autoridade/persistência/testes:** engine controlado + camada application/adapter; persistência local versionada; testes Rust, componente, browser, migração, restart e responsividade concluídos.
 - **Aceite/fora/riscos/gate/checkpoint:** aceite histórico preservado; não inclui banco mundial ou cache de carreira; risco de duplicar contrato contido; gate aprovado; checkpoint final já está no histórico anterior ao baseline.
 
-### Phase 06.2: Free Tactical Field and Unified Bench Interaction
+### Phase 06.2: Free Tactical Field and Unified Bench Interaction — concluída
 
 - **Objetivo/problema:** permitir campo tático normalizado e um único modelo de movimento/troca entre titulares e reservas; remove slots visuais rígidos e caminhos divergentes.
 - **Dependências/entradas/saídas:** depende de 06.1; recebe XI/formation persistidos, IDs estáveis e presets; entrega aggregate tático, coordenadas/zonas, comandos e migração sem perda.
 - **Contratos/consumidores/rotas/interfaces:** produz snapshot de formação e comandos move/swap consumidos por 06.3, 06.8 e Match Engine; afeta Táticas por Rust commands, projections e preview React.
 - **Autoridade/persistência/testes:** Rust valida onze, goleiro, duplicidade, sobreposição e exclusividade; repositório persiste layouts; testes de domínio, migração, componente, browser, teclado e reduced motion.
-- **Aceite/fora/riscos/gate/checkpoint:** custom shape sobrevive restart, invalid actions não mutam estado e não há duplicação; não inclui semântica tática avançada; risco WebView/drag; gate de tática estrutural; checkpoint `06.2` futuro. **Não iniciada.**
+- **Aceite/fora/riscos/gate/checkpoint:** custom shape sobrevive restart, invalid actions não mutam estado e não há duplicação; não inclui semântica tática avançada; risco WebView/drag tratado e validado no Tauri; gate de tática estrutural aprovado; checkpoint `e8412d29a770bf0e400e2f72ec16e47f7e95f31f`.
 
-### Phase 06.3: Tactical Model and Familiarity
+### Phase 06.3: Tactical Model and Familiarity — concluída
 
 - **Objetivo/problema:** unificar análise, estratégia, instruções, oposição e familiaridade; elimina toggles locais e efeitos prometidos sem consumo real.
 - **Dependências/entradas/saídas:** depende de 06.2; recebe layout/snapshot e contexto adversário; entrega aggregate tático versionado, regras de conflito/precedência e eventos de familiaridade.
 - **Contratos/consumidores/rotas/interfaces:** consumido por 06.8, 07.1 e 07.2; afeta Táticas, Home e Relatórios por editors/projections tipados e explicações.
 - **Autoridade/persistência/testes:** Rust possui validação, precedência, análise e familiaridade; persistence por tactic repository/event history; testes de regra, conflito, migração, restore e honest empty states.
-- **Aceite/fora/riscos/gate/checkpoint:** modelos restauram exatamente e cada efeito declara se é consumido; scouting amplo e IA adversária ficam fora; risco de explosão combinatória; gate semântico; checkpoint `06.3`.
+- **Aceite/fora/riscos/gate/checkpoint:** modelos restauram exatamente e cada efeito declara se é consumido; scouting amplo e IA adversária ficam fora; risco combinatório contido por opções discretas e resolução determinística; gate semântico aprovado; checkpoint final registrado pelo commit desta entrega.
 
-### Phase 06.4: Player/Coach Profiles and Explainable Ratings
+### Phase 06.4: Player/Coach Profiles and Explainable Ratings — não iniciada
 
 - **Objetivo/problema:** criar perfis estáveis e avaliações contextuais explicáveis; substitui números opacos e duplicação entre inspector/página.
 - **Dependências/entradas/saídas:** depende de 06.3; recebe entidades adapter-fed e contexto tático; entrega read models de jogador/treinador, escala ADR, rating components, confiança e histórico.
@@ -311,7 +311,6 @@ O MVP1 falha se qualquer rota principal não abrir, não tiver fonte autoritativ
 
 ## Decisões pendentes, com dono futuro
 
-- 06.2: biblioteca/estratégia pointer/keyboard cross-WebView e modelo exato de overlap.
 - 06.4: ADR de escala/composição de ratings.
 - 06.5: serialização canônica de patches e política de assinatura de pacote.
 - 06.7: algoritmo de scheduling e política de timezone/remarcação.

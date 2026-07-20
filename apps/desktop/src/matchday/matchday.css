@@ -1874,6 +1874,40 @@
   border-bottom: var(--rv-stroke-border) solid var(--rv-color-border-subtle);
 }
 
+.phase-selector {
+  min-width: 0;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: var(--rv-stroke-border) solid var(--rv-color-border-subtle);
+  border-radius: var(--rv-radius-control);
+  background: var(--rv-color-canvas);
+}
+
+.phase-selector legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.phase-selector button {
+  min-height: 30px;
+  padding: 0 var(--rv-space-2);
+  border: 0;
+  border-radius: calc(var(--rv-radius-control) - 2px);
+  color: var(--rv-color-text-muted);
+  background: transparent;
+  font-size: var(--rv-type-12-size);
+  white-space: nowrap;
+}
+
+.phase-selector button[aria-pressed='true'] {
+  color: var(--rv-color-text-strong);
+  background: oklch(0.29 0.06 163);
+}
+
 .variation-heading {
   min-width: 0;
 }
@@ -3322,7 +3356,8 @@
   border: 0;
 }
 
-.strategy-options label {
+.strategy-options label,
+.strategy-options button {
   position: relative;
   min-height: 86px;
   display: grid;
@@ -3336,7 +3371,13 @@
   background: var(--rv-color-canvas);
 }
 
-.strategy-options label[data-selected] {
+.strategy-options button {
+  width: 100%;
+  text-align: left;
+}
+
+.strategy-options label[data-selected],
+.strategy-options button[aria-pressed='true'] {
   border-color: var(--rv-color-action-primary);
   background: oklch(0.225 0.04 170);
 }
@@ -3351,7 +3392,8 @@
   outline-offset: 2px;
 }
 
-.strategy-options label > span {
+.strategy-options label > span,
+.strategy-options button > span {
   min-width: 0;
   display: grid;
   gap: var(--rv-space-1);
@@ -3359,9 +3401,164 @@
 
 .strategy-options strong,
 .strategy-options small,
-.strategy-options label > b {
+.strategy-options label > b,
+.strategy-options button b {
   font-size: var(--rv-type-12-size);
   line-height: var(--rv-type-12-line-height);
+}
+
+.preset-impact,
+.strategy-summary,
+.tactical-comparison,
+.tactical-recommendations,
+.instruction-composer,
+.instruction-conflict,
+.opposition-knowledge,
+.opposition-instruction {
+  display: grid;
+  gap: var(--rv-space-2);
+  margin-top: var(--rv-space-4);
+  padding: var(--rv-space-3);
+  border: var(--rv-stroke-border) solid var(--rv-color-border-subtle);
+  border-radius: var(--rv-radius-card);
+  background: var(--rv-color-canvas);
+}
+
+.preset-impact h3,
+.strategy-summary h3,
+.tactical-comparison h3,
+.tactical-recommendations h3,
+.instruction-composer legend,
+.opposition-knowledge h3 {
+  margin: 0;
+  color: var(--rv-color-text-strong);
+  font-size: var(--rv-type-14-size);
+}
+
+.preset-impact p,
+.strategy-summary p,
+.tactical-comparison p,
+.tactical-recommendations p,
+.instruction-conflict p,
+.opposition-knowledge p,
+.opposition-instruction p {
+  margin: 0;
+  color: var(--rv-color-text-muted);
+  font-size: var(--rv-type-12-size);
+  line-height: var(--rv-type-12-line-height);
+}
+
+.preset-impact dl,
+.preset-impact dl div {
+  display: grid;
+  gap: var(--rv-space-1);
+  margin: 0;
+}
+
+.preset-impact dl div {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.preset-impact > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rv-space-2);
+}
+
+.advanced-strategy-toggle {
+  width: 100%;
+  min-height: 38px;
+  margin-top: var(--rv-space-4);
+  border: var(--rv-stroke-border) solid var(--rv-color-action-primary);
+  border-radius: var(--rv-radius-control);
+  color: var(--rv-color-action-primary);
+  background: transparent;
+  font-weight: var(--rv-font-weight-semibold);
+}
+
+.advanced-strategy {
+  display: grid;
+  gap: var(--rv-space-3);
+  margin-top: var(--rv-space-3);
+}
+
+.advanced-strategy fieldset,
+.instruction-composer {
+  min-width: 0;
+}
+
+.advanced-strategy fieldset {
+  display: grid;
+  gap: var(--rv-space-2);
+  margin: 0;
+  padding: var(--rv-space-3);
+  border: var(--rv-stroke-border) solid var(--rv-color-border-subtle);
+  border-radius: var(--rv-radius-control);
+}
+
+.advanced-strategy legend {
+  color: var(--rv-color-action-primary);
+  font-weight: var(--rv-font-weight-semibold);
+}
+
+.advanced-strategy label,
+.instruction-composer label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(92px, auto);
+  align-items: center;
+  gap: var(--rv-space-2);
+  color: var(--rv-color-text-muted);
+  font-size: var(--rv-type-12-size);
+}
+
+.advanced-strategy select,
+.instruction-composer select,
+.instruction-composer input {
+  min-height: 34px;
+  min-width: 0;
+  padding-inline: var(--rv-space-2);
+  border: var(--rv-stroke-border) solid var(--rv-color-border-subtle);
+  border-radius: var(--rv-radius-control);
+  color: var(--rv-color-text-strong);
+  background: var(--rv-color-surface);
+}
+
+.tactical-comparison article,
+.tactical-recommendations article {
+  display: grid;
+  gap: var(--rv-space-1);
+  padding-top: var(--rv-space-2);
+  border-top: var(--rv-stroke-border) solid var(--rv-color-border-subtle);
+}
+
+.tactical-comparison small,
+.tactical-comparison span,
+.instruction-conflict small {
+  color: var(--rv-color-text-muted);
+  font-size: var(--rv-type-12-size);
+}
+
+.tactical-risk strong,
+.instruction-conflict strong {
+  color: var(--rv-color-warning);
+}
+
+.tactics-focus-team {
+  grid-column: 1 / -1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.tactics-focus-team small,
+.tactics-focus-team b {
+  color: var(--rv-color-text-muted);
+  font-size: var(--rv-type-12-size);
+  font-weight: var(--rv-font-weight-regular);
+}
+
+.tactics-focus-team strong {
+  color: var(--rv-color-text-strong);
 }
 
 .strategy-options strong {

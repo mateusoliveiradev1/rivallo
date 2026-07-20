@@ -3,6 +3,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
+use crate::tactics::{
+    TACTICAL_MATCH_SNAPSHOT_SCHEMA_VERSION, TACTICAL_MODEL_SCHEMA_VERSION, TacticalMatchSnapshot,
+    TacticalModelConfig, TacticalModelSnapshot, TacticalPlanPreview, TacticalResolutionContext,
+    compare_tactical_models, resolve_tactical_model,
+};
+
 const STARTING_XI_SIZE: usize = 11;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -146,7 +152,7 @@ pub struct LineupSelection {
     pub approach: TacticalApproach,
 }
 
-pub const TACTICAL_PLAN_SCHEMA_VERSION: u16 = 3;
+pub const TACTICAL_PLAN_SCHEMA_VERSION: u16 = 4;
 pub const TACTICAL_LIBRARY_SCHEMA_VERSION: u16 = 1;
 pub const MAX_BENCH_SIZE: usize = 7;
 
@@ -214,6 +220,8 @@ pub struct TacticalPlanSnapshot {
     pub placements: Vec<TacticalPlayerPlacement>,
     pub bench: Vec<String>,
     pub custom_formation: CustomFormationIdentity,
+    #[serde(default)]
+    pub tactical_model: Option<TacticalModelSnapshot>,
     pub revision: u64,
     #[serde(default)]
     pub created_at: u64,
@@ -242,6 +250,8 @@ pub struct TacticalPlanProposal {
     pub placements: Vec<TacticalPlayerPlacement>,
     pub bench: Vec<String>,
     pub custom_formation: CustomFormationIdentity,
+    #[serde(default)]
+    pub tactical_config: TacticalModelConfig,
     pub approach: TacticalApproach,
 }
 
@@ -910,7 +920,8 @@ impl TacticalPlanSnapshot {
             .map(|player| player.id.clone())
             .collect();
 
-        Self {
+        let now = unix_timestamp_ms();
+        let mut plan = Self {
             schema_version: TACTICAL_PLAN_SCHEMA_VERSION,
             variation_id: "tactical-variation.primary".to_owned(),
             name: state.formation.to_string(),
@@ -926,10 +937,34 @@ impl TacticalPlanSnapshot {
                 created_at_revision: 0,
                 updated_at_revision: 0,
             },
+            tactical_model: None,
             revision: 0,
-            created_at: unix_timestamp_ms(),
-            updated_at: unix_timestamp_ms(),
-        }
+            created_at: now,
+            updated_at: now,
+        };
+        let config = TacticalModelConfig {
+            schema_version: TACTICAL_MODEL_SCHEMA_VERSION,
+            strategy: crate::tactics::TacticalStrategyConfig::from_legacy(state.approach),
+            instructions: crate::tactics::default_instructions(),
+            opposition: crate::tactics::TacticalOppositionPlan {
+                opponent_id: Some(state.opponent.id.clone()),
+                ..Default::default()
+            },
+        };
+        plan.tactical_model = resolve_tactical_model(TacticalResolutionContext {
+            tactical_plan_id: &plan.variation_id,
+            variation_id: &plan.variation_id,
+            revision: plan.revision,
+            placements: &plan.placements,
+            bench: &plan.bench,
+            players: &state.players,
+            config,
+            previous: None,
+            now,
+            record_history: true,
+        })
+        .ok();
+        plan
     }
 }
 
@@ -1041,16 +1076,63 @@ impl MatchdayState {
     /// Migrates the pre-library 06.2 record into one authoritative variation
     /// library without allowing invalid tactical data to make the career unreadable.
     pub fn backfill_tactical_plan(&mut self) -> Result<bool, MatchdayError> {
-        if let Some(library) = &self.tactical_library {
+        if let Some(existing_library) = &self.tactical_library {
+            let mut library = existing_library.clone();
             if library.schema_version > TACTICAL_LIBRARY_SCHEMA_VERSION {
                 return Err(MatchdayError::InvalidTacticalPlan(
                     "A biblioteca tática pertence a uma versão mais nova do Rivallo.".to_owned(),
                 ));
             }
+            let mut changed = self.tactical_plan.is_some();
+            let migrated_at = unix_timestamp_ms();
+            for variation in &mut library.variations {
+                if variation.schema_version > TACTICAL_PLAN_SCHEMA_VERSION {
+                    return Err(MatchdayError::InvalidTacticalPlan(
+                        "O plano tático pertence a uma versão mais nova do Rivallo.".to_owned(),
+                    ));
+                }
+                if variation.schema_version < TACTICAL_PLAN_SCHEMA_VERSION
+                    || variation.tactical_model.is_none()
+                {
+                    let config = variation
+                        .tactical_model
+                        .as_ref()
+                        .map(|model| model.config.clone())
+                        .unwrap_or_else(|| TacticalModelConfig {
+                            schema_version: TACTICAL_MODEL_SCHEMA_VERSION,
+                            strategy: crate::tactics::TacticalStrategyConfig::from_legacy(
+                                self.approach,
+                            ),
+                            instructions: crate::tactics::default_instructions(),
+                            opposition: crate::tactics::TacticalOppositionPlan {
+                                opponent_id: Some(self.opponent.id.clone()),
+                                ..Default::default()
+                            },
+                        });
+                    variation.schema_version = TACTICAL_PLAN_SCHEMA_VERSION;
+                    variation.tactical_model = Some(
+                        resolve_tactical_model(TacticalResolutionContext {
+                            tactical_plan_id: &variation.variation_id,
+                            variation_id: &variation.variation_id,
+                            revision: variation.revision,
+                            placements: &variation.placements,
+                            bench: &variation.bench,
+                            players: &self.players,
+                            config,
+                            previous: None,
+                            now: migrated_at,
+                            record_history: true,
+                        })
+                        .map_err(MatchdayError::InvalidTacticalPlan)?,
+                    );
+                    changed = true;
+                }
+            }
             if library.schema_version == TACTICAL_LIBRARY_SCHEMA_VERSION
-                && self.validate_tactical_library(library).is_ok()
+                && self.validate_tactical_library(&library).is_ok()
             {
-                let changed = self.tactical_plan.take().is_some();
+                self.tactical_library = Some(library);
+                self.tactical_plan = None;
                 self.sync_active_variation()?;
                 return Ok(changed);
             }
@@ -1065,6 +1147,8 @@ impl MatchdayState {
                 "O plano tático pertence a uma versão mais nova do Rivallo.".to_owned(),
             ));
         }
+        let refresh_tactical_model = variation.schema_version < TACTICAL_PLAN_SCHEMA_VERSION
+            || variation.tactical_model.is_none();
         variation.schema_version = TACTICAL_PLAN_SCHEMA_VERSION;
         if variation.variation_id.trim().is_empty()
             || variation.variation_id == "tactical-plan.primary"
@@ -1077,6 +1161,36 @@ impl MatchdayState {
         }
         if variation.updated_at == 0 {
             variation.updated_at = variation.created_at;
+        }
+        if refresh_tactical_model {
+            let config = variation
+                .tactical_model
+                .as_ref()
+                .map(|model| model.config.clone())
+                .unwrap_or_else(|| TacticalModelConfig {
+                    schema_version: TACTICAL_MODEL_SCHEMA_VERSION,
+                    strategy: crate::tactics::TacticalStrategyConfig::from_legacy(self.approach),
+                    instructions: crate::tactics::default_instructions(),
+                    opposition: crate::tactics::TacticalOppositionPlan {
+                        opponent_id: Some(self.opponent.id.clone()),
+                        ..Default::default()
+                    },
+                });
+            variation.tactical_model = Some(
+                resolve_tactical_model(TacticalResolutionContext {
+                    tactical_plan_id: &variation.variation_id,
+                    variation_id: &variation.variation_id,
+                    revision: variation.revision,
+                    placements: &variation.placements,
+                    bench: &variation.bench,
+                    players: &self.players,
+                    config,
+                    previous: None,
+                    now: migrated_at,
+                    record_history: true,
+                })
+                .map_err(MatchdayError::InvalidTacticalPlan)?,
+            );
         }
         if self.validate_tactical_plan(&variation).is_err() {
             variation = TacticalPlanSnapshot::from_legacy(self);
@@ -1210,7 +1324,123 @@ impl MatchdayState {
                 "A escalação precisa de exatamente um goleiro.".to_owned(),
             ));
         }
+        let model = plan.tactical_model.as_ref().ok_or_else(|| {
+            MatchdayError::InvalidTacticalPlan(
+                "O modelo tático da variação está ausente.".to_owned(),
+            )
+        })?;
+        if model.schema_version != TACTICAL_MODEL_SCHEMA_VERSION
+            || model.config.schema_version != TACTICAL_MODEL_SCHEMA_VERSION
+            || model.match_snapshot.schema_version != TACTICAL_MATCH_SNAPSHOT_SCHEMA_VERSION
+            || model.match_snapshot.tactical_plan_id != plan.variation_id
+            || model.match_snapshot.variation_id != plan.variation_id
+            || model.match_snapshot.revision != plan.revision
+            || model.match_snapshot.starters
+                != plan
+                    .placements
+                    .iter()
+                    .map(|placement| placement.player_id.clone())
+                    .collect::<Vec<_>>()
+            || model.match_snapshot.bench != plan.bench
+            || model.match_snapshot.normalized_placements != plan.placements
+            || model.match_snapshot.structures != model.structures
+            || model.match_snapshot.strategy != model.resolved_strategy
+            || model.match_snapshot.instructions != model.resolved_instructions
+            || model.match_snapshot.opposition != model.opposition
+            || model.match_snapshot.familiarity != model.familiarity
+            || model.match_snapshot.spatial != model.spatial
+            || model.match_snapshot.risks != model.diagnostic.risks
+            || model.match_snapshot.vulnerabilities != model.diagnostic.vulnerabilities
+            || model.match_snapshot.valid != model.diagnostic.valid
+            || !model.match_snapshot.valid
+            || model.match_snapshot.created_at == 0
+        {
+            return Err(MatchdayError::InvalidTacticalPlan(
+                "A projeção tática derivada não corresponde à variação autoritativa.".to_owned(),
+            ));
+        }
         Ok(())
+    }
+
+    pub fn preview_tactical_plan(
+        &self,
+        proposal: TacticalPlanProposal,
+    ) -> Result<TacticalPlanPreview, MatchdayError> {
+        let library = self.tactical_library.as_ref().ok_or_else(|| {
+            MatchdayError::InvalidTacticalPlan("Biblioteca tática ausente.".into())
+        })?;
+        let existing = library
+            .variations
+            .iter()
+            .find(|variation| variation.variation_id == proposal.variation_id);
+        let actual_revision = existing.map_or(0, |variation| variation.revision);
+        if proposal.expected_revision != actual_revision {
+            return Err(MatchdayError::TacticalPlanConflict {
+                expected_revision: proposal.expected_revision,
+                actual_revision,
+            });
+        }
+
+        let next_revision = actual_revision + 1;
+        let now = unix_timestamp_ms();
+        let placements: Vec<_> = proposal
+            .placements
+            .into_iter()
+            .map(|placement| TacticalPlayerPlacement {
+                revision: next_revision,
+                side: side_from_coordinate(placement.normalized_y),
+                line: line_from_coordinate(placement.normalized_x),
+                zone: zone_from_coordinate(placement.normalized_x),
+                ..placement
+            })
+            .collect();
+        let previous = existing.and_then(|variation| variation.tactical_model.as_ref());
+        let model = resolve_tactical_model(TacticalResolutionContext {
+            tactical_plan_id: &proposal.variation_id,
+            variation_id: &proposal.variation_id,
+            revision: next_revision,
+            placements: &placements,
+            bench: &proposal.bench,
+            players: &self.players,
+            config: proposal.tactical_config,
+            previous,
+            now,
+            record_history: false,
+        })
+        .map_err(MatchdayError::InvalidTacticalPlan)?;
+        let comparison =
+            previous.map(|saved| compare_tactical_models(actual_revision, saved, &model));
+        Ok(TacticalPlanPreview { model, comparison })
+    }
+
+    pub fn tactical_match_snapshot(
+        &self,
+        variation_id: &str,
+    ) -> Result<TacticalMatchSnapshot, MatchdayError> {
+        let variation = self
+            .tactical_library
+            .as_ref()
+            .and_then(|library| {
+                library
+                    .variations
+                    .iter()
+                    .find(|variation| variation.variation_id == variation_id)
+            })
+            .ok_or_else(|| {
+                MatchdayError::InvalidTacticalPlan(
+                    "A variação não possui snapshot tático autoritativo.".to_owned(),
+                )
+            })?;
+        self.validate_tactical_plan(variation)?;
+        variation
+            .tactical_model
+            .as_ref()
+            .map(|model| model.match_snapshot.clone())
+            .ok_or_else(|| {
+                MatchdayError::InvalidTacticalPlan(
+                    "A variação não possui snapshot tático autoritativo.".to_owned(),
+                )
+            })
     }
 
     pub fn apply_tactical_plan(
@@ -1235,14 +1465,26 @@ impl MatchdayState {
         let accepted_revision = actual_revision + 1;
         let now = unix_timestamp_ms();
         let created_at = existing_index.map_or(now, |index| library.variations[index].created_at);
-        let plan = TacticalPlanSnapshot {
+        let previous_model =
+            existing_index.and_then(|index| library.variations[index].tactical_model.clone());
+        let TacticalPlanProposal {
+            variation_id,
+            name,
+            source_preset_id,
+            formation,
+            placements,
+            bench,
+            custom_formation,
+            tactical_config,
+            ..
+        } = proposal;
+        let mut plan = TacticalPlanSnapshot {
             schema_version: TACTICAL_PLAN_SCHEMA_VERSION,
-            variation_id: proposal.variation_id,
-            name: proposal.name,
-            source_preset_id: proposal.source_preset_id,
-            formation: proposal.formation,
-            placements: proposal
-                .placements
+            variation_id,
+            name,
+            source_preset_id,
+            formation,
+            placements: placements
                 .into_iter()
                 .map(|placement| TacticalPlayerPlacement {
                     revision: accepted_revision,
@@ -1252,15 +1494,31 @@ impl MatchdayState {
                     ..placement
                 })
                 .collect(),
-            bench: proposal.bench,
+            bench,
             custom_formation: CustomFormationIdentity {
                 updated_at_revision: accepted_revision,
-                ..proposal.custom_formation
+                ..custom_formation
             },
+            tactical_model: None,
             revision: accepted_revision,
             created_at,
             updated_at: now.max(created_at),
         };
+        plan.tactical_model = Some(
+            resolve_tactical_model(TacticalResolutionContext {
+                tactical_plan_id: &plan.variation_id,
+                variation_id: &plan.variation_id,
+                revision: plan.revision,
+                placements: &plan.placements,
+                bench: &plan.bench,
+                players: &self.players,
+                config: tactical_config,
+                previous: previous_model.as_ref(),
+                now,
+                record_history: true,
+            })
+            .map_err(MatchdayError::InvalidTacticalPlan)?,
+        );
         self.validate_tactical_plan(&plan)?;
         if let Some(index) = existing_index {
             library.variations[index] = plan.clone();
@@ -1272,7 +1530,6 @@ impl MatchdayState {
         self.validate_tactical_library(&library)?;
         self.tactical_library = Some(library);
         self.sync_active_variation()?;
-        self.approach = proposal.approach;
         let event = TacticalPlanEvent::VariationSaved {
             variation_id: plan.variation_id.clone(),
             accepted_revision,
@@ -1380,6 +1637,9 @@ impl MatchdayState {
             player.selected = selected.contains(player.id.as_str());
         }
         self.formation = plan.formation;
+        if let Some(model) = &plan.tactical_model {
+            self.approach = model.config.strategy.legacy_approach();
+        }
         Ok(())
     }
 
@@ -1637,6 +1897,12 @@ mod tests {
             .find(|variation| variation.variation_id == library.active_variation_id)
             .cloned()
             .expect("active tactical variation");
+        let tactical_config = plan
+            .tactical_model
+            .as_ref()
+            .expect("tactical model")
+            .config
+            .clone();
         TacticalPlanProposal {
             expected_revision: plan.revision,
             variation_id: plan.variation_id,
@@ -1646,6 +1912,7 @@ mod tests {
             placements: plan.placements,
             bench: plan.bench,
             custom_formation: plan.custom_formation,
+            tactical_config,
             approach: state.approach,
         }
     }
@@ -1795,6 +2062,34 @@ mod tests {
             })
         );
         assert_eq!(state, accepted);
+    }
+
+    #[test]
+    fn tactical_preview_compares_without_mutating_and_snapshot_uses_saved_revision() {
+        let state = MatchdayState::default();
+        let before = state.clone();
+        let mut proposal = proposal_from(&state);
+        proposal.tactical_config.strategy = crate::tactics::TacticalStrategyConfig::for_preset(
+            crate::tactics::TacticalStrategyPresetId::Protagonist,
+        );
+        let preview = state
+            .preview_tactical_plan(proposal)
+            .expect("authoritative preview");
+        assert_eq!(state, before);
+        assert_eq!(preview.model.match_snapshot.revision, 1);
+        assert!(
+            preview
+                .comparison
+                .as_ref()
+                .expect("saved comparison")
+                .changes
+                .iter()
+                .any(|change| change.change_id == "defensiveLine")
+        );
+        let saved_snapshot = state
+            .tactical_match_snapshot("tactical-variation.primary")
+            .expect("saved snapshot");
+        assert_eq!(saved_snapshot.revision, 0);
     }
 
     #[test]
@@ -1951,6 +2246,28 @@ mod tests {
             TACTICAL_PLAN_SCHEMA_VERSION
         );
         assert!(library.variations[0].created_at > 0);
+    }
+
+    #[test]
+    fn rejects_a_tactical_snapshot_that_does_not_match_authoritative_geometry() {
+        let mut state = MatchdayState::default();
+        let mut plan = state.tactical_library.as_ref().expect("library").variations[0].clone();
+        plan.tactical_model
+            .as_mut()
+            .expect("tactical model")
+            .match_snapshot
+            .normalized_placements[0]
+            .normalized_x = 0.99;
+
+        assert!(matches!(
+            state.validate_tactical_plan(&plan),
+            Err(MatchdayError::InvalidTacticalPlan(_))
+        ));
+        state.tactical_library.as_mut().expect("library").variations[0] = plan;
+        assert!(matches!(
+            state.tactical_match_snapshot("tactical-variation.primary"),
+            Err(MatchdayError::InvalidTacticalPlan(_))
+        ));
     }
 
     #[test]
