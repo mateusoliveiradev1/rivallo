@@ -1,2 +1,9 @@
+# Keep source and contract text byte-stable across Windows worktrees and CI.
+*.rs text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.mjs text eol=lf
 *.json text eol=lf
-*.svg text eol=lf
+*.md text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
