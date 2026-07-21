@@ -1484,7 +1484,9 @@ pub fn validate_package(package: &ContentPackage) -> PackageValidationReport {
                 Some("Use um caminho relativo sem segmentos '..' e sem raiz de sistema."),
             );
         }
-        if sidecar.sha256.len() != 64 || !sidecar.sha256.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        if sidecar.sha256.len() != 64
+            || !sidecar.sha256.bytes().all(|byte| byte.is_ascii_hexdigit())
+        {
             report.error(
                 package,
                 "package.sidecar_invalid_sha256",
@@ -1996,9 +1998,10 @@ fn validate_world_references(
         let claims_gameplay = readiness.gameplay == GameplayReadiness::GameplayReady;
         let evaluated = readiness.evaluation == SportingEvaluationStatus::Evaluated;
         let structurally_valid = readiness.structural == StructuralValidity::StructurallyValid;
-        let has_player_or_coach_role = person.roles.iter().any(|role| {
-            matches!(role.kind, PersonRoleKind::Player | PersonRoleKind::Coach)
-        });
+        let has_player_or_coach_role = person
+            .roles
+            .iter()
+            .any(|role| matches!(role.kind, PersonRoleKind::Player | PersonRoleKind::Coach));
         if (has_player_or_coach_role && claims_runtime != has_runtime_profile)
             || (claims_gameplay && (!claims_runtime || !evaluated || !structurally_valid))
             || ((!claims_gameplay || !claims_runtime || !evaluated)
@@ -2618,12 +2621,15 @@ pub fn plan_world_composition(package: &ContentPackage) -> CompositionPlan {
     }
     if plan.mode == PackageCompositionMode::Authoritative {
         if package.manifest.target_base_fingerprint.is_none() {
-            plan.blockers.push("package.authoritative_fingerprint_required".to_owned());
+            plan.blockers
+                .push("package.authoritative_fingerprint_required".to_owned());
         }
         if plan.authoritative_scopes.is_empty() {
-            plan.blockers.push("package.authoritative_scopes_required".to_owned());
+            plan.blockers
+                .push("package.authoritative_scopes_required".to_owned());
         }
-        plan.warnings.push("Entidades fora dos escopos declarados serão preservadas.".to_owned());
+        plan.warnings
+            .push("Entidades fora dos escopos declarados serão preservadas.".to_owned());
     }
     plan
 }
