@@ -152,9 +152,12 @@ fn router() -> Router {
 }
 
 async fn serve_listener(listener: TcpListener, cancellation: CancellationToken) -> io::Result<()> {
-    axum::serve(listener, router())
-        .with_graceful_shutdown(async move { cancellation.cancelled().await })
-        .await
+    let graceful = cancellation.clone();
+    tokio::select! {
+        result = axum::serve(listener, router())
+            .with_graceful_shutdown(async move { graceful.cancelled().await }) => result,
+        _ = cancellation.cancelled() => Ok(()),
+    }
 }
 
 #[cfg(test)]
