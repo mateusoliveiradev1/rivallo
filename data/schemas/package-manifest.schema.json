@@ -28,11 +28,36 @@
     "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$" },
     "schemaVersion": { "enum": [1, 2, 3] },
     "compositionMode": { "enum": ["additive", "authoritative"], "default": "additive" },
-    "targetBaseFingerprint": { "oneOf": [{ "type": "string", "pattern": "^[a-f0-9]{16}$" }, { "type": "null" }] },
+    "targetBaseFingerprint": {
+      "oneOf": [{ "type": "string", "pattern": "^[a-f0-9]{16}$" }, { "type": "null" }]
+    },
     "authoritativeScopes": {
       "type": "array",
       "uniqueItems": true,
-      "items": { "enum": ["clubs", "competitions", "competitionParticipants", "sportingPeople", "registrations", "contracts", "playerProfiles", "coachProfiles", "externalPlayers", "assessments", "attributeHistory", "matchdayState", "stadiums", "assets", "translations", "positions", "roles", "attributes", "traits", "projections"] }
+      "items": {
+        "enum": [
+          "clubs",
+          "competitions",
+          "competitionParticipants",
+          "sportingPeople",
+          "registrations",
+          "contracts",
+          "playerProfiles",
+          "coachProfiles",
+          "externalPlayers",
+          "assessments",
+          "attributeHistory",
+          "matchdayState",
+          "stadiums",
+          "assets",
+          "translations",
+          "positions",
+          "roles",
+          "attributes",
+          "traits",
+          "projections"
+        ]
+      }
     },
     "sidecars": { "type": "array", "items": { "$ref": "#/$defs/sidecar" } },
     "compatibility": { "$ref": "#/$defs/compatibility" },
