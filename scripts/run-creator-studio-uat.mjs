@@ -57,7 +57,11 @@ const run = async (id, args) => {
   const commandStartedAt = Date.now();
   /** @type {ProcessResult} */
   const result = await new Promise((resolve) => {
-    const pnpmCli = process.env.npm_execpath;
+    const packageManagerCli = process.env.npm_execpath;
+    const pnpmCli =
+      packageManagerCli && /pnpm(?:\.c?js)?$/iu.test(packageManagerCli)
+        ? packageManagerCli
+        : undefined;
     const executable = pnpmCli
       ? process.execPath
       : process.platform === 'win32'
@@ -67,7 +71,7 @@ const run = async (id, args) => {
     const child = spawn(executable, childArgs, {
       cwd: root,
       env: environment,
-      shell: false,
+      shell: process.platform === 'win32' && executable.endsWith('.cmd'),
       windowsHide: true,
     });
     let stdout = '';
