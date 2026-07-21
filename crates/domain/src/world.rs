@@ -2490,19 +2490,19 @@ pub fn resolve_world_packages(
         .expect("validated single base");
     let base_fingerprint = package_set_fingerprint(std::slice::from_ref(&packages[base_index]));
     for package in &packages {
-        if package.manifest.composition_mode == PackageCompositionMode::Authoritative {
-            if package.manifest.target_base_fingerprint.as_deref() != Some(&base_fingerprint) {
-                report.error(
-                    package,
-                    "package.authoritative_base_fingerprint_mismatch",
-                    Some(&package.manifest.package_id),
-                    Some("targetBaseFingerprint"),
-                    Some(&base_fingerprint),
-                    package.manifest.target_base_fingerprint.as_deref(),
-                    "A composição autoritativa precisa usar exatamente a base declarada.",
-                    Some("Recalcule a fingerprint da base e atualize o manifesto."),
-                );
-            }
+        if package.manifest.composition_mode == PackageCompositionMode::Authoritative
+            && package.manifest.target_base_fingerprint.as_deref() != Some(&base_fingerprint)
+        {
+            report.error(
+                package,
+                "package.authoritative_base_fingerprint_mismatch",
+                Some(&package.manifest.package_id),
+                Some("targetBaseFingerprint"),
+                Some(&base_fingerprint),
+                package.manifest.target_base_fingerprint.as_deref(),
+                "A composição autoritativa precisa usar exatamente a base declarada.",
+                Some("Recalcule a fingerprint da base e atualize o manifesto."),
+            );
         }
     }
     if !report.valid {
